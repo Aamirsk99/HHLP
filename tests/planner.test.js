@@ -15,7 +15,7 @@ test('Mifflin–St Jeor BMR and deficit', () => {
   assert.equal(t.tdee, Math.round(1420.25 * 1.375));
   assert.equal(t.calories, 1450); // round50(1952.8 - 500)
   assert.equal(t.bmi, 25.7);
-  assert.equal(t.bmiCategory, 'Overweight');
+  assert.equal(t.bmiCategory, 'Obese'); // Asian-Indian cut-off: 25+
 });
 
 test('calorie floor applies, but never above maintenance when losing', () => {
@@ -94,4 +94,53 @@ test('swapMeal replaces with a different option', () => {
   const before = plan.days[0].meals[1].meal.id;
   assert.ok(P.swapMeal(MEALS, base, plan, 0, 1, () => 0));
   assert.notEqual(plan.days[0].meals[1].meal.id, before);
+});
+
+test('diet plans resolve goal and conditions', () => {
+  const heavy = { ...base, weightKg: 75 }; // BMI 27.5
+  const lean = { ...base, weightKg: 55 }; // BMI 20.2
+  assert.equal(P.resolveProfile({ ...heavy, plan: 'diabetic' }).goal, 'lose');
+  assert.equal(P.resolveProfile({ ...lean, plan: 'diabetic' }).goal, 'maintain');
+  assert.deepEqual(P.resolveProfile({ ...lean, plan: 'diabetic' }).conditions, ['diabetes']);
+  assert.equal(P.resolveProfile({ ...heavy, plan: 'thyroid', weightGoal: 'maintain' }).goal, 'maintain');
+  assert.equal(P.resolveProfile({ ...heavy, plan: 'pregnancy', weightGoal: 'lose' }).goal, 'pregnancy');
+  assert.equal(P.resolveProfile({ ...lean, plan: 'kidney', weightGoal: 'gain' }).goal, 'maintain');
+});
+
+test('pregnancy adds calories and drops papaya', () => {
+  const preg = { ...base, plan: 'pregnancy', weightKg: 60 };
+  const t = P.computeTargets(preg);
+  assert.ok(t.calories > t.tdee);
+  const names = P.eligibleMeals(MEALS, preg, 'midmorning').map((m) => m.name.toLowerCase());
+  assert.ok(!names.some((n) => n.includes('papaya')));
+});
+
+test('Jain diet excludes root vegetables, onion and garlic', () => {
+  const jain = { ...base, diet: 'jain', cuisine: 'mix' };
+  for (const slot of Object.keys(P.SLOTS)) {
+    for (const m of P.eligibleMeals(MEALS, jain, slot)) {
+      const text = (m.name + ' ' + m.items.map((i) => i[0]).join(' ')).toLowerCase();
+      assert.ok(!/potato|aloo|onion|garlic|carrot|ginger/.test(text), m.name);
+      assert.ok(m.diet === 'veg' || m.diet === 'vegan', m.name);
+    }
+  }
+});
+
+test('kidney diet avoids high-potassium and high-sodium meals', () => {
+  const k = { ...base, plan: 'kidney', cuisine: 'mix' };
+  for (const slot of Object.keys(P.SLOTS)) {
+    for (const m of P.eligibleMeals(MEALS, k, slot)) assert.ok(!m.flags.includes('hk') && !m.flags.includes('hna'), m.name);
+  }
+});
+
+test('every diet plan and food type fills all 7 days', () => {
+  for (const plan of Object.keys(P.PLANS)) {
+    for (const diet of Object.keys(P.DIETS)) {
+      const profile = { ...base, plan, diet, meals: 6 };
+      const week = P.generatePlan(MEALS, profile, 3);
+      for (const d of week.days) {
+        for (const e of d.meals) assert.ok(e.meal, `${plan}/${diet}/${d.day}/${e.slot}`);
+      }
+    }
+  }
 });

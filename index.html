@@ -3,34 +3,41 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Diet Chart Generator</title>
-  <meta name="description" content="Generate a personalised 7-day diet chart from age, weight, height, activity, goal and food preferences.">
+  <title>Hindivine Diet</title>
+  <meta name="description" content="Hindivine Diet — personalised 7-day Indian diet charts for weight loss, diabetes, PCOS, thyroid and more, printable as A4 PDF.">
+  <meta name="theme-color" content="#0E6FB5">
+  <link rel="icon" type="image/png" href="img/icon-192.png">
+  <link rel="apple-touch-icon" href="img/icon-192.png">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <header class="site-header">
-    <div class="wrap">
-      <h1>Diet Chart Generator</h1>
-      <p>Enter the client's details to create a personalised 7-day diet chart you can print or download.</p>
+  <header class="site-header no-print">
+    <div class="wrap brand">
+      <img src="img/logo.jpg" alt="Hindivine Healthcare Private Limited" class="brand-logo" width="900" height="308">
+      <div class="brand-text">
+        <h1>Hindivine Diet</h1>
+        <p>7-day Indian diet charts for every need — weight loss, diabetes, PCOS, thyroid, BP, pregnancy and more.</p>
+      </div>
     </div>
   </header>
 
-  <main class="wrap layout">
+  <main class="wrap layout no-print">
     <form id="profile-form" class="card form" novalidate>
-      <h2>Client details</h2>
+      <h2>Patient details</h2>
 
       <fieldset>
-        <legend>Chart header (optional)</legend>
-        <label>Clinic / dietitian
-          <input name="clinic" type="text" placeholder="e.g. Your clinic name" autocomplete="organization">
+        <legend>Patient</legend>
+        <label>Patient name
+          <input name="name" type="text" placeholder="Full name" autocomplete="off" required>
         </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Personal</legend>
-        <label>Name
-          <input name="name" type="text" placeholder="Client name" autocomplete="name">
-        </label>
+        <div class="row">
+          <label>Patient ID / Reg. no.
+            <input name="patientId" type="text" placeholder="Optional" autocomplete="off">
+          </label>
+          <label>Mobile
+            <input name="phone" type="tel" placeholder="Optional" autocomplete="off">
+          </label>
+        </div>
         <div class="row">
           <label>Age (years)
             <input name="age" type="number" min="14" max="90" value="30" required>
@@ -44,40 +51,57 @@
         </div>
         <div class="row">
           <label>Height (cm)
-            <input name="heightCm" type="number" min="120" max="230" value="165" required>
+            <input name="heightCm" type="number" min="120" max="230" value="160" required>
           </label>
           <label>Weight (kg)
-            <input name="weightKg" type="number" min="30" max="250" step="0.1" value="70" required>
+            <input name="weightKg" type="number" min="30" max="250" step="0.1" value="68" required>
           </label>
         </div>
+        <div class="row">
+          <label>Chart date
+            <input name="date" type="date">
+          </label>
+          <label>Next review
+            <input name="reviewDate" type="date">
+          </label>
+        </div>
+        <label>Medical notes / history
+          <input name="notes" type="text" placeholder="e.g. HbA1c 7.2, on metformin" autocomplete="off">
+        </label>
       </fieldset>
 
       <fieldset>
-        <legend>Lifestyle &amp; goal</legend>
-        <label>Activity level
-          <select name="activity" id="activity"></select>
+        <legend>Diet plan</legend>
+        <label>Type of diet
+          <select name="plan" id="plan"></select>
         </label>
-        <label>Goal
-          <select name="goal" id="goal"></select>
-        </label>
+        <div class="row">
+          <label>Weight goal
+            <select name="weightGoal">
+              <option value="plan">As per diet plan</option>
+              <option value="lose">Lose weight</option>
+              <option value="maintain">Maintain</option>
+              <option value="gain">Gain weight</option>
+            </select>
+          </label>
+          <label>Activity level
+            <select name="activity" id="activity"></select>
+          </label>
+        </div>
+        <legend class="sub">Other conditions</legend>
+        <div class="checks" id="conditions"></div>
       </fieldset>
 
       <fieldset>
         <legend>Food preferences</legend>
         <div class="row">
-          <label>Diet type
-            <select name="diet">
-              <option value="veg">Vegetarian</option>
-              <option value="egg">Eggetarian</option>
-              <option value="nonveg">Non-vegetarian</option>
-              <option value="vegan">Vegan</option>
-            </select>
+          <label>Food type
+            <select name="diet" id="diet"></select>
           </label>
           <label>Cuisine
             <select name="cuisine">
               <option value="in">Indian</option>
-              <option value="mix">Mixed</option>
-              <option value="gl">Global</option>
+              <option value="mix">Indian + global</option>
             </select>
           </label>
         </div>
@@ -97,47 +121,52 @@
         <label>Foods to avoid
           <input name="dislikes" type="text" placeholder="comma separated, e.g. brinjal, mushroom">
         </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Allergies / intolerances</legend>
+        <legend class="sub">Allergies / intolerances</legend>
         <div class="checks">
           <label class="check"><input type="checkbox" name="allergies" value="gluten"> Gluten</label>
           <label class="check"><input type="checkbox" name="allergies" value="dairy"> Dairy / lactose</label>
           <label class="check"><input type="checkbox" name="allergies" value="nuts"> Nuts &amp; peanuts</label>
           <label class="check"><input type="checkbox" name="allergies" value="soy"> Soy</label>
           <label class="check"><input type="checkbox" name="allergies" value="egg"> Egg</label>
-          <label class="check"><input type="checkbox" name="allergies" value="fish"> Fish</label>
+          <label class="check"><input type="checkbox" name="allergies" value="fish"> Fish / seafood</label>
         </div>
       </fieldset>
 
       <fieldset>
-        <legend>Health conditions</legend>
-        <div class="checks">
-          <label class="check"><input type="checkbox" name="conditions" value="diabetes"> Diabetes</label>
-          <label class="check"><input type="checkbox" name="conditions" value="hypertension"> High BP</label>
-          <label class="check"><input type="checkbox" name="conditions" value="pcos"> PCOS / PCOD</label>
-          <label class="check"><input type="checkbox" name="conditions" value="thyroid"> Thyroid</label>
-          <label class="check"><input type="checkbox" name="conditions" value="cholesterol"> High cholesterol</label>
-          <label class="check"><input type="checkbox" name="conditions" value="kidney"> Kidney disease</label>
+        <legend>Dietitian</legend>
+        <label>Dietitian name
+          <input name="dietitian" type="text" placeholder="e.g. Dr. / Ms. …" autocomplete="name">
+        </label>
+        <div class="row">
+          <label>Qualification
+            <input name="qualification" type="text" placeholder="e.g. M.Sc. Nutrition">
+          </label>
+          <label>Contact
+            <input name="dietitianPhone" type="tel" placeholder="Optional">
+          </label>
         </div>
       </fieldset>
 
       <p id="form-error" class="error" role="alert" hidden></p>
-      <button type="submit" class="btn primary">Generate diet chart</button>
+      <button type="submit" class="btn primary">Generate 7-day diet chart</button>
     </form>
 
     <section id="result" class="result" aria-live="polite">
       <div class="card empty">
-        <h2>Your chart will appear here</h2>
-        <p>Fill in the details and press <strong>Generate diet chart</strong>.</p>
+        <img src="img/icon-192.png" alt="" width="96" height="96">
+        <h2>The diet chart will appear here</h2>
+        <p>Fill in the patient details and press <strong>Generate 7-day diet chart</strong>.</p>
       </div>
     </section>
   </main>
 
-  <footer class="wrap footer">
-    <p>Calorie needs use the Mifflin–St Jeor equation. Nutrition values are approximate. This tool gives general guidance and does not replace advice from a doctor or registered dietitian, especially for pregnancy, children, or medical conditions.</p>
+  <footer class="wrap footer no-print">
+    <p><strong>Hindivine Healthcare Private Limited</strong> · <a href="https://www.hindivine.com" target="_blank" rel="noopener">www.hindivine.com</a></p>
+    <p>Calorie needs use the Mifflin–St Jeor equation; BMI uses Asian-Indian cut-offs. Nutrition values are approximate. This tool gives general guidance and does not replace advice from a doctor or registered dietitian.</p>
   </footer>
+
+  <!-- A4 print sheet, filled by app.js -->
+  <div id="print-sheet" class="print-only" aria-hidden="true"></div>
 
   <script src="js/foods.js"></script>
   <script src="js/planner.js"></script>

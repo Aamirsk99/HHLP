@@ -1,4 +1,4 @@
-package com.hhlp.dietchart;
+package com.hindivine.diet;
 
 import android.app.Activity;
 import android.content.Context;
@@ -18,7 +18,7 @@ import android.widget.Toast;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-/** Hosts the diet chart web app (bundled in assets/www) in a full-screen WebView. */
+/** Hosts the Hindivine Diet web app (bundled in assets/www) in a full-screen WebView. */
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE = 1;
 
@@ -84,7 +84,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
-                    String job = title == null || title.isEmpty() ? "Diet Chart" : title;
+                    String job = title == null || title.isEmpty() ? "Hindivine-Diet-Chart" : title;
                     pm.print(job, webView.createPrintDocumentAdapter(job), new PrintAttributes.Builder()
                             .setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
                 }

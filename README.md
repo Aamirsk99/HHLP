@@ -1,40 +1,39 @@
-# Diet Chart Generator
+# Hindivine Diet
 
-A static web app that builds a personalised **7-day diet chart** from a client's details. It has no build step and no backend, and all data stays in the browser.
+**Hindivine Healthcare Private Limited** · www.hindivine.com
+
+Hindivine Diet builds a personalised **7-day Indian diet chart** and prints it as a branded **A4 PDF**. It runs as a web page or as an Android app, works offline, and keeps all data on the device.
 
 ## Features
 
-- **Targets.** BMR (Mifflin–St Jeor), maintenance calories, a goal-based calorie target (weight loss, maintain, weight gain, muscle gain), protein/carb/fat split, BMI, water and fibre.
-- **Preferences.** Vegetarian, eggetarian, non-vegetarian or vegan. Indian, global or mixed cuisine. 3–6 meals a day, with an optional early-morning drink. A free-text list of foods to avoid.
-- **Allergies.** Gluten, dairy, nuts and peanuts, soy, egg and fish.
-- **Health conditions.** Diabetes and PCOS drop high-glycaemic meals and lower carbs. High BP and kidney disease drop high-sodium meals, and kidney disease also caps protein. Thyroid and cholesterol add guidance. Each condition adds its own guideline.
-- **Portions.** Every meal is scaled to its slot's calorie share. Quantities are rounded to kitchen measures (½ katori, 1½ pcs, 10 g and so on).
-- **Variety.** Meals rotate through the week and the same meal is never repeated on consecutive days. You can **swap** any single meal or make a whole **new plan**.
-- **Output.** Print or save as PDF (the full week, without the form), or download a CSV. The last-used profile is remembered in the browser.
+- **Patient details.** Name, patient ID, mobile, age, sex, height, weight, chart date, next review date and medical notes.
+- **Dietitian details.** Name, qualification and contact number, printed in the signature block. They are remembered for the next patient.
+- **All types of diet:**
+  - Weight loss, weight gain, balanced, and high-protein / muscle gain.
+  - Diabetic, PCOS/PCOD, thyroid, high BP (DASH, low salt), heart-healthy / cholesterol, fatty liver, and kidney (renal).
+  - Pregnancy (2nd–3rd trimester) and lactation.
+  - Extra conditions can be ticked on top of any plan, for example a diabetic diet plus thyroid.
+- **Food types.** Vegetarian, Jain (no onion, garlic or root vegetables), eggetarian, non-vegetarian and vegan. Allergies (gluten, dairy, nuts, soy, egg, fish) and a free-text list of foods to avoid are also respected.
+- **Indian food.** About 190 dishes from North Indian, South Indian, Gujarati, Maharashtrian, Punjabi, Bengali and Kerala cooking. Each has approximate nutrition and flags for high GI, sodium, potassium and saturated fat, which the medical diets use to filter meals.
+- **Targets.** Calories (Mifflin–St Jeor), protein, carbs, fat, water and fibre, plus BMI and ideal weight using the Asian-Indian cut-offs (normal 18.5–22.9).
+- **The 7-day plan.** 3–6 meals a day with times and kitchen measures (katori, cup, pcs, g). Meals rotate so none repeats on consecutive days. Any meal can be swapped, or the whole week regenerated.
+- **A4 PDF.** The branded chart has the logo, a patient details table, daily targets, day-wise tables, guidelines, foods to avoid, and the dietitian's signature. Every page has a footer and page numbers. The file is named `Hindivine-Diet-Chart_<Name>_<date>.pdf`.
+- **CSV export** of the whole week.
 
-## Run
+## Using it
 
-Open `index.html` in a browser, or serve the folder:
+- **Web:** open `index.html`, or run `npm start`. Press **Download A4 PDF** and choose **Save as PDF** in the print dialog.
+- **Android:** install [`dist/HindivineDiet.apk`](dist/HindivineDiet.apk) on Android 7.0 or newer. **Download A4 PDF** opens Android's print screen; choose **Save as PDF**.
 
-```sh
-npm start            # or: python3 -m http.server
-```
-
-## Android app (APK)
-
-A ready-to-install APK is in [`dist/DietChart.apk`](dist/DietChart.apk). Copy it to an Android phone (Android 7.0 or newer), open it, and allow *Install unknown apps* when asked.
-
-The app is a full-screen WebView that runs the same web app offline from its bundled assets. Inside the app, **Print / PDF** opens Android's print dialog, where you can choose *Save as PDF*. **Download CSV** opens the system *Save to* picker.
-
-To rebuild after changing the web app:
+## Rebuilding the Android app
 
 ```sh
-./android/build.sh          # needs Java 11+, curl, zip/unzip
+VERSION_CODE=3 VERSION_NAME=2.1 ./android/build.sh    # needs Java 11+, curl, zip/unzip
 ```
 
-The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app. Set `VERSION_CODE` and `VERSION_NAME` to bump the version.
+The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.
 
-**Signing key:** the first build creates `android/release.p12` (password `dietchart`; override with `KEYSTORE` and `STOREPASS`). It's git-ignored. Keep a copy, because Android only installs an update over an existing install when both are signed with the same key.
+**Signing key:** the build signs with `android/release.p12` (password `dietchart`; override with `KEYSTORE` and `STOREPASS`), and creates it if it's missing. It's git-ignored. Keep a copy, because Android only installs an update over an existing install when both are signed with the same key.
 
 ## Test
 
@@ -44,17 +43,18 @@ npm test             # Node 18+, no dependencies
 
 ## Structure
 
-| File | Purpose |
+| Path | Purpose |
 | --- | --- |
-| `index.html` | Form and result layout |
-| `css/styles.css` | Styles, dark mode, print layout |
-| `js/foods.js` | Meal library with nutrition, allergens and flags. Add meals here. |
-| `js/planner.js` | Pure planning logic: targets, filtering, portioning, weekly plan |
-| `js/app.js` | DOM wiring, rendering, CSV export |
+| `index.html` | Form, results and the A4 print sheet container |
+| `css/styles.css` | Brand styles, dark mode, A4 print layout |
+| `js/foods.js` | Indian meal library with nutrition, allergens and flags. Add dishes here. |
+| `js/planner.js` | Diet plans, targets, filtering, portioning, weekly plan, guidelines |
+| `js/app.js` | Form handling, screen view, A4 sheet, PDF/CSV export |
+| `img/` | Hindivine logo and icons |
+| `android/` | Android WebView wrapper and build script |
+| `dist/HindivineDiet.apk` | Built Android app |
 | `tests/` | Unit tests for the planner |
-| `android/` | Android WebView wrapper (manifest, resources, `MainActivity`, build script) |
-| `dist/DietChart.apk` | Built Android app |
 
 ## Disclaimer
 
-Nutrition values are approximate. This tool gives general guidance and does not replace a doctor or registered dietitian, especially for pregnancy, children or medical conditions.
+Nutrition values are approximate. This tool supports, and does not replace, the judgement of a doctor or registered dietitian.
