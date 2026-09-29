@@ -8,6 +8,8 @@ import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
 import android.view.Window;
+import android.webkit.ValueCallback;
+import android.webkit.WebChromeClient;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
@@ -21,9 +23,11 @@ import java.nio.charset.StandardCharsets;
 /** Hosts the Hindivine Diet web app (bundled in assets/www) in a full-screen WebView. */
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE = 1;
+    private static final int REQUEST_OPEN = 2;
 
     private WebView webView;
     private String pendingFileContent;
+    private ValueCallback<Uri[]> fileCallback;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -47,6 +51,27 @@ public class MainActivity extends Activity {
                 try {
                     startActivity(new Intent(Intent.ACTION_VIEW, url));
                 } catch (Exception ignored) {
+                }
+                return true;
+            }
+        });
+        // <input type="file">: upload last week's chart PDF, import a backup.
+        webView.setWebChromeClient(new WebChromeClient() {
+            @Override
+            public boolean onShowFileChooser(WebView view, ValueCallback<Uri[]> callback, FileChooserParams params) {
+                if (fileCallback != null) fileCallback.onReceiveValue(null);
+                fileCallback = callback;
+                Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
+                intent.addCategory(Intent.CATEGORY_OPENABLE);
+                String[] types = params.getAcceptTypes();
+                String type = types != null && types.length > 0 && types[0] != null && types[0].contains("/") ? types[0] : "*/*";
+                intent.setType(type);
+                try {
+                    startActivityForResult(intent, REQUEST_OPEN);
+                } catch (Exception e) {
+                    fileCallback = null;
+                    Toast.makeText(MainActivity.this, "No app available to open files", Toast.LENGTH_LONG).show();
+                    return false;
                 }
                 return true;
             }
@@ -115,6 +140,13 @@ public class MainActivity extends Activity {
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
+        if (requestCode == REQUEST_OPEN) {
+            if (fileCallback == null) return;
+            Uri uri = resultCode == RESULT_OK && data != null ? data.getData() : null;
+            fileCallback.onReceiveValue(uri != null ? new Uri[] { uri } : null);
+            fileCallback = null;
+            return;
+        }
         if (requestCode != REQUEST_SAVE) return;
         String content = pendingFileContent;
         pendingFileContent = null;

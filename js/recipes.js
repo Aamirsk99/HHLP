@@ -809,7 +809,8 @@
   function steps(recipe, ingredients) {
     const db = ingredients || ING;
     const names = recipe.ing.map(([k]) => db[k]);
-    const main = names.filter((x) => !x.tags.includes('staple') && x.cat !== 'spice' && x.cat !== 'fat').map((x) => titleCase(x.name));
+    let main = names.filter((x) => !x.tags.includes('staple') && x.cat !== 'spice' && x.cat !== 'fat').map((x) => titleCase(x.name));
+    if (!main.length) main = names.filter((x) => x.cat !== 'spice').map((x) => titleCase(x.name));
     const aro = names.filter((x) => ['onion', 'tomato', 'ginger', 'garlic', 'chilli'].includes(x.key)).map((x) => x.name.toLowerCase());
     const join = (l) => (l.length > 1 ? l.slice(0, -1).join(', ') + ' and ' + l[l.length - 1] : l[0] || 'the ingredients');
     return (STEPS[recipe.tpl] || STEPS.plate).map((s) => s.replace('{main}', join(main)).replace('{aro}', aro.length ? join(aro) : 'the spices'));

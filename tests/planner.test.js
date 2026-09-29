@@ -299,3 +299,50 @@ test('next week changes the foods of the previous chart', () => {
   const byNames = P.generatePlan(DB, base, 6, { avoidPrevious: allItems(week1).map((i) => i.name) });
   assert.ok(P.overlap(byNames, week1, DB) < 0.1);
 });
+
+const S = require('../js/store.js');
+
+test('patients and charts are saved, and a chart round-trips through storage', () => {
+  const store = S.createStore(S.memoryStorage(), P, DB);
+  const profile = { ...base, name: 'Asha Rao', phone: '98200', plan: 'weight_loss', days: 5 };
+  const plan = P.generatePlan(DB, profile, 3);
+  plan.days[0].meals[1].meal.items.push(P.customItem('Home-made ladoo', 1, 'pc', 120, 3));
+  P.recalcMeal(plan.days[0].meals[1].meal);
+  P.refreshDay(plan.days[0]);
+  const rec = store.saveChart({ profile, plan, week: 1 });
+  assert.ok(rec.patientRef);
+  assert.equal(store.listPatients().length, 1);
+  const again = store.saveChart({ profile: { ...profile }, plan, week: 2, parent: rec.id });
+  assert.equal(store.listPatients().length, 1, 'same patient is not saved twice');
+  assert.equal(store.listCharts(rec.patientRef).length, 2);
+  const back = store.loadChart(rec.id);
+  assert.equal(back.plan.days.length, 5);
+  assert.deepEqual(back.plan.days.map((d) => d.totals.kcal), plan.days.map((d) => d.totals.kcal));
+  assert.ok(back.plan.days[0].meals[1].meal.items.some((i) => i.custom && i.kcal === 120));
+  const backup = store.exportAll();
+  const other = S.createStore(S.memoryStorage(), P, DB);
+  assert.deepEqual(other.importAll(backup), { patients: 1, charts: 2 });
+  store.deletePatient(rec.patientRef, true);
+  assert.equal(store.listCharts().length, 0);
+  assert.ok(again.id);
+});
+
+test('a previous chart is read back from PDF text', () => {
+  const store = S.createStore(S.memoryStorage(), P, DB);
+  const profile = { ...base, name: 'रवि', diet: 'nonveg', chartLang: 'hi' };
+  const plan = P.generatePlan(DB, profile, 8);
+  const payload = store.pdfPayload(profile, plan, 2);
+  // PDF text extraction breaks lines and adds spaces.
+  const text = 'Diet chart … ' + payload.replace(/(.{70})/g, '$1\n ') + ' Page 2 / 2';
+  const r = store.readPdfText(text, I);
+  assert.equal(r.exact, true);
+  assert.equal(r.week, 2);
+  assert.equal(r.profile.name, 'रवि');
+  assert.deepEqual(r.plan.days.map((d) => d.totals.kcal), plan.days.map((d) => d.totals.kcal));
+  // Without hidden data, foods are found by name in any chart language.
+  const names = allItems(plan).slice(0, 12).map((i) => i.name);
+  const printed = names.map((n) => I.foodName('hi', n)).join(' · ');
+  const f = store.readPdfText(printed, I);
+  assert.equal(f.exact, false);
+  for (const n of names) assert.ok(f.foods.includes(n), n);
+});

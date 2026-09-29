@@ -1,7 +1,7 @@
 {
   "name": "Hindivine Diet",
   "short_name": "Hindivine Diet",
-  "description": "Premium 7-day Indian and worldwide diet charts by Hindivine Healthcare.",
+  "description": "Diet charts (1–7 days), recipes and patient follow-ups by Hindivine Healthcare.",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

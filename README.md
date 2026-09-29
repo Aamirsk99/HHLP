@@ -2,35 +2,47 @@
 
 **Hindivine Healthcare Private Limited** · www.hindivine.com
 
-Hindivine Diet builds a personalised **7-day Indian diet chart** and prints it as a branded **A4 PDF**. It runs as a web page or as an Android app, works offline, and keeps all data on the device.
+Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
 ## Features
 
-- **Screen-by-screen app:** Home → 1 Patient → 2 Diet plan & targets → 3 Food preferences → 4 Schedule & language → 5 Dietitian & create → Chart. It also has a Food library screen, and the back button works on phones.
-- **Food library:** 671 Indian regional and worldwide foods, each with nutrition and a Hindi name.
-  - Meals are built from matching foods, giving 44 lakh+ (4.4 million+) meal combinations. The chart shows how many match each patient.
-  - Search in English or Hindi, and filter by category, cuisine, food type, maximum calories, weight-loss, high-protein or travel foods. Sort by name, calories or protein.
-- **Chart in 10 languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം.
-  - All labels, days, meals, units, guidelines and foods-to-avoid are translated.
-  - Food names use the Hindi name directly (Hindi, Marathi) or converted to the language's script, with local words such as dal → ડાળ / పప్పు and rice → ভাত / சாதம்.
-- **Days by name only:** no dates. Choose the day the chart starts on.
-- **Food preferences:**
-  - Type foods the patient **likes** (they appear more often) and foods to **avoid**, with suggestions from the library.
-  - Quick exclusion chips (no rice, no wheat, no dairy, no paneer, no potato, no onion/garlic…), allergies, food type (veg, Jain, egg, non-veg, vegan) and cuisine.
-- **Targets:** calorie-wise (presets or any value) and protein-wise (presets or any grams) plans. Weight-loss foods are preferred for weight-loss plans.
+- **Dashboard and menu:**
+  - The dashboard shows patients, saved charts, recipes and foods, quick actions (New chart, Next week, Upload PDF, Patients, Saved charts, Recipes, Food library, Settings), the last chart and recent charts.
+  - A side menu and a bottom tab bar reach every screen.
+- **Step-by-step chart wizard:** 1 Patient → 2 Diet plan & targets → 3 Food preferences → 4 Days & language → 5 Dietitian & create.
+  - **Patient data is optional:** age, sex, height and weight can be left blank; standard targets are used instead.
+  - **Days:** 1 to 7 days, by day name (no dates).
+  - **Two languages:** a second chart language can be added.
+  - **Water:** set the daily water target, or leave it on auto.
+- **Recipes:** all 671 dishes have a recipe (ingredients in grams, method, nutrition), built from 238 ingredients.
+  - Each dish's **kcal, protein, carbs and fat are calculated from its ingredients** (IFCT 2017 / USDA values).
+  - Recipes scale by servings and print on A4. Tap a dish in a chart to see its recipe, and add recipes to the chart PDF as extra A4 pages.
+- **Foods:** 865 searchable foods: the 671 dishes plus 194 ingredients per 100 g. All have icons and Hindi names.
+  - Meals are combined from them, giving 44 lakh+ (4.4 million+) combinations.
 - **Diet types:**
-  - Weight loss, weight gain, balanced, and high-protein.
-  - Diabetic, PCOS, thyroid, BP, heart, fatty liver and kidney.
-  - Pregnancy and lactation.
-  - **Travel** diet (train, flight, road, hotel).
-- **Manual control:** build a chart from scratch, edit any meal, add your own foods, copy meals to other days, lock and swap meals, and set meal timings.
-- **A4 PDF, always exactly 2 pages:**
-  - **With name:** patient details.
-  - **Without name:** generic.
-  - **Layout:** page 1 has the header, patient details, targets and days 1–4; page 2 has days 5–7, guidelines, foods to avoid and weight-loss foods.
-  - **Fitting:** text scales automatically to fit.
-  - **Signature:** none needed ("Prepared by" and a computer-generated note).
-- **CSV export** in English and the chart language.
+  - Weight loss and gain, balanced, and high protein.
+  - Medical: diabetic, PCOS, thyroid, BP, heart, fatty liver, kidney.
+  - Pregnancy and lactation, and travel diets.
+- **Food type:** veg, Jain, egg, non-veg or vegan.
+  - **Diet combinations:** Veg + Egg, Egg + Non-veg, Veg + Chicken, Veg + Fish, Egg + Chicken, Egg + Fish, Chicken + Fish. Only the chosen animal foods appear.
+- **Health conditions:** with any condition, the chart never includes foods from its own "avoid" list. Recipes are checked for sugar, maida, jaggery/honey (diabetes/PCOS), papad and soy sauce (BP/kidney), butter and cream (cholesterol), and fried or sweet dishes.
+- **Preferences:** calorie-wise and protein-wise targets, liked foods and foods to avoid (typed), quick exclusions, allergies and cuisines.
+- **Manual control:** edit any meal (including ingredients), add your own foods, copy meals to other days, lock and swap meals.
+- **Patients & saved charts:**
+  - Every chart is saved automatically, with its patient.
+  - Each patient page shows the chart history (Week 1, 2, 3…).
+  - Any chart can be opened, edited, reprinted or deleted.
+- **Next week:** one tap makes next week's chart with the same patient and settings but **fully changed foods**. About 95–100% of the main foods change.
+- **Upload previous PDF:** choose last week's PDF to read it back.
+  - **Charts made with Hindivine Diet** carry hidden chart data, so they are read exactly (patient, targets, every meal). You can then edit the chart or generate next week.
+  - **Other PDFs:** the foods in them are found by name, in any of the 10 languages, and avoided in the new chart.
+- **A4 PDF:**
+  - **Pages:** 1 page for short charts (1–3 days, when they fit), otherwise 2 pages. Text scales automatically to fit.
+  - **Versions:** with or without the patient name.
+  - **Extras:** meal icons, optional recipe pages, and a "Download the Hindivine Patient App from Play Store or App Store" band on the last page.
+  - **Signature:** none needed.
+- **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
+- **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
 
 ## Apps
 
@@ -49,12 +61,12 @@ npm run sync      # copies the web app into the Xcode project
 npm run open      # opens Xcode
 ```
 
-In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then *Product → Archive* to upload to App Store Connect or TestFlight. The native `MainViewController` (in `AppDelegate.swift`) connects **PDF** to the iOS print sheet (share → Save to Files) and **CSV** to the share sheet.
+In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then *Product → Archive* to upload to App Store Connect or TestFlight. The native `MainViewController` (in `AppDelegate.swift`) connects **PDF** to the iOS print sheet (PDF upload uses the standard iOS file picker) (share → Save to Files) and **CSV** to the share sheet.
 
 ## Rebuilding the Android app
 
 ```sh
-VERSION_CODE=4 VERSION_NAME=3.1 ./android/build.sh    # needs Java 11+, curl, zip/unzip
+VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.
@@ -73,17 +85,22 @@ npm test             # Node 18+, no dependencies
 | --- | --- |
 | `index.html` | Form, results and the A4 print sheet container |
 | `css/styles.css` | Brand styles, dark mode, A4 print layout |
-| `js/fooddb.js` | Food library (671 foods) with nutrition, roles, regions, allergens and flags. Add foods here. |
+| `js/fooddb.js` | Dishes (671) with roles, regions, allergens and flags; nutrition is recalculated from recipes |
+| `js/ingredients.js` | 238 ingredients with nutrition per 100 g and Hindi names |
+| `js/recipes.js` | Recipe (ingredients in grams + method) for every dish, nutrition calculation |
+| `js/icons.js` | Food and meal icons |
+| `js/store.js` | Saved patients and charts, backup, and chart data inside PDFs |
+| `vendor/pdfjs/` | PDF.js 3.11 (Apache-2.0), to read uploaded charts |
 | `js/foodnames.js` | Hindi name for every food (used for search and translated charts) |
 | `js/i18n.js` | Chart translations for 10 languages and script conversion |
 | `js/planner.js` | Diet plans, targets, filtering, portioning, weekly plan, guidelines |
-| `js/app.js` | Screen-by-screen app, chart view, meal editor, food library, 2-page A4 sheet, PDF/CSV export |
+| `js/app.js` | Dashboard, wizard, chart view, meal editor, patients, recipes, upload, A4 PDF and CSV export |
 | `manifest.webmanifest`, `sw.js` | Installable offline web app (iPhone / Android) |
 | `ios-app/` | Capacitor iOS project (Xcode) |
 | `img/` | Hindivine logo and icons |
 | `android/` | Android WebView wrapper and build script |
 | `dist/HindivineDiet.apk` | Built Android app |
-| `tests/` | Unit tests for the planner |
+| `tests/` | Unit tests (planner, recipes, storage, PDF read-back) |
 
 ## Disclaimer
 
