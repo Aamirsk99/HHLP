@@ -1,0 +1,146 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Diet Chart Generator</title>
+  <meta name="description" content="Generate a personalised 7-day diet chart from age, weight, height, activity, goal and food preferences.">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+  <header class="site-header">
+    <div class="wrap">
+      <h1>Diet Chart Generator</h1>
+      <p>Enter the client's details to create a personalised 7-day diet chart you can print or download.</p>
+    </div>
+  </header>
+
+  <main class="wrap layout">
+    <form id="profile-form" class="card form" novalidate>
+      <h2>Client details</h2>
+
+      <fieldset>
+        <legend>Chart header (optional)</legend>
+        <label>Clinic / dietitian
+          <input name="clinic" type="text" placeholder="e.g. Your clinic name" autocomplete="organization">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Personal</legend>
+        <label>Name
+          <input name="name" type="text" placeholder="Client name" autocomplete="name">
+        </label>
+        <div class="row">
+          <label>Age (years)
+            <input name="age" type="number" min="14" max="90" value="30" required>
+          </label>
+          <label>Sex
+            <select name="sex">
+              <option value="female">Female</option>
+              <option value="male">Male</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Height (cm)
+            <input name="heightCm" type="number" min="120" max="230" value="165" required>
+          </label>
+          <label>Weight (kg)
+            <input name="weightKg" type="number" min="30" max="250" step="0.1" value="70" required>
+          </label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Lifestyle &amp; goal</legend>
+        <label>Activity level
+          <select name="activity" id="activity"></select>
+        </label>
+        <label>Goal
+          <select name="goal" id="goal"></select>
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Food preferences</legend>
+        <div class="row">
+          <label>Diet type
+            <select name="diet">
+              <option value="veg">Vegetarian</option>
+              <option value="egg">Eggetarian</option>
+              <option value="nonveg">Non-vegetarian</option>
+              <option value="vegan">Vegan</option>
+            </select>
+          </label>
+          <label>Cuisine
+            <select name="cuisine">
+              <option value="in">Indian</option>
+              <option value="mix">Mixed</option>
+              <option value="gl">Global</option>
+            </select>
+          </label>
+        </div>
+        <div class="row">
+          <label>Meals per day
+            <select name="meals">
+              <option value="3">3 meals</option>
+              <option value="4">4 (3 + snack)</option>
+              <option value="5" selected>5 (3 + 2 snacks)</option>
+              <option value="6">6 (+ bedtime)</option>
+            </select>
+          </label>
+          <label class="check inline">
+            <input name="earlyDrink" type="checkbox" checked> Early-morning drink
+          </label>
+        </div>
+        <label>Foods to avoid
+          <input name="dislikes" type="text" placeholder="comma separated, e.g. brinjal, mushroom">
+        </label>
+      </fieldset>
+
+      <fieldset>
+        <legend>Allergies / intolerances</legend>
+        <div class="checks">
+          <label class="check"><input type="checkbox" name="allergies" value="gluten"> Gluten</label>
+          <label class="check"><input type="checkbox" name="allergies" value="dairy"> Dairy / lactose</label>
+          <label class="check"><input type="checkbox" name="allergies" value="nuts"> Nuts &amp; peanuts</label>
+          <label class="check"><input type="checkbox" name="allergies" value="soy"> Soy</label>
+          <label class="check"><input type="checkbox" name="allergies" value="egg"> Egg</label>
+          <label class="check"><input type="checkbox" name="allergies" value="fish"> Fish</label>
+        </div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Health conditions</legend>
+        <div class="checks">
+          <label class="check"><input type="checkbox" name="conditions" value="diabetes"> Diabetes</label>
+          <label class="check"><input type="checkbox" name="conditions" value="hypertension"> High BP</label>
+          <label class="check"><input type="checkbox" name="conditions" value="pcos"> PCOS / PCOD</label>
+          <label class="check"><input type="checkbox" name="conditions" value="thyroid"> Thyroid</label>
+          <label class="check"><input type="checkbox" name="conditions" value="cholesterol"> High cholesterol</label>
+          <label class="check"><input type="checkbox" name="conditions" value="kidney"> Kidney disease</label>
+        </div>
+      </fieldset>
+
+      <p id="form-error" class="error" role="alert" hidden></p>
+      <button type="submit" class="btn primary">Generate diet chart</button>
+    </form>
+
+    <section id="result" class="result" aria-live="polite">
+      <div class="card empty">
+        <h2>Your chart will appear here</h2>
+        <p>Fill in the details and press <strong>Generate diet chart</strong>.</p>
+      </div>
+    </section>
+  </main>
+
+  <footer class="wrap footer">
+    <p>Calorie needs use the Mifflin–St Jeor equation. Nutrition values are approximate. This tool gives general guidance and does not replace advice from a doctor or registered dietitian, especially for pregnancy, children, or medical conditions.</p>
+  </footer>
+
+  <script src="js/foods.js"></script>
+  <script src="js/planner.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
