@@ -89,6 +89,40 @@
     nuts: { label: 'Nuts & peanuts', allergen: 'nuts' },
   };
 
+  /*
+   * With any health condition the chart must not contain the foods its "avoid"
+   * list names, so dishes are also checked against their recipe ingredients.
+   */
+  const CONDITION_BANS = {
+    any: { flags: ['fried', 'sweet'], ing: ['maida', 'sugar'] },
+    diabetes: { ing: ['jaggery', 'honey'] },
+    pcos: { ing: ['jaggery', 'honey'] },
+    fattyliver: { ing: ['jaggery', 'honey', 'butter', 'cream'] },
+    hypertension: { ing: ['papad', 'soysauce', 'miso'] },
+    kidney: { ing: ['papad', 'soysauce', 'miso'] },
+    cholesterol: { ing: ['butter', 'cream'] },
+  };
+
+  /** Diet combinations: which of egg / chicken / fish / mutton a mixed diet includes. */
+  const MIXES = {
+    veg_egg: { label: 'Veg + Egg', mix: ['egg'] },
+    egg_nonveg: { label: 'Egg + Non-veg', mix: ['egg', 'chicken', 'fish', 'mutton'] },
+    veg_chicken: { label: 'Veg + Chicken', mix: ['chicken'] },
+    veg_fish: { label: 'Veg + Fish', mix: ['fish'] },
+    egg_chicken: { label: 'Egg + Chicken', mix: ['egg', 'chicken'] },
+    egg_fish: { label: 'Egg + Fish', mix: ['egg', 'fish'] },
+    chicken_fish: { label: 'Chicken + Fish', mix: ['chicken', 'fish'] },
+  };
+  const MIX_ITEMS = ['egg', 'chicken', 'fish', 'mutton'];
+
+  /** The effective diet and allowed animal foods for a profile (`mix` narrows non-veg). */
+  function dietOf(p) {
+    const mix = (p.mix || []).filter((x) => MIX_ITEMS.includes(x));
+    if (!mix.length) return { diet: p.diet || 'veg', mix: null };
+    const diet = mix.some((x) => x !== 'egg') ? 'nonveg' : 'egg';
+    return { diet, mix: new Set(mix) };
+  }
+
   const JAIN_AVOID = ['potato', 'aloo', 'onion', 'garlic', 'ginger', 'carrot', 'beetroot', 'radish', 'mooli', 'sweet potato', 'arbi', 'yam', 'mushroom', 'sabudana'];
   const PREGNANCY_AVOID = ['papaya', 'sushi', 'tuna'];
 
@@ -130,6 +164,7 @@
     fruits: { label: 'Fruits', roles: ['fruit'] },
     drinks: { label: 'Drinks', roles: ['drink', 'early', 'earlyadd', 'bed'] },
     meals: { label: 'Complete meals', roles: ['wmain', 'tmain'] },
+    ingredients: { label: 'Ingredients (per 100 g)', roles: ['ingredient'] },
   };
 
   const UNIT_STEP = { pc: 0.5, egg: 1, slice: 0.5, g: 10, ml: 25, cup: 0.25, katori: 0.25, bowl: 0.25, glass: 0.25, tbsp: 0.5, tsp: 0.5, plate: 0.25, scoop: 0.5 };
@@ -146,10 +181,18 @@
     return 'Obese';
   }
 
+  const num = (x) => (Number(x) > 0 ? Number(x) : null);
+
+  /** BMI, or null when height or weight is not given. */
   function bmiOf(p) {
-    const hM = p.heightCm / 100;
-    return p.weightKg / (hM * hM);
+    const w = num(p.weightKg), h = num(p.heightCm);
+    if (!w || !h) return null;
+    return w / ((h / 100) * (h / 100));
   }
+
+  // Used when weight / height / age are not given (they are optional).
+  const DEFAULT_KCAL = { lose: 1400, maintain: 1700, gain: 2100, muscle: 2000, pregnancy: 2100, lactation: 2200 };
+  const DEFAULT_PROTEIN = { lose: 60, maintain: 55, gain: 65, muscle: 90, pregnancy: 70, lactation: 75 };
 
   /** Fill in `goal` and `conditions` from the chosen diet plan and weight goal. */
   function resolveProfile(p) {
@@ -160,7 +203,7 @@
       goal = plan.goal;
       const fixed = goal === 'pregnancy' || goal === 'lactation';
       if (!fixed && p.weightGoal && p.weightGoal !== 'plan') goal = p.weightGoal;
-      if (goal === 'auto') goal = bmiOf(p) >= 23 ? 'lose' : 'maintain';
+      if (goal === 'auto') goal = (bmiOf(p) || 0) >= 23 ? 'lose' : 'maintain';
     }
     if (!GOALS[goal]) goal = 'maintain';
     if (conditions.includes('kidney') && (goal === 'muscle' || goal === 'gain')) goal = 'maintain';
@@ -170,26 +213,37 @@
   /** Energy, macro and hydration targets. `kcalTarget` / `proteinTarget` override the calculation. */
   function computeTargets(input) {
     const p = resolveProfile(input);
-    const hM = p.heightCm / 100;
+    const w = num(p.weightKg), h = num(p.heightCm), age = num(p.age);
+    const hM = h ? h / 100 : null;
     const bmi = bmiOf(p);
-    const bmr = 10 * p.weightKg + 6.25 * p.heightCm - 5 * p.age + (p.sex === 'male' ? 5 : -161);
-    const tdee = bmr * ACTIVITY[p.activity || 'light'].factor;
+    const sexAdj = p.sex === 'male' ? 5 : p.sex === 'female' ? -161 : -78;
+    const factor = ACTIVITY[p.activity || 'light'].factor;
     const goal = GOALS[p.goal];
     const warnings = [];
+    // Mifflin–St Jeor needs weight, height and age; with weight only, a per-kg estimate.
+    let bmr = null;
+    if (w && h && age) bmr = 10 * w + 6.25 * h - 5 * age + sexAdj;
+    else if (w) bmr = w * (p.sex === 'male' ? 24 : 22);
+    const tdee = bmr ? bmr * factor : null;
 
     const floor = p.sex === 'male' ? 1500 : 1200;
-    let calories = Math.max(floor, round(tdee + goal.delta, 50));
-    if (p.goal === 'lose') calories = Math.min(calories, round(tdee, 50));
+    let calories;
+    if (tdee) {
+      calories = Math.max(floor, round(tdee + goal.delta, 50));
+      if (p.goal === 'lose') calories = Math.min(calories, round(tdee, 50));
+    } else {
+      calories = DEFAULT_KCAL[p.goal] + (p.sex === 'male' ? 300 : 0) + round((factor - 1.375) * 1000, 50);
+    }
     const customKcal = Number(p.kcalTarget) > 0;
     if (customKcal) {
       calories = Math.round(Number(p.kcalTarget));
       if (calories < floor) warnings.push(`${calories} kcal is below the usual safe minimum of ${floor} kcal — use only under supervision.`);
     }
 
-    const refWeight = bmi > 30 ? 25 * hM * hM : p.weightKg;
+    const refWeight = w ? (bmi && bmi > 30 ? 25 * hM * hM : w) : null;
     const c = p.conditions;
     const kidney = c.includes('kidney');
-    let protein = refWeight * (kidney ? 0.8 : goal.proteinPerKg);
+    let protein = refWeight ? refWeight * (kidney ? 0.8 : goal.proteinPerKg) : (kidney ? 45 : DEFAULT_PROTEIN[p.goal]);
     protein = Math.min(protein, (calories * 0.35) / 4);
     const customProtein = Number(p.proteinTarget) > 0;
     if (customProtein) {
@@ -199,7 +253,7 @@
         warnings.push(`${Math.round(protein)} g protein is more than 40% of ${calories} kcal; capped at ${Math.round(cap)} g.`);
         protein = cap;
       }
-      if (kidney && protein > refWeight * 0.8) warnings.push('Kidney disease: protein above 0.8 g/kg needs your nephrologist\'s approval.');
+      if (kidney && refWeight && protein > refWeight * 0.8) warnings.push('Kidney disease: protein above 0.8 g/kg needs your nephrologist\'s approval.');
     }
 
     const lowCarb = c.some((x) => x === 'diabetes' || x === 'pcos' || x === 'fattyliver');
@@ -208,27 +262,31 @@
     const fat = (calories * fatPct) / 9;
     const carbs = Math.max(0, (calories - protein * 4 - fat * 9) / 4);
 
-    let waterL = round((p.weightKg * 35) / 1000, 0.25);
+    let waterL = w ? round((w * 35) / 1000, 0.25) : 2.5;
     if (p.activity === 'active' || p.activity === 'athlete') waterL += 0.5;
     if (p.goal === 'pregnancy') waterL += 0.25;
     if (p.goal === 'lactation') waterL += 0.75;
     waterL = Math.min(Math.max(waterL, 2), 4.5);
+    const customWater = Number(p.waterL) > 0;
+    if (customWater) waterL = r1(Number(p.waterL));
 
     return {
       goal: p.goal,
-      bmi: r1(bmi),
-      bmiCategory: bmiCategory(bmi),
-      bmr: Math.round(bmr),
-      tdee: Math.round(tdee),
+      bmi: bmi ? r1(bmi) : null,
+      bmiCategory: bmi ? bmiCategory(bmi) : '',
+      bmr: bmr ? Math.round(bmr) : null,
+      tdee: tdee ? Math.round(tdee) : null,
       calories,
       protein: Math.round(protein),
       carbs: Math.round(carbs),
       fat: Math.round(fat),
       fibre: Math.round((calories / 1000) * 14),
       waterL,
-      idealWeight: [Math.round(18.5 * hM * hM), Math.round(22.9 * hM * hM)],
+      idealWeight: hM ? [Math.round(18.5 * hM * hM), Math.round(22.9 * hM * hM)] : null,
       customKcal,
       customProtein,
+      customWater,
+      estimated: !(w && h && age),
       warnings,
     };
   }
@@ -251,7 +309,8 @@
   /** Build a predicate that says whether a food suits this profile. */
   function foodFilter(input) {
     const p = resolveProfile(input);
-    const rank = DIET_RANK[p.diet || 'veg'];
+    const { diet, mix } = dietOf(p);
+    const rank = DIET_RANK[diet];
     const allergies = new Set(p.allergies || []);
     const c = p.conditions;
     const avoidFlags = new Set();
@@ -259,8 +318,16 @@
     if (c.some((x) => x === 'hypertension' || x === 'kidney')) avoidFlags.add('hna');
     if (c.includes('kidney')) avoidFlags.add('hk');
     if (c.some((x) => x === 'cholesterol' || x === 'fattyliver')) { avoidFlags.add('fried'); avoidFlags.add('hsf'); }
+    const banIng = new Set();
+    if (c.length) {
+      [CONDITION_BANS.any, ...c.map((x) => CONDITION_BANS[x])].forEach((b) => {
+        if (!b) return;
+        (b.flags || []).forEach((x) => avoidFlags.add(x));
+        (b.ing || []).forEach((x) => banIng.add(x));
+      });
+    }
     const words = (p.dislikes || []).map((d) => d.toLowerCase().trim()).filter(Boolean);
-    if (p.diet === 'jain') words.push(...JAIN_AVOID);
+    if (diet === 'jain') words.push(...JAIN_AVOID);
     if (p.goal === 'pregnancy') words.push(...PREGNANCY_AVOID);
     (p.excludes || []).forEach((key) => {
       const ex = EXCLUDES[key];
@@ -273,6 +340,12 @@
 
     return function (f) {
       if (DIET_RANK[f.diet] > rank) return false;
+      if (mix) {
+        if (f.diet === 'egg' && !mix.has('egg')) return false;
+        if (f.diet === 'nonveg' && !(f.meats || ['chicken']).every((m) => mix.has(m))) return false;
+      }
+      if (banIng.size && f.recipe && f.recipe.ing.some(([k]) => banIng.has(k))) return false;
+      if (banIng.size && f.ingKey && banIng.has(f.ingKey)) return false;
       if (f.allergens.some((a) => allergies.has(a))) return false;
       if (f.flags.some((x) => avoidFlags.has(x))) return false;
       if (travel && !f.flags.includes('tr') && !f.roles.some((r) => r === 'early' || r === 'bed' || r === 'side' || r === 'bfside')) return false;
@@ -297,7 +370,7 @@
     const indianOn = INDIAN_REGIONS.some((r) => regions.has(r));
     const pools = {};
     foods.forEach((f) => {
-      if (!allowed(f)) return;
+      if (f.ingKey || !allowed(f)) return;
       f.roles.forEach((role) => {
         if (REGIONAL_ROLES.includes(role)) {
           const ok = regions.has(f.region) || (f.region === 'IN' && indianOn);
@@ -520,10 +593,11 @@
     );
   }
 
-  /** The 7 plan days, by name, starting from `startDay` (e.g. 'Monday'). */
-  function planDays(startDay) {
+  /** The plan days (1–7, default 7), by name, starting from `startDay` (e.g. 'Monday'). */
+  function planDays(startDay, count) {
     const first = Math.max(0, DAY_NAMES.indexOf(startDay));
-    return Array.from({ length: 7 }, (_, i) => ({ day: DAY_NAMES[(first + i) % 7] }));
+    const n = Math.min(7, Math.max(1, Number(count) || 7));
+    return Array.from({ length: n }, (_, i) => ({ day: DAY_NAMES[(first + i) % 7] }));
   }
 
   /**
@@ -533,7 +607,7 @@
    */
   function bestMeal(T, target, proteinTarget, scalable, used, lastIds, rand, opts) {
     let best = null;
-    for (let k = 0; k < 14; k++) {
+    for (let k = 0; k < (opts.avoid ? 24 : 14); k++) {
       const t = pickTemplate(T, rand);
       const foods = t.gen(rand);
       if (!foods || !foods.length) continue;
@@ -545,8 +619,10 @@
       }
       score += foods.reduce((s, f) => s + (used[f.id] || 0), 0) * 0.12;
       if (foods.some((f) => lastIds.has(f.id))) score += 0.35;
+      if (opts.avoid) score += foods.filter((f) => opts.avoid.has(f.id)).length * 0.6;
       if (opts.preferWl) score -= (foods.filter((f) => f.flags.includes('wl')).length / foods.length) * 0.15;
       if (opts.likes.length) score -= foods.filter((f) => likedFood(f, opts.likes)).length * opts.likeWeight;
+      if (opts.mix) score -= foods.filter((f) => f.diet === 'egg' || f.diet === 'nonveg').length * 0.12;
       score += rand() * 0.05;
       if (!best || score < best.score) best = { score, meal, foods };
     }
@@ -573,9 +649,12 @@
       preferWl: targets.goal === 'lose' || !!profile.preferWl,
       likes: (profile.likes || []).map((w) => w.toLowerCase().trim()).filter(Boolean),
       likeWeight: 0.3,
+      mix: !!dietOf(profile).mix,
+      // "Next week": steer away from every food of the previous chart (fixed drinks excepted).
+      avoid: opt.avoidPrevious ? previousFoodIds(opt.avoidPrevious, db) : null,
     };
 
-    const days = planDays(profile.startDay).map(({ day }, di) => {
+    const days = planDays(profile.startDay, profile.days).map(({ day }, di) => {
       const meals = slots.map(({ slot, kcal, share }, si) => {
         const info = SLOTS[slot];
         const prev = opt.previous && opt.previous.days[di] && opt.previous.days[di].meals.find((m) => m.slot === slot);
@@ -600,6 +679,26 @@
     });
 
     return { targets, days, combos: countCombinations(db, profile) };
+  }
+
+  /** Food ids used in a plan (or a list of food names), except fixed-portion add-ons. */
+  function previousFoodIds(prev, db) {
+    const ids = new Set();
+    const byName = {};
+    db.FOODS.forEach((f) => { byName[f.name.toLowerCase()] = f; });
+    const add = (f) => { if (f && !f.flags.includes('fx')) ids.add(f.id); };
+    if (Array.isArray(prev)) prev.forEach((x) => add(typeof x === 'number' ? db.FOODS[x] : byName[String(x).toLowerCase()]));
+    else (prev.days || []).forEach((d) => d.meals.forEach((m) => m.meal && m.meal.items.forEach((i) => add(i.fid != null ? db.FOODS[i.fid] : byName[i.name.toLowerCase()]))));
+    return ids;
+  }
+
+  /** Share of a plan's foods that also appear in another plan (0–1). */
+  function overlap(a, b, db) {
+    const A = previousFoodIds(a, db), B = previousFoodIds(b, db);
+    if (!A.size) return 0;
+    let n = 0;
+    A.forEach((id) => { if (B.has(id)) n++; });
+    return n / A.size;
   }
 
   function refreshDay(day) {
@@ -710,7 +809,7 @@
     if (c.includes('fattyliver')) t.push({ k: 'fattyliver' });
     if (c.includes('kidney')) t.push({ k: 'kidney' });
     if (targets.bmi >= 23 && !['lose', 'pregnancy', 'lactation'].includes(profile.goal)) t.push({ k: 'bmiHigh' });
-    if (targets.bmi < 18.5 && profile.goal === 'lose') t.push({ k: 'bmiLow' });
+    if (targets.bmi && targets.bmi < 18.5 && profile.goal === 'lose') t.push({ k: 'bmiLow' });
     return t;
   }
 
@@ -746,7 +845,7 @@
 
   const api = {
     ACTIVITY, GOALS, PLANS, CONDITIONS, DIETS, REGIONS, EXCLUDES, TRAVEL, SLOTS, SPLITS, DAY_NAMES, CATEGORIES,
-    resolveProfile, computeTargets, slotTargets, foodFilter, buildPools, composeMeal, makeItem, customItem,
+    MIXES, MIX_ITEMS, CONDITION_BANS, dietOf, previousFoodIds, overlap, resolveProfile, computeTargets, slotTargets, foodFilter, buildPools, composeMeal, makeItem, customItem,
     setItemQty, recalcMeal, refreshDay, unitStep, generatePlan, swapMeal, copyMeal, countCombinations,
     searchFoods, isHighProtein, planDays, tips, avoidList, weightLossPicks, formatQty, rng,
   };

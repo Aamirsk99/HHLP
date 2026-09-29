@@ -781,6 +781,30 @@
   const HI = typeof module !== 'undefined' && module.exports ? require('./foodnames.js') : root.FOOD_HI || {};
   FOODS.forEach((f) => { f.hi = HI[f.name] || ''; });
 
+  // Every dish has a recipe (recipes.js): kcal, protein, carbs and fat are recalculated
+  // from its ingredients (ingredients.js), and the diet type is checked against them.
+  const node = typeof module !== 'undefined' && module.exports;
+  const RC = node ? require('./recipes.js') : root.RECIPES;
+  const ING = node ? require('./ingredients.js') : root.INGREDIENTS;
+  if (RC && ING) {
+    RC.applyRecipes(FOODS, ING);
+    // Ingredients are searchable foods too (per 100 g / 100 ml), for manual editing.
+    const names = new Set(FOODS.map((f) => f.name));
+    Object.values(ING).forEach((x) => {
+      if (names.has(x.name)) return;
+      const t = x.tags;
+      const diet = t.some((m) => m === 'chicken' || m === 'mutton' || m === 'fish') ? 'nonveg' : t.includes('egg') ? 'egg' : t.includes('dairy') || x.key === 'honey' ? 'veg' : 'vegan';
+      const liquid = x.cat === 'drink' || /milk|juice|water/i.test(x.name);
+      FOODS.push({
+        id: FOODS.length, name: x.name, hi: x.hi, roles: ['ingredient'], diet, region: 'IN',
+        qty: 100, unit: liquid ? 'ml' : 'g', kcal: x.kcal, p: x.p, c: x.c, f: x.f,
+        allergens: ['gluten', 'dairy', 'nuts', 'soy', 'egg', 'fish'].filter((a) => t.includes(a)),
+        flags: [], ingKey: x.key, cat: x.cat,
+        meats: diet === 'nonveg' ? t.filter((m) => m === 'chicken' || m === 'mutton' || m === 'fish') : undefined,
+      });
+    });
+  }
+
   const api = { FOODS, PRESETS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.FOODDB = api;

@@ -196,7 +196,7 @@ test('swap and search', () => {
 
 test('portions round to kitchen-friendly quantities', () => {
   const poha = DB.FOODS.find((f) => f.name === 'Vegetable poha');
-  const meal = P.composeMeal([poha], 300, true);
+  const meal = P.composeMeal([poha], poha.kcal * 1.5, true);
   assert.equal(meal.factor, 1.5);
   assert.equal(meal.items[0].text, '1½ cups');
   assert.equal(P.formatQty(0.75), '¾');
@@ -229,4 +229,73 @@ test('transliteration handles silent vowels and local words', () => {
   assert.equal(I.foodName('pa', 'Paneer tikka'), 'ਪਨੀਰ ਟਿੱਕਾ');
   assert.equal(I.foodName('en', 'Rajma'), 'Rajma');
   assert.equal(I.foodName('hi', 'My own food', true), 'My own food');
+});
+
+// ── v5 ──────────────────────────────────────────────────────────
+const RC = require('../js/recipes.js');
+const ING = require('../js/ingredients.js');
+
+test('every dish has a recipe whose ingredients give its nutrition and diet', () => {
+  const dishes = DB.FOODS.filter((f) => !f.ingKey);
+  assert.ok(dishes.length >= 650);
+  for (const f of dishes) {
+    assert.ok(f.recipe && f.recipe.ing.length, `no recipe: ${f.name}`);
+    const n = RC.analyse(f.recipe.ing, ING);
+    assert.equal(f.kcal, n.kcal, f.name);
+    assert.equal(f.p, n.p, f.name);
+    const rank = { vegan: 0, veg: 1, egg: 2, nonveg: 3 };
+    assert.ok(rank[n.diet] <= rank[f.diet], `${f.name} is ${f.diet} but its recipe is ${n.diet}`);
+    assert.ok(RC.steps(f.recipe, ING).length >= 2, f.name);
+  }
+  assert.ok(DB.FOODS.filter((f) => f.ingKey).length >= 150, 'ingredients are searchable');
+});
+
+test('age, sex, height and weight are optional', () => {
+  const t = P.computeTargets({ activity: 'light', plan: 'weight_loss', diet: 'veg' });
+  assert.equal(t.bmi, null);
+  assert.ok(t.calories >= 1200 && t.protein > 0 && t.waterL >= 2);
+  const plan = P.generatePlan(DB, { plan: 'diabetic', diet: 'veg', meals: 5 }, 3);
+  assert.equal(plan.days.length, 7);
+  assert.ok(plan.days.every((d) => d.totals.kcal > 0));
+});
+
+test('number of days, water override', () => {
+  const one = P.generatePlan(DB, { ...base, days: 1, startDay: 'Friday' }, 4);
+  assert.deepEqual(one.days.map((d) => d.day), ['Friday']);
+  assert.equal(P.generatePlan(DB, { ...base, days: 3 }, 4).days.length, 3);
+  assert.equal(P.computeTargets({ ...base, waterL: 3.2 }).waterL, 3.2);
+});
+
+test('diet combinations include only the chosen animal foods', () => {
+  const cases = [[['egg'], ['egg']], [['fish'], ['fish']], [['egg', 'chicken'], ['egg', 'chicken']]];
+  for (const [mix, allowed] of cases) {
+    const plan = P.generatePlan(DB, { ...base, diet: 'veg', mix, cuisine: 'mix' }, 11);
+    const foods = allItems(plan).map((i) => DB.FOODS[i.fid]);
+    for (const f of foods) {
+      if (f.diet === 'egg') assert.ok(allowed.includes('egg'), `${mix}: ${f.name}`);
+      if (f.diet === 'nonveg') assert.ok(f.meats.every((m) => allowed.includes(m)), `${mix}: ${f.name}`);
+    }
+    assert.ok(foods.some((f) => f.diet === 'egg' || f.diet === 'nonveg'), `${mix} has no egg/non-veg dish`);
+  }
+});
+
+test('with a disease, no food from the avoid list is added', () => {
+  for (const cond of Object.keys(P.CONDITIONS)) {
+    const plan = P.generatePlan(DB, { ...base, diet: 'nonveg', cuisine: 'mix', conditions: [cond] }, 21);
+    const bans = new Set([...P.CONDITION_BANS.any.ing, ...(P.CONDITION_BANS[cond] ? P.CONDITION_BANS[cond].ing : [])]);
+    for (const i of allItems(plan)) {
+      const f = DB.FOODS[i.fid];
+      assert.ok(!f.flags.includes('fried') && !f.flags.includes('sweet'), `${cond}: ${f.name}`);
+      assert.ok(!f.recipe.ing.some(([k]) => bans.has(k)), `${cond}: ${f.name}`);
+    }
+    assert.ok(plan.days.every((d) => d.meals.every((m) => m.meal && m.meal.items.length)), cond);
+  }
+});
+
+test('next week changes the foods of the previous chart', () => {
+  const week1 = P.generatePlan(DB, base, 5);
+  const week2 = P.generatePlan(DB, base, 6, { avoidPrevious: week1 });
+  assert.ok(P.overlap(week2, week1, DB) < 0.1, String(P.overlap(week2, week1, DB)));
+  const byNames = P.generatePlan(DB, base, 6, { avoidPrevious: allItems(week1).map((i) => i.name) });
+  assert.ok(P.overlap(byNames, week1, DB) < 0.1);
 });
