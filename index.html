@@ -2,173 +2,291 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Hindivine Diet</title>
-  <meta name="description" content="Hindivine Diet — personalised 7-day Indian diet charts for weight loss, diabetes, PCOS, thyroid and more, printable as A4 PDF.">
-  <meta name="theme-color" content="#0E6FB5">
+  <meta name="description" content="Hindivine Diet — premium 7-day Indian and worldwide diet charts: weight loss, diabetes, PCOS, thyroid, travel and more, as A4 PDF.">
+  <meta name="theme-color" content="#0A2F55">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Hindivine Diet">
+  <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="img/icon-192.png">
   <link rel="apple-touch-icon" href="img/icon-192.png">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
-  <header class="site-header no-print">
-    <div class="wrap brand">
-      <img src="img/logo.jpg" alt="Hindivine Healthcare Private Limited" class="brand-logo" width="900" height="308">
-      <div class="brand-text">
-        <h1>Hindivine Diet</h1>
-        <p>7-day Indian diet charts for every need — weight loss, diabetes, PCOS, thyroid, BP, pregnancy and more.</p>
-      </div>
+  <header class="appbar no-print">
+    <div class="wrap appbar-row">
+      <img src="img/logo.jpg" alt="Hindivine Healthcare Private Limited" class="appbar-logo" width="900" height="308">
+      <nav class="nav" role="tablist" aria-label="Sections">
+        <button type="button" role="tab" class="nav-btn" aria-selected="true" data-view="builder">Chart builder</button>
+        <button type="button" role="tab" class="nav-btn" aria-selected="false" data-view="library">Food library</button>
+      </nav>
     </div>
   </header>
 
-  <main class="wrap layout no-print">
-    <form id="profile-form" class="card form" novalidate>
-      <h2>Patient details</h2>
-
-      <fieldset>
-        <legend>Patient</legend>
-        <label>Patient name
-          <input name="name" type="text" placeholder="Full name" autocomplete="off" required>
-        </label>
-        <div class="row">
-          <label>Patient ID / Reg. no.
-            <input name="patientId" type="text" placeholder="Optional" autocomplete="off">
-          </label>
-          <label>Mobile
-            <input name="phone" type="tel" placeholder="Optional" autocomplete="off">
-          </label>
-        </div>
-        <div class="row">
-          <label>Age (years)
-            <input name="age" type="number" min="14" max="90" value="30" required>
-          </label>
-          <label>Sex
-            <select name="sex">
-              <option value="female">Female</option>
-              <option value="male">Male</option>
-            </select>
-          </label>
-        </div>
-        <div class="row">
-          <label>Height (cm)
-            <input name="heightCm" type="number" min="120" max="230" value="160" required>
-          </label>
-          <label>Weight (kg)
-            <input name="weightKg" type="number" min="30" max="250" step="0.1" value="68" required>
-          </label>
-        </div>
-        <div class="row">
-          <label>Chart date
-            <input name="date" type="date">
-          </label>
-          <label>Next review
-            <input name="reviewDate" type="date">
-          </label>
-        </div>
-        <label>Medical notes / history
-          <input name="notes" type="text" placeholder="e.g. HbA1c 7.2, on metformin" autocomplete="off">
-        </label>
-      </fieldset>
-
-      <fieldset>
-        <legend>Diet plan</legend>
-        <label>Type of diet
-          <select name="plan" id="plan"></select>
-        </label>
-        <div class="row">
-          <label>Weight goal
-            <select name="weightGoal">
-              <option value="plan">As per diet plan</option>
-              <option value="lose">Lose weight</option>
-              <option value="maintain">Maintain</option>
-              <option value="gain">Gain weight</option>
-            </select>
-          </label>
-          <label>Activity level
-            <select name="activity" id="activity"></select>
-          </label>
-        </div>
-        <legend class="sub">Other conditions</legend>
-        <div class="checks" id="conditions"></div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Food preferences</legend>
-        <div class="row">
-          <label>Food type
-            <select name="diet" id="diet"></select>
-          </label>
-          <label>Cuisine
-            <select name="cuisine">
-              <option value="in">Indian</option>
-              <option value="mix">Indian + global</option>
-            </select>
-          </label>
-        </div>
-        <div class="row">
-          <label>Meals per day
-            <select name="meals">
-              <option value="3">3 meals</option>
-              <option value="4">4 (3 + snack)</option>
-              <option value="5" selected>5 (3 + 2 snacks)</option>
-              <option value="6">6 (+ bedtime)</option>
-            </select>
-          </label>
-          <label class="check inline">
-            <input name="earlyDrink" type="checkbox" checked> Early-morning drink
-          </label>
-        </div>
-        <label>Foods to avoid
-          <input name="dislikes" type="text" placeholder="comma separated, e.g. brinjal, mushroom">
-        </label>
-        <legend class="sub">Allergies / intolerances</legend>
-        <div class="checks">
-          <label class="check"><input type="checkbox" name="allergies" value="gluten"> Gluten</label>
-          <label class="check"><input type="checkbox" name="allergies" value="dairy"> Dairy / lactose</label>
-          <label class="check"><input type="checkbox" name="allergies" value="nuts"> Nuts &amp; peanuts</label>
-          <label class="check"><input type="checkbox" name="allergies" value="soy"> Soy</label>
-          <label class="check"><input type="checkbox" name="allergies" value="egg"> Egg</label>
-          <label class="check"><input type="checkbox" name="allergies" value="fish"> Fish / seafood</label>
-        </div>
-      </fieldset>
-
-      <fieldset>
-        <legend>Dietitian</legend>
-        <label>Dietitian name
-          <input name="dietitian" type="text" placeholder="e.g. Dr. / Ms. …" autocomplete="name">
-        </label>
-        <div class="row">
-          <label>Qualification
-            <input name="qualification" type="text" placeholder="e.g. M.Sc. Nutrition">
-          </label>
-          <label>Contact
-            <input name="dietitianPhone" type="tel" placeholder="Optional">
-          </label>
-        </div>
-      </fieldset>
-
-      <p id="form-error" class="error" role="alert" hidden></p>
-      <button type="submit" class="btn primary">Generate 7-day diet chart</button>
-    </form>
-
-    <section id="result" class="result" aria-live="polite">
-      <div class="card empty">
-        <img src="img/icon-192.png" alt="" width="96" height="96">
-        <h2>The diet chart will appear here</h2>
-        <p>Fill in the patient details and press <strong>Generate 7-day diet chart</strong>.</p>
+  <section class="hero no-print">
+    <div class="wrap hero-row">
+      <div>
+        <h1>Hindivine Diet</h1>
+        <p>Premium 7-day diet charts: Indian &amp; worldwide foods, medical diets, travel plans and A4 PDF.</p>
       </div>
-    </section>
+      <div class="hero-stats" id="hero-stats"></div>
+    </div>
+  </section>
+
+  <main class="wrap no-print">
+    <!-- ── Chart builder ─────────────────────────────── -->
+    <div class="view layout" id="view-builder">
+      <form id="profile-form" class="panel form" novalidate>
+        <details class="step" open>
+          <summary><span class="num">1</span><span><b>Patient details</b><small>Name, body measurements, dates</small></span></summary>
+          <div class="step-body">
+            <label>Patient name
+              <input name="name" type="text" placeholder="Full name (optional for generic charts)" autocomplete="off">
+            </label>
+            <div class="row">
+              <label>Patient ID
+                <input name="patientId" type="text" placeholder="Optional" autocomplete="off">
+              </label>
+              <label>Mobile
+                <input name="phone" type="tel" placeholder="Optional" autocomplete="off">
+              </label>
+            </div>
+            <div class="row">
+              <label>Age
+                <input name="age" type="number" min="14" max="90" value="30" inputmode="numeric" required>
+              </label>
+              <div class="field">
+                <span class="field-label">Sex</span>
+                <div class="seg" data-name="sex">
+                  <button type="button" data-value="female" aria-pressed="true">Female</button>
+                  <button type="button" data-value="male" aria-pressed="false">Male</button>
+                </div>
+                <input type="hidden" name="sex" value="female">
+              </div>
+            </div>
+            <div class="row">
+              <label>Height (cm)
+                <input name="heightCm" type="number" min="120" max="230" value="160" inputmode="decimal" required>
+              </label>
+              <label>Weight (kg)
+                <input name="weightKg" type="number" min="30" max="250" step="0.1" value="68" inputmode="decimal" required>
+              </label>
+            </div>
+            <div class="row three">
+              <label>Chart date
+                <input name="date" type="date">
+              </label>
+              <label>Start (Day 1)
+                <input name="startDate" type="date">
+              </label>
+              <label>Next review
+                <input name="reviewDate" type="date">
+              </label>
+            </div>
+            <label>Medical notes
+              <input name="notes" type="text" placeholder="e.g. HbA1c 7.2, on metformin" autocomplete="off">
+            </label>
+          </div>
+        </details>
+
+        <details class="step" open>
+          <summary><span class="num">2</span><span><b>Diet plan &amp; targets</b><small>Type of diet, calories, protein</small></span></summary>
+          <div class="step-body">
+            <div class="field">
+              <span class="field-label">Chart type</span>
+              <div class="seg" data-name="chartType">
+                <button type="button" data-value="regular" aria-pressed="true">Regular diet</button>
+                <button type="button" data-value="travel" aria-pressed="false">Travel diet</button>
+              </div>
+              <input type="hidden" name="chartType" value="regular">
+            </div>
+            <label class="travel-only" hidden>Travel type
+              <select name="travel" id="travel"></select>
+            </label>
+            <label>Type of diet
+              <select name="plan" id="plan"></select>
+            </label>
+            <div class="row">
+              <label>Weight goal
+                <select name="weightGoal">
+                  <option value="plan">As per diet plan</option>
+                  <option value="lose">Lose weight</option>
+                  <option value="maintain">Maintain</option>
+                  <option value="gain">Gain weight</option>
+                </select>
+              </label>
+              <label>Activity
+                <select name="activity" id="activity"></select>
+              </label>
+            </div>
+            <div class="field">
+              <span class="field-label">Calories per day</span>
+              <div class="chips" data-single="kcalTarget" id="kcal-chips"></div>
+              <input name="kcalTarget" type="number" min="800" max="4500" step="50" placeholder="Custom kcal (blank = auto)" inputmode="numeric" class="chip-input">
+            </div>
+            <div class="field">
+              <span class="field-label">Protein per day</span>
+              <div class="chips" data-single="proteinTarget" id="protein-chips"></div>
+              <input name="proteinTarget" type="number" min="20" max="250" step="5" placeholder="Custom grams (blank = auto)" inputmode="numeric" class="chip-input">
+            </div>
+            <div class="field">
+              <span class="field-label">Other conditions</span>
+              <div class="chips" data-multi="conditions" id="condition-chips"></div>
+            </div>
+          </div>
+        </details>
+
+        <details class="step" open>
+          <summary><span class="num">3</span><span><b>Food preferences</b><small>Food type, cuisine, exclusions</small></span></summary>
+          <div class="step-body">
+            <div class="field">
+              <span class="field-label">Food type</span>
+              <div class="seg wrap-seg" data-name="diet" id="diet-seg"></div>
+              <input type="hidden" name="diet" value="veg">
+            </div>
+            <div class="field">
+              <span class="field-label">Cuisine <small>(none selected = all Indian)</small></span>
+              <div class="chips" data-multi="regions" id="region-chips"></div>
+            </div>
+            <div class="field">
+              <span class="field-label">Exclude foods</span>
+              <div class="chips" data-multi="excludes" id="exclude-chips"></div>
+            </div>
+            <label>Other foods to avoid
+              <input name="dislikes" type="text" placeholder="comma separated, e.g. karela, lobia">
+            </label>
+            <div class="field">
+              <span class="field-label">Allergies</span>
+              <div class="chips" data-multi="allergies" id="allergy-chips"></div>
+            </div>
+            <label class="switch"><input type="checkbox" name="preferWl"> <span>Prefer weight-loss foods</span></label>
+          </div>
+        </details>
+
+        <details class="step">
+          <summary><span class="num">4</span><span><b>Meal schedule</b><small>Meals per day and timings</small></span></summary>
+          <div class="step-body">
+            <div class="row">
+              <label>Meals per day
+                <select name="meals">
+                  <option value="3">3 meals</option>
+                  <option value="4">4 (3 + snack)</option>
+                  <option value="5" selected>5 (3 + 2 snacks)</option>
+                  <option value="6">6 (+ bedtime)</option>
+                </select>
+              </label>
+              <label class="switch inline"><input type="checkbox" name="earlyDrink" checked> <span>Early-morning drink</span></label>
+            </div>
+            <div class="times" id="times"></div>
+          </div>
+        </details>
+
+        <details class="step">
+          <summary><span class="num">5</span><span><b>Dietitian</b><small>Printed as “Prepared by”</small></span></summary>
+          <div class="step-body">
+            <label>Dietitian name
+              <input name="dietitian" type="text" placeholder="e.g. Ms. Priya Verma" autocomplete="name">
+            </label>
+            <div class="row">
+              <label>Qualification
+                <input name="qualification" type="text" placeholder="e.g. M.Sc. Nutrition">
+              </label>
+              <label>Contact
+                <input name="dietitianPhone" type="tel" placeholder="Optional">
+              </label>
+            </div>
+          </div>
+        </details>
+
+        <p id="form-error" class="error" role="alert" hidden></p>
+        <div class="form-actions">
+          <button type="submit" class="btn primary lg">Generate 7-day chart</button>
+          <button type="button" class="btn ghost lg" id="manual-start">Build manually</button>
+        </div>
+      </form>
+
+      <section id="result" class="result" aria-live="polite">
+        <div class="panel empty">
+          <img src="img/icon-192.png" alt="" width="88" height="88">
+          <h2>Create a premium diet chart</h2>
+          <p>Fill in the steps and press <b>Generate 7-day chart</b>, or choose <b>Build manually</b> to pick every food yourself.</p>
+          <ul class="feature-list">
+            <li>Indian regional &amp; worldwide foods</li>
+            <li>Calorie-wise &amp; protein-wise plans</li>
+            <li>Medical, weight-loss &amp; travel diets</li>
+            <li>A4 PDF with or without patient name</li>
+          </ul>
+        </div>
+      </section>
+    </div>
+
+    <!-- ── Food library ──────────────────────────────── -->
+    <div class="view" id="view-library" hidden>
+      <div class="panel library">
+        <div class="library-head">
+          <input type="search" id="lib-search" placeholder="Search foods — e.g. dosa, paneer, quinoa, soup" aria-label="Search foods">
+          <div class="chips" id="lib-filters"></div>
+        </div>
+        <p class="lib-count" id="lib-count"></p>
+        <div class="food-grid" id="lib-list"></div>
+      </div>
+    </div>
   </main>
 
   <footer class="wrap footer no-print">
-    <p><strong>Hindivine Healthcare Private Limited</strong> · <a href="https://www.hindivine.com" target="_blank" rel="noopener">www.hindivine.com</a></p>
-    <p>Calorie needs use the Mifflin–St Jeor equation; BMI uses Asian-Indian cut-offs. Nutrition values are approximate. This tool gives general guidance and does not replace advice from a doctor or registered dietitian.</p>
+    <p><b>Hindivine Healthcare Private Limited</b> · <a href="https://www.hindivine.com" target="_blank" rel="noopener">www.hindivine.com</a></p>
+    <p>Calories use the Mifflin–St Jeor equation; BMI uses Asian-Indian cut-offs. Nutrition values are approximate. This tool supports, and does not replace, a doctor or registered dietitian.</p>
   </footer>
+
+  <!-- Meal editor -->
+  <dialog id="editor" class="editor no-print">
+    <form method="dialog" class="editor-inner" id="editor-form">
+      <header class="editor-head">
+        <div>
+          <h2 id="editor-title">Edit meal</h2>
+          <p id="editor-sub"></p>
+        </div>
+        <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+      </header>
+      <div class="editor-body">
+        <div class="editor-items" id="editor-items"></div>
+        <div class="editor-totals" id="editor-totals"></div>
+        <div class="editor-search">
+          <input type="search" id="editor-q" placeholder="Search 470+ foods to add…" aria-label="Search foods">
+          <div class="chips small" id="editor-filters"></div>
+          <div class="editor-results" id="editor-results"></div>
+          <details class="custom-food">
+            <summary>Add a custom food</summary>
+            <div class="row three">
+              <input id="cf-name" type="text" placeholder="Food name">
+              <input id="cf-qty" type="text" placeholder="Qty, e.g. 1 bowl">
+              <input id="cf-kcal" type="number" placeholder="kcal">
+            </div>
+            <div class="row">
+              <input id="cf-protein" type="number" placeholder="Protein g (optional)">
+              <button type="button" class="btn" id="cf-add">Add custom food</button>
+            </div>
+          </details>
+        </div>
+        <div class="apply-days">
+          <span class="field-label">Also use this meal on</span>
+          <div class="chips small" id="apply-days"></div>
+        </div>
+      </div>
+      <footer class="editor-foot">
+        <button type="button" class="btn ghost" data-close>Cancel</button>
+        <button type="button" class="btn primary" id="editor-save">Save meal</button>
+      </footer>
+    </form>
+  </dialog>
 
   <!-- A4 print sheet, filled by app.js -->
   <div id="print-sheet" class="print-only" aria-hidden="true"></div>
 
-  <script src="js/foods.js"></script>
+  <script src="js/fooddb.js"></script>
   <script src="js/planner.js"></script>
   <script src="js/app.js"></script>
 </body>
