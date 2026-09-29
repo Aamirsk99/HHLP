@@ -20,6 +20,22 @@ Open `index.html` in a browser, or serve the folder:
 npm start            # or: python3 -m http.server
 ```
 
+## Android app (APK)
+
+A ready-to-install APK is in [`dist/DietChart.apk`](dist/DietChart.apk). Copy it to an Android phone (Android 7.0 or newer), open it, and allow *Install unknown apps* when asked.
+
+The app is a full-screen WebView that runs the same web app offline from its bundled assets. Inside the app, **Print / PDF** opens Android's print dialog, where you can choose *Save as PDF*. **Download CSV** opens the system *Save to* picker.
+
+To rebuild after changing the web app:
+
+```sh
+./android/build.sh          # needs Java 11+, curl, zip/unzip
+```
+
+The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app. Set `VERSION_CODE` and `VERSION_NAME` to bump the version.
+
+**Signing key:** the first build creates `android/release.p12` (password `dietchart`; override with `KEYSTORE` and `STOREPASS`). It's git-ignored. Keep a copy, because Android only installs an update over an existing install when both are signed with the same key.
+
 ## Test
 
 ```sh
@@ -36,6 +52,8 @@ npm test             # Node 18+, no dependencies
 | `js/planner.js` | Pure planning logic: targets, filtering, portioning, weekly plan |
 | `js/app.js` | DOM wiring, rendering, CSV export |
 | `tests/` | Unit tests for the planner |
+| `android/` | Android WebView wrapper (manifest, resources, `MainActivity`, build script) |
+| `dist/DietChart.apk` | Built Android app |
 
 ## Disclaimer
 

@@ -176,10 +176,15 @@
       rows.push([d.day, e.time, e.label, m ? m.name : '', m ? m.items.map((i) => `${i.name} (${i.text})`).join('; ') : '', m ? m.kcal : '', m ? m.p : '', m ? m.c : '', m ? m.f : '']);
     }));
     const csv = rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
-    const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+    const fileName = `diet-chart${profile.name ? '-' + profile.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : ''}.csv`;
+    if (window.AndroidBridge) {
+      window.AndroidBridge.saveFile(fileName, 'text/csv', '\ufeff' + csv);
+      return;
+    }
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `diet-chart${profile.name ? '-' + profile.name.toLowerCase().replace(/[^a-z0-9]+/g, '-') : ''}.csv`;
+    a.download = fileName;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -216,7 +221,8 @@
     } else if (btn.id === 'csv') {
       toCsv();
     } else if (btn.id === 'print') {
-      window.print();
+      if (window.AndroidBridge) window.AndroidBridge.print(profile.name ? `Diet Chart - ${profile.name}` : 'Diet Chart');
+      else window.print();
     }
   });
 
