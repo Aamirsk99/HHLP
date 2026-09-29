@@ -1,12 +1,14 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const DB = require('../js/fooddb.js');
+const I = require('../js/i18n.js');
+I.setHindiNames(require('../js/foodnames.js'));
 const P = require('../js/planner.js');
 
 const base = {
   age: 30, sex: 'female', heightCm: 165, weightKg: 70, activity: 'light', goal: 'lose',
   diet: 'veg', cuisine: 'in', meals: 5, earlyDrink: true, allergies: [], conditions: [], dislikes: [],
-  startDate: '2026-09-29',
+  startDay: 'Monday',
 };
 const textOf = (item) => item.name.toLowerCase();
 const allItems = (plan) => plan.days.flatMap((d) => d.meals.flatMap((m) => (m.meal ? m.meal.items : [])));
@@ -80,11 +82,30 @@ test('protein target steers meal choice', () => {
   assert.ok(avg(high) >= 100, `high-protein plan averages ${avg(high)} g`);
 });
 
-test('days follow the start date', () => {
-  const plan = P.generatePlan(DB, { ...base, startDate: '2026-10-02' }, 1);
-  assert.equal(plan.days[0].date, '2026-10-02');
-  assert.equal(plan.days[0].day, 'Friday');
-  assert.equal(plan.days[6].date, '2026-10-08');
+test('days are named only (no dates) and follow the start day', () => {
+  const plan = P.generatePlan(DB, { ...base, startDay: 'Friday' }, 1);
+  assert.deepEqual(plan.days.map((d) => d.day), ['Friday', 'Saturday', 'Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday']);
+  assert.ok(plan.days.every((d) => !('date' in d)));
+});
+
+test('preferred foods appear more often', () => {
+  const count = (pl) => pl.days.flatMap((d) => d.meals.flatMap((m) => m.meal.items)).filter((i) => /paneer/i.test(i.name)).length;
+  let normal = 0, liked = 0;
+  for (const seed of [1, 2, 3]) {
+    normal += count(P.generatePlan(DB, base, seed));
+    liked += count(P.generatePlan(DB, { ...base, likes: ['paneer'] }, seed));
+  }
+  assert.ok(liked > normal * 1.5, `${liked} vs ${normal}`);
+});
+
+test('search: Hindi names, categories, calorie limit and sorting', () => {
+  assert.ok(P.searchFoods(DB.FOODS, 'पनीर').some((f) => f.name === 'Palak paneer'));
+  const fruits = P.searchFoods(DB.FOODS, '', { category: 'fruits', sort: 'kcal' });
+  assert.ok(fruits.length >= 40 && fruits.every((f) => f.roles.includes('fruit')));
+  for (let i = 1; i < fruits.length; i++) assert.ok(fruits[i].kcal >= fruits[i - 1].kcal);
+  assert.ok(P.searchFoods(DB.FOODS, '', { maxKcal: 100 }).every((f) => f.kcal <= 100));
+  const byProtein = P.searchFoods(DB.FOODS, 'chicken', { sort: 'protein' });
+  assert.ok(byProtein[0].p >= byProtein[byProtein.length - 1].p);
 });
 
 test('filters: diet, allergies, conditions, exclusions, dislikes', () => {
@@ -179,4 +200,33 @@ test('portions round to kitchen-friendly quantities', () => {
   assert.equal(meal.factor, 1.5);
   assert.equal(meal.items[0].text, '1½ cups');
   assert.equal(P.formatQty(0.75), '¾');
+});
+
+test('every food has a Hindi name and every chart language renders', () => {
+  for (const f of DB.FOODS) assert.ok(f.hi, `no Hindi name: ${f.name}`);
+  const plan = P.generatePlan(DB, { ...base, plan: 'diabetic', conditions: ['thyroid'], excludes: ['rice'], diet: 'nonveg' }, 5);
+  const scriptOf = { hi: /[\u0900-\u097f]/, mr: /[\u0900-\u097f]/, gu: /[\u0a80-\u0aff]/, bn: /[\u0980-\u09ff]/, pa: /[\u0a00-\u0a7f]/, ta: /[\u0b80-\u0bff]/, te: /[\u0c00-\u0c7f]/, kn: /[\u0c80-\u0cff]/, ml: /[\u0d00-\u0d7f]/ };
+  for (const lang of I.CODES.filter((l) => l !== 'en')) {
+    const texts = [
+      I.t(lang, 'title'), I.dayName(lang, 'Monday'), I.label(lang, 'slots', 'lunch'), I.label(lang, 'plans', 'diabetic'),
+      ...plan.days[0].meals.flatMap((m) => m.meal.items.map((i) => I.foodName(lang, i.name))),
+      ...P.tips({ ...base, plan: 'diabetic' }, plan.targets).map((t) => I.tipText(lang, t)),
+      ...P.avoidList({ ...base, excludes: ['rice'] }).map((a) => I.avoidText(lang, a)),
+    ];
+    for (const s of texts) {
+      assert.ok(s && !/undefined|\{\w+\}/.test(s), `${lang}: ${s}`);
+      assert.ok(scriptOf[lang].test(s), `${lang} not in its script: ${s}`);
+    }
+    // No stray Devanagari left after converting to another script.
+    if (!['hi', 'mr'].includes(lang)) for (const s of texts) assert.ok(!/[\u0900-\u0963\u0966-\u097f]/.test(s), `${lang} has Devanagari: ${s}`);
+  }
+});
+
+test('transliteration handles silent vowels and local words', () => {
+  assert.equal(I.foodName('te', 'Rajma'), 'రాజ్మా');
+  assert.equal(I.foodName('ta', 'Curd rice'), 'தயிர் சாதம்');
+  assert.equal(I.foodName('gu', 'Moong dal'), 'મૂંગ દાળ');
+  assert.equal(I.foodName('pa', 'Paneer tikka'), 'ਪਨੀਰ ਟਿੱਕਾ');
+  assert.equal(I.foodName('en', 'Rajma'), 'Rajma');
+  assert.equal(I.foodName('hi', 'My own food', true), 'My own food');
 });

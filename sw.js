@@ -1,8 +1,8 @@
 /* Offline cache for Hindivine Diet (installed web app on iPhone / Android). */
-const CACHE = 'hindivine-diet-v3';
+const CACHE = 'hindivine-diet-v4';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
-  'js/fooddb.js', 'js/planner.js', 'js/app.js',
+  'js/foodnames.js', 'js/fooddb.js', 'js/i18n.js', 'js/planner.js', 'js/app.js',
   'img/logo.jpg', 'img/icon-192.png', 'img/icon-512.png',
 ];
 

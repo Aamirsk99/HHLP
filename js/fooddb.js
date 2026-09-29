@@ -540,6 +540,219 @@
   F('Hotel salad bar plate with paneer', 'tmain', 'veg', 'CON', 1, 'plate', 380, 18, 20, 24, 'dairy', 'tr');
   F('Non-veg thali (railway / dhaba)', 'tmain', 'nonveg', 'IN', 1, 'plate', 680, 32, 88, 20, 'gluten dairy', 'hgi hna tr');
 
+  // ── More regional & worldwide foods ─────────────────────────────
+  F('Jeera–ajwain–saunf water', 'early', 'vegan', 'IN', 1, 'glass', 8, 0.2, 1.5, 0.1, '', 'wl fx');
+  F('Kadha (herbal decoction)', 'early drink', 'vegan', 'IN', 1, 'cup', 15, 0.3, 3, 0, '', 'wl fx');
+  F('Lemongrass tea', 'early bed', 'vegan', 'IN', 1, 'cup', 5, 0, 1, 0, '', 'wl fx');
+  F('Soaked peanuts', 'earlyadd', 'vegan', 'IN', 10, 'pc', 40, 1.8, 1.1, 3.3, 'nuts', 'fx');
+  F('Soaked munakka', 'earlyadd', 'vegan', 'IN', 4, 'pc', 30, 0.3, 7.5, 0, '', 'hgi hk sweet fx');
+
+  F('Ripe jackfruit', 'fruit', 'vegan', 'S', 1, 'cup', 150, 2.8, 38, 1, '', 'hgi');
+  F('Bael fruit', 'fruit', 'vegan', 'N', 0.5, 'cup', 70, 1.2, 17, 0.2, '', '');
+  F('Star fruit (kamrakh)', 'fruit', 'vegan', 'IN', 1, 'pc', 30, 1, 7, 0.3, '', 'wl hk');
+  F('Mulberries (shahtoot)', 'fruit', 'vegan', 'N', 1, 'cup', 60, 2, 14, 0.5, '', 'wl');
+  F('Fresh apricots', 'fruit', 'vegan', 'N', 3, 'pc', 50, 1.4, 12, 0.4, '', 'wl tr');
+  F('Kinnow (tangerine)', 'fruit', 'vegan', 'N', 1, 'pc', 50, 0.8, 13, 0.3, '', 'wl tr');
+  F('Fresh coconut pieces', 'fruit', 'vegan', 'S', 30, 'g', 105, 1, 4.5, 10, '', 'hsf');
+  F('Dates (khajur)', 'fruit snack', 'vegan', 'IN', 2, 'pc', 45, 0.4, 12, 0, '', 'hgi sweet tr');
+  F('Dried figs (anjeer)', 'fruit snack', 'vegan', 'IN', 2, 'pc', 60, 0.8, 15, 0.2, '', 'sweet tr');
+  F('Prunes', 'fruit', 'vegan', 'CON', 3, 'pc', 60, 0.6, 16, 0.1, '', 'sweet');
+  F('Raspberries', 'fruit', 'vegan', 'CON', 1, 'cup', 64, 1.5, 15, 0.8, '', 'wl');
+  F('Green apple', 'fruit', 'vegan', 'IN', 1, 'pc', 80, 0.4, 21, 0.3, '', 'wl tr');
+  F('Avocado (half)', 'fruit', 'vegan', 'CON', 0.5, 'pc', 120, 1.5, 6, 11, '', 'hk');
+
+  F('Mint chaas', 'drink side', 'veg', 'N', 1, 'glass', 45, 2.5, 4, 2, 'dairy', 'wl tr');
+  F('Sol kadhi', 'drink', 'vegan', 'W', 1, 'glass', 70, 1, 4, 6, '', 'hsf');
+  F('Neer mor (spiced buttermilk)', 'drink', 'veg', 'S', 1, 'glass', 40, 2.5, 3.5, 2, 'dairy', 'wl tr');
+  F('Ragi malt (no sugar)', 'drink bfside', 'veg', 'S', 1, 'glass', 120, 4, 20, 2.5, 'dairy', '');
+  F('Badam milk (no sugar)', 'drink bed', 'veg', 'IN', 1, 'glass', 160, 8, 12, 9, 'dairy nuts', '');
+  F('Sweet lassi (less sugar)', 'drink', 'veg', 'N', 1, 'glass', 180, 7, 26, 5, 'dairy', 'sweet hgi');
+  F('Cold coffee (no sugar)', 'drink', 'veg', 'CON', 1, 'glass', 120, 6, 10, 6, 'dairy', 'caf');
+  F('Beetroot–carrot juice', 'drink', 'vegan', 'IN', 1, 'glass', 70, 1.5, 16, 0.2, '', 'hk');
+  F('Lauki (bottle gourd) juice', 'drink', 'vegan', 'IN', 1, 'glass', 25, 0.8, 5, 0.1, '', 'wl');
+  F('Oat milk', 'drink', 'vegan', 'CON', 1, 'glass', 120, 3, 16, 5, '', '');
+
+  F('Chana jor garam', 'snack', 'vegan', 'N', 30, 'g', 120, 6, 16, 3.5, '', 'tr');
+  F('Roasted soybeans', 'snack', 'vegan', 'IN', 30, 'g', 130, 11, 9, 6, 'soy', 'wl tr');
+  F('Baked ragi chips', 'snack', 'vegan', 'S', 30, 'g', 130, 3, 22, 3.5, '', 'tr');
+  F('Jowar puffs', 'snack', 'vegan', 'IN', 1, 'cup', 80, 2, 17, 0.5, '', 'wl tr');
+  F('Roasted moong dal namkeen', 'snack', 'vegan', 'N', 30, 'g', 130, 7, 15, 4.5, '', 'hna tr');
+  F('Steamed corn on the cob', 'snack', 'vegan', 'IN', 1, 'pc', 90, 3, 19, 1.3, '', 'tr');
+  F('Boiled chana salad', 'snack', 'vegan', 'IN', 1, 'cup', 170, 9, 28, 3, '', 'wl');
+  F('Kothimbir vadi (steamed)', 'snack', 'vegan', 'W', 3, 'pc', 150, 6, 20, 5, '', '');
+  F('Patra (steamed)', 'snack', 'vegan', 'W', 3, 'pc', 140, 4, 20, 5, '', '');
+  F('Khandvi', 'snack', 'veg', 'W', 6, 'pc', 130, 6, 12, 6, 'dairy', '');
+  F('Chana sundal', 'snack', 'vegan', 'S', 1, 'cup', 150, 8, 24, 3, '', 'wl');
+  F('Kuzhi paniyaram (less oil)', 'snack bf', 'vegan', 'S', 4, 'pc', 170, 4, 28, 5, '', '');
+  F('Jhal muri (less oil)', 'snack', 'vegan', 'E', 1, 'cup', 150, 4, 26, 4, 'nuts', '');
+  F('Date & nut energy bar', 'snack', 'vegan', 'IN', 1, 'pc', 150, 4, 18, 7, 'nuts', 'sweet tr');
+  F('Greek yogurt with berries', 'snack', 'veg', 'CON', 1, 'cup', 150, 12, 16, 4, 'dairy', 'wl');
+  F('Chicken salad cup', 'snack', 'nonveg', 'CON', 1, 'cup', 160, 22, 5, 6, '', 'wl');
+  F('Tuna cucumber bites', 'snack', 'nonveg', 'CON', 1, 'plate', 120, 18, 3, 4, 'fish', 'wl');
+  F('Veg rice-paper rolls', 'snack', 'vegan', 'ASIA', 2, 'pc', 140, 3, 28, 1.5, '', '');
+  F('Chicken satay (grilled)', 'snack', 'nonveg', 'ASIA', 3, 'pc', 180, 24, 4, 8, 'nuts', '');
+  F('Salsa with baked tortilla chips', 'snack', 'vegan', 'MEX', 1, 'bowl', 130, 3, 22, 3.5, '', '');
+  F('Bean dip with veg sticks', 'snack', 'vegan', 'MEX', 1, 'bowl', 120, 6, 18, 2.5, '', 'wl');
+  F('Small vegetable upma', 'snack', 'vegan', 'S', 0.75, 'cup', 150, 4, 23, 5, 'gluten', '');
+
+  F('Dal shorba', 'soup', 'vegan', 'N', 1, 'bowl', 110, 6, 16, 2.5, '', 'wl');
+  F('Mulligatawny soup', 'soup', 'vegan', 'S', 1, 'bowl', 140, 6, 18, 5, '', '');
+  F('Carrot–ginger soup', 'soup', 'vegan', 'IN', 1, 'bowl', 80, 1.5, 13, 2.5, '', 'wl');
+  F('Beetroot soup', 'soup', 'vegan', 'IN', 1, 'bowl', 80, 2, 14, 2, '', 'wl hk');
+  F('Cabbage soup', 'soup', 'vegan', 'CON', 1, 'bowl', 50, 1.5, 8, 1.2, '', 'wl');
+  F('Chicken & vegetable soup', 'soup', 'nonveg', 'CON', 1, 'bowl', 120, 14, 8, 3.5, '', 'wl');
+  F('Egg drop soup', 'soup', 'egg', 'ASIA', 1, 'bowl', 70, 5, 4, 4, 'egg', 'wl');
+  F('Hot & sour soup (veg)', 'soup', 'vegan', 'ASIA', 1, 'bowl', 80, 3, 12, 2, 'soy', 'hna');
+  F('Gazpacho', 'soup', 'vegan', 'MED', 1, 'bowl', 80, 2, 10, 4, '', 'wl');
+
+  F('Rava dosa (less oil)', 'bf', 'vegan', 'S', 2, 'pc', 260, 5, 40, 9, 'gluten', 'hgi');
+  F('Set dosa', 'bf', 'vegan', 'S', 3, 'pc', 270, 6, 48, 6, '', 'hgi');
+  F('Akki roti', 'bf', 'vegan', 'S', 2, 'pc', 260, 5, 48, 5, '', 'hgi');
+  F('Jowar upma', 'bf', 'vegan', 'W', 1, 'cup', 190, 6, 34, 4, '', 'wl');
+  F('Palak paratha', 'bf', 'vegan', 'N', 1, 'pc', 220, 6, 32, 8, 'gluten', 'tr');
+  F('Dal paratha', 'bf', 'vegan', 'N', 1, 'pc', 250, 9, 34, 9, 'gluten', 'tr');
+  F('Methi muthia (steamed)', 'bf snack', 'vegan', 'W', 4, 'pc', 220, 7, 32, 7, 'gluten', 'tr');
+  F('Kanchipuram idli', 'bf', 'veg', 'S', 3, 'pc', 230, 7, 38, 6, 'dairy', '');
+  F('Masala egg toast', 'bf', 'egg', 'IN', 2, 'slice', 300, 15, 28, 14, 'egg gluten', '');
+  F('Keema paratha (lean)', 'bf', 'nonveg', 'N', 1, 'pc', 330, 20, 32, 13, 'gluten', '');
+  F('Akuri (Parsi scrambled eggs)', 'bf', 'egg', 'W', 1, 'katori', 210, 13, 4, 16, 'egg', '');
+  F('Aval upma (Kerala poha)', 'bf', 'vegan', 'S', 1, 'cup', 200, 4, 34, 5.5, '', '');
+  F('Oats porridge with milk', 'bf', 'veg', 'IN', 1, 'bowl', 230, 9, 34, 6, 'dairy', '');
+  F('Quinoa upma', 'bf', 'vegan', 'IN', 1, 'cup', 210, 7, 32, 6, '', 'wl');
+  F('Foxtail millet pongal', 'bf', 'veg', 'S', 1, 'cup', 250, 8, 38, 7, 'dairy', 'wl');
+  F('Protein pancakes', 'wbf', 'egg', 'CON', 2, 'pc', 280, 22, 30, 7, 'egg dairy', '');
+  F('Berry yogurt smoothie', 'wbf', 'veg', 'CON', 1, 'glass', 200, 10, 32, 3.5, 'dairy', '');
+  F('Whole-wheat French toast (light)', 'wbf', 'egg', 'CON', 2, 'slice', 300, 13, 34, 12, 'egg gluten dairy', '');
+  F('Baked chilaquiles', 'wbf', 'egg', 'MEX', 1, 'plate', 350, 15, 40, 14, 'egg', '');
+  F('Menemen (Turkish eggs)', 'wbf', 'egg', 'MED', 1, 'plate', 240, 13, 10, 16, 'egg', '');
+  F('Hummus & veggie toast', 'wbf', 'vegan', 'MED', 2, 'slice', 280, 10, 36, 10, 'gluten', '');
+  F('Hotel breakfast plate (eggs, toast, fruit)', 'wbf', 'egg', 'CON', 1, 'plate', 380, 18, 40, 16, 'egg gluten', 'tr');
+
+  F('Ragi mudde', 'grain', 'vegan', 'S', 2, 'pc', 220, 5, 46, 1.5, '', 'wl');
+  F('Barnyard (sama) millet rice', 'grain', 'vegan', 'IN', 1, 'cup', 180, 4, 38, 1.5, '', 'wl');
+  F('Little millet rice', 'grain', 'vegan', 'S', 1, 'cup', 190, 4, 38, 2, '', 'wl');
+  F('Red rice', 'grain', 'vegan', 'E', 1, 'cup', 210, 5, 44, 1.5, '', '');
+  F('Coconut rice', 'grain', 'vegan', 'S', 1, 'cup', 300, 5, 44, 11, '', 'hsf');
+  F('Tomato rice', 'grain', 'vegan', 'S', 1, 'cup', 250, 5, 44, 6, '', 'hgi');
+  F('Matar pulao', 'grain', 'vegan', 'N', 1, 'cup', 260, 6, 44, 6, '', 'hgi');
+  F('Mutton biryani', 'grain', 'nonveg', 'N', 1.5, 'cup', 500, 26, 56, 18, '', 'hgi op hsf');
+  F('Fish biryani', 'grain', 'nonveg', 'S', 1.5, 'cup', 440, 24, 56, 12, 'fish', 'hgi op');
+  F('Prawn pulao', 'grain', 'nonveg', 'W', 1.5, 'cup', 400, 22, 56, 9, 'fish', 'hgi op');
+  F('Brown rice khichdi', 'grain', 'vegan', 'IN', 1.5, 'cup', 290, 11, 50, 5, '', 'wl op');
+  F('Gujarati masala khichdi', 'grain', 'vegan', 'W', 1.5, 'cup', 320, 11, 52, 7, '', 'op');
+  F('Lemon quinoa', 'grain', 'vegan', 'IN', 1, 'cup', 240, 8, 38, 6, '', 'wl');
+  F('Nachni (ragi) bhakri', 'grain', 'vegan', 'W', 2, 'pc', 210, 5, 42, 2, '', 'wl');
+  F('Dal dhokli', 'grain', 'vegan', 'W', 1.5, 'cup', 330, 12, 50, 8, 'gluten', 'op');
+  F('Rumali roti', 'grain', 'vegan', 'N', 2, 'pc', 250, 8, 48, 2, 'gluten', 'hgi');
+  F('Palak roti', 'grain', 'vegan', 'N', 2, 'pc', 170, 6, 32, 2, 'gluten', 'wl');
+  F('Methi roti', 'grain', 'vegan', 'N', 2, 'pc', 180, 6, 32, 3, 'gluten', 'wl');
+  F('Oats roti', 'grain', 'vegan', 'IN', 2, 'pc', 170, 6, 30, 3, 'gluten', 'wl');
+  F('Luchi', 'grain', 'vegan', 'E', 2, 'pc', 250, 4, 28, 13, 'gluten', 'fried');
+
+  F('Toor dal (plain)', 'dal', 'vegan', 'IN', 1, 'katori', 130, 8, 19, 2.5, '', 'wl');
+  F('Andhra pappu', 'dal', 'vegan', 'S', 1, 'katori', 140, 8, 20, 3, '', 'wl');
+  F('Tomato pappu', 'dal', 'vegan', 'S', 1, 'katori', 140, 8, 20, 3.5, '', 'hk');
+  F('Mor kuzhambu', 'dal', 'veg', 'S', 1, 'katori', 110, 4, 8, 7, 'dairy', '');
+  F('Vatha kuzhambu', 'dal', 'vegan', 'S', 1, 'katori', 120, 2, 10, 8, '', 'hna');
+  F('Moth dal', 'dal', 'vegan', 'W', 1, 'katori', 150, 9, 22, 3, '', 'wl');
+  F('Varan (Maharashtrian dal)', 'dal', 'vegan', 'W', 1, 'katori', 120, 7, 18, 2.5, '', 'wl');
+  F('Aamti', 'dal', 'vegan', 'W', 1, 'katori', 140, 7, 19, 4, '', '');
+  F('Sabut masoor dal', 'dal', 'vegan', 'N', 1, 'katori', 140, 9, 20, 2.5, '', 'wl');
+  F('Dry chana masala', 'dal', 'vegan', 'N', 1, 'katori', 200, 9, 28, 6, '', 'tr');
+  F('Mixed sprouts curry', 'dal', 'vegan', 'IN', 1, 'katori', 150, 9, 22, 3, '', 'wl');
+
+  F('Paneer do pyaza', 'protein', 'veg', 'N', 1, 'katori', 270, 14, 10, 19, 'dairy', 'hsf');
+  F('Shahi paneer (light)', 'protein', 'veg', 'N', 1, 'katori', 300, 14, 12, 22, 'dairy nuts', 'hsf');
+  F('Tofu tikka masala', 'protein', 'vegan', 'IN', 1, 'katori', 210, 15, 10, 12, 'soy', '');
+  F('Grilled soya chaap', 'protein', 'vegan', 'N', 2, 'pc', 200, 20, 12, 8, 'soy gluten', '');
+  F('Egg white bhurji', 'protein', 'egg', 'IN', 1, 'katori', 120, 15, 4, 5, 'egg', 'wl');
+  F('Chicken saagwala', 'protein', 'nonveg', 'N', 1, 'katori', 240, 24, 7, 13, '', 'hk');
+  F('Chicken do pyaza', 'protein', 'nonveg', 'N', 1, 'katori', 250, 24, 8, 13, '', '');
+  F('Air-fried chicken 65', 'protein', 'nonveg', 'S', 120, 'g', 230, 26, 8, 10, '', '');
+  F('Kadai chicken', 'protein', 'nonveg', 'N', 1, 'katori', 260, 24, 8, 14, '', '');
+  F('Pepper chicken (dry)', 'protein', 'nonveg', 'S', 1, 'katori', 230, 26, 4, 12, '', '');
+  F('Andhra chicken curry', 'protein', 'nonveg', 'S', 1, 'katori', 260, 24, 6, 15, '', '');
+  F('Chicken seekh kebab (grilled)', 'protein', 'nonveg', 'N', 3, 'pc', 220, 24, 4, 12, '', 'wl tr');
+  F('Mutton keema (lean)', 'protein', 'nonveg', 'N', 1, 'katori', 280, 22, 6, 18, '', 'hsf');
+  F('Rogan josh (lean)', 'protein', 'nonveg', 'N', 1, 'katori', 310, 24, 6, 21, '', 'hsf');
+  F('Meen moilee', 'protein', 'nonveg', 'S', 1, 'katori', 250, 21, 6, 16, 'fish', 'hsf');
+  F('Air-fried Amritsari fish', 'protein', 'nonveg', 'N', 120, 'g', 220, 24, 10, 9, 'fish', '');
+  F('Doi maach', 'protein', 'nonveg', 'E', 1, 'katori', 230, 21, 6, 13, 'fish dairy', '');
+  F('Kerala prawn curry', 'protein', 'nonveg', 'S', 1, 'katori', 220, 21, 6, 12, 'fish', '');
+  F('Chicken tikka masala (light)', 'protein', 'nonveg', 'N', 1, 'katori', 290, 26, 10, 16, 'dairy', '');
+
+  F('Aloo baingan', 'sabzi', 'vegan', 'N', 1, 'katori', 150, 3, 18, 8, '', 'hk');
+  F('Aloo methi', 'sabzi', 'vegan', 'N', 1, 'katori', 150, 3, 18, 8, '', 'hk');
+  F('Gatte ki sabzi (steamed gatte)', 'sabzi', 'veg', 'N', 1, 'katori', 200, 8, 20, 10, 'dairy', '');
+  F('Snake gourd kootu', 'sabzi', 'vegan', 'S', 1, 'katori', 130, 5, 14, 6, '', 'wl');
+  F('Ash gourd curry', 'sabzi', 'vegan', 'S', 1, 'katori', 90, 2, 10, 5, '', 'wl');
+  F('Vendakkai poriyal', 'sabzi', 'vegan', 'S', 1, 'katori', 110, 2.5, 10, 7, '', 'wl');
+  F('Gutti vankaya (light)', 'sabzi', 'vegan', 'S', 1, 'katori', 160, 3, 12, 11, 'nuts', '');
+  F('Mushroom pepper fry', 'sabzi', 'vegan', 'S', 1, 'katori', 110, 4, 8, 7, '', 'wl');
+  F('Baby corn capsicum', 'sabzi', 'vegan', 'IN', 1, 'katori', 110, 3, 12, 6, '', 'wl');
+  F('Broccoli stir-fry (Indian)', 'sabzi', 'vegan', 'IN', 1, 'katori', 90, 4, 9, 5, '', 'wl');
+  F('French beans foogath', 'sabzi', 'vegan', 'W', 1, 'katori', 110, 3, 10, 7, '', 'wl');
+  F('Lau ghonto', 'sabzi', 'vegan', 'E', 1, 'katori', 110, 3, 12, 6, '', 'wl');
+  F('Air-fried begun bhaja', 'sabzi', 'vegan', 'E', 1, 'katori', 110, 1.5, 10, 7, '', '');
+  F('Aloo posto (light)', 'sabzi', 'vegan', 'E', 1, 'katori', 190, 4, 22, 10, '', 'hk');
+  F('Dum aloo (light)', 'sabzi', 'vegan', 'N', 1, 'katori', 190, 3, 24, 9, '', 'hk hgi');
+  F('Chawli leaves bhaji', 'sabzi', 'vegan', 'W', 1, 'katori', 90, 3.5, 8, 5, '', 'hk wl');
+  F('Bathua sabzi', 'sabzi', 'vegan', 'N', 1, 'katori', 90, 3.5, 8, 5, '', 'wl');
+  F('Suran (yam) sabzi', 'sabzi', 'vegan', 'W', 1, 'katori', 150, 2, 24, 5, '', 'hk');
+  F('Raw papaya sabzi', 'sabzi', 'vegan', 'IN', 1, 'katori', 80, 1.2, 11, 3.5, '', 'wl');
+
+  F('Pineapple raita', 'side', 'veg', 'N', 0.5, 'katori', 70, 2.5, 9, 2.5, 'dairy', 'sweet');
+  F('Beetroot raita', 'side', 'veg', 'IN', 0.5, 'katori', 55, 2.5, 6, 2.5, 'dairy', '');
+  F('Carrot–cabbage salad', 'side', 'vegan', 'IN', 1, 'bowl', 45, 1.5, 9, 0.3, '', 'wl');
+  F('Koshimbir', 'side', 'vegan', 'W', 1, 'bowl', 60, 2, 6, 3, 'nuts', 'wl');
+  F('Sprouts kosambari', 'side', 'vegan', 'S', 1, 'bowl', 90, 6, 14, 1, '', 'wl');
+  F('Low-fat curd', 'side bfside', 'veg', 'IN', 1, 'katori', 70, 6, 8, 1.5, 'dairy', 'wl tr');
+
+  F('Grilled prawns', 'wprotein', 'nonveg', 'CON', 120, 'g', 140, 26, 1, 3, 'fish', 'wl');
+  F('Chickpea patties', 'wprotein', 'vegan', 'MED', 2, 'pc', 200, 9, 26, 7, '', '');
+  F('Tofu teriyaki', 'wprotein', 'vegan', 'ASIA', 120, 'g', 190, 16, 10, 9, 'soy', 'hna');
+  F('Moroccan spiced chicken', 'wprotein', 'nonveg', 'MED', 120, 'g', 230, 30, 6, 9, '', 'wl');
+  F('Lentil patties', 'wprotein', 'vegan', 'CON', 2, 'pc', 200, 11, 28, 5, '', '');
+
+  F('Brown rice noodles', 'wcarb', 'vegan', 'ASIA', 1, 'cup', 190, 4, 40, 1.5, '', '');
+  F('Wild rice', 'wcarb', 'vegan', 'CON', 1, 'cup', 165, 6.5, 35, 0.6, '', 'wl');
+  F('Farro', 'wcarb', 'vegan', 'MED', 1, 'cup', 200, 7, 40, 1.5, 'gluten', '');
+  F('Herb roasted potatoes', 'wcarb', 'vegan', 'CON', 1, 'cup', 180, 3, 30, 6, '', 'hk hgi');
+  F('Whole-wheat garlic bread (light)', 'wcarb', 'veg', 'CON', 2, 'slice', 200, 6, 30, 6, 'gluten dairy', '');
+
+  F('Roasted cauliflower', 'wveg', 'vegan', 'CON', 1, 'cup', 90, 3, 9, 5, '', 'wl');
+  F('Roasted beetroot salad', 'wveg', 'vegan', 'CON', 1, 'bowl', 110, 3, 16, 4, '', 'hk');
+  F('Kale salad', 'wveg', 'vegan', 'CON', 1, 'bowl', 100, 3, 10, 6, '', 'hk wl');
+  F('Mushroom stir-fry', 'wveg', 'vegan', 'ASIA', 1, 'cup', 70, 3, 6, 4, 'soy', 'hna wl');
+  F('Sautéed green beans', 'wveg', 'vegan', 'CON', 1, 'cup', 70, 2, 8, 4, '', 'wl');
+  F('Quinoa salad', 'wveg', 'vegan', 'MED', 1, 'cup', 180, 6, 26, 6, '', 'wl');
+  F('Corn & bean salad', 'wveg', 'vegan', 'MEX', 1, 'cup', 160, 7, 26, 3.5, '', '');
+  F('Tzatziki', 'wveg', 'veg', 'MED', 3, 'tbsp', 45, 2, 2, 3, 'dairy', 'wl');
+
+  F('Light vegetable lasagna', 'wmain', 'veg', 'CON', 1, 'plate', 420, 20, 48, 16, 'gluten dairy', 'hsf');
+  F('Chicken fried rice (less oil)', 'wmain', 'nonveg', 'ASIA', 1, 'plate', 450, 24, 58, 13, 'egg soy', 'hgi hna');
+  F('Teriyaki salmon bowl', 'wmain', 'nonveg', 'ASIA', 1, 'bowl', 520, 32, 58, 16, 'fish soy', 'hna');
+  F('Korean tofu stew', 'wmain', 'egg', 'ASIA', 1, 'bowl', 300, 18, 14, 18, 'soy egg', 'hna');
+  F('Vietnamese chicken salad', 'wmain', 'nonveg', 'ASIA', 1, 'bowl', 320, 28, 20, 13, 'fish', 'wl');
+  F('Green papaya salad (som tam)', 'wmain', 'nonveg', 'ASIA', 1, 'bowl', 150, 5, 24, 4, 'fish nuts', 'hna wl');
+  F('Pasta e fagioli', 'wmain', 'vegan', 'MED', 1, 'bowl', 380, 16, 60, 8, 'gluten', '');
+  F('Chicken quinoa salad', 'wmain', 'nonveg', 'CON', 1, 'bowl', 420, 32, 36, 15, '', 'wl');
+  F('Mexican quinoa bowl', 'wmain', 'vegan', 'MEX', 1, 'bowl', 450, 17, 64, 13, '', '');
+  F('Hummus chicken wrap', 'wmain', 'nonveg', 'MED', 1, 'pc', 440, 30, 42, 16, 'gluten', 'tr');
+  F('Thai red curry (tofu, light) & rice', 'wmain', 'vegan', 'ASIA', 1, 'plate', 480, 16, 58, 20, 'soy', 'hsf');
+  F('Light mushroom risotto', 'wmain', 'veg', 'CON', 1, 'plate', 420, 11, 64, 12, 'dairy', 'hgi');
+  F('Grilled chicken with sweet potato', 'wmain', 'nonveg', 'CON', 1, 'plate', 420, 36, 38, 12, '', 'wl hk');
+  F('Baked fish tacos', 'wmain', 'nonveg', 'MEX', 3, 'pc', 400, 26, 40, 14, 'fish', '');
+  F('Lentil bolognese pasta', 'wmain', 'vegan', 'CON', 1, 'plate', 430, 20, 68, 8, 'gluten', '');
+
+  F('Thepla & curd (packed)', 'tmain', 'veg', 'W', 1, 'plate', 330, 10, 38, 14, 'gluten dairy', 'tr');
+  F('Airport salad bowl', 'tmain', 'veg', 'CON', 1, 'bowl', 300, 10, 30, 15, 'dairy', 'tr wl');
+  F('Veg sub (6-inch, whole-wheat)', 'tmain', 'veg', 'CON', 1, 'pc', 330, 14, 50, 8, 'gluten dairy', 'tr');
+  F('Chicken sub (6-inch, whole-wheat)', 'tmain', 'nonveg', 'CON', 1, 'pc', 380, 26, 46, 9, 'gluten', 'tr');
+  F('Dhaba paneer & roti', 'tmain', 'veg', 'N', 1, 'plate', 600, 24, 60, 28, 'dairy gluten', 'hsf tr');
+  F('Dhaba chicken & roti', 'tmain', 'nonveg', 'N', 1, 'plate', 620, 40, 58, 24, 'gluten', 'tr');
+  F('Khichdi & curd (dhaba)', 'tmain', 'veg', 'IN', 1, 'plate', 420, 14, 64, 11, 'dairy', 'tr');
+
   // Classic pairings (by name) used alongside random combinations.
   const PRESETS = [
     ['breakfast', ['Idli (breakfast)', 'Sambar', 'Coconut chutney']],
@@ -563,6 +776,10 @@
     ['dinner', ['Moong dal khichdi', 'Kadhi (no pakoda)']],
     ['dinner', ['Lauki sabzi', 'Moong dal', 'Phulka']],
   ];
+
+  // Hindi names (foodnames.js) make search and non-English charts work.
+  const HI = typeof module !== 'undefined' && module.exports ? require('./foodnames.js') : root.FOOD_HI || {};
+  FOODS.forEach((f) => { f.hi = HI[f.name] || ''; });
 
   const api = { FOODS, PRESETS };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

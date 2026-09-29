@@ -118,7 +118,19 @@
     6: { breakfast: 0.22, midmorning: 0.10, lunch: 0.30, evening: 0.10, dinner: 0.23, bedtime: 0.05 },
   };
   const EARLY_SHARE = 0.03;
-  const DAY_NAMES = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
+  const DAY_NAMES = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+
+  /** Food-library categories used by search. */
+  const CATEGORIES = {
+    breakfast: { label: 'Breakfast', roles: ['bf', 'wbf', 'bfside'] },
+    grains: { label: 'Roti, rice & grains', roles: ['grain', 'wcarb'] },
+    dal: { label: 'Dal, curry & protein', roles: ['dal', 'protein', 'wprotein'] },
+    sabzi: { label: 'Sabzi & salad', roles: ['sabzi', 'side', 'wveg'] },
+    snacks: { label: 'Snacks & soups', roles: ['snack', 'soup'] },
+    fruits: { label: 'Fruits', roles: ['fruit'] },
+    drinks: { label: 'Drinks', roles: ['drink', 'early', 'earlyadd', 'bed'] },
+    meals: { label: 'Complete meals', roles: ['wmain', 'tmain'] },
+  };
 
   const UNIT_STEP = { pc: 0.5, egg: 1, slice: 0.5, g: 10, ml: 25, cup: 0.25, katori: 0.25, bowl: 0.25, glass: 0.25, tbsp: 0.5, tsp: 0.5, plate: 0.25, scoop: 0.5 };
   const UNIT_PLURAL = { pc: 'pcs', egg: 'eggs', slice: 'slices', cup: 'cups', katori: 'katoris', bowl: 'bowls', glass: 'glasses', plate: 'plates', scoop: 'scoops' };
@@ -508,22 +520,10 @@
     );
   }
 
-  function parseDate(iso) {
-    const d = iso ? new Date(iso + 'T00:00:00') : new Date();
-    return isNaN(d) ? new Date() : d;
-  }
-  function isoDate(d) {
-    const z = (n) => String(n).padStart(2, '0');
-    return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())}`;
-  }
-
-  /** The 7 dated days starting at `startDate` (YYYY-MM-DD). */
-  function planDays(startDate) {
-    const start = parseDate(startDate);
-    return Array.from({ length: 7 }, (_, i) => {
-      const d = new Date(start.getFullYear(), start.getMonth(), start.getDate() + i);
-      return { date: isoDate(d), day: DAY_NAMES[d.getDay()] };
-    });
+  /** The 7 plan days, by name, starting from `startDay` (e.g. 'Monday'). */
+  function planDays(startDay) {
+    const first = Math.max(0, DAY_NAMES.indexOf(startDay));
+    return Array.from({ length: 7 }, (_, i) => ({ day: DAY_NAMES[(first + i) % 7] }));
   }
 
   /**
@@ -546,6 +546,7 @@
       score += foods.reduce((s, f) => s + (used[f.id] || 0), 0) * 0.12;
       if (foods.some((f) => lastIds.has(f.id))) score += 0.35;
       if (opts.preferWl) score -= (foods.filter((f) => f.flags.includes('wl')).length / foods.length) * 0.15;
+      if (opts.likes.length) score -= foods.filter((f) => likedFood(f, opts.likes)).length * opts.likeWeight;
       score += rand() * 0.05;
       if (!best || score < best.score) best = { score, meal, foods };
     }
@@ -554,7 +555,7 @@
 
   /**
    * Build a 7-day plan. `previous` keeps locked meals; `blank` starts an empty manual chart.
-   * Returns { targets, days: [{ date, day, meals: [{slot, label, time, target, targetP, meal, locked}], totals }], combos }.
+   * Returns { targets, days: [{ day, meals: [{slot, label, time, target, targetP, meal, locked}], totals }], combos }.
    */
   function generatePlan(db, profile, seed, options) {
     const opt = options || {};
@@ -570,9 +571,11 @@
     const scoring = {
       proteinWeight: targets.customProtein ? 2.5 : 1.2,
       preferWl: targets.goal === 'lose' || !!profile.preferWl,
+      likes: (profile.likes || []).map((w) => w.toLowerCase().trim()).filter(Boolean),
+      likeWeight: 0.3,
     };
 
-    const days = planDays(profile.startDate).map(({ date, day }, di) => {
+    const days = planDays(profile.startDay).map(({ day }, di) => {
       const meals = slots.map(({ slot, kcal, share }, si) => {
         const info = SLOTS[slot];
         const prev = opt.previous && opt.previous.days[di] && opt.previous.days[di].meals.find((m) => m.slot === slot);
@@ -593,7 +596,7 @@
         }
         return entry;
       });
-      return { date, day, meals, totals: sumDay(meals) };
+      return { day, meals, totals: sumDay(meals) };
     });
 
     return { targets, days, combos: countCombinations(db, profile) };
@@ -635,72 +638,94 @@
     });
   }
 
-  /** Search the food database (for manual selection). */
+  /**
+   * Search the food database. Filters: profile (fits the patient), wl, hp, travel,
+   * indian, world, diet, category (see CATEGORIES), region, maxKcal, sort
+   * ('name' | 'kcal' | 'protein').
+   */
   function searchFoods(foods, query, filters) {
     const q = (query || '').toLowerCase().trim();
     const fl = filters || {};
     const allowed = fl.profile ? foodFilter(fl.profile) : null;
     const words = q.split(/\s+/).filter(Boolean);
-    return foods.filter((f) => {
+    const catRoles = fl.category && CATEGORIES[fl.category] ? CATEGORIES[fl.category].roles : null;
+    const list = foods.filter((f) => {
       if (allowed && !allowed(f)) return false;
       if (fl.wl && !f.flags.includes('wl')) return false;
-      if (fl.hp && !(f.p * 4 >= f.kcal * 0.25 && f.p >= 6)) return false;
+      if (fl.hp && !isHighProtein(f)) return false;
       if (fl.travel && !f.flags.includes('tr')) return false;
       if (fl.indian && !(f.region === 'IN' || INDIAN_REGIONS.includes(f.region))) return false;
       if (fl.world && !WORLD_REGIONS.includes(f.region)) return false;
+      if (fl.region && f.region !== fl.region) return false;
       if (fl.diet && DIET_RANK[f.diet] > DIET_RANK[fl.diet]) return false;
-      const text = f.name.toLowerCase();
+      if (fl.dietExact && f.diet !== fl.dietExact) return false;
+      if (catRoles && !f.roles.some((r) => catRoles.includes(r))) return false;
+      if (fl.maxKcal && f.kcal > fl.maxKcal) return false;
+      const text = searchText(f);
       return words.every((w) => text.includes(w));
     });
+    if (fl.sort === 'kcal') list.sort((a, b) => a.kcal - b.kcal);
+    else if (fl.sort === 'protein') list.sort((a, b) => b.p - a.p);
+    else if (fl.sort === 'name') list.sort((a, b) => a.name.localeCompare(b.name));
+    else if (words.length) {
+      // Names that start with the search word come first.
+      const starts = (f) => (searchText(f).startsWith(words[0]) ? 0 : 1);
+      list.sort((a, b) => starts(a) - starts(b));
+    }
+    return list;
+  }
+
+  /** True when a food matches one of the patient's preferred foods (English or Hindi name). */
+  function likedFood(f, likes) {
+    const text = searchText(f);
+    return likes.some((w) => text.includes(w));
+  }
+
+  function searchText(f) {
+    return (f.name + ' ' + (f.hi || '')).toLowerCase();
   }
 
   function isHighProtein(f) { return f.p * 4 >= f.kcal * 0.25 && f.p >= 6; }
 
   // ── Guidance ─────────────────────────────────────────────────────
+  /** Guideline keys ({k, v}) for this profile; i18n.js turns them into text. */
   function tips(input, targets) {
     const profile = resolveProfile(input);
     const c = profile.conditions;
-    const t = [
-      `Drink about ${targets.waterL} L of water through the day.`,
-      'Fill half your plate with vegetables or salad at lunch and dinner.',
-      'Cook with 3–4 tsp of oil per person per day; prefer mustard, groundnut or rice-bran oil.',
-    ];
+    const t = [{ k: 'water', v: { water: targets.waterL } }, { k: 'plate' }, { k: 'oil' }];
     if (profile.travel) {
-      t.push('Travel: carry fruit, roasted chana, makhana, nuts and a water bottle; choose dal–roti–sabzi or grilled options over fried food; avoid cut fruit and ice from roadside stalls.');
-      if (profile.travel === 'flight') t.push('Flights: drink water every hour, skip sugary drinks and alcohol, and pre-book a diabetic or low-salt meal if needed.');
-      if (profile.travel === 'train') t.push('Train: pack thepla, idli, khakhra or curd rice from home for the first day; buy sealed water only.');
-      if (profile.travel === 'hotel') t.push('Hotel: at buffets start with salad and protein (eggs, dal, grilled items), then add a small portion of grains; skip pastries and juices.');
-      if (profile.travel === 'road') t.push('Road trips: at dhabas choose dal, roti without butter, salad and curd; avoid paratha with butter and fried snacks.');
+      t.push({ k: 'travel' });
+      if (['flight', 'train', 'hotel', 'road'].includes(profile.travel)) t.push({ k: profile.travel });
     }
-    if (profile.diet === 'jain') t.push('Jain: prepare all dishes without onion, garlic, ginger and root vegetables; finish dinner before sunset if you follow chauvihar.');
-    if (profile.goal === 'lose') t.push('Weight loss: finish dinner 2–3 hours before bed, walk 30–45 minutes daily and aim for 7–8 hours of sleep.');
-    if (profile.goal === 'gain' || profile.goal === 'muscle') t.push('Do not skip snacks; add strength training 3–4 times a week.');
-    if (profile.goal === 'pregnancy') t.push('Pregnancy: continue iron, folic acid and calcium supplements as prescribed. Avoid raw papaya, unpasteurised milk, alcohol and excess caffeine.');
-    if (profile.goal === 'lactation') t.push('Lactation: drink a glass of water or milk at every feed; include methi, jeera, ajwain and dals.');
-    if (c.includes('diabetes')) t.push('Diabetes: choose whole grains and pair carbs with protein; avoid sugar, jaggery, juices and sweets. Monitor blood glucose as advised.');
-    if (c.includes('hypertension')) t.push('High BP: keep salt under 5 g (1 tsp) a day; avoid pickles, papad, namkeen and packaged foods.');
-    if (c.includes('pcos')) t.push('PCOS: favour low-GI foods, regular meal times and daily activity; limit sugar and maida.');
-    if (c.includes('thyroid')) t.push('Thyroid: take medication on an empty stomach and keep a 30–60 min gap before breakfast or tea. Eat cabbage, cauliflower and soy cooked, not raw.');
-    if (c.includes('cholesterol')) t.push('Cholesterol: limit fried foods, ghee, butter and red meat; add oats, flaxseed and nuts.');
-    if (c.includes('fattyliver')) t.push('Fatty liver: avoid alcohol, sugar, maida and fried food; lose 7–10% of body weight gradually.');
-    if (c.includes('kidney')) t.push('Kidney disease: protein, salt and potassium are limited in this plan. Leach vegetables before cooking. Fluid needs vary — follow your nephrologist.');
-    if (targets.bmi >= 23 && !['lose', 'pregnancy', 'lactation'].includes(profile.goal)) t.push('BMI is above the healthy range for Indians (18.5–22.9); consider a weight-loss goal.');
-    if (targets.bmi < 18.5 && profile.goal === 'lose') t.push('BMI is below the healthy range; weight loss is not recommended.');
-    return t.concat(targets.warnings || []);
+    if (profile.diet === 'jain') t.push({ k: 'jain' });
+    if (profile.goal === 'lose') t.push({ k: 'lose' });
+    if (profile.goal === 'gain' || profile.goal === 'muscle') t.push({ k: 'gain' });
+    if (profile.goal === 'pregnancy') t.push({ k: 'pregnancy' });
+    if (profile.goal === 'lactation') t.push({ k: 'lactation' });
+    if (c.includes('diabetes')) t.push({ k: 'diabetes' });
+    if (c.includes('hypertension')) t.push({ k: 'bp' });
+    if (c.includes('pcos')) t.push({ k: 'pcos' });
+    if (c.includes('thyroid')) t.push({ k: 'thyroid' });
+    if (c.includes('cholesterol')) t.push({ k: 'cholesterol' });
+    if (c.includes('fattyliver')) t.push({ k: 'fattyliver' });
+    if (c.includes('kidney')) t.push({ k: 'kidney' });
+    if (targets.bmi >= 23 && !['lose', 'pregnancy', 'lactation'].includes(profile.goal)) t.push({ k: 'bmiHigh' });
+    if (targets.bmi < 18.5 && profile.goal === 'lose') t.push({ k: 'bmiLow' });
+    return t;
   }
 
-  /** Foods to limit or avoid, printed on the chart. */
+  /** Keys ({k, v}) of foods to limit or avoid, printed on the chart. */
   function avoidList(input) {
     const p = resolveProfile(input);
     const c = p.conditions;
-    const list = ['Sugar, sweets & mithai', 'Fried snacks (samosa, pakoda, bhujia)', 'Maida, bakery & packaged foods', 'Soft drinks & packaged juices'];
-    if (c.includes('diabetes') || c.includes('pcos')) list.push('White rice in excess, potato, jaggery, honey', 'Mango, chikoo, grapes, banana in excess');
-    if (c.includes('hypertension') || c.includes('kidney')) list.push('Pickles, papad, sauces, extra salt');
-    if (c.includes('kidney')) list.push('Coconut water, banana, orange, tomato-heavy dishes');
-    if (c.includes('cholesterol') || c.includes('fattyliver')) list.push('Ghee, butter, cream, red meat, egg yolk in excess');
-    if (c.includes('fattyliver')) list.push('Alcohol in any amount');
-    if (p.goal === 'pregnancy') list.push('Raw papaya, raw sprouts, sushi, unpasteurised milk, alcohol');
-    (p.excludes || []).forEach((k) => { if (EXCLUDES[k]) list.push(`${EXCLUDES[k].label} (excluded on request)`); });
+    const list = [{ k: 'sugar' }, { k: 'fried' }, { k: 'maida' }, { k: 'softdrinks' }];
+    if (c.includes('diabetes') || c.includes('pcos')) list.push({ k: 'dCarb' }, { k: 'dFruit' });
+    if (c.includes('hypertension') || c.includes('kidney')) list.push({ k: 'salt' });
+    if (c.includes('kidney')) list.push({ k: 'potassium' });
+    if (c.includes('cholesterol') || c.includes('fattyliver')) list.push({ k: 'fat' });
+    if (c.includes('fattyliver')) list.push({ k: 'alcohol' });
+    if (p.goal === 'pregnancy') list.push({ k: 'pregnancy' });
+    (p.excludes || []).forEach((k) => { if (EXCLUDES[k]) list.push({ k: 'excl', v: k }); });
     return list;
   }
 
@@ -716,12 +741,11 @@
         perRole[k] = (perRole[k] || 0) + 1;
         return perRole[k] <= 2;
       })
-      .slice(0, n || 12)
-      .map((f) => f.name);
+      .slice(0, n || 12);
   }
 
   const api = {
-    ACTIVITY, GOALS, PLANS, CONDITIONS, DIETS, REGIONS, EXCLUDES, TRAVEL, SLOTS, SPLITS,
+    ACTIVITY, GOALS, PLANS, CONDITIONS, DIETS, REGIONS, EXCLUDES, TRAVEL, SLOTS, SPLITS, DAY_NAMES, CATEGORIES,
     resolveProfile, computeTargets, slotTargets, foodFilter, buildPools, composeMeal, makeItem, customItem,
     setItemQty, recalcMeal, refreshDay, unitStep, generatePlan, swapMeal, copyMeal, countCombinations,
     searchFoods, isHighProtein, planDays, tips, avoidList, weightLossPicks, formatQty, rng,
