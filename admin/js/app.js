@@ -123,6 +123,8 @@
     }).join(',')).join('\n');
   }
   function download(name, text, type) {
+    // The Android app has no blob downloads; its bridge opens the system "Save as" screen.
+    if (window.AndroidBridge && window.AndroidBridge.saveFile) { window.AndroidBridge.saveFile(name, (type || 'text/csv').split(';')[0], text); return; }
     const blob = new Blob([text], { type: type || 'text/csv;charset=utf-8' });
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob); a.download = name;

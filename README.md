@@ -46,7 +46,7 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 
 ## Hindivine Admin app (`admin/`)
 
-A separate, **admin-only** app for running the clinic: open `admin/index.html` (or host the folder and *Add to Home Screen*). It asks for an admin PIN on first launch and locks after 15 minutes idle. Data stays on the device (export a backup from Settings), and can be mirrored to Google Sheets.
+A separate, **admin-only** app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*. It asks for an admin PIN on first launch and locks after 15 minutes idle. Data stays on the device (export a backup from Settings), and can be mirrored to Google Sheets.
 
 | Area | What it does |
 | --- | --- |
@@ -60,6 +60,8 @@ A separate, **admin-only** app for running the clinic: open `admin/index.html` (
 | **Expenses** | Salary, Incentive, Rent, Electricity, Courier, Marketing, Protein / Injection Purchase, Miscellaneous. Profit = Revenue − Expenses. |
 | **Renewals** | 60-day and 90-day reminders from each patient's last injection (patient, product, last purchase, reference team), with Call / WhatsApp and one-tap renewal sale. |
 | **Reports** | Team-wise, financial and stock reports for any period, with CSV export. |
+
+**Excel / Google Sheets workbook:** [`admin/Hindivine_Admin_Sheets.xlsx`](admin/Hindivine_Admin_Sheets.xlsx) has the same 12 sheets plus a Settings sheet, with formulas, so it also works on its own: type sales, purchases, expenses, patients and team; stock, incentives (single / 50-50 / custom split), salary + incentive, renewals (60/90 days) and the dashboard calculate themselves. Upload it to Google Drive to use it as a Google Sheet. It is separate from the app's Sheets sync, which overwrites the sheets it writes to.
 
 **AI scanner set-up:** Settings → paste a Claude API key (console.anthropic.com). The key stays on the device and is left out of backups. Scans use `claude-opus-5-5` (or Sonnet 5.5) with structured JSON output.
 
@@ -88,6 +90,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 
 ```sh
 VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
+APP=admin VERSION_CODE=1 VERSION_NAME=1.0 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.
@@ -120,7 +123,7 @@ npm test             # Node 18+, no dependencies
 | `ios-app/` | Capacitor iOS project (Xcode) |
 | `img/` | Hindivine logo and icons |
 | `android/` | Android WebView wrapper and build script |
-| `dist/HindivineDiet.apk` | Built Android app |
+| `dist/HindivineDiet.apk`, `dist/HindivineAdmin.apk` | Built Android apps |
 | `admin/` | Hindivine Admin app: `js/core.js` (data and rules), `js/app.js` (screens), `js/invoice.js` (AI invoice scanner), `google-apps-script/Code.gs` (Sheets) |
 | `tests/` | Unit tests (planner, recipes, storage, PDF read-back, admin app) |
 

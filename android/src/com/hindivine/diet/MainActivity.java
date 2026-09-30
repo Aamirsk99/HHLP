@@ -20,7 +20,7 @@ import android.widget.Toast;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-/** Hosts the Hindivine Diet web app (bundled in assets/www) in a full-screen WebView. */
+/** Hosts the Hindivine Diet or Hindivine Admin web app (bundled in assets/www) in a full-screen WebView. */
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE = 1;
     private static final int REQUEST_OPEN = 2;
@@ -63,9 +63,18 @@ public class MainActivity extends Activity {
                 fileCallback = callback;
                 Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
                 intent.addCategory(Intent.CATEGORY_OPENABLE);
+                // accept="image/*,application/pdf" may arrive as one string or as several entries.
+                java.util.List<String> mimes = new java.util.ArrayList<>();
                 String[] types = params.getAcceptTypes();
-                String type = types != null && types.length > 0 && types[0] != null && types[0].contains("/") ? types[0] : "*/*";
-                intent.setType(type);
+                if (types != null) for (String t : types) {
+                    if (t == null) continue;
+                    for (String m : t.split(",")) if (m.trim().contains("/")) mimes.add(m.trim());
+                }
+                if (mimes.size() == 1) intent.setType(mimes.get(0));
+                else {
+                    intent.setType("*/*");
+                    if (!mimes.isEmpty()) intent.putExtra(Intent.EXTRA_MIME_TYPES, mimes.toArray(new String[0]));
+                }
                 try {
                     startActivityForResult(intent, REQUEST_OPEN);
                 } catch (Exception e) {
@@ -80,7 +89,11 @@ public class MainActivity extends Activity {
         setContentView(webView);
 
         if (savedInstanceState != null) webView.restoreState(savedInstanceState);
-        else webView.loadUrl("file:///android_asset/www/index.html");
+        else {
+            // Each app build names its start page in res/values/strings.xml (Diet or Admin).
+            int id = getResources().getIdentifier("start_page", "string", getPackageName());
+            webView.loadUrl("file:///android_asset/" + (id != 0 ? getString(id) : "www/index.html"));
+        }
     }
 
     @Override

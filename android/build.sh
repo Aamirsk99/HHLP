@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Builds dist/DietChart.apk from the web app without the Android SDK or Gradle.
+# Builds dist/HindivineDiet.apk (or, with APP=admin, dist/HindivineAdmin.apk) from the web app
+# without the Android SDK or Gradle.
 # Needs: Java 11+, curl, zip/unzip, python3. Build tools are fetched from Maven Central.
 set -euo pipefail
 
@@ -7,7 +8,15 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 AND="$ROOT/android"
 TOOLS="${TOOLS_DIR:-$AND/.tools}"
 BUILD="$AND/build"
-OUT="$ROOT/dist/HindivineDiet.apk"
+APP="${APP:-diet}"
+if [ "$APP" = admin ]; then
+  OUT="$ROOT/dist/HindivineAdmin.apk"
+  MANIFEST="$AND/admin/AndroidManifest.xml"
+  BUILD="$AND/build-admin"
+else
+  OUT="$ROOT/dist/HindivineDiet.apk"
+  MANIFEST="$AND/AndroidManifest.xml"
+fi
 KEYSTORE="${KEYSTORE:-$AND/release.p12}"
 STOREPASS="${STOREPASS:-dietchart}"
 ALIAS="${KEY_ALIAS:-dietchart}"
@@ -42,19 +51,32 @@ rm -rf "$BUILD"
 mkdir -p "$BUILD"/{res,gen,classes,assets/www,dex} "$(dirname "$OUT")"
 
 echo "• Copying web app into assets"
-cp "$ROOT/index.html" "$BUILD/assets/www/"
-cp -r "$ROOT/css" "$ROOT/js" "$ROOT/img" "$ROOT/vendor" "$BUILD/assets/www/"
+if [ "$APP" = admin ]; then
+  # The admin app lives in www/admin and uses the shared logo and icons in www/img.
+  mkdir -p "$BUILD/assets/www/admin"
+  cp "$ROOT/admin/index.html" "$ROOT/admin/manifest.webmanifest" "$BUILD/assets/www/admin/"
+  cp -r "$ROOT/admin/css" "$ROOT/admin/js" "$ROOT/admin/google-apps-script" "$BUILD/assets/www/admin/"
+  cp -r "$ROOT/img" "$BUILD/assets/www/"
+else
+  cp "$ROOT/index.html" "$BUILD/assets/www/"
+  cp -r "$ROOT/css" "$ROOT/js" "$ROOT/img" "$ROOT/vendor" "$BUILD/assets/www/"
+fi
 
 echo "• Compiling resources"
 "$AAPT2" compile --dir "$AND/res" -o "$BUILD/res/res.zip"
+OVERLAY=()
+if [ "$APP" = admin ]; then
+  "$AAPT2" compile --dir "$AND/admin/res" -o "$BUILD/res/admin.zip"
+  OVERLAY=(-R "$BUILD/res/admin.zip")
+fi
 "$AAPT2" link -o "$BUILD/unsigned.apk" \
   -I "$FRAMEWORK" \
-  --manifest "$AND/AndroidManifest.xml" \
+  --manifest "$MANIFEST" \
   --min-sdk-version "$MIN_SDK" --target-sdk-version "$TARGET_SDK" \
   --version-code "$VERSION_CODE" --version-name "$VERSION_NAME" \
   -A "$BUILD/assets" \
   --java "$BUILD/gen" \
-  "$BUILD/res/res.zip"
+  "$BUILD/res/res.zip" "${OVERLAY[@]}"
 
 echo "• Compiling Java"
 find "$AND/src" "$BUILD/gen" -name '*.java' > "$BUILD/sources.txt"
