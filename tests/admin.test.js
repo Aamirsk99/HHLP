@@ -20,7 +20,7 @@ test('default products, inventory and incentives', () => {
   assert.equal(a.state.settings.incentive.injection, 1000);
   assert.equal(a.state.settings.incentive.protein, 500);
   assert.deepEqual(a.state.settings.dietPlans.map((p) => [p.name, p.incentive]), [['1 Month', 1000], ['3 Month', 2000]]);
-  assert.equal(A.SHEETS.length, 13);
+  assert.equal(A.SHEETS.length, 15);
   assert.deepEqual(a.state.settings.renewalDays, [75, 90]);
   assert.equal(a.state.settings.consultFee, 1000);
 });
@@ -177,28 +177,157 @@ test('OPD appointments: fee ₹1000, clinic or online, revenue once paid', () =>
   assert.equal(a.dashboard(A.rangeFor('month', '2026-09-15')).sales.consultation, 1000);
   const rows = a.sheetsData().Appointments;
   assert.equal(rows.length, 3);
-  assert.deepEqual(rows[2].slice(0, 9), ['2026-09-15', '10:30', 'Ravi', '9811111111', 'Clinic visit', 1000, 'Paid', 'UPI', 'Completed']);
+  assert.deepEqual(rows[2].slice(0, 10), ['2026-09-15', '10:30', 'Ravi', '9811111111', 'Clinic visit', '', 1000, 'Paid', 'UPI', 'Completed']);
   assert.equal(a.state.patients.length, 2);
 });
 
-test('three logins; older single PIN and 60-day setting are migrated', () => {
+test('logins: four roles, named staff logins; older fixed logins and single PIN are migrated', () => {
   const store = A.memoryStorage();
   const old = A.defaultState();
-  delete old.users; delete old.appointments;
-  old.settings.pinHash = 'h1'; old.settings.pinSalt = 's1'; old.settings.renewalDays = [60, 90]; old.settings.apiKey = 'sk-x';
+  delete old.accounts; delete old.appointments; delete old.leads; delete old.log;
+  old.users = { super: { name: 'Owner', hash: 'h1', salt: 's1', len: 4 }, manager: { name: 'Manager', hash: '', salt: '' }, desk: { name: 'Reception', hash: 'h3', salt: 's3' } };
+  old.settings.renewalDays = [60, 90]; old.settings.apiKey = 'sk-x';
   store.setItem(A.KEY, JSON.stringify(old));
   const a = A.createAdmin(store);
-  assert.deepEqual(Object.keys(a.state.users), ['super', 'manager', 'desk']);
-  assert.equal(a.state.users.super.hash, 'h1');
-  assert.equal(a.state.users.manager.hash, '');
+  assert.deepEqual(a.state.accounts.map((x) => [x.id, x.role, x.name, x.hash]), [['super', 'super', 'Owner', 'h1'], ['admin', 'admin', 'Admin', ''], ['manager', 'manager', 'Manager', ''], ['desk', 'desk', 'Reception', 'h3']]);
+  assert.ok(!('users' in a.state));
   assert.deepEqual(a.state.settings.renewalDays, [75, 90]);
   assert.ok(!('apiKey' in a.state.settings));
-  a.setUserPin('desk', 'h2', 's2');
-  a.setUserName('desk', 'Reception');
-  assert.equal(a.state.users.desk.name, 'Reception');
-  assert.throws(() => a.setUserPin('boss', 'x', 'y'), /Unknown login/);
+  const priya = a.saveAccount({ name: 'Priya', role: 'desk' });
+  a.setAccountPin(priya.id, 'hx', 'sx', 6, '482913');
+  assert.equal(a.account(priya.id).pin, '482913', 'staff PIN visible to Super Admin');
+  a.setAccountPin('super', 'hs', 'ss', 4, '1234');
+  assert.equal(a.account('super').pin, '', 'Super Admin PIN never stored in plain text');
+  assert.throws(() => a.saveAccount({ name: 'priya', role: 'desk' }), /already has this name/);
+  assert.throws(() => a.deleteAccount('super'), /at least one Super Admin/);
+  assert.throws(() => a.saveAccount({ id: 'super', name: 'Owner', role: 'manager' }), /at least one Super Admin/);
   a.resetAll();
-  assert.equal(a.state.users.desk.hash, 'h2', 'erase keeps logins');
+  assert.equal(a.account(priya.id).hash, 'hx', 'erase keeps logins');
+});
+
+test('per-member incentive rates, pay mode and injection kit', () => {
+  const a = setup();
+  const x = a.saveMember({ name: 'X', salary: 20000, incInjection: 1500, incProtein: '' });
+  const y = a.saveMember({ name: 'Y', salary: 15000, payMode: 'incentive' });
+  const pen = byName(a, 'Mounjaro 5mg');
+  const prot = byName(a, 'Protein Sachets');
+  a.adjustStock(pen.id, 5); a.adjustStock(prot.id, 50);
+  ['Needles', 'Alcohol Swabs', 'Ice Gel Packs', 'Travel Bags'].forEach((n) => a.adjustStock(byName(a, n).id, 100));
+  const s1 = a.saveSale({ type: 'injection', patientName: 'P', itemId: pen.id, qty: 2, amount: 10000, refId: x.id, date: '2026-09-02' });
+  assert.equal(s1.incentive, 3000, 'own rate 1500 × 2 pens');
+  const s2 = a.saveSale({ type: 'injection', patientName: 'Q', itemId: pen.id, amount: 5000, refId: x.id, sharedId: y.id, date: '2026-09-02' });
+  assert.deepEqual(s2.splits.map((v) => v.amount), [750, 500], 'each earns own rate × share');
+  assert.equal(a.saveSale({ type: 'protein', patientName: 'R', itemId: prot.id, qty: 10, amount: 1000, refId: x.id, date: '2026-09-02' }).incentive, 500, 'blank = default ₹500');
+  // kit per pen: travel bag 1, ice gel 1, swabs 16, needles 2 (3 pens sold)
+  assert.equal(a.stockOf(byName(a, 'Travel Bags').id), 97);
+  assert.equal(a.stockOf(byName(a, 'Ice Gel Packs').id), 97);
+  assert.equal(a.stockOf(byName(a, 'Alcohol Swabs').id), 100 - 48);
+  assert.equal(a.stockOf(byName(a, 'Needles').id), 94);
+  const r = a.stockReport(null).find((v) => v.name === 'Needles');
+  assert.deepEqual([r.used, r.current], [6, 94]);
+  a.setKit([{ itemId: byName(a, 'Needles').id, qty: 4 }]);
+  a.saveSale({ type: 'injection', patientName: 'S', itemId: pen.id, amount: 5000, refId: x.id, date: '2026-09-02' });
+  assert.equal(a.stockOf(byName(a, 'Needles').id), 90, 'edited kit');
+  assert.equal(a.stockOf(byName(a, 'Travel Bags').id), 97, 'removed from kit');
+  a.deleteSale(s1.id);
+  assert.equal(a.stockOf(byName(a, 'Alcohol Swabs').id), 100 - 16, 'kit returns with a deleted sale');
+  const sal = a.salarySheet('2026-09');
+  const ry = sal.find((v) => v.name === 'Y');
+  assert.deepEqual([ry.salary, ry.incentive, ry.total], [0, 500, 500], 'incentive only');
+  a.saveMember({ id: y.id, name: 'Y', payMode: 'salary' });
+  const ry2 = a.salarySheet('2026-09').find((v) => v.name === 'Y');
+  assert.deepEqual([ry2.salary, ry2.incentive, ry2.total], [15000, 0, 15000], 'salary only');
+});
+
+test('stock alerts can be switched off; order required below 2 for protein and Mounjaro 10/15mg', () => {
+  const a = setup();
+  const orderNames = a.orderRequired().map((o) => o.item.name);
+  assert.deepEqual(orderNames, ['Mounjaro 10mg', 'Mounjaro 15mg', 'Protein Sachets']);
+  a.adjustStock(byName(a, 'Mounjaro 10mg').id, 2);
+  assert.ok(!a.orderRequired().some((o) => o.item.name === 'Mounjaro 10mg'), '2 in stock: not below 2');
+  const n = a.lowStock().length;
+  a.saveItem({ ...byName(a, 'Needles'), alertOff: true });
+  assert.equal(a.lowStock().length, n - 1);
+  a.updateSettings({ stockAlerts: false });
+  assert.equal(a.lowStock().length, 0);
+  const day = a.daySummary('2026-09-15');
+  assert.ok(day.available.some((x) => x.item.name === 'Mounjaro 10mg'));
+  assert.ok(day.notAvailable.some((x) => x.item.name === 'Mounjaro 15mg'));
+  assert.deepEqual(day.order.map((o) => o.item.name), ['Mounjaro 15mg', 'Protein Sachets']);
+});
+
+test('patients can be edited and deleted', () => {
+  const a = setup();
+  const m = a.saveMember({ name: 'M' });
+  const pen = byName(a, 'Wegovy 1mg');
+  a.adjustStock(pen.id, 3);
+  a.saveSale({ type: 'injection', patientName: 'Del', mobile: '9000000009', itemId: pen.id, amount: 1, refId: m.id });
+  a.saveAppointment({ patientName: 'Del', mobile: '9000000009', date: '2026-09-15', mode: 'clinic' });
+  const p = a.state.patients[0];
+  a.updatePatient(p.id, { name: 'Deleted Person', mobile: '9000000009' });
+  assert.equal(a.state.sales[0].patientName, 'Deleted Person');
+  assert.throws(() => a.deletePatient(p.id), /1 sales and 1 appointments/);
+  a.deletePatient(p.id, true);
+  assert.equal(a.state.patients.length, 0);
+  assert.equal(a.state.sales.length, 0);
+  assert.equal(a.state.appointments.length, 0);
+  assert.equal(a.stockOf(pen.id), 3, 'stock back');
+});
+
+test('editable choice lists ("+ Add new")', () => {
+  const a = setup();
+  a.addListItem('expenseCategories', 'Internet');
+  a.saveExpense({ category: 'Internet', amount: 999 });
+  a.renameListItem('expenseCategories', 'Internet', 'Wi-Fi');
+  assert.equal(a.state.expenses[0].category, 'Wi-Fi');
+  assert.equal(a.financialReport(null).byCategory['Wi-Fi'], 999);
+  assert.throws(() => a.removeListItem('expenseCategories', 'Salary'), /used by the app/);
+  a.addListItem('services', 'PRP therapy');
+  assert.ok(a.state.settings.lists.services.includes('PRP therapy'));
+  a.addCategory('Glucometer Strips', 'other');
+  a.saveItem({ name: 'Strips 50', category: 'Glucometer Strips', kind: 'other' });
+  a.renameCategory('Glucometer Strips', 'Strips');
+  assert.equal(a.state.items.find((i) => i.name === 'Strips 50').category, 'Strips');
+  assert.throws(() => a.deleteCategory('Strips'), /Move or delete/);
+});
+
+test('lead management: add, follow-ups, status history, convert to appointment, stats', () => {
+  const a = setup();
+  a.setActor('Priya');
+  const l = a.saveLead({ name: 'Neha', mobile: '98100 00001', source: 'Instagram', interest: 'Mounjaro injection', priority: 'hot', followUp: '2026-09-15' });
+  assert.equal(l.status, 'New');
+  assert.equal(l.createdBy, 'Priya');
+  assert.throws(() => a.saveLead({ name: 'Neha 2', mobile: '9810000001' }), /already has this mobile/);
+  a.addLeadActivity(l.id, { type: 'call', text: 'Interested, wants pricing', followUp: '2026-09-17', followTime: '11:00' });
+  assert.equal(a.lead(l.id).status, 'Contacted', 'first call moves New → Contacted');
+  assert.equal(a.lead(l.id).followUp, '2026-09-17');
+  let st = a.leadStats(A.rangeFor('month', '2026-09-15'));
+  assert.deepEqual([st.total, st.open, st.hot, st.dueToday], [1, 1, 1, 0]);
+  a.saveLead({ name: 'Old', mobile: '9810000002', followUp: '2026-09-10' });
+  st = a.leadStats(null);
+  assert.equal(st.overdue, 1);
+  const res = a.convertLead(l.id, { date: '2026-09-18', time: '10:00', mode: 'online' });
+  assert.equal(res.appointment.fee, 1000);
+  assert.equal(res.appointment.service, 'Mounjaro injection');
+  assert.equal(a.lead(l.id).status, 'Appointment booked');
+  assert.equal(a.leadStats(null).won, 1);
+  assert.ok(a.lead(l.id).history.map((h) => h.type).join(',').startsWith('created,call,followup'));
+  const rows = a.sheetsData().Leads;
+  assert.equal(rows.length, 3);
+  assert.equal(rows[0].length, rows[1].length);
+  a.deleteLead(l.id);
+  assert.equal(a.state.leads.length, 1);
+});
+
+test('activity log records who changed what', () => {
+  const a = setup();
+  a.setActor('Admin Aamir');
+  a.saveMember({ name: 'Z' });
+  a.saveExpense({ category: 'Rent', amount: 100 });
+  const last = a.state.log.slice(-2);
+  assert.deepEqual(last.map((x) => [x.by, x.action]), [['Admin Aamir', 'Team member added'], ['Admin Aamir', 'Expense added']]);
+  const sheet = a.sheetsData()['Activity Log'];
+  assert.equal(sheet[1][2], 'Expense added', 'newest first');
 });
 
 test('stock report and Google Sheets data', () => {
@@ -232,11 +361,11 @@ test('backup round trip keeps device secrets out of the file', () => {
 test('Google Sheet store: shared data leaves device settings behind and loads back', () => {
   const a = setup();
   a.updateSettings({ sheetsUrl: 'https://x', sheetsSecret: 's1' });
-  a.setUserPin('super', 'h', 'salt');
+  a.setAccountPin('super', 'h', 'salt', 4);
   a.saveMember({ name: 'Shared' });
   const shared = JSON.parse(JSON.stringify(a.exportState()));
   for (const k of ['sheetsSecret', 'sheetsUrl']) assert.ok(!(k in shared.settings), k);
-  assert.equal(shared.users.super.hash, 'h', 'logins are shared across devices');
+  assert.equal(shared.accounts.find((x) => x.id === 'super').hash, 'h', 'logins are shared across devices');
   const b = setup();
   b.updateSettings({ sheetsSecret: 's2' });
   const seen = [];

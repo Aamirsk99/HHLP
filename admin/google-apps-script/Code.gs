@@ -4,7 +4,7 @@
  * Every save from the app writes:
  *   - the complete app data (JSON) into the hidden sheet "_AppData", which the app loads back
  *     on every device, so all admins share one set of data;
- *   - the 13 readable sheets (Dashboard, Appointments, Patients, … Renewals), rebuilt from that data.
+ *   - the 15 readable sheets (Dashboard, Appointments, Leads, Patients, … Renewals, Activity Log), rebuilt from that data.
  *
  * Set-up (once):
  * 1. Open the Hindivine Google Sheet → Extensions → Apps Script, paste this file, Save.
@@ -12,11 +12,11 @@
  * 3. Deploy → New deployment → Web app: Execute as "Me", Who has access "Anyone".
  * 4. In the admin app: Settings → Google Sheet → paste the web app URL and the secret → Save.
  *
- * Edit data in the app, not in the sheets: each save rewrites the 13 sheets.
+ * Edit data in the app, not in the sheets: each save rewrites the 15 sheets.
  */
 const SHEET_ID = '1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y';
-const SHEETS = ['Dashboard', 'Appointments', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
-  'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals'];
+const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
+  'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Activity Log'];
 const DATA_SHEET = '_AppData';
 const CHUNK = 40000; // a cell holds up to 50,000 characters
 const NAVY = '#0a2f55';

@@ -13,11 +13,31 @@
   const SALE_TYPES = { injection: 'Injection', protein: 'Protein', diet: 'Diet Support' };
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
     'Protein Purchase', 'Injection Purchase', 'Miscellaneous'];
-  const SHEETS = ['Dashboard', 'Appointments', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
-    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals'];
+  const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
+    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Activity Log'];
 
-  // Three logins. Each has its own PIN, shared through the Google Sheet so it works on every device.
-  const ROLES = { super: 'Super Admin', manager: 'Manager', desk: 'Front Desk' };
+  // Login roles. Every person can have their own login (name + PIN), shared through the Google Sheet.
+  const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk' };
+  // Choice lists that the admins can extend ("+ Add new") from any form.
+  const DEFAULT_LISTS = {
+    expenseCategories: EXPENSE_CATEGORIES,
+    services: ['Weight loss consultation', 'Mounjaro injection', 'Wegovy injection', 'Ozempic injection', 'Diet plan', 'Follow-up visit', 'Body composition analysis'],
+    leadSources: ['Instagram', 'Facebook', 'Google', 'Website', 'WhatsApp', 'Walk-in', 'Referral', 'Phone call', 'Other'],
+    leadStatuses: ['New', 'Contacted', 'Interested', 'Follow-up', 'Appointment booked', 'Converted', 'Not interested', 'Lost'],
+    payMethods: ['Cash', 'UPI', 'Card', 'Bank transfer'],
+    designations: ['Doctor', 'Dietitian', 'Counsellor', 'Front Desk', 'Manager', 'Nurse', 'Pharmacist'],
+  };
+  // Built-in expense categories the app books by itself; they can't be removed.
+  const LOCKED_LIST_ITEMS = { expenseCategories: ['Salary', 'Incentive', 'Protein Purchase', 'Injection Purchase', 'Miscellaneous'], leadStatuses: ['New', 'Converted'] };
+  const LEAD_PRIORITIES = { hot: 'Hot', warm: 'Warm', cold: 'Cold' };
+  // What each role can open. Super Admin always has everything; the others are editable in Settings.
+  const DEFAULT_PERMS = {
+    admin: { screens: ['dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'products', 'inventory', 'purchases', 'team', 'incentives', 'salary', 'expenses', 'reports', 'activity'], del: true },
+    manager: { screens: ['dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'products', 'inventory', 'purchases', 'expenses', 'reports', 'activity'], del: false },
+    desk: { screens: ['appointments', 'leads'], del: false },
+  };
+  const KIT_DEFAULTS = [['Travel Bags', 1], ['Ice Gel Packs', 1], ['Alcohol Swabs', 16], ['Needles', 2]];
+  const LOG_MAX = 3000;
   const APPT_MODES = { clinic: 'Clinic visit', online: 'Online' };
   const APPT_STATUS = { booked: 'Booked', completed: 'Completed', cancelled: 'Cancelled', noshow: 'No-show' };
   const PAY_METHODS = ['Cash', 'UPI', 'Card', 'Bank transfer'];
@@ -40,6 +60,7 @@
     })));
     add({ kind: 'protein', category: 'Protein', brand: '', name: 'Protein Sachets', unit: 'sachet', lowAt: 20 });
     OTHER_CATEGORIES.forEach((c) => add({ kind: 'other', category: c, brand: '', name: c, lowAt: 20 }));
+    applyItemDefaults(items);
     return {
       version: 1,
       settings: {
@@ -53,13 +74,34 @@
         consultFee: 1000, // OPD consultation fee (₹)
         activeDays: 90,
         purchaseExpense: true, // purchases also book an expense
+        stockAlerts: true, // low-stock alerts (each item can also be switched off)
+        kitOn: true, // every injection sold also takes its kit out of stock
+        kit: kitDefaults(items), // [{ itemId, qty }] per injection pen
+        lists: JSON.parse(JSON.stringify(DEFAULT_LISTS)),
+        perms: JSON.parse(JSON.stringify(DEFAULT_PERMS)),
         sheetsUrl: '', sheetsSecret: '', autoSync: false, lastSync: 0,
       },
       categories: [{ name: 'Injection', kind: 'injection' }, { name: 'Protein', kind: 'protein' },
         ...OTHER_CATEGORIES.map((name) => ({ name, kind: 'other' }))],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
-      users: Object.fromEntries(Object.entries(ROLES).map(([k, name]) => [k, { name, hash: '', salt: '' }])),
+      leads: [], log: [],
+      accounts: [
+        { id: 'super', name: 'Super Admin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
+        { id: 'admin', name: 'Admin', role: 'admin', hash: '', salt: '', len: 0, pin: '' },
+        { id: 'manager', name: 'Manager', role: 'manager', hash: '', salt: '', len: 0, pin: '' },
+        { id: 'desk', name: 'Front Desk', role: 'desk', hash: '', salt: '', len: 0, pin: '' },
+      ],
     };
+  }
+  // "Order required" when stock falls below 2 for protein and Mounjaro 10mg / 15mg (editable per item).
+  function applyItemDefaults(items) {
+    items.forEach((it) => {
+      if (it.orderAt === undefined) it.orderAt = it.kind === 'protein' || /^mounjaro (10|15)\s*mg$/i.test(it.name) ? 2 : null;
+      if (it.alertOff === undefined) it.alertOff = false;
+    });
+  }
+  function kitDefaults(items) {
+    return KIT_DEFAULTS.map(([name, qty]) => { const it = items.find((i) => i.name === name); return it ? { itemId: it.id, qty } : null; }).filter(Boolean);
   }
 
   // ── Small helpers ─────────────────────────────────────────────
@@ -148,10 +190,21 @@
       const d = defaultState();
       if (!s || typeof s !== 'object') return d;
       Object.keys(d).forEach((k) => { if (s[k] == null) s[k] = d[k]; });
+      const hadKit = s.settings && s.settings.kit;
       s.settings = { ...d.settings, ...s.settings, incentive: { ...d.settings.incentive, ...(s.settings || {}).incentive } };
-      Object.keys(ROLES).forEach((k) => { s.users[k] = { ...d.users[k], ...s.users[k] }; });
-      // Older versions: one PIN in settings (now the Super Admin login), 60-day first reminder (now 75).
-      if (s.settings.pinHash && !s.users.super.hash) s.users.super = { ...s.users.super, hash: s.settings.pinHash, salt: s.settings.pinSalt };
+      s.settings.lists = { ...JSON.parse(JSON.stringify(DEFAULT_LISTS)), ...(s.settings.lists || {}) };
+      s.settings.perms = { ...JSON.parse(JSON.stringify(DEFAULT_PERMS)), ...(s.settings.perms || {}) };
+      if (!hadKit) s.settings.kit = kitDefaults(s.items);
+      applyItemDefaults(s.items);
+      // Older versions: logins were three fixed roles (and before that one PIN in settings).
+      if (s.users) {
+        s.accounts = d.accounts.map((acc) => {
+          const u = s.users[acc.id];
+          return u ? { ...acc, name: u.name || acc.name, hash: u.hash || '', salt: u.salt || '', len: u.len || 0 } : acc;
+        });
+        delete s.users;
+      }
+      if (s.settings.pinHash && !s.accounts.find((a) => a.id === 'super').hash) Object.assign(s.accounts.find((a) => a.id === 'super'), { hash: s.settings.pinHash, salt: s.settings.pinSalt });
       ['pinHash', 'pinSalt', 'apiKey', 'aiModel', 'autoSaveScan'].forEach((k) => { delete s.settings[k]; });
       if (s.settings.renewalDays[0] === 60 && s.settings.renewalDays[1] === 90) s.settings.renewalDays = [75, 90];
       return s;
@@ -161,26 +214,50 @@
       listeners.forEach((f) => f(source || 'local'));
     }
     const fail = (msg) => { throw new Error(msg); };
+    let actor = '';
+    /** Every change is written to the activity log with who made it. */
+    function log(action, detail) {
+      S.log.push({ at: clock ? clock().getTime() : Date.now(), by: actor || 'System', action, detail: String(detail || '') });
+      if (S.log.length > LOG_MAX) S.log.splice(0, S.log.length - LOG_MAX);
+    }
 
     // Team
     const member = (id) => S.team.find((m) => m.id === id) || null;
     const memberName = (id) => (member(id) || {}).name || '—';
-    const TEAM_FIELDS = ['name', 'designation', 'mobile', 'salary', 'incentiveOn', 'joiningDate'];
+    const TEAM_FIELDS = ['name', 'designation', 'mobile', 'salary', 'incentiveOn', 'joiningDate', 'incInjection', 'incProtein', 'payMode'];
+    const numOrNull = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v));
     function saveMember(input) {
       if (!low(input.name)) fail('Name is required');
       let m = input.id && member(input.id);
+      const isNew = !m;
       if (!m) { m = { id: uid('m'), disabled: false, created: Date.now() }; S.team.push(m); }
       TEAM_FIELDS.forEach((k) => { if (k in input) m[k] = input[k]; });
       m.salary = Number(m.salary) || 0;
       m.incentiveOn = m.incentiveOn !== false;
+      // Personal incentive rates; blank = the clinic default (₹1000 per injection, ₹500 per protein sale).
+      m.incInjection = numOrNull(m.incInjection);
+      m.incProtein = numOrNull(m.incProtein);
+      // What counts in this person's monthly pay: salary + incentive, salary only or incentive only.
+      if (!['both', 'salary', 'incentive'].includes(m.payMode)) m.payMode = 'both';
+      log(isNew ? 'Team member added' : 'Team member updated', m.name);
       save();
       return m;
     }
-    function setMemberDisabled(id, disabled) { const m = member(id); if (m) { m.disabled = !!disabled; save(); } }
+    function setMemberDisabled(id, disabled) { const m = member(id); if (m) { m.disabled = !!disabled; log(disabled ? 'Team member disabled' : 'Team member enabled', m.name); save(); } }
     function deleteMember(id) {
       // Sales keep the reference name, so history stays readable.
-      S.team = S.team.filter((m) => m.id !== id);
+      const m = member(id);
+      S.team = S.team.filter((x) => x.id !== id);
+      S.accounts.forEach((a) => { if (a.memberId === id) a.memberId = ''; });
+      log('Team member deleted', m ? m.name : id);
       save();
+    }
+    /** Incentive rate for one person: their own rate, else the product's, else the clinic default. */
+    function rateFor(m, type, it) {
+      const own = m && (type === 'injection' ? m.incInjection : type === 'protein' ? m.incProtein : null);
+      if (own != null) return own;
+      if (it && it.incentive != null) return it.incentive;
+      return S.settings.incentive[type] || 0;
     }
 
     // Items, categories, stock
@@ -193,20 +270,27 @@
         it = { id: uid('i'), brand: '', price: 0, incentive: null, opening: 0, lowAt: 5, unit: 'pcs', disabled: false };
         S.items.push(it);
       }
-      ['name', 'brand', 'category', 'kind', 'price', 'incentive', 'opening', 'lowAt', 'unit', 'disabled'].forEach((k) => {
+      const isNew = !input.id;
+      ['name', 'brand', 'category', 'kind', 'price', 'incentive', 'opening', 'lowAt', 'unit', 'disabled', 'alertOff', 'orderAt'].forEach((k) => {
         if (k in input) it[k] = input[k];
       });
+      it.alertOff = !!it.alertOff;
+      it.orderAt = it.orderAt === '' || it.orderAt == null ? null : Number(it.orderAt);
       const cat = S.categories.find((c) => c.name === it.category);
       if (!cat) S.categories.push({ name: it.category || 'Other', kind: it.kind || 'other' });
       it.kind = it.kind || (cat ? cat.kind : 'other');
       ['price', 'opening', 'lowAt'].forEach((k) => { it[k] = Number(it[k]) || 0; });
       it.incentive = it.incentive === '' || it.incentive == null ? null : Number(it.incentive);
+      log(isNew ? 'Item added' : 'Item updated', it.name);
       save();
       return it;
     }
     function deleteItem(id) {
       if (S.moves.some((mv) => mv.itemId === id)) fail('This item has stock history. Disable it instead.');
+      const it = item(id);
       S.items = S.items.filter((i) => i.id !== id);
+      S.settings.kit = S.settings.kit.filter((k) => k.itemId !== id);
+      log('Item deleted', it ? it.name : id);
       save();
     }
     function addCategory(name, kind) {
@@ -214,6 +298,29 @@
       if (!n) fail('Category name is required');
       if (S.categories.some((c) => low(c.name) === low(n))) fail('That category already exists');
       S.categories.push({ name: n, kind: kind || 'other' });
+      log('Category added', n);
+      save();
+    }
+    function renameCategory(oldName, name) {
+      const n = String(name || '').trim();
+      const c = S.categories.find((x) => x.name === oldName);
+      if (!c || !n) fail('Enter a category name');
+      if (S.categories.some((x) => x !== c && low(x.name) === low(n))) fail('That category already exists');
+      S.items.forEach((i) => { if (i.category === oldName) i.category = n; });
+      c.name = n;
+      log('Category renamed', `${oldName} → ${n}`);
+      save();
+    }
+    function deleteCategory(name) {
+      if (S.items.some((i) => i.category === name)) fail('Move or delete the items in this category first');
+      S.categories = S.categories.filter((c) => c.name !== name);
+      log('Category deleted', name);
+      save();
+    }
+    /** Kit taken out of stock with every injection pen (needles, swabs, ice gel, travel bag…). */
+    function setKit(kit) {
+      S.settings.kit = (kit || []).filter((k) => k.itemId && item(k.itemId) && Number(k.qty) > 0).map((k) => ({ itemId: k.itemId, qty: Number(k.qty) }));
+      log('Injection kit updated', S.settings.kit.map((k) => `${item(k.itemId).name} ${k.qty}`).join(', '));
       save();
     }
     function stockOf(itemId, until) {
@@ -225,9 +332,13 @@
       if (!item(itemId)) fail('Unknown item');
       if (!Number(qty)) fail('Enter a quantity');
       S.moves.push({ id: uid('v'), itemId, qty: Number(qty), type: 'adjust', ref: note || '', date: date || today() });
+      log('Stock adjusted', `${item(itemId).name} ${Number(qty) > 0 ? '+' : ''}${qty}${note ? ` (${note})` : ''}`);
       save();
     }
-    const lowStock = () => S.items.filter((i) => !i.disabled && stockOf(i.id) <= i.lowAt)
+    // Low-stock alerts can be switched off for the whole clinic or per item.
+    const lowStock = () => (S.settings.stockAlerts === false ? [] : S.items.filter((i) => !i.disabled && !i.alertOff && stockOf(i.id) <= i.lowAt)
+      .map((i) => ({ item: i, stock: stockOf(i.id) })));
+    const orderRequired = () => S.items.filter((i) => !i.disabled && i.orderAt != null && stockOf(i.id) < i.orderAt)
       .map((i) => ({ item: i, stock: stockOf(i.id) }));
 
     // Patients
@@ -242,6 +353,34 @@
       return p;
     }
     const patientSales = (pid) => S.sales.filter((s) => s.patientId === pid).sort((a, b) => (a.date < b.date ? -1 : 1));
+    function updatePatient(id, input) {
+      const p = S.patients.find((x) => x.id === id);
+      if (!p) fail('Patient not found');
+      const nm = String(input.name || '').trim();
+      if (!nm) fail('Patient name is required');
+      p.name = nm; p.mobile = String(input.mobile || '').trim();
+      ['age', 'gender', 'city', 'notes'].forEach((k) => { if (k in input) p[k] = input[k]; });
+      S.sales.forEach((x) => { if (x.patientId === id) { x.patientName = p.name; x.mobile = p.mobile; } });
+      S.appointments.forEach((x) => { if (x.patientId === id) { x.patientName = p.name; x.mobile = p.mobile; } });
+      log('Patient updated', p.name);
+      save();
+      return p;
+    }
+    /** Delete a patient. With withRecords, their sales (stock goes back) and appointments go too. */
+    function deletePatient(id, withRecords) {
+      const p = S.patients.find((x) => x.id === id);
+      if (!p) fail('Patient not found');
+      const saleIds = S.sales.filter((x) => x.patientId === id).map((x) => x.id);
+      const appts = S.appointments.filter((x) => x.patientId === id).length;
+      if ((saleIds.length || appts) && !withRecords) fail(`${p.name} has ${saleIds.length} sales and ${appts} appointments`);
+      S.sales = S.sales.filter((x) => x.patientId !== id);
+      S.moves = S.moves.filter((m) => !saleIds.includes(m.ref));
+      S.appointments = S.appointments.filter((x) => x.patientId !== id);
+      S.leads.forEach((l) => { if (l.patientId === id) l.patientId = ''; });
+      S.patients = S.patients.filter((x) => x.id !== id);
+      log('Patient deleted', `${p.name}${saleIds.length || appts ? ` with ${saleIds.length} sales and ${appts} appointments` : ''}`);
+      save();
+    }
 
     // Sales
     function incentiveFor(input) {
@@ -254,6 +393,35 @@
       // Injections pay per pen; a protein sale pays once, whatever the quantity.
       return input.type === 'injection' ? base * (Number(input.qty) || 1) : base;
     }
+
+    /**
+     * Each reference earns their own rate × their share: injection per pen, protein once per sale,
+     * diet support by plan. Incentive status Off = ₹0.
+     */
+    function splitsFor(input, refs) {
+      const units = input.type === 'injection' ? (Number(input.qty) || 1) : 1;
+      const plan = input.type === 'diet' ? S.settings.dietPlans.find((p) => p.id === input.planId) : null;
+      const it = input.type === 'diet' ? null : item(input.itemId);
+      const bases = refs.map((r) => (input.type === 'diet' ? (plan ? Number(plan.incentive) || 0 : 0) : rateFor(member(r.memberId), input.type, it) * units));
+      const same = bases.every((b) => b === bases[0]);
+      // Same rate for everyone: split exactly (remainder to the first); otherwise each gets rate × share.
+      const parts = same ? splitIncentive(bases[0], refs) : refs.map((r, i) => ({ memberId: r.memberId, pct: r.pct, amount: Math.round(bases[i] * r.pct / 100) }));
+      return parts.map((x) => {
+        const m = member(x.memberId);
+        return { ...x, name: m ? m.name : '—', amount: m && m.incentiveOn === false ? 0 : x.amount };
+      });
+    }
+    function previewSplits(input) {
+      if (!input.refId) return [];
+      const refs = [{ memberId: input.refId, pct: 100 }];
+      if (input.sharedId && input.sharedId !== input.refId) {
+        const pct = input.sharePct == null || input.sharePct === '' ? 50 : Math.min(100, Math.max(0, Number(input.sharePct)));
+        refs[0].pct = 100 - pct; refs.push({ memberId: input.sharedId, pct });
+      }
+      return splitsFor(input, refs);
+    }
+    /** Kit moves for an injection sale (per pen), when switched on. */
+    const kitFor = (sale) => (sale.type === 'injection' && S.settings.kitOn !== false ? S.settings.kit.filter((k) => item(k.itemId)).map((k) => ({ itemId: k.itemId, qty: k.qty * sale.qty })) : []);
 
     function buildSale(input, id) {
       const type = input.type;
@@ -280,11 +448,7 @@
         refs[0].pct = 100 - pct;
         refs.push({ memberId: input.sharedId, pct });
       }
-      const incentive = incentiveFor({ ...input, qty });
-      const splits = splitIncentive(incentive, refs).map((s) => {
-        const m = member(s.memberId);
-        return { ...s, name: m ? m.name : '—', amount: m && m.incentiveOn === false ? 0 : s.amount };
-      });
+      const splits = splitsFor({ ...input, type, qty }, refs);
       const patient = findOrCreatePatient(input.patientName, input.mobile);
       const earlier = S.sales.some((s) => s.patientId === patient.id && s.id !== id && s.date <= date);
       return {
@@ -314,12 +478,16 @@
         Object.assign(existing, sale, { created: existing.created });
       } else S.sales.push(sale);
       if (sale.itemId) S.moves.push({ id: uid('v'), itemId: sale.itemId, qty: -sale.qty, type: 'sale', ref: sale.id, date: sale.date });
+      kitFor(sale).forEach((k) => S.moves.push({ id: uid('v'), itemId: k.itemId, qty: -k.qty, type: 'kit', ref: sale.id, date: sale.date }));
+      log(existing ? 'Sale updated' : 'Sale added', `${sale.product} × ${sale.qty} · ${sale.patientName} · ₹${sale.amount}`);
       save();
       return existing || sale;
     }
     function deleteSale(id) {
+      const x = S.sales.find((s) => s.id === id);
       S.sales = S.sales.filter((s) => s.id !== id);
       S.moves = S.moves.filter((m) => m.ref !== id);
+      if (x) log('Sale deleted', `${x.product} · ${x.patientName} · ₹${x.amount}`);
       save();
     }
 
@@ -363,13 +531,16 @@
           id: uid('e'), date: p.date, category, amount: r2(amount), note: `Invoice ${p.invoiceNo || ''} ${p.vendor}`.trim(), ref: p.id, auto: true,
         }));
       }
+      log(existing ? 'Purchase updated' : 'Purchase added', `${p.vendor || 'Vendor'} ${p.invoiceNo} · ${p.lines.map((l) => `${l.name} +${l.qty}`).join(', ')}`);
       save();
       return existing || p;
     }
     function deletePurchase(id) {
+      const x = S.purchases.find((p) => p.id === id);
       S.purchases = S.purchases.filter((p) => p.id !== id);
       S.moves = S.moves.filter((m) => m.ref !== id);
       S.expenses = S.expenses.filter((e) => e.ref !== id);
+      if (x) log('Purchase deleted', `${x.vendor} ${x.invoiceNo}`);
       save();
     }
 
@@ -380,10 +551,17 @@
       let e = input.id && S.expenses.find((x) => x.id === input.id);
       if (!e) { e = { id: uid('e') }; S.expenses.push(e); }
       Object.assign(e, { date: input.date || today(), category: input.category, amount: r2(input.amount), note: String(input.note || '').trim() });
+      if (!S.settings.lists.expenseCategories.includes(e.category)) S.settings.lists.expenseCategories.push(e.category);
+      log(input.id ? 'Expense updated' : 'Expense added', `${e.category} ₹${e.amount}${e.note ? ` · ${e.note}` : ''}`);
       save();
       return e;
     }
-    function deleteExpense(id) { S.expenses = S.expenses.filter((e) => e.id !== id); save(); }
+    function deleteExpense(id) {
+      const x = S.expenses.find((e) => e.id === id);
+      S.expenses = S.expenses.filter((e) => e.id !== id);
+      if (x) log('Expense deleted', `${x.category} ₹${x.amount}`);
+      save();
+    }
 
     // OPD appointments
     const appointment = (id) => S.appointments.find((a) => a.id === id) || null;
@@ -398,10 +576,13 @@
       Object.assign(a, {
         date: input.date, time: input.time || '', patientId: patient.id, patientName: patient.name, mobile: patient.mobile,
         mode: input.mode, fee, link: String(input.link || '').trim(), notes: String(input.notes || '').trim(),
+        service: String(input.service || '').trim(),
       });
-      ['status', 'paid', 'payMethod', 'by'].forEach((k) => { if (k in input) a[k] = input[k]; });
+      ['status', 'paid', 'payMethod', 'by', 'leadId'].forEach((k) => { if (k in input) a[k] = input[k]; });
       if (!APPT_STATUS[a.status]) a.status = 'booked';
       a.paid = !!a.paid;
+      if (a.service && !S.settings.lists.services.includes(a.service)) S.settings.lists.services.push(a.service);
+      log(input.id ? 'Appointment updated' : 'Appointment booked', `${a.patientName} · ${a.date} ${a.time}${a.service ? ` · ${a.service}` : ''}`);
       save();
       return a;
     }
@@ -409,10 +590,17 @@
       const a = appointment(id);
       if (!a) fail('Appointment not found');
       Object.assign(a, patch);
+      const what = patch.status ? `status ${APPT_STATUS[patch.status]}` : patch.paid ? `paid ₹${a.fee}${a.payMethod ? ` ${a.payMethod}` : ''}` : 'changed';
+      log('Appointment updated', `${a.patientName} · ${what}`);
       save();
       return a;
     }
-    function deleteAppointment(id) { S.appointments = S.appointments.filter((a) => a.id !== id); save(); }
+    function deleteAppointment(id) {
+      const a = appointment(id);
+      S.appointments = S.appointments.filter((x) => x.id !== id);
+      if (a) log('Appointment deleted', `${a.patientName} · ${a.date}`);
+      save();
+    }
     const appointmentsIn = (range) => S.appointments.filter((a) => inRange(a.date, range))
       .sort((a, b) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : a.date < b.date ? -1 : 1));
     // Fees count as revenue once paid, unless the appointment was cancelled.
@@ -428,16 +616,177 @@
       };
     }
 
-    // Logins
-    function setUserPin(role, hash, salt, len) {
-      if (!ROLES[role]) fail('Unknown login');
-      S.users[role] = { ...S.users[role], hash, salt, len: len || 0 };
+    // Logins: one per person (name, role, PIN). Staff PINs are visible to the Super Admin.
+    const account = (id) => S.accounts.find((a) => a.id === id) || null;
+    function saveAccount(input) {
+      const name = String(input.name || '').trim();
+      if (!name) fail('Enter a name for the login');
+      if (!ROLES[input.role]) fail('Choose a role');
+      if (S.accounts.some((a) => a.id !== input.id && low(a.name) === low(name))) fail('Another login already has this name');
+      let a = input.id && account(input.id);
+      const isNew = !a;
+      if (!a) { a = { id: uid('u'), hash: '', salt: '', len: 0, pin: '', created: Date.now() }; S.accounts.push(a); }
+      if (a.role === 'super' && input.role !== 'super' && S.accounts.filter((x) => x.role === 'super' && !x.disabled).length === 1) fail('Keep at least one Super Admin');
+      Object.assign(a, { name, role: input.role, memberId: input.memberId || '', disabled: !!input.disabled });
+      log(isNew ? 'Login added' : 'Login updated', `${a.name} (${ROLES[a.role]})`);
+      save();
+      return a;
+    }
+    function setAccountPin(id, hash, salt, len, plain) {
+      const a = account(id);
+      if (!a) fail('Unknown login');
+      Object.assign(a, { hash, salt, len: len || 0, pin: a.role === 'super' ? '' : (plain || '') });
+      log(hash ? 'PIN changed' : 'PIN removed', a.name);
       save();
     }
-    function setUserName(role, name) {
-      if (!ROLES[role]) fail('Unknown login');
-      S.users[role].name = String(name || '').trim() || ROLES[role];
+    function deleteAccount(id) {
+      const a = account(id);
+      if (!a) return;
+      if (a.role === 'super' && S.accounts.filter((x) => x.role === 'super').length === 1) fail('Keep at least one Super Admin');
+      S.accounts = S.accounts.filter((x) => x.id !== id);
+      log('Login deleted', a.name);
       save();
+    }
+    const setActor = (name) => { actor = name || ''; };
+
+    // Choice lists ("+ Add new" everywhere)
+    function addListItem(list, name) {
+      const n = String(name || '').trim();
+      if (!S.settings.lists[list]) fail('Unknown list');
+      if (!n) fail('Enter a name');
+      if (S.settings.lists[list].some((x) => low(x) === low(n))) return n;
+      S.settings.lists[list].push(n);
+      log('Option added', `${list}: ${n}`);
+      save();
+      return n;
+    }
+    function removeListItem(list, name) {
+      if ((LOCKED_LIST_ITEMS[list] || []).includes(name)) fail(`"${name}" is used by the app and can't be removed`);
+      S.settings.lists[list] = S.settings.lists[list].filter((x) => x !== name);
+      log('Option removed', `${list}: ${name}`);
+      save();
+    }
+    function renameListItem(list, oldName, name) {
+      const n = String(name || '').trim();
+      if (!n) fail('Enter a name');
+      if ((LOCKED_LIST_ITEMS[list] || []).includes(oldName)) fail(`"${oldName}" is used by the app and can't be renamed`);
+      const l = S.settings.lists[list]; const i = l.indexOf(oldName);
+      if (i < 0) fail('Option not found');
+      l[i] = n;
+      if (list === 'expenseCategories') S.expenses.forEach((e) => { if (e.category === oldName) e.category = n; });
+      if (list === 'leadSources') S.leads.forEach((x) => { if (x.source === oldName) x.source = n; });
+      if (list === 'leadStatuses') S.leads.forEach((x) => { if (x.status === oldName) x.status = n; });
+      if (list === 'services') { S.appointments.forEach((x) => { if (x.service === oldName) x.service = n; }); S.leads.forEach((x) => { if (x.interest === oldName) x.interest = n; }); }
+      log('Option renamed', `${list}: ${oldName} → ${n}`);
+      save();
+    }
+
+    // Lead management (CRM)
+    const lead = (id) => S.leads.find((l) => l.id === id) || null;
+    const LEAD_FIELDS = ['name', 'mobile', 'altMobile', 'age', 'gender', 'city', 'source', 'interest', 'priority', 'assignedTo', 'followUp', 'followTime', 'weight', 'targetWeight', 'height', 'budget', 'notes', 'email'];
+    function findLeadByMobile(mobile, exceptId) {
+      const ph = digits(mobile);
+      return ph ? S.leads.find((l) => l.id !== exceptId && digits(l.mobile) === ph) || null : null;
+    }
+    function saveLead(input) {
+      const name = String(input.name || '').trim();
+      if (!name) fail('Enter the lead name');
+      if (!digits(input.mobile)) fail('Enter a mobile number');
+      const dup = findLeadByMobile(input.mobile, input.id);
+      if (dup && !input.allowDuplicate) fail(`${dup.name} already has this mobile number (status: ${dup.status})`);
+      let l = input.id && lead(input.id);
+      const isNew = !l;
+      if (!l) { l = { id: uid('l'), created: clock ? clock().getTime() : Date.now(), createdBy: actor, date: today(), status: 'New', history: [] }; S.leads.push(l); }
+      LEAD_FIELDS.forEach((k) => { if (k in input) l[k] = typeof input[k] === 'string' ? input[k].trim() : input[k]; });
+      l.name = name;
+      if (!LEAD_PRIORITIES[l.priority]) l.priority = 'warm';
+      if (input.status && input.status !== l.status) setLeadStatusRaw(l, input.status);
+      if (l.source && !S.settings.lists.leadSources.includes(l.source)) S.settings.lists.leadSources.push(l.source);
+      if (l.interest && !S.settings.lists.services.includes(l.interest)) S.settings.lists.services.push(l.interest);
+      if (isNew) l.history.push({ at: l.created, by: actor, type: 'created', text: `Lead added${l.source ? ` from ${l.source}` : ''}` });
+      log(isNew ? 'Lead added' : 'Lead updated', `${l.name} · ${l.mobile}`);
+      save();
+      return l;
+    }
+    function setLeadStatusRaw(l, status) {
+      if (!S.settings.lists.leadStatuses.includes(status)) S.settings.lists.leadStatuses.push(status);
+      const from = l.status;
+      l.status = status;
+      l.history.push({ at: clock ? clock().getTime() : Date.now(), by: actor, type: 'status', text: `${from || 'New'} → ${status}` });
+    }
+    function setLeadStatus(id, status) {
+      const l = lead(id);
+      if (!l) fail('Lead not found');
+      setLeadStatusRaw(l, status);
+      log('Lead status', `${l.name}: ${status}`);
+      save();
+    }
+    /** A call, WhatsApp message or note on a lead; optionally sets the next follow-up. */
+    function addLeadActivity(id, input) {
+      const l = lead(id);
+      if (!l) fail('Lead not found');
+      const text = String(input.text || '').trim();
+      if (!text && !input.followUp) fail('Write a note or choose a follow-up date');
+      const at = clock ? clock().getTime() : Date.now();
+      if (text) l.history.push({ at, by: actor, type: input.type || 'note', text });
+      if ('followUp' in input) { l.followUp = input.followUp || ''; l.followTime = input.followTime || ''; if (input.followUp) l.history.push({ at, by: actor, type: 'followup', text: `Follow-up set for ${input.followUp}${input.followTime ? ` ${input.followTime}` : ''}` }); }
+      if (input.type === 'call' || input.type === 'whatsapp') l.lastContact = at;
+      if (l.status === 'New' && (input.type === 'call' || input.type === 'whatsapp')) setLeadStatusRaw(l, 'Contacted');
+      log('Lead activity', `${l.name} · ${input.type || 'note'}${text ? `: ${text.slice(0, 60)}` : ''}`);
+      save();
+      return l;
+    }
+    function deleteLead(id) {
+      const l = lead(id);
+      S.leads = S.leads.filter((x) => x.id !== id);
+      if (l) log('Lead deleted', `${l.name} · ${l.mobile}`);
+      save();
+    }
+    /** Convert a lead: creates (or finds) the patient and, optionally, books an OPD appointment. */
+    function convertLead(id, appt) {
+      const l = lead(id);
+      if (!l) fail('Lead not found');
+      const p = findOrCreatePatient(l.name, l.mobile);
+      l.patientId = p.id;
+      let a = null;
+      if (appt) {
+        a = saveAppointment({ ...appt, patientName: p.name, mobile: p.mobile, leadId: l.id, service: appt.service || l.interest || '' });
+        l.apptId = a.id;
+        setLeadStatusRaw(l, 'Appointment booked');
+      } else setLeadStatusRaw(l, 'Converted');
+      log('Lead converted', `${l.name}${a ? ` · appointment ${a.date}` : ''}`);
+      save();
+      return { patient: p, appointment: a };
+    }
+    const isClosedLead = (l) => ['Converted', 'Not interested', 'Lost'].includes(l.status);
+    function leadStats(range, filter) {
+      const all = S.leads.filter((l) => !filter || filter(l));
+      const inR = all.filter((l) => inRange(l.date, range));
+      const d = today();
+      const open = all.filter((l) => !isClosedLead(l));
+      const won = inR.filter((l) => l.status === 'Converted' || l.status === 'Appointment booked' || l.apptId || l.patientId).length;
+      return {
+        total: inR.length, open: open.length, won, conversion: inR.length ? Math.round((won / inR.length) * 100) : 0,
+        dueToday: open.filter((l) => l.followUp === d).length, overdue: open.filter((l) => l.followUp && l.followUp < d).length,
+        hot: open.filter((l) => l.priority === 'hot').length, newToday: all.filter((l) => l.date === d).length,
+      };
+    }
+
+    /** Today's summary: sales, purchases, OPD, stock available / not available, order required. */
+    function daySummary(date) {
+      const d = date || today();
+      const r = { from: d, to: d };
+      const sales = S.sales.filter((x) => x.date === d);
+      const purchases = S.purchases.filter((x) => x.date === d);
+      const stock = S.items.filter((i) => !i.disabled).map((i) => ({ item: i, stock: stockOf(i.id, d) }));
+      return {
+        date: d, sales, purchases, appointments: appointmentsIn(r), appt: appointmentStats(r),
+        salesTotal: r2(sum(sales, (x) => x.amount)), purchaseTotal: r2(sum(purchases, (x) => x.total)),
+        expenses: S.expenses.filter((e) => e.date === d), expenseTotal: r2(sum(S.expenses.filter((e) => e.date === d), (e) => e.amount)),
+        available: stock.filter((x) => x.stock > 0), notAvailable: stock.filter((x) => x.stock <= 0),
+        order: stock.filter((x) => x.item.orderAt != null && x.stock < x.item.orderAt),
+        leads: S.leads.filter((l) => l.date === d).length,
+      };
     }
 
     // Incentives, salary
@@ -455,9 +804,10 @@
       const ids = new Set([...S.team.filter((m) => !m.disabled).map((m) => m.id), ...ledger.map((l) => l.memberId)]);
       return [...ids].map((id) => {
         const m = member(id);
-        const salary = m && !m.disabled && (!m.joiningDate || m.joiningDate <= range.to) ? m.salary : 0;
-        const incentive = sum(ledger.filter((l) => l.memberId === id), (l) => l.amount);
-        return { memberId: id, name: m ? m.name : (ledger.find((l) => l.memberId === id) || {}).name, designation: m ? m.designation : '', salary, incentive, total: salary + incentive };
+        const mode = (m && m.payMode) || 'both';
+        const salary = m && !m.disabled && mode !== 'incentive' && (!m.joiningDate || m.joiningDate <= range.to) ? m.salary : 0;
+        const incentive = mode === 'salary' ? 0 : sum(ledger.filter((l) => l.memberId === id), (l) => l.amount);
+        return { memberId: id, name: m ? m.name : (ledger.find((l) => l.memberId === id) || {}).name, designation: m ? m.designation : '', mode, salary, incentive, total: salary + incentive };
       }).sort((a, b) => b.total - a.total);
     }
     /** Book the month's salary and incentive as expenses (replaces an earlier booking of the same month). */
@@ -469,6 +819,7 @@
       const sal = sum(rows, (r) => r.salary); const inc = sum(rows, (r) => r.incentive);
       if (sal) S.expenses.push({ id: uid('e'), date, category: 'Salary', amount: sal, note: `Salary ${month} (${rows.filter((r) => r.salary).length} staff)`, ref: tag, auto: true });
       if (inc) S.expenses.push({ id: uid('e'), date, category: 'Incentive', amount: inc, note: `Incentives ${month}`, ref: tag, auto: true });
+      log('Salary booked', `${month}: salary ₹${sal}, incentive ₹${inc}`);
       save();
       return { salary: sal, incentive: inc };
     }
@@ -496,6 +847,8 @@
     function markRenewal(saleId, stage, done) {
       const k = `${saleId}:${stage}`;
       if (done) S.renewalsDone[k] = today(); else delete S.renewalsDone[k];
+      const x = S.sales.find((y) => y.id === saleId);
+      log(done ? 'Renewal contacted' : 'Renewal reopened', x ? x.patientName : saleId);
       save();
     }
 
@@ -528,7 +881,7 @@
       const revenue = r2(sum(sales, (s) => s.amount) + consultation);
       const totalExp = r2(sum(expenses, (e) => e.amount));
       const byCategory = {};
-      EXPENSE_CATEGORIES.forEach((c) => { byCategory[c] = 0; });
+      S.settings.lists.expenseCategories.forEach((c) => { byCategory[c] = 0; });
       expenses.forEach((e) => { byCategory[e.category] = r2((byCategory[e.category] || 0) + e.amount); });
       const revenueByType = {};
       Object.keys(SALE_TYPES).forEach((t) => { revenueByType[t] = r2(sum(sales.filter((s) => s.type === t), (s) => s.amount)); });
@@ -548,10 +901,10 @@
         const within = mv.filter((m) => inRange(m.date, range));
         const q = (t) => sum(within.filter((m) => m.type === t), (m) => m.qty);
         const opening = it.opening + before;
-        const purchased = q('purchase'); const sold = -q('sale'); const adjusted = q('adjust');
+        const purchased = q('purchase'); const sold = -q('sale'); const used = -q('kit'); const adjusted = q('adjust');
         return {
-          itemId: it.id, category: it.category, kind: it.kind, name: it.name, unit: it.unit, disabled: it.disabled,
-          opening, purchased, sold, adjusted, current: opening + purchased - sold + adjusted, closingToday: stockOf(it.id, to), lowAt: it.lowAt,
+          itemId: it.id, category: it.category, kind: it.kind, name: it.name, unit: it.unit, disabled: it.disabled, alertOff: it.alertOff, orderAt: it.orderAt,
+          opening, purchased, sold, used, adjusted, current: opening + purchased - sold - used + adjusted, closingToday: stockOf(it.id, to), lowAt: it.lowAt,
         };
       });
     }
@@ -590,7 +943,10 @@
           protein: stockSum((i) => i.kind === 'protein'),
           needles: stockSum(cat(/needle/i)), swabs: stockSum(cat(/swab/i)), syringes: stockSum(cat(/syringe/i)),
           low: lowStock(),
+          order: orderRequired(),
+          available: S.items.filter((i) => !i.disabled && stockOf(i.id) > 0).map((i) => ({ item: i, stock: stockOf(i.id) })),
         },
+        leads: leadStats(range),
         renewalsDue: renewals(d).filter((r) => r.stage && !r.done).length,
         appointments: appointmentStats(range),
         today: appointmentStats({ from: d, to: d }),
@@ -621,6 +977,10 @@
         ['Appointments', db.appointments.total, all.appointments.total],
         ['Clinic Visits', db.appointments.clinic, all.appointments.clinic],
         ['Online Consultations', db.appointments.online, all.appointments.online],
+        ['New Leads', db.leads.total, all.leads.total],
+        ['Leads Converted', db.leads.won, all.leads.won],
+        ['Open Leads', db.leads.open, all.leads.open],
+        ['Order Required', db.stock.order.map((l) => `${l.item.name} (${l.stock})`).join(', '), ''],
         ['Total Patients', db.patients.total, all.patients.total],
         ['New Patients', db.patients.new, all.patients.new],
         ['Renewal Patients', db.patients.renewal, all.patients.renewal],
@@ -637,9 +997,16 @@
         ['Low Stock Alerts', db.stock.low.map((l) => `${l.item.name} (${l.stock})`).join(', '), ''],
         ['Updated', new Date(clock ? clock() : Date.now()).toISOString(), ''],
       ];
-      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
-      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], a.fee,
+      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Service', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
+      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], a.service || '', a.fee,
         a.paid ? 'Paid' : 'Unpaid', a.payMethod || '', APPT_STATUS[a.status], a.link || '', a.notes || '']));
+      const accName = (id) => (account(id) || {}).name || '';
+      out.Leads = [['Date', 'Name', 'Mobile', 'Alt Mobile', 'Age', 'Gender', 'City', 'Source', 'Interested In', 'Priority', 'Status', 'Assigned To', 'Next Follow-up', 'Weight (kg)', 'Target (kg)', 'Height (cm)', 'Budget', 'Last Note', 'Added By']];
+      [...S.leads].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((l) => {
+        const note = [...(l.history || [])].reverse().find((h) => ['note', 'call', 'whatsapp'].includes(h.type));
+        out.Leads.push([l.date, l.name, l.mobile, l.altMobile || '', l.age || '', l.gender || '', l.city || '', l.source || '', l.interest || '', LEAD_PRIORITIES[l.priority] || '',
+          l.status, accName(l.assignedTo), l.followUp ? `${l.followUp} ${l.followTime || ''}`.trim() : '', l.weight || '', l.targetWeight || '', l.height || '', l.budget || '', note ? note.text : '', l.createdBy || '']);
+      });
       out.Patients = [['Name', 'Mobile', 'First Purchase', 'Last Purchase', 'Orders', 'Total Spent', 'Last Product', 'Reference Team', 'Status']];
       const activeFrom = isoDate(new Date(parseDate(d) - S.settings.activeDays * 86400000));
       S.patients.forEach((p) => {
@@ -660,26 +1027,32 @@
       out.Purchases = [['Date', 'Vendor', 'Invoice No', 'Product', 'Invoice Product Name', 'Qty', 'Batch', 'Expiry', 'Rate', 'GST %', 'Line Total']];
       [...S.purchases].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((p) => p.lines.forEach((l) => out.Purchases.push(
         [p.date, p.vendor, p.invoiceNo, l.name, l.invoiceName, l.qty, l.batch, l.expiry, l.rate, l.gst, l.total])));
-      out.Inventory = [['Category', 'Item', 'Opening Stock', 'Purchased Stock', 'Sold Stock', 'Adjusted', 'Available Stock', 'Low Stock At', 'Status']];
-      stockReport(null).forEach((r) => out.Inventory.push([r.category, r.name, r.opening, r.purchased, r.sold, r.adjusted, r.current, r.lowAt,
-        r.disabled ? 'Disabled' : r.current <= r.lowAt ? 'LOW' : 'OK']));
-      out.Team = [['Name', 'Designation', 'Mobile', 'Salary', 'Incentive Status', 'Joining Date', 'Status']];
-      S.team.forEach((m) => out.Team.push([m.name, m.designation || '', m.mobile || '', m.salary, m.incentiveOn === false ? 'Off' : 'On', m.joiningDate || '', m.disabled ? 'Disabled' : 'Active']));
+      out.Inventory = [['Category', 'Item', 'Opening Stock', 'Purchased Stock', 'Sold Stock', 'Used (injection kit)', 'Adjusted', 'Available Stock', 'Low Stock At', 'Status', 'Order Required']];
+      stockReport(null).forEach((r) => out.Inventory.push([r.category, r.name, r.opening, r.purchased, r.sold, r.used, r.adjusted, r.current, r.lowAt,
+        r.disabled ? 'Disabled' : r.alertOff || S.settings.stockAlerts === false ? 'Alert off' : r.current <= r.lowAt ? 'LOW' : 'OK', r.orderAt != null && r.current < r.orderAt ? 'ORDER REQUIRED' : '']));
+      out.Team = [['Name', 'Designation', 'Mobile', 'Salary', 'Incentive Status', 'Injection Incentive', 'Protein Incentive', 'Pay Counts', 'Joining Date', 'Status']];
+      const PAY = { both: 'Salary + Incentive', salary: 'Salary only', incentive: 'Incentive only' };
+      S.team.forEach((m) => out.Team.push([m.name, m.designation || '', m.mobile || '', m.salary, m.incentiveOn === false ? 'Off' : 'On',
+        rateFor(m, 'injection', null), rateFor(m, 'protein', null), PAY[m.payMode || 'both'], m.joiningDate || '', m.disabled ? 'Disabled' : 'Active']));
       out.Incentives = [['Date', 'Team Member', 'Sale Type', 'Patient', 'Product', 'Share %', 'Incentive']];
       incentiveLedger(null).reverse().forEach((l) => out.Incentives.push([l.date, l.name, SALE_TYPES[l.type], l.patient, l.product, l.pct, l.amount]));
-      out.Salary = [['Month', 'Name', 'Designation', 'Salary', 'Incentive', 'Salary + Incentive', 'Booked as Expense']];
+      out.Salary = [['Month', 'Name', 'Designation', 'Salary', 'Incentive', 'Total Pay', 'Booked as Expense']];
       const months = new Set([monthOf(d), ...S.sales.map((s) => monthOf(s.date))]);
       [...months].sort().forEach((mo) => salarySheet(mo).forEach((r) => out.Salary.push([mo, r.name, r.designation || '', r.salary, r.incentive, r.total, salaryPosted(mo) ? 'Yes' : 'No'])));
       out.Expenses = [['Date', 'Category', 'Amount', 'Note']];
       [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.category, e.amount, e.note || '']));
       out.Renewals = [['Patient', 'Mobile', 'Product', 'Last Purchase Date', 'Days Since', 'Reminder', 'Reference Team', 'Contacted']];
       renewals(d).forEach((r) => out.Renewals.push([r.name, r.mobile, r.product, r.lastDate, r.days, r.stage ? `${r.stage} Day alert` : `Due in ${r.dueIn} days`, r.ref, r.done ? 'Yes' : 'No']));
+      out['Activity Log'] = [['Date & Time', 'By', 'Action', 'Details']];
+      S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.by, x.action, x.detail]));
       return out;
     }
 
     // Settings and backup
     function updateSettings(patch) {
       Object.assign(S.settings, patch);
+      const keys = Object.keys(patch).filter((k) => !LOCAL_SETTINGS.includes(k));
+      if (keys.length) log('Settings changed', keys.join(', '));
       save();
     }
     function saveDietPlan(input) {
@@ -687,6 +1060,7 @@
       if (!p) { p = { id: uid('d'), disabled: false }; S.settings.dietPlans.push(p); }
       ['name', 'months', 'price', 'incentive', 'disabled'].forEach((k) => { if (k in input) p[k] = input[k]; });
       p.price = Number(p.price) || 0; p.incentive = Number(p.incentive) || 0;
+      log('Diet plan saved', p.name);
       save();
       return p;
     }
@@ -696,18 +1070,20 @@
       if (!obj || obj.app !== 'hindivine-admin' || !obj.data) fail('This is not a Hindivine Admin backup');
       const keep = {};
       LOCAL_SETTINGS.forEach((k) => { keep[k] = S.settings[k]; });
-      const users = S.users;
+      const accounts = S.accounts;
       storage.setItem(KEY, JSON.stringify(obj.data));
       S = load();
       Object.assign(S.settings, keep);
-      if (!S.users.super.hash) S.users = users; // a backup without logins keeps this device's
+      if (!S.accounts.some((a) => a.role === 'super' && a.hash)) S.accounts = accounts; // a backup without logins keeps this device's
+      log('Backup imported', '');
       save();
     }
     /** Erase all data; the logins and this device's Google Sheet connection stay. */
     function resetAll() {
-      const users = S.users; const keep = {};
+      const accounts = S.accounts; const keep = {};
       LOCAL_SETTINGS.forEach((k) => { keep[k] = S.settings[k]; });
-      S = defaultState(); S.users = users; Object.assign(S.settings, keep);
+      S = defaultState(); S.accounts = accounts; Object.assign(S.settings, keep);
+      log('All data erased', '');
       save();
     }
 
@@ -740,7 +1116,10 @@
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
-      setUserPin, setUserName,
+      account, saveAccount, setAccountPin, deleteAccount, setActor,
+      addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
+      updatePatient, deletePatient, daySummary,
+      lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,
     };
@@ -753,7 +1132,7 @@
 
   const api = {
     createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
-    KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS,
+    KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADMIN = api;
