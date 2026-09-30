@@ -181,3 +181,21 @@ test('backup round trip keeps secrets out of the file', () => {
   assert.equal(b.state.team[0].name, 'Kept');
   assert.throws(() => b.importBackup('{"x":1}'), /not a Hindivine Admin backup/);
 });
+
+test('Google Sheet store: shared data leaves device secrets behind and loads back', () => {
+  const a = setup();
+  a.updateSettings({ apiKey: 'sk-a', sheetsUrl: 'https://x', sheetsSecret: 's1', pinHash: 'h' });
+  a.saveMember({ name: 'Shared' });
+  const shared = JSON.parse(JSON.stringify(a.exportState()));
+  for (const k of ['apiKey', 'sheetsSecret', 'pinHash', 'sheetsUrl']) assert.ok(!(k in shared.settings), k);
+  const b = setup();
+  b.updateSettings({ apiKey: 'sk-b', sheetsSecret: 's2' });
+  const seen = [];
+  b.onChange((src) => seen.push(src));
+  b.loadState(shared);
+  assert.equal(b.state.team[0].name, 'Shared');
+  assert.equal(b.state.settings.apiKey, 'sk-b');
+  assert.equal(b.state.settings.sheetsSecret, 's2');
+  assert.deepEqual(seen, ['remote']);
+  assert.throws(() => b.loadState({}), /not readable/);
+});

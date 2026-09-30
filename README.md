@@ -46,7 +46,7 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 
 ## Hindivine Admin app (`admin/`)
 
-A separate, **admin-only** app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*. It asks for an admin PIN on first launch and locks after 15 minutes idle. Data stays on the device (export a backup from Settings), and can be mirrored to Google Sheets.
+A separate, **admin-only** app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*. It asks for an admin PIN on first launch and locks after 15 minutes idle. Data is stored in the Hindivine Google Sheet (see below) and kept on each device for offline use.
 
 | Area | What it does |
 | --- | --- |
@@ -61,11 +61,11 @@ A separate, **admin-only** app for running the clinic. **Android:** install [`di
 | **Renewals** | 60-day and 90-day reminders from each patient's last injection (patient, product, last purchase, reference team), with Call / WhatsApp and one-tap renewal sale. |
 | **Reports** | Team-wise, financial and stock reports for any period, with CSV export. |
 
-**Excel / Google Sheets workbook:** [`admin/Hindivine_Admin_Sheets.xlsx`](admin/Hindivine_Admin_Sheets.xlsx) has the same 12 sheets plus a Settings sheet, with formulas, so it also works on its own: type sales, purchases, expenses, patients and team; stock, incentives (single / 50-50 / custom split), salary + incentive, renewals (60/90 days) and the dashboard calculate themselves. Upload it to Google Drive to use it as a Google Sheet. It is separate from the app's Sheets sync, which overwrites the sheets it writes to.
+**Excel / Google Sheets workbook:** [`admin/Hindivine_Admin_Sheets.xlsx`](admin/Hindivine_Admin_Sheets.xlsx) has the same 12 sheets plus a Settings sheet, with formulas, so it also works on its own: type sales, purchases, expenses, patients and team; stock, incentives (single / 50-50 / custom split), salary + incentive, renewals (60/90 days) and the dashboard calculate themselves. Upload it to Google Drive to use it as a Google Sheet. Keep it separate from the Google Sheet the app stores its data in, because the app rewrites those tabs.
 
 **AI scanner set-up:** Settings → paste a Claude API key (console.anthropic.com). The key stays on the device and is left out of backups. Scans use `claude-opus-5-5` (or Sonnet 5.5) with structured JSON output.
 
-**Google Sheets set-up:** create a Google Sheet → Extensions → Apps Script → paste [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) → run `setup` (creates Dashboard, Patients, Injection Sales, Protein Sales, Diet Support, Purchases, Inventory, Team, Incentives, Salary, Expenses, Renewals and logs a secret) → Deploy as a web app (Execute as *Me*, access *Anyone*) → paste the URL and secret in Settings. Use *Sync now*, or turn on auto-sync after every change.
+**Google Sheet data storage:** all data is stored in the [Hindivine Google Sheet](https://docs.google.com/spreadsheets/d/1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y/edit), so every admin phone and computer shares it. Set-up once: open the sheet → Extensions → Apps Script → paste [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) → run `setup` (creates Dashboard, Patients, Injection Sales, Protein Sales, Diet Support, Purchases, Inventory, Team, Incentives, Salary, Expenses, Renewals, plus a hidden `_AppData` sheet, and logs a secret) → Deploy → Web app (Execute as *Me*, access *Anyone*) → in the app, Settings → Google Sheet → paste the URL and secret. The app loads the latest data when opened, saves each change within seconds, keeps working offline, and asks which version to keep if two devices changed data at the same time. Enter data in the app, not in the sheet: every save rewrites the 12 tabs.
 
 ## Apps
 

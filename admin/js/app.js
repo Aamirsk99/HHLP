@@ -1,10 +1,13 @@
 /* Hindivine Admin — screens: dashboard, sales entry, patients, renewals, products,
  * inventory, purchases (AI invoice scanner), team, incentives, salary, expenses,
- * reports and settings (PIN, Claude API key, Google Sheets sync, backup). */
+ * reports and settings (PIN, Claude API key, Google Sheet data storage, backup). */
 (function () {
   const A = window.ADMIN;
   const INV = window.INVOICE;
   const SYNC_KEY = 'hindivine.admin.lastSync';
+  const BASE_KEY = 'hindivine.admin.sheetVersion'; // version of the Google Sheet data this device last had
+  const DIRTY_KEY = 'hindivine.admin.savedHash'; // fingerprint of the data last saved to / loaded from the sheet
+  const SHEET_LINK = 'https://docs.google.com/spreadsheets/d/1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y/edit';
   const UNLOCK_KEY = 'hindivine.admin.unlocked';
   const IDLE_LOCK_MS = 15 * 60 * 1000;
 
@@ -791,19 +794,18 @@
       </div>
       <label class="check"><input type="checkbox" name="autoSaveScan" ${st.autoSaveScan ? 'checked' : ''}> Add stock automatically when every invoice line matches a product (no review)</label>
 
-      <h2 style="margin-top:8px">Google Sheets</h2>
-      <p class="hint" style="margin:0">Creates and fills 12 sheets: ${A.SHEETS.join(', ')}. Set-up: make a Google Sheet → Extensions → Apps Script → paste <a href="google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a> → run <b>setup</b> → Deploy as web app (Execute as: Me, Access: Anyone) → paste the URL and the secret here.</p>
+      <h2 style="margin-top:8px">Google Sheet (data storage)</h2>
+      <p class="hint" style="margin:0">All data is stored in <a href="${SHEET_LINK}" target="_blank" rel="noopener">the Hindivine Google Sheet</a>, so every admin phone and computer shares it. The sheet also shows 12 readable tabs: ${A.SHEETS.join(', ')}. Set-up once: open the sheet → Extensions → Apps Script → paste <a href="google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a> → run <b>setup</b> → Deploy → Web app (Execute as: Me, Who has access: Anyone) → paste the URL and the secret here.</p>
       <div class="grid two">
         <label class="f">Web app URL<input name="sheetsUrl" value="${esc(st.sheetsUrl)}" placeholder="https://script.google.com/macros/s/…/exec"></label>
         <label class="f">Secret<input type="password" name="sheetsSecret" value="${esc(st.sheetsSecret)}"><span class="hint">Shown in the Apps Script log after running setup.</span></label>
       </div>
-      <label class="check"><input type="checkbox" name="autoSync" ${st.autoSync ? 'checked' : ''}> Sync automatically after every change</label>
-      <div class="actions" style="justify-content:flex-start"><button type="button" class="btn" data-act="sync">Sync now</button><span class="hint" id="last-sync">${last ? `Last sync ${new Date(last).toLocaleString('en-IN')}` : 'Not synced yet'}</span></div>
+      <div class="actions" style="justify-content:flex-start"><button type="button" class="btn" data-act="sync">Load latest now</button><span class="hint" id="last-sync">${connected() ? (last ? `Last saved ${new Date(last).toLocaleString('en-IN')}` : 'Connected, not saved yet') : 'Not connected: data is only on this device'}</span></div>
       <div class="actions"><button class="btn primary" type="submit">Save settings</button></div>
     </form>
     <div class="card"><h2>Security</h2><p>The app opens with your admin PIN and locks after 15 minutes without use.</p>
       <button class="btn" data-act="change-pin">Change PIN</button> <button class="btn" data-act="lock">Lock now</button></div>
-    <div class="card"><h2>Backup</h2><p>All data is stored on this device. Export a backup regularly, and import it to move to a new device.</p>
+    <div class="card"><h2>Backup</h2><p>${connected() ? 'Data is saved to the Google Sheet and kept on this device for offline use.' : 'All data is stored on this device.'} Export a backup file now and then as an extra copy.</p>
       <div class="actions" style="justify-content:flex-start"><button class="btn" data-act="export-backup">Export backup</button>
       <label class="btn">Import backup<input type="file" id="import-file" accept="application/json,.json" hidden></label>
       <button class="btn danger" data-act="reset">Erase all data</button></div></div>`;
@@ -816,10 +818,12 @@
       admin.updateSettings({
         clinic: f.clinic.value.trim(), renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         purchaseExpense: f.purchaseExpense.checked, apiKey: f.apiKey.value.trim(), aiModel: f.aiModel.value, autoSaveScan: f.autoSaveScan.checked,
-        sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(), autoSync: f.autoSync.checked,
+        sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
       });
+      const wasConnected = connected() && storage.getItem(SYNC_KEY);
       toast('Settings saved');
       render();
+      if (connected() && !wasConnected) pull(true);
     });
     $('#import-file').addEventListener('change', async (e) => {
       const file = e.target.files[0];
@@ -834,42 +838,144 @@
     });
   };
 
-  // ── Google Sheets sync ────────────────────────────────────────
-  let syncTimer = null;
-  function syncState(text) { const el = $('#sync-state'); el.hidden = !text; el.textContent = text || ''; }
-  async function syncSheets(manual) {
-    const { sheetsUrl, sheetsSecret } = set();
-    if (!sheetsUrl) { if (manual) toast('Add the Google Sheets web app URL first, then Save settings.', true); return; }
-    const body = JSON.stringify({ secret: sheetsSecret, sheets: admin.sheetsData() });
-    syncState('Syncing…');
-    try {
-      let res;
-      try {
-        res = await fetch(sheetsUrl, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body });
-      } catch (_) {
-        // Some browsers block reading the Apps Script reply; send without reading it.
-        await fetch(sheetsUrl, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body });
-        res = null;
-      }
-      if (res) {
-        const out = await res.json().catch(() => null);
-        if (!out || !out.ok) throw new Error(out && out.error ? out.error : `Google Sheets replied ${res.status}`);
-      }
-      storage.setItem(SYNC_KEY, String(Date.now()));
-      syncState('Synced ✓');
-      setTimeout(() => syncState(''), 3000);
-      if (manual) toast(res ? 'Google Sheets updated (12 sheets)' : 'Sent to Google Sheets');
-      const ls = $('#last-sync'); if (ls) ls.textContent = `Last sync ${new Date().toLocaleString('en-IN')}`;
-    } catch (err) {
-      syncState('Sync failed');
-      if (manual) toast(`Sync failed: ${err.message}`, true);
-    }
+  // ── Google Sheet data store ───────────────────────────────────
+  // The Google Sheet holds the shared copy of all data; this device keeps a working copy so the
+  // app still opens and records sales offline. Changes are saved to the sheet a moment after
+  // they are made, and the latest data is loaded whenever the app is opened or brought back.
+  const connected = () => !!(set().sheetsUrl && set().sheetsSecret);
+  const getBase = () => Number(storage.getItem(BASE_KEY)) || 0;
+  const setBase = (v) => storage.setItem(BASE_KEY, String(v || 0));
+  // "Unsaved" = the shared data differs from what was last saved to / loaded from the sheet.
+  // Device-only settings (PIN, keys, URL) are not shared, so changing them never counts.
+  const hashOf = (text) => { let h = 5381; for (let i = 0; i < text.length; i++) h = ((h * 33) ^ text.charCodeAt(i)) >>> 0; return `${text.length}:${h.toString(16)}`; };
+  const dataHash = (a) => hashOf(JSON.stringify(a.exportState()));
+  const EMPTY_HASH = dataHash(A.createAdmin(A.memoryStorage()));
+  const isDirty = () => dataHash(admin) !== (storage.getItem(DIRTY_KEY) || EMPTY_HASH);
+  const setDirty = (on) => { if (!on) storage.setItem(DIRTY_KEY, dataHash(admin)); };
+  const device = () => (/Android/i.test(navigator.userAgent) ? 'Android' : /iPhone|iPad/i.test(navigator.userAgent) ? 'iPhone/iPad' : 'Computer');
+  let saveTimer = null;
+  let busy = false;
+  let lastPull = 0;
+  function syncState(text) { const el = $('#sync-state'); if (el) { el.hidden = !text; el.textContent = text || ''; } }
+  function showSheetState() {
+    if (!connected()) return syncState('');
+    syncState(isDirty() ? 'Not saved to Google Sheet yet' : 'Saved to Google Sheet ✓');
   }
-  admin.onChange(() => {
-    if (!set().autoSync || !set().sheetsUrl) return;
-    clearTimeout(syncTimer);
-    syncTimer = setTimeout(() => syncSheets(false), 4000);
+  async function call(method, payload) {
+    const url = set().sheetsUrl;
+    const res = method === 'GET'
+      ? await fetch(`${url}${url.includes('?') ? '&' : '?'}action=load&secret=${encodeURIComponent(set().sheetsSecret)}`)
+      : await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    const out = await res.json().catch(() => null);
+    if (!out) throw new Error(`Google Sheet replied ${res.status}. Check the web app URL and that it is deployed for "Anyone".`);
+    if (!out.ok && !out.conflict) throw new Error(out.error || 'Google Sheet refused the request');
+    return out;
+  }
+  function applyRemote(out) {
+    admin.loadState(out.state);
+    setBase(out.updated);
+    setDirty(false);
+    const editing = modal.open || screen === 'sell' || screen === 'purchase-new';
+    if (!editing && !$('#shell').hidden) render();
+  }
+  function choose(title, message, keepLabel, useLabel) {
+    return new Promise((resolve) => {
+      $('#modal-title').textContent = title;
+      $('#modal-body').innerHTML = `<p style="margin:0">${esc(message)}</p>`;
+      $('#modal-err').textContent = '';
+      $('#modal-foot').innerHTML = `<button type="button" class="btn" data-choice="use">${esc(useLabel)}</button><button type="button" class="btn primary" data-choice="keep">${esc(keepLabel)}</button>`;
+      const onClick = (e) => {
+        const c = e.target.closest('[data-choice]');
+        if (!c) return;
+        modal.removeEventListener('click', onClick);
+        modal.close();
+        resolve(c.dataset.choice);
+      };
+      modal.addEventListener('click', onClick);
+      modal.addEventListener('close', () => { modal.removeEventListener('click', onClick); resolve('use'); }, { once: true });
+      modal.showModal();
+    });
+  }
+  async function resolveConflict(out) {
+    const who = out.by ? ` on ${out.by}` : '';
+    const when = out.updated ? new Date(out.updated).toLocaleString('en-IN') : '';
+    const pick = await choose('Data changed on another device',
+      `The Google Sheet was updated${who} (${when}) while this device had changes that were not saved yet. Which data should be kept? The other version is replaced.`,
+      "Keep this device's data", 'Use Google Sheet data');
+    if (pick === 'keep') return push(true);
+    const remote = await call('GET');
+    if (remote.state) applyRemote(remote);
+    toast('Loaded the latest data from the Google Sheet');
+    return null;
+  }
+  /** Save this device's data to the sheet. force = overwrite even if another device saved since. */
+  async function push(force) {
+    if (!connected()) return;
+    clearTimeout(saveTimer);
+    busy = true;
+    syncState('Saving…');
+    try {
+      const out = await call('POST', { action: 'save', secret: set().sheetsSecret, state: admin.exportState(), sheets: admin.sheetsData(), base: getBase(), by: device(), force: !!force });
+      if (out.conflict) { busy = false; await resolveConflict(out); return; }
+      setBase(out.updated);
+      setDirty(false);
+      storage.setItem(SYNC_KEY, String(Date.now()));
+      showSheetState();
+      const ls = $('#last-sync'); if (ls) ls.textContent = `Last saved ${new Date().toLocaleString('en-IN')}`;
+    } catch (err) {
+      syncState('Offline: saved on this device');
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(() => push(), 60000); // retry
+      throw err;
+    } finally { busy = false; }
+  }
+  /** Load the latest data from the sheet (or upload this device's data if the sheet is still empty). */
+  async function pull(manual) {
+    if (!connected() || busy) return;
+    clearTimeout(saveTimer);
+    lastPull = Date.now();
+    busy = true;
+    syncState('Loading from Google Sheet…');
+    let out;
+    try { out = await call('GET'); } catch (err) {
+      busy = false;
+      syncState('Offline: using data on this device');
+      if (manual) toast(err.message, true);
+      return;
+    }
+    busy = false;
+    try {
+      if (!out.state) { await push(true); if (manual) toast('This device\'s data was saved to the empty Google Sheet'); return; }
+      if (out.updated === getBase()) {
+        if (isDirty()) await push();
+        showSheetState();
+        if (manual) toast('Up to date with the Google Sheet');
+        return;
+      }
+      if (isDirty() && getBase()) { await resolveConflict(out); return; }
+      if (isDirty() && !getBase()) {
+        // First connection of a device that already has data, to a sheet that has data too.
+        const pick = await choose('Google Sheet already has data',
+          'This device and the Google Sheet both have data. Which should be kept? The other is replaced.',
+          "Keep this device's data", 'Use Google Sheet data');
+        if (pick === 'keep') { await push(true); return; }
+      }
+      applyRemote(out);
+      showSheetState();
+      if (manual) toast('Loaded the latest data from the Google Sheet');
+    } catch (err) { if (manual) toast(err.message, true); }
+  }
+  admin.onChange((source) => {
+    if (source === 'remote' || !connected() || !isDirty()) return;
+    syncState('Not saved to Google Sheet yet');
+    clearTimeout(saveTimer);
+    const later = () => { saveTimer = setTimeout(() => (busy || modal.open ? later() : push().catch(() => {})), 1500); };
+    later();
   });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible' && $('#lock').hidden && Date.now() - lastPull > 20000) pull();
+  });
+  window.addEventListener('online', () => { if (isDirty()) push().catch(() => {}); });
 
   // ── Actions ───────────────────────────────────────────────────
   const ACTIONS = {
@@ -959,7 +1065,7 @@
       fields: [{ name: 'confirm', label: 'Type ERASE to confirm', required: true }],
       onSubmit: (v) => { if (v.confirm !== 'ERASE') throw new Error('Type ERASE in capitals'); const keep = { pinHash: set().pinHash, pinSalt: set().pinSalt }; admin.resetAll(); admin.updateSettings(keep); return 'All data erased'; },
     }),
-    sync: () => syncSheets(true),
+    sync: async () => { if (!connected()) { toast('Add the web app URL and secret, then Save settings.', true); return; } await pull(true); },
     lock: () => lock(),
     'change-pin': () => openForm({
       title: 'Change PIN',
@@ -1044,6 +1150,8 @@
     try { sessionStorage.setItem(UNLOCK_KEY, '1'); } catch (_) { /* ignore */ }
     $('#lock').hidden = true; $('#shell').hidden = false;
     render();
+    showSheetState();
+    pull();
   }
   $('#lock-form').addEventListener('submit', async (e) => {
     e.preventDefault();

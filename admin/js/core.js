@@ -6,6 +6,8 @@
  */
 (function (root) {
   const KEY = 'hindivine.admin.v1';
+  // Settings that stay on each device and never go to the shared Google Sheet.
+  const LOCAL_SETTINGS = ['apiKey', 'pinHash', 'pinSalt', 'sheetsUrl', 'sheetsSecret', 'autoSync', 'lastSync'];
 
   const KINDS = { injection: 'Injection', protein: 'Protein', other: 'Other' };
   const SALE_TYPES = { injection: 'Injection', protein: 'Protein', diet: 'Diet Support' };
@@ -144,9 +146,9 @@
       s.settings = { ...d.settings, ...s.settings, incentive: { ...d.settings.incentive, ...(s.settings || {}).incentive } };
       return s;
     }
-    function save() {
+    function save(source) {
       try { storage.setItem(KEY, JSON.stringify(S)); } catch (_) { throw new Error('Storage is full: export a backup and remove old data.'); }
-      listeners.forEach((f) => f());
+      listeners.forEach((f) => f(source || 'local'));
     }
     const fail = (msg) => { throw new Error(msg); };
 
@@ -622,6 +624,23 @@
     }
     function resetAll() { S = defaultState(); save(); }
 
+    // Shared data for the Google Sheet store: everything except this device's own settings.
+    function exportState() {
+      const settings = { ...S.settings };
+      LOCAL_SETTINGS.forEach((k) => { delete settings[k]; });
+      return { ...S, settings };
+    }
+    /** Replace the data with a copy loaded from the Google Sheet, keeping this device's own settings. */
+    function loadState(remote) {
+      if (!remote || typeof remote !== 'object' || !Array.isArray(remote.sales)) fail('The Google Sheet data is not readable');
+      const keep = {};
+      LOCAL_SETTINGS.forEach((k) => { keep[k] = S.settings[k]; });
+      storage.setItem(KEY, JSON.stringify(remote));
+      S = load();
+      Object.assign(S.settings, keep);
+      save('remote');
+    }
+
     return {
       get state() { return S; },
       today, onChange: (f) => listeners.push(f),
@@ -634,7 +653,7 @@
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
-      updateSettings, saveDietPlan, exportBackup, importBackup, resetAll,
+      updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,
     };
   }
 
