@@ -44,6 +44,10 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 - **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
 - **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
 
+## GLP-1 Weight Loss landing page
+
+[`glp1/index.html`](glp1/index.html) is a standalone landing page for the doctor-supervised GLP-1 Weight Management Program led by Dr. Rajat Goel (1,500+ GLP-1 patients). It covers the 3-month program, program kit, how it works, FAQ and an eligibility form that calculates BMI and sends the details on WhatsApp to +91 89208 31975. Host the whole folder and open `/glp1/`.
+
 ## Apps
 
 | Platform | How |
