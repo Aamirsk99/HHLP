@@ -46,26 +46,32 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 
 ## Hindivine Admin app (`admin/`)
 
-A separate, **admin-only** app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*. It asks for an admin PIN on first launch and locks after 15 minutes idle. Data is stored in the Hindivine Google Sheet (see below) and kept on each device for offline use.
+A separate app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*.
+
+**Three logins**, each with its own PIN (4–6 digits, shared through the Google Sheet so they work on every device):
+
+| Login | Can use |
+| --- | --- |
+| **Super Admin** | Everything, including team, salary, incentives, logins and settings |
+| **Manager** | Dashboard, OPD appointments, sales, patients, renewals, products, inventory, purchases, expenses, reports |
+| **Front Desk** | OPD appointments only |
+
+The app logs out after 15 minutes without use. On Android, back goes to the previous screen and exits only with a second press on the home screen.
 
 | Area | What it does |
 | --- | --- |
-| **Dashboard** | Sales (orders, revenue, expenses, net profit, injection / protein / diet support sales), patients (total, new, renewal, active), team (members, incentives, salary, top performer), stock (injection, protein, needles, swabs, syringes, low-stock alerts), revenue vs expenses by month. Filter by today, month, last month, year, all time or custom dates. |
-| **New Sale** | Injection, protein and diet support sales: patient, mobile, new/renewal (auto from history), product, qty, amount (auto from price), date, reference, optional shared reference (50-50 or custom %), optional dietitian, notes. Saving takes the stock out, splits the incentive and books the revenue. |
-| **Products** | Mounjaro 2.5/5/10/15 mg, Wegovy 0.25/1/2.4 mg, Ozempic 0.25/1 mg, protein types and 1/3-month diet plans. Change price, incentive or disable; add more. |
-| **Inventory** | Opening, purchased, sold, adjusted and available stock per item; needles, swabs, syringes, protein sachets, ice gel packs, travel bags, plus unlimited custom categories. |
-| **Purchases** | **AI invoice scanner:** upload a photo or PDF; Claude reads vendor, invoice no./date, products, qty, batch, expiry, rate and GST, matches each line to a product and adds the stock (e.g. *Mounjaro 15mg Qty 2 → stock +2*). When every line matches, it saves with no manual entry; otherwise you review first. Duplicate invoices are refused. Purchases can also be booked as expenses. |
-| **Incentives** | Injection ₹1000 per pen, protein ₹500 per sale, diet support 1 month ₹1000 / 3 months ₹2000 — all editable, plus per-product overrides. Ledger per team member. |
-| **Team, Salary** | Add / edit / disable / delete members (name, designation, mobile, salary, incentive status, joining date). Monthly salary + incentive per employee; book both as expenses in one tap. |
-| **Expenses** | Salary, Incentive, Rent, Electricity, Courier, Marketing, Protein / Injection Purchase, Miscellaneous. Profit = Revenue − Expenses. |
-| **Renewals** | 60-day and 90-day reminders from each patient's last injection (patient, product, last purchase, reference team), with Call / WhatsApp and one-tap renewal sale. |
-| **Reports** | Team-wise, financial and stock reports for any period, with CSV export. |
+| **Dashboard** | Today's OPD, revenue, profit and renewals at the top; sales, OPD, patient, team and stock summaries; revenue vs expenses by month. Any period: today, month, last month, year, all time or custom. |
+| **OPD Appointments** | Book clinic-visit or online consultations (fee ₹1000 by default, editable), with date strip, day view and filtered list (status, mode, paid/unpaid, search). Tap an appointment to mark it completed, paid (Cash/UPI/Card/Bank), no-show or cancelled, or to send a WhatsApp confirmation with the meeting link. Paid fees count as revenue. |
+| **Sales** | Injection, protein and diet support sales: stock out, incentive split (single, 50-50 or custom %) and revenue in one step. Filters by period, type, new/renewal, team member and search. |
+| **Renewals** | Alert **75 days** after the last injection, overdue from 90 days (both editable), with Call / WhatsApp and one-tap renewal sale. |
+| **Stock** | Products (prices, incentives, disable), inventory with category and low-stock filters, purchases entered by hand (the AI scanner was removed). |
+| **Team & money** | Team, incentives, salary + incentive per month, expenses and profit. |
+| **Reports** | Overview, OPD, Sales, Team, Financial, Stock, Purchases, Expenses and Renewals, each exportable; **Download all** gives every report in one PDF or Excel file. |
+| **PDF / Excel** | Every screen has PDF and Excel buttons. PDFs are A4 with the Hindivine logo, summary tiles, tables, totals and page numbers (landscape for wide tables). |
 
-**Excel / Google Sheets workbook:** [`admin/Hindivine_Admin_Sheets.xlsx`](admin/Hindivine_Admin_Sheets.xlsx) has the same 12 sheets plus a Settings sheet, with formulas, so it also works on its own: type sales, purchases, expenses, patients and team; stock, incentives (single / 50-50 / custom split), salary + incentive, renewals (60/90 days) and the dashboard calculate themselves. Upload it to Google Drive to use it as a Google Sheet. Keep it separate from the Google Sheet the app stores its data in, because the app rewrites those tabs.
+**Google Sheet data storage:** all data is stored in the [Hindivine Google Sheet](https://docs.google.com/spreadsheets/d/1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y/edit). Set-up once: open the sheet → Extensions → Apps Script → paste [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) → run `setup` (creates Dashboard, Appointments, Patients, Injection Sales, Protein Sales, Diet Support, Purchases, Inventory, Team, Incentives, Salary, Expenses, Renewals, plus a hidden `_AppData` sheet, and logs a secret) → Deploy → Web app (Execute as *Me*, access *Anyone*) → paste the URL and secret on the sign-in screen (*Connect Google Sheet*) or in Settings. The app saves each change within seconds without showing it, refreshes the data every 30 seconds and on pull-down or the refresh button, works offline, and asks which version to keep if two devices changed data at the same time. Enter data in the app, not in the sheet: every save rewrites the tabs.
 
-**AI scanner set-up:** Settings → paste a Claude API key (console.anthropic.com). The key stays on the device and is left out of backups. Scans use `claude-opus-5-5` (or Sonnet 5.5) with structured JSON output.
-
-**Google Sheet data storage:** all data is stored in the [Hindivine Google Sheet](https://docs.google.com/spreadsheets/d/1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y/edit), so every admin phone and computer shares it. Set-up once: open the sheet → Extensions → Apps Script → paste [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) → run `setup` (creates Dashboard, Patients, Injection Sales, Protein Sales, Diet Support, Purchases, Inventory, Team, Incentives, Salary, Expenses, Renewals, plus a hidden `_AppData` sheet, and logs a secret) → Deploy → Web app (Execute as *Me*, access *Anyone*) → in the app, Settings → Google Sheet → paste the URL and secret. The app loads the latest data when opened, saves each change within seconds, keeps working offline, and asks which version to keep if two devices changed data at the same time. Enter data in the app, not in the sheet: every save rewrites the 12 tabs.
+**Excel / Google Sheets workbook:** [`admin/Hindivine_Admin_Sheets.xlsx`](admin/Hindivine_Admin_Sheets.xlsx) has the same 13 sheets plus Settings, with formulas, so it also works on its own: appointments (₹1000 fee, clinic visit/online), sales, purchases, expenses, patients and team; stock, incentives, salary + incentive, renewals (75/90 days) and the dashboard calculate themselves. Keep it separate from the Google Sheet the app stores its data in, because the app rewrites those tabs.
 
 ## Apps
 
@@ -90,7 +96,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 
 ```sh
 VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
-APP=admin VERSION_CODE=1 VERSION_NAME=1.0 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
+APP=admin VERSION_CODE=3 VERSION_NAME=2.0 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.
@@ -124,7 +130,7 @@ npm test             # Node 18+, no dependencies
 | `img/` | Hindivine logo and icons |
 | `android/` | Android WebView wrapper and build script |
 | `dist/HindivineDiet.apk`, `dist/HindivineAdmin.apk` | Built Android apps |
-| `admin/` | Hindivine Admin app: `js/core.js` (data and rules), `js/app.js` (screens), `js/invoice.js` (AI invoice scanner), `google-apps-script/Code.gs` (Sheets) |
+| `admin/` | Hindivine Admin app: `js/core.js` (data and rules), `js/app.js` (screens), `js/export.js` (PDF / Excel), `vendor/` (jsPDF, AutoTable, SheetJS), `google-apps-script/Code.gs` (Sheets) |
 | `tests/` | Unit tests (planner, recipes, storage, PDF read-back, admin app) |
 
 ## Disclaimer

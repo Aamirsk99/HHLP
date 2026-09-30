@@ -27,6 +27,7 @@ public class MainActivity extends Activity {
 
     private WebView webView;
     private String pendingFileContent;
+    private byte[] pendingFileBytes;
     private ValueCallback<Uri[]> fileCallback;
 
     @Override
@@ -102,10 +103,23 @@ public class MainActivity extends Activity {
         webView.saveState(outState);
     }
 
+    private long lastBack;
+
+    // Back: the page handles it first (close a dialog, go to the previous screen). Only on the
+    // home screen does back leave the app, and only when pressed twice.
     @Override
     public void onBackPressed() {
-        if (webView.canGoBack()) webView.goBack();
-        else super.onBackPressed();
+        webView.evaluateJavascript("(window.hdvBack ? String(window.hdvBack()) : 'none')", new ValueCallback<String>() {
+            @Override
+            public void onReceiveValue(String handled) {
+                if ("\"true\"".equals(handled)) return;
+                if ("\"none\"".equals(handled) && webView.canGoBack()) { webView.goBack(); return; }
+                long now = System.currentTimeMillis();
+                if (now - lastBack < 2000) { finish(); return; }
+                lastBack = now;
+                Toast.makeText(MainActivity.this, "Press back again to exit", Toast.LENGTH_SHORT).show();
+            }
+        });
     }
 
     @Override
@@ -148,6 +162,33 @@ public class MainActivity extends Activity {
                 }
             });
         }
+
+        /** Binary files (PDF, Excel) arrive base64-encoded from JavaScript. */
+        @JavascriptInterface
+        public void saveBase64(final String fileName, final String mimeType, final String base64) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        pendingFileBytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this, "Could not prepare the file", Toast.LENGTH_LONG).show();
+                        return;
+                    }
+                    pendingFileContent = null;
+                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+                    intent.addCategory(Intent.CATEGORY_OPENABLE);
+                    intent.setType(mimeType);
+                    intent.putExtra(Intent.EXTRA_TITLE, fileName);
+                    try {
+                        startActivityForResult(intent, REQUEST_SAVE);
+                    } catch (Exception e) {
+                        pendingFileBytes = null;
+                        Toast.makeText(MainActivity.this, "No app available to save files", Toast.LENGTH_LONG).show();
+                    }
+                }
+            });
+        }
     }
 
     @Override
@@ -162,10 +203,12 @@ public class MainActivity extends Activity {
         }
         if (requestCode != REQUEST_SAVE) return;
         String content = pendingFileContent;
+        byte[] bytes = pendingFileBytes;
         pendingFileContent = null;
-        if (resultCode != RESULT_OK || data == null || data.getData() == null || content == null) return;
+        pendingFileBytes = null;
+        if (resultCode != RESULT_OK || data == null || data.getData() == null || (content == null && bytes == null)) return;
         try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
-            out.write(content.getBytes(StandardCharsets.UTF_8));
+            out.write(bytes != null ? bytes : content.getBytes(StandardCharsets.UTF_8));
             Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "Could not save file", Toast.LENGTH_LONG).show();

@@ -7,14 +7,20 @@
 (function (root) {
   const KEY = 'hindivine.admin.v1';
   // Settings that stay on each device and never go to the shared Google Sheet.
-  const LOCAL_SETTINGS = ['apiKey', 'pinHash', 'pinSalt', 'sheetsUrl', 'sheetsSecret', 'autoSync', 'lastSync'];
+  const LOCAL_SETTINGS = ['sheetsUrl', 'sheetsSecret', 'autoSync', 'lastSync'];
 
   const KINDS = { injection: 'Injection', protein: 'Protein', other: 'Other' };
   const SALE_TYPES = { injection: 'Injection', protein: 'Protein', diet: 'Diet Support' };
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
     'Protein Purchase', 'Injection Purchase', 'Miscellaneous'];
-  const SHEETS = ['Dashboard', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
+  const SHEETS = ['Dashboard', 'Appointments', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
     'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals'];
+
+  // Three logins. Each has its own PIN, shared through the Google Sheet so it works on every device.
+  const ROLES = { super: 'Super Admin', manager: 'Manager', desk: 'Front Desk' };
+  const APPT_MODES = { clinic: 'Clinic visit', online: 'Online' };
+  const APPT_STATUS = { booked: 'Booked', completed: 'Completed', cancelled: 'Cancelled', noshow: 'No-show' };
+  const PAY_METHODS = ['Cash', 'UPI', 'Card', 'Bank transfer'];
 
   const INJECTIONS = [
     ['Mounjaro', ['2.5mg', '5mg', '10mg', '15mg']],
@@ -43,17 +49,16 @@
           { id: 'd1', name: '1 Month', months: 1, price: 0, incentive: 1000, disabled: false },
           { id: 'd3', name: '3 Month', months: 3, price: 0, incentive: 2000, disabled: false },
         ],
-        renewalDays: [60, 90],
+        renewalDays: [75, 90], // renewal alert at 75 days, overdue at 90
+        consultFee: 1000, // OPD consultation fee (₹)
         activeDays: 90,
         purchaseExpense: true, // purchases also book an expense
-        autoSaveScan: true, // a scanned invoice whose lines all match is saved without review
-        pinHash: '', pinSalt: '',
-        apiKey: '', aiModel: 'claude-opus-5-5',
         sheetsUrl: '', sheetsSecret: '', autoSync: false, lastSync: 0,
       },
       categories: [{ name: 'Injection', kind: 'injection' }, { name: 'Protein', kind: 'protein' },
         ...OTHER_CATEGORIES.map((name) => ({ name, kind: 'other' }))],
-      items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {},
+      items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
+      users: Object.fromEntries(Object.entries(ROLES).map(([k, name]) => [k, { name, hash: '', salt: '' }])),
     };
   }
 
@@ -144,6 +149,11 @@
       if (!s || typeof s !== 'object') return d;
       Object.keys(d).forEach((k) => { if (s[k] == null) s[k] = d[k]; });
       s.settings = { ...d.settings, ...s.settings, incentive: { ...d.settings.incentive, ...(s.settings || {}).incentive } };
+      Object.keys(ROLES).forEach((k) => { s.users[k] = { ...d.users[k], ...s.users[k] }; });
+      // Older versions: one PIN in settings (now the Super Admin login), 60-day first reminder (now 75).
+      if (s.settings.pinHash && !s.users.super.hash) s.users.super = { ...s.users.super, hash: s.settings.pinHash, salt: s.settings.pinSalt };
+      ['pinHash', 'pinSalt', 'apiKey', 'aiModel', 'autoSaveScan'].forEach((k) => { delete s.settings[k]; });
+      if (s.settings.renewalDays[0] === 60 && s.settings.renewalDays[1] === 90) s.settings.renewalDays = [75, 90];
       return s;
     }
     function save(source) {
@@ -375,6 +385,61 @@
     }
     function deleteExpense(id) { S.expenses = S.expenses.filter((e) => e.id !== id); save(); }
 
+    // OPD appointments
+    const appointment = (id) => S.appointments.find((a) => a.id === id) || null;
+    function saveAppointment(input) {
+      if (!input.date) fail('Choose the appointment date');
+      if (!APPT_MODES[input.mode]) fail('Choose clinic visit or online');
+      const patient = findOrCreatePatient(input.patientName, input.mobile);
+      let a = input.id && appointment(input.id);
+      if (!a) { a = { id: uid('a'), created: Date.now(), status: 'booked', paid: false }; S.appointments.push(a); }
+      const fee = input.fee === '' || input.fee == null ? S.settings.consultFee : Number(input.fee);
+      if (!(fee >= 0)) fail('Enter the consultation fee');
+      Object.assign(a, {
+        date: input.date, time: input.time || '', patientId: patient.id, patientName: patient.name, mobile: patient.mobile,
+        mode: input.mode, fee, link: String(input.link || '').trim(), notes: String(input.notes || '').trim(),
+      });
+      ['status', 'paid', 'payMethod', 'by'].forEach((k) => { if (k in input) a[k] = input[k]; });
+      if (!APPT_STATUS[a.status]) a.status = 'booked';
+      a.paid = !!a.paid;
+      save();
+      return a;
+    }
+    function updateAppointment(id, patch) {
+      const a = appointment(id);
+      if (!a) fail('Appointment not found');
+      Object.assign(a, patch);
+      save();
+      return a;
+    }
+    function deleteAppointment(id) { S.appointments = S.appointments.filter((a) => a.id !== id); save(); }
+    const appointmentsIn = (range) => S.appointments.filter((a) => inRange(a.date, range))
+      .sort((a, b) => (a.date === b.date ? String(a.time).localeCompare(String(b.time)) : a.date < b.date ? -1 : 1));
+    // Fees count as revenue once paid, unless the appointment was cancelled.
+    const feeEarned = (a) => (a.paid && a.status !== 'cancelled' ? Number(a.fee) || 0 : 0);
+    function appointmentStats(range) {
+      const list = appointmentsIn(range);
+      const n = (f) => list.filter(f).length;
+      return {
+        total: list.length, booked: n((a) => a.status === 'booked'), completed: n((a) => a.status === 'completed'),
+        cancelled: n((a) => a.status === 'cancelled'), noshow: n((a) => a.status === 'noshow'),
+        clinic: n((a) => a.mode === 'clinic' && a.status !== 'cancelled'), online: n((a) => a.mode === 'online' && a.status !== 'cancelled'),
+        fees: r2(sum(list, feeEarned)), unpaid: n((a) => !a.paid && a.status !== 'cancelled'),
+      };
+    }
+
+    // Logins
+    function setUserPin(role, hash, salt, len) {
+      if (!ROLES[role]) fail('Unknown login');
+      S.users[role] = { ...S.users[role], hash, salt, len: len || 0 };
+      save();
+    }
+    function setUserName(role, name) {
+      if (!ROLES[role]) fail('Unknown login');
+      S.users[role].name = String(name || '').trim() || ROLES[role];
+      save();
+    }
+
     // Incentives, salary
     function incentiveLedger(range) {
       const rows = [];
@@ -458,14 +523,18 @@
     function financialReport(range) {
       const sales = S.sales.filter((s) => inRange(s.date, range));
       const expenses = S.expenses.filter((e) => inRange(e.date, range));
-      const revenue = r2(sum(sales, (s) => s.amount));
+      const appts = S.appointments.filter((a) => inRange(a.date, range));
+      const consultation = r2(sum(appts, feeEarned));
+      const revenue = r2(sum(sales, (s) => s.amount) + consultation);
       const totalExp = r2(sum(expenses, (e) => e.amount));
       const byCategory = {};
       EXPENSE_CATEGORIES.forEach((c) => { byCategory[c] = 0; });
       expenses.forEach((e) => { byCategory[e.category] = r2((byCategory[e.category] || 0) + e.amount); });
       const revenueByType = {};
       Object.keys(SALE_TYPES).forEach((t) => { revenueByType[t] = r2(sum(sales.filter((s) => s.type === t), (s) => s.amount)); });
+      revenueByType.consultation = consultation;
       const months = {};
+      appts.forEach((a) => { if (!feeEarned(a)) return; const m = monthOf(a.date); months[m] = months[m] || { revenue: 0, expenses: 0 }; months[m].revenue += feeEarned(a); });
       sales.forEach((s) => { const m = monthOf(s.date); months[m] = months[m] || { revenue: 0, expenses: 0 }; months[m].revenue += s.amount; });
       expenses.forEach((e) => { const m = monthOf(e.date); months[m] = months[m] || { revenue: 0, expenses: 0 }; months[m].expenses += e.amount; });
       const monthly = Object.keys(months).sort().map((m) => ({ month: m, revenue: r2(months[m].revenue), expenses: r2(months[m].expenses), profit: r2(months[m].revenue - months[m].expenses) }));
@@ -501,7 +570,7 @@
       return {
         sales: {
           orders: sales.length, revenue: fin.revenue, expenses: fin.expenses, profit: fin.profit,
-          injection: fin.revenueByType.injection, protein: fin.revenueByType.protein, diet: fin.revenueByType.diet,
+          injection: fin.revenueByType.injection, protein: fin.revenueByType.protein, diet: fin.revenueByType.diet, consultation: fin.revenueByType.consultation,
           injectionCount: byType('injection').length, proteinCount: byType('protein').length, dietCount: byType('diet').length,
         },
         patients: {
@@ -523,6 +592,8 @@
           low: lowStock(),
         },
         renewalsDue: renewals(d).filter((r) => r.stage && !r.done).length,
+        appointments: appointmentStats(range),
+        today: appointmentStats({ from: d, to: d }),
         monthly: fin.monthly,
       };
     }
@@ -546,6 +617,10 @@
         ['Injection Sales', db.sales.injection, all.sales.injection],
         ['Protein Sales', db.sales.protein, all.sales.protein],
         ['Diet Support Sales', db.sales.diet, all.sales.diet],
+        ['Consultation Fees', db.sales.consultation, all.sales.consultation],
+        ['Appointments', db.appointments.total, all.appointments.total],
+        ['Clinic Visits', db.appointments.clinic, all.appointments.clinic],
+        ['Online Consultations', db.appointments.online, all.appointments.online],
         ['Total Patients', db.patients.total, all.patients.total],
         ['New Patients', db.patients.new, all.patients.new],
         ['Renewal Patients', db.patients.renewal, all.patients.renewal],
@@ -562,6 +637,9 @@
         ['Low Stock Alerts', db.stock.low.map((l) => `${l.item.name} (${l.stock})`).join(', '), ''],
         ['Updated', new Date(clock ? clock() : Date.now()).toISOString(), ''],
       ];
+      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
+      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], a.fee,
+        a.paid ? 'Paid' : 'Unpaid', a.payMethod || '', APPT_STATUS[a.status], a.link || '', a.notes || '']));
       out.Patients = [['Name', 'Mobile', 'First Purchase', 'Last Purchase', 'Orders', 'Total Spent', 'Last Product', 'Reference Team', 'Status']];
       const activeFrom = isoDate(new Date(parseDate(d) - S.settings.activeDays * 86400000));
       S.patients.forEach((p) => {
@@ -595,7 +673,7 @@
       out.Expenses = [['Date', 'Category', 'Amount', 'Note']];
       [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.category, e.amount, e.note || '']));
       out.Renewals = [['Patient', 'Mobile', 'Product', 'Last Purchase Date', 'Days Since', 'Reminder', 'Reference Team', 'Contacted']];
-      renewals(d).forEach((r) => out.Renewals.push([r.name, r.mobile, r.product, r.lastDate, r.days, r.stage ? `${r.stage} Day` : `Due in ${r.dueIn} days`, r.ref, r.done ? 'Yes' : 'No']));
+      renewals(d).forEach((r) => out.Renewals.push([r.name, r.mobile, r.product, r.lastDate, r.days, r.stage ? `${r.stage} Day alert` : `Due in ${r.dueIn} days`, r.ref, r.done ? 'Yes' : 'No']));
       return out;
     }
 
@@ -612,17 +690,26 @@
       save();
       return p;
     }
-    const exportBackup = () => JSON.stringify({ app: 'hindivine-admin', exported: new Date().toISOString(), data: { ...S, settings: { ...S.settings, apiKey: '', pinHash: '', pinSalt: '' } } });
+    const exportBackup = () => JSON.stringify({ app: 'hindivine-admin', exported: new Date().toISOString(), data: exportState() });
     function importBackup(text) {
       const obj = JSON.parse(text);
       if (!obj || obj.app !== 'hindivine-admin' || !obj.data) fail('This is not a Hindivine Admin backup');
-      const keep = { apiKey: S.settings.apiKey, pinHash: S.settings.pinHash, pinSalt: S.settings.pinSalt };
+      const keep = {};
+      LOCAL_SETTINGS.forEach((k) => { keep[k] = S.settings[k]; });
+      const users = S.users;
       storage.setItem(KEY, JSON.stringify(obj.data));
       S = load();
       Object.assign(S.settings, keep);
+      if (!S.users.super.hash) S.users = users; // a backup without logins keeps this device's
       save();
     }
-    function resetAll() { S = defaultState(); save(); }
+    /** Erase all data; the logins and this device's Google Sheet connection stay. */
+    function resetAll() {
+      const users = S.users; const keep = {};
+      LOCAL_SETTINGS.forEach((k) => { keep[k] = S.settings[k]; });
+      S = defaultState(); S.users = users; Object.assign(S.settings, keep);
+      save();
+    }
 
     // Shared data for the Google Sheet store: everything except this device's own settings.
     function exportState() {
@@ -652,6 +739,8 @@
       saveExpense, deleteExpense,
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
+      appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
+      setUserPin, setUserName,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,
     };
@@ -664,7 +753,7 @@
 
   const api = {
     createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
-    KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, KEY,
+    KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADMIN = api;

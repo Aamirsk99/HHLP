@@ -55,7 +55,7 @@ if [ "$APP" = admin ]; then
   # The admin app lives in www/admin and uses the shared logo and icons in www/img.
   mkdir -p "$BUILD/assets/www/admin"
   cp "$ROOT/admin/index.html" "$ROOT/admin/manifest.webmanifest" "$BUILD/assets/www/admin/"
-  cp -r "$ROOT/admin/css" "$ROOT/admin/js" "$ROOT/admin/google-apps-script" "$BUILD/assets/www/admin/"
+  cp -r "$ROOT/admin/css" "$ROOT/admin/js" "$ROOT/admin/vendor" "$ROOT/admin/google-apps-script" "$BUILD/assets/www/admin/"
   cp -r "$ROOT/img" "$BUILD/assets/www/"
 else
   cp "$ROOT/index.html" "$BUILD/assets/www/"

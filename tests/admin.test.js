@@ -20,7 +20,9 @@ test('default products, inventory and incentives', () => {
   assert.equal(a.state.settings.incentive.injection, 1000);
   assert.equal(a.state.settings.incentive.protein, 500);
   assert.deepEqual(a.state.settings.dietPlans.map((p) => [p.name, p.incentive]), [['1 Month', 1000], ['3 Month', 2000]]);
-  assert.equal(A.SHEETS.length, 12);
+  assert.equal(A.SHEETS.length, 13);
+  assert.deepEqual(a.state.settings.renewalDays, [75, 90]);
+  assert.equal(a.state.settings.consultFee, 1000);
 });
 
 test('incentive split: single, 50-50, custom and rounding', () => {
@@ -136,7 +138,7 @@ test('salary = salary + incentive; booking expenses; profit', () => {
   assert.equal(f.byCategory.Incentive, 18000);
 });
 
-test('renewal reminders at 60 and 90 days', () => {
+test('renewal alert at 75 days, overdue at 90', () => {
   const a = setup('2026-01-01');
   const m = a.saveMember({ name: 'Ref' });
   const pen = byName(a, 'Wegovy 1mg');
@@ -149,9 +151,54 @@ test('renewal reminders at 60 and 90 days', () => {
   assert.equal(get('A').days, 94);
   assert.equal(get('A').ref, 'Ref');
   assert.equal(get('B').stage, 0, '54 days: not yet');
-  assert.equal(a.renewals('2026-04-11').find((x) => x.name === 'B').stage, 60);
+  assert.equal(a.renewals('2026-04-25').find((x) => x.name === 'B').stage, 0, '74 days: not yet');
+  assert.equal(a.renewals('2026-04-26').find((x) => x.name === 'B').stage, 75);
   a.markRenewal(get('A').saleId, 90, true);
   assert.equal(a.renewals('2026-04-05').find((x) => x.name === 'A').done, true);
+});
+
+test('OPD appointments: fee ₹1000, clinic or online, revenue once paid', () => {
+  const a = setup();
+  const x = a.saveAppointment({ patientName: 'Ravi', mobile: '9811111111', date: '2026-09-15', time: '10:30', mode: 'clinic' });
+  assert.equal(x.fee, 1000);
+  assert.equal(x.status, 'booked');
+  const y = a.saveAppointment({ patientName: 'Sita', date: '2026-09-15', time: '09:00', mode: 'online', link: 'https://meet.example/abc' });
+  assert.throws(() => a.saveAppointment({ patientName: 'Z', date: '2026-09-15', mode: 'home' }), /clinic visit or online/);
+  assert.deepEqual(a.appointmentsIn({ from: '2026-09-15', to: '2026-09-15' }).map((v) => v.patientName), ['Sita', 'Ravi'], 'sorted by time');
+  let st = a.appointmentStats(A.rangeFor('month', '2026-09-15'));
+  assert.deepEqual([st.total, st.clinic, st.online, st.fees, st.unpaid], [2, 1, 1, 0, 2]);
+  a.updateAppointment(x.id, { status: 'completed', paid: true, payMethod: 'UPI' });
+  a.updateAppointment(y.id, { status: 'cancelled', paid: true });
+  st = a.appointmentStats(A.rangeFor('month', '2026-09-15'));
+  assert.equal(st.fees, 1000, 'cancelled fee not counted');
+  const f = a.financialReport(A.rangeFor('month', '2026-09-15'));
+  assert.equal(f.revenueByType.consultation, 1000);
+  assert.equal(f.revenue, 1000);
+  assert.equal(a.dashboard(A.rangeFor('month', '2026-09-15')).sales.consultation, 1000);
+  const rows = a.sheetsData().Appointments;
+  assert.equal(rows.length, 3);
+  assert.deepEqual(rows[2].slice(0, 9), ['2026-09-15', '10:30', 'Ravi', '9811111111', 'Clinic visit', 1000, 'Paid', 'UPI', 'Completed']);
+  assert.equal(a.state.patients.length, 2);
+});
+
+test('three logins; older single PIN and 60-day setting are migrated', () => {
+  const store = A.memoryStorage();
+  const old = A.defaultState();
+  delete old.users; delete old.appointments;
+  old.settings.pinHash = 'h1'; old.settings.pinSalt = 's1'; old.settings.renewalDays = [60, 90]; old.settings.apiKey = 'sk-x';
+  store.setItem(A.KEY, JSON.stringify(old));
+  const a = A.createAdmin(store);
+  assert.deepEqual(Object.keys(a.state.users), ['super', 'manager', 'desk']);
+  assert.equal(a.state.users.super.hash, 'h1');
+  assert.equal(a.state.users.manager.hash, '');
+  assert.deepEqual(a.state.settings.renewalDays, [75, 90]);
+  assert.ok(!('apiKey' in a.state.settings));
+  a.setUserPin('desk', 'h2', 's2');
+  a.setUserName('desk', 'Reception');
+  assert.equal(a.state.users.desk.name, 'Reception');
+  assert.throws(() => a.setUserPin('boss', 'x', 'y'), /Unknown login/);
+  a.resetAll();
+  assert.equal(a.state.users.desk.hash, 'h2', 'erase keeps logins');
 });
 
 test('stock report and Google Sheets data', () => {
@@ -170,31 +217,32 @@ test('stock report and Google Sheets data', () => {
   for (const rows of Object.values(sheets)) rows.forEach((row) => assert.equal(row.length, rows[0].length));
 });
 
-test('backup round trip keeps secrets out of the file', () => {
+test('backup round trip keeps device secrets out of the file', () => {
   const a = setup();
-  a.updateSettings({ apiKey: 'sk-secret' });
+  a.updateSettings({ sheetsSecret: 'sheet-secret' });
   a.saveMember({ name: 'Kept' });
   const text = a.exportBackup();
-  assert.ok(!text.includes('sk-secret'));
+  assert.ok(!text.includes('sheet-secret'));
   const b = setup();
   b.importBackup(text);
   assert.equal(b.state.team[0].name, 'Kept');
   assert.throws(() => b.importBackup('{"x":1}'), /not a Hindivine Admin backup/);
 });
 
-test('Google Sheet store: shared data leaves device secrets behind and loads back', () => {
+test('Google Sheet store: shared data leaves device settings behind and loads back', () => {
   const a = setup();
-  a.updateSettings({ apiKey: 'sk-a', sheetsUrl: 'https://x', sheetsSecret: 's1', pinHash: 'h' });
+  a.updateSettings({ sheetsUrl: 'https://x', sheetsSecret: 's1' });
+  a.setUserPin('super', 'h', 'salt');
   a.saveMember({ name: 'Shared' });
   const shared = JSON.parse(JSON.stringify(a.exportState()));
-  for (const k of ['apiKey', 'sheetsSecret', 'pinHash', 'sheetsUrl']) assert.ok(!(k in shared.settings), k);
+  for (const k of ['sheetsSecret', 'sheetsUrl']) assert.ok(!(k in shared.settings), k);
+  assert.equal(shared.users.super.hash, 'h', 'logins are shared across devices');
   const b = setup();
-  b.updateSettings({ apiKey: 'sk-b', sheetsSecret: 's2' });
+  b.updateSettings({ sheetsSecret: 's2' });
   const seen = [];
   b.onChange((src) => seen.push(src));
   b.loadState(shared);
   assert.equal(b.state.team[0].name, 'Shared');
-  assert.equal(b.state.settings.apiKey, 'sk-b');
   assert.equal(b.state.settings.sheetsSecret, 's2');
   assert.deepEqual(seen, ['remote']);
   assert.throws(() => b.loadState({}), /not readable/);
