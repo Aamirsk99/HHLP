@@ -44,6 +44,27 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 - **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
 - **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
 
+## Hindivine Admin app (`admin/`)
+
+A separate, **admin-only** app for running the clinic: open `admin/index.html` (or host the folder and *Add to Home Screen*). It asks for an admin PIN on first launch and locks after 15 minutes idle. Data stays on the device (export a backup from Settings), and can be mirrored to Google Sheets.
+
+| Area | What it does |
+| --- | --- |
+| **Dashboard** | Sales (orders, revenue, expenses, net profit, injection / protein / diet support sales), patients (total, new, renewal, active), team (members, incentives, salary, top performer), stock (injection, protein, needles, swabs, syringes, low-stock alerts), revenue vs expenses by month. Filter by today, month, last month, year, all time or custom dates. |
+| **New Sale** | Injection, protein and diet support sales: patient, mobile, new/renewal (auto from history), product, qty, amount (auto from price), date, reference, optional shared reference (50-50 or custom %), optional dietitian, notes. Saving takes the stock out, splits the incentive and books the revenue. |
+| **Products** | Mounjaro 2.5/5/10/15 mg, Wegovy 0.25/1/2.4 mg, Ozempic 0.25/1 mg, protein types and 1/3-month diet plans. Change price, incentive or disable; add more. |
+| **Inventory** | Opening, purchased, sold, adjusted and available stock per item; needles, swabs, syringes, protein sachets, ice gel packs, travel bags, plus unlimited custom categories. |
+| **Purchases** | **AI invoice scanner:** upload a photo or PDF; Claude reads vendor, invoice no./date, products, qty, batch, expiry, rate and GST, matches each line to a product and adds the stock (e.g. *Mounjaro 15mg Qty 2 → stock +2*). When every line matches, it saves with no manual entry; otherwise you review first. Duplicate invoices are refused. Purchases can also be booked as expenses. |
+| **Incentives** | Injection ₹1000 per pen, protein ₹500 per sale, diet support 1 month ₹1000 / 3 months ₹2000 — all editable, plus per-product overrides. Ledger per team member. |
+| **Team, Salary** | Add / edit / disable / delete members (name, designation, mobile, salary, incentive status, joining date). Monthly salary + incentive per employee; book both as expenses in one tap. |
+| **Expenses** | Salary, Incentive, Rent, Electricity, Courier, Marketing, Protein / Injection Purchase, Miscellaneous. Profit = Revenue − Expenses. |
+| **Renewals** | 60-day and 90-day reminders from each patient's last injection (patient, product, last purchase, reference team), with Call / WhatsApp and one-tap renewal sale. |
+| **Reports** | Team-wise, financial and stock reports for any period, with CSV export. |
+
+**AI scanner set-up:** Settings → paste a Claude API key (console.anthropic.com). The key stays on the device and is left out of backups. Scans use `claude-opus-5-5` (or Sonnet 5.5) with structured JSON output.
+
+**Google Sheets set-up:** create a Google Sheet → Extensions → Apps Script → paste [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) → run `setup` (creates Dashboard, Patients, Injection Sales, Protein Sales, Diet Support, Purchases, Inventory, Team, Incentives, Salary, Expenses, Renewals and logs a secret) → Deploy as a web app (Execute as *Me*, access *Anyone*) → paste the URL and secret in Settings. Use *Sync now*, or turn on auto-sync after every change.
+
 ## Apps
 
 | Platform | How |
@@ -100,7 +121,8 @@ npm test             # Node 18+, no dependencies
 | `img/` | Hindivine logo and icons |
 | `android/` | Android WebView wrapper and build script |
 | `dist/HindivineDiet.apk` | Built Android app |
-| `tests/` | Unit tests (planner, recipes, storage, PDF read-back) |
+| `admin/` | Hindivine Admin app: `js/core.js` (data and rules), `js/app.js` (screens), `js/invoice.js` (AI invoice scanner), `google-apps-script/Code.gs` (Sheets) |
+| `tests/` | Unit tests (planner, recipes, storage, PDF read-back, admin app) |
 
 ## Disclaimer
 
