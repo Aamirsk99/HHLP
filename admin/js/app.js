@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.2';
+  const APP_VERSION = '3.3';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -86,10 +86,14 @@
     const list = ((set().perms || {})[r] || A.DEFAULT_PERMS[r] || { screens: [] }).screens.slice();
     list.forEach((id) => (EXTRA[id] || []).forEach((x) => list.push(x)));
     if (list.includes('diet')) list.push('home'); // the split Diet charts | Clinic admin start page
-    return list.concat('about');
+    const ro = r !== 'super' && !!((set().perms || {})[r] || A.DEFAULT_PERMS[r] || {}).view;
+    return list.filter((id) => !ro || !['sell', 'purchase-new', 'settings'].includes(id)).concat('about');
   }
   const can = (id) => !!role && allowed(role).includes(id);
-  const canDelete = () => role === 'super' || !!((set().perms || {})[role] || {}).del;
+  const permOf = (r) => (set().perms || {})[r] || A.DEFAULT_PERMS[r] || {};
+  // A login whose role is marked "View only" sees its screens but cannot add, edit or delete anything.
+  const readOnly = () => !!role && role !== 'super' && !!permOf(role).view;
+  const canDelete = () => !readOnly() && (role === 'super' || !!permOf(role).del);
   const adminHome = () => ['dashboard', 'today', 'appointments', 'leads', 'content'].find(can) || NAV.map((n) => n[0]).find((id) => id !== 'home' && can(id)) || 'about';
   const home = () => (can('home') ? 'home' : adminHome());
   let changedScreen = true;
@@ -149,6 +153,7 @@
     const nav = NAV.find((n) => n[0] === screen);
     $('#title').textContent = TITLES[screen] || (screen === 'sell' && params.edit ? 'Edit Sale' : nav ? nav[1] : '');
     $('#top-sub').textContent = SUBS[screen] ? SUBS[screen]() : `${me.name} · ${A.ROLES[role]}`;
+    document.body.classList.toggle('ro', readOnly());
     view.innerHTML = f();
     view.classList.toggle('enter', changedScreen);
     labelTables(view);
@@ -262,7 +267,10 @@
   const activeMembers = () => S().team.filter((m) => !m.disabled);
   const memberOptions = (sel, blank) => (blank != null ? opt('', blank, sel) : '') + activeMembers().map((m) => opt(m.id, m.name + (m.designation ? ` · ${m.designation}` : ''), sel)).join('')
     + (sel && !activeMembers().some((m) => m.id === sel) && admin.member(sel) ? opt(sel, admin.member(sel).name + ' (disabled)', sel) : '');
-  const typeBadge = (t) => `<span class="badge ${t === 'injection' ? 'info' : t === 'protein' ? 'ok' : 'warn'}">${A.SALE_TYPES[t]}</span>`;
+  const typeBadge = (t) => `<span class="badge ${t === 'injection' ? 'info' : t === 'protein' ? 'ok' : t === 'service' ? 'teal' : 'warn'}">${A.SALE_TYPES[t]}</span>`;
+  // What the clinic sells (Settings → What you sell); switched-off groups are hidden from Sell and Products.
+  const groupOn = (t) => (set().groups || {})[t] !== false;
+  const saleTypes = () => Object.entries(A.SALE_TYPES).filter(([k]) => groupOn(k));
   const splitText = (s) => s.splits.map((x) => `${esc(x.name)}${s.splits.length > 1 ? ` ${x.pct}%` : ''}`).join(' + ');
 
   function download(name, text, type) {
@@ -291,7 +299,8 @@
     return `<label class="f ${f.span ? 'span' : ''}" for="${id}">${esc(f.label)}${input}${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</label>`;
   }
   /** Open a form in the modal; onSubmit(values) may throw to show an error. */
-  function openForm({ title, fields, html, submitLabel, onSubmit, danger }) {
+  function openForm({ title, fields, html, submitLabel, onSubmit, danger, ro }) {
+    if (readOnly() && !ro && submitLabel !== false) { submitLabel = false; html = `<p class="ro-note">View only: this login cannot change data.</p>${html || ''}`; }
     $('#modal-title').textContent = title;
     $('#modal-body').innerHTML = (html || '') + (fields ? `<div class="grid">${fields.map(field).join('')}</div>` : '');
     $('#modal-err').textContent = '';
@@ -344,7 +353,9 @@
     const ap = d.appointments; const td = d.today;
     const empty = !S().sales.length && !S().team.length && !S().appointments.length;
     const H = (ic, cls, title) => `<h2><span class="ic ${cls}">${svg(ic)}</span>${title}</h2>`;
-    return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('dashboard')}</div>
+    const all = admin.dashboard(null);
+    const money = (x) => [['Revenue', x.sales.revenue, ''], ['Founder expenses', x.founderExpenses, 'violet'], ['Product expenses', x.productExpenses, 'gold'], ['All expenses (counted)', x.sales.expenses, 'gold'], ['Net profit', x.sales.profit, x.sales.profit >= 0 ? 'good' : 'bad']];
+    return `<div class="toolbar">${periodBar()}<span class="grow"></span><button type="button" class="btn sm" data-act="dash-cards">${svg('<path d="M4 6h16M4 12h10M4 18h6"/>')}Cards</button>${exportBtns('dashboard')}</div>
       <section class="hero">
         <div><small>${esc(set().clinic)} · ${esc(periodLabel())}</small></div>
         <div class="hero-row">
@@ -360,15 +371,19 @@
       ${can('sales') || can('sell') ? `<section class="card">${H('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>', 'teal', "Today's sales")}<span class="sp"></span>
         ${table(['Patient', 'Product', '>Amount', 'Reference'], d.todaySales.map((x) => `<tr><td>${esc(x.patientName)}</td><td>${typeBadge(x.type)} ${esc(x.product)}</td><td class="r"><b>${inr(x.amount)}</b></td><td><b>${splitText(x)}</b></td></tr>`),
           d.todaySales.length ? `<td colspan="2">Total · ${plural(d.todaySales.length, 'sale')}</td><td class="r">${inr(d.todaySales.reduce((a, x) => a + x.amount, 0))}</td><td></td>` : '')}</section>` : ''}
+      ${can('expenses') ? `<section class="card money-card">${H('<path d="M12 3v18M17 7H9.5a3 3 0 0 0 0 6h5a3 3 0 0 1 0 6H6"/>', 'good', 'Profit & expenses')}
+        ${table(['', `>${esc(periodLabel())}`, '>All time'], money(d).map(([l, v, c], i) => `<tr class="${c}"><td>${l}</td><td class="r"><b>${inr(v)}</b></td><td class="r">${inr(money(all)[i][1])}</td></tr>`))}
+        <p class="hint" style="margin:8px 0 0">Founder = the Founder category; product = purchase expenses. Leave an expense out of totals with the Count switches in <button class="link" data-go="expenses">Expenses</button>.</p></section>` : ''}
       <div class="cards">
         <section class="card">${H('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>', '', 'Sales summary')}<div class="kpis">
           ${kpi('Total orders', num(s.orders))}
           ${kpi('Total revenue', inr(s.revenue))}
           ${kpi('Total expenses', inr(s.expenses), '', 'gold')}
           ${kpi('Net profit', inr(s.profit), 'Revenue − Expenses', s.profit >= 0 ? 'good' : 'bad')}
-          ${kpi('Injection sales', inr(s.injection), plural(s.injectionCount, 'order'))}
-          ${kpi('Protein sales', inr(s.protein), plural(s.proteinCount, 'order'), 'teal')}
-          ${kpi('Diet support', inr(s.diet), plural(s.dietCount, 'plan'), 'violet')}
+          ${groupOn('service') ? kpi('Services & packages', inr(s.service || 0), plural(s.serviceCount || 0, 'sale'), 'teal') : ''}
+          ${groupOn('injection') ? kpi('Injection sales', inr(s.injection), plural(s.injectionCount, 'order')) : ''}
+          ${groupOn('protein') ? kpi('Protein sales', inr(s.protein), plural(s.proteinCount, 'order'), 'teal') : ''}
+          ${groupOn('diet') ? kpi('Diet support', inr(s.diet), plural(s.dietCount, 'plan'), 'violet') : ''}
           ${kpi('Consultation fees', inr(s.consultation), `${ap.total - ap.cancelled} appointments`, 'teal')}
         </div></section>
         <section class="card">${H(ICON_CAL, 'violet', 'OPD appointments')}<div class="kpis">
@@ -411,8 +426,8 @@
         <section class="card">${H('<rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/>', '', 'Stock summary')}
         <div class="stock-chips">${st.available.length ? st.available.map((x) => `<span class="chip ${x.item.orderAt != null && x.stock < x.item.orderAt ? 'bad' : 'ok'}"><b>${num(x.stock)}</b>${esc(x.item.name)}</span>`).join('') : '<span class="hint">No stock available yet</span>'}${st.services.map((i) => `<span class="chip"><b>∞</b>${esc(i.name)}</span>`).join('')}</div>
         <div class="kpis">
-          ${kpi('Injection stock', num(st.injection), 'pens')}
-          ${kpi('Protein stock', num(st.protein), '', 'teal')}
+          ${groupOn('injection') ? kpi('Injection stock', num(st.injection), 'pens') : ''}
+          ${groupOn('protein') ? kpi('Protein stock', num(st.protein), '', 'teal') : ''}
           ${kpi('Low stock alerts', set().stockAlerts === false ? 'Off' : num(st.low.length), '', st.low.length ? 'bad' : 'good')}
           ${kpi('Needles', num(st.needles))}
           ${kpi('Swabs', num(st.swabs))}
@@ -431,6 +446,24 @@
         </div>` : '<p class="empty">Monthly figures appear after the first sale or expense.</p>'}
       </section>`;
   };
+
+  // Dashboard cards can be switched off (Cards button); the choice is saved for everyone.
+  const cardKey = (el) => (el.classList.contains('hero') ? 'Highlights' : ((el.querySelector('h2') || {}).textContent || '').trim());
+  const prevDashAfter = AFTER.dashboard;
+  AFTER.dashboard = () => {
+    if (prevDashAfter) prevDashAfter();
+    const hide = set().dashHide || [];
+    $$('#view .hero, #view section.card').forEach((el) => { if (hide.includes(cardKey(el))) el.hidden = true; });
+  };
+  function dashCardsForm() {
+    const keys = [...new Set($$('#view .hero, #view section.card').map(cardKey).filter(Boolean))];
+    const hide = set().dashHide || [];
+    openForm({
+      title: 'Dashboard cards',
+      html: `<p class="hint" style="margin-top:0">Choose which cards show on the dashboard.</p><div class="grid">${keys.map((k, i) => `<label class="check"><input type="checkbox" data-dcard="${i}" ${hide.includes(k) ? '' : 'checked'}> ${esc(k)}</label>`).join('')}</div>`,
+      onSubmit: () => { admin.updateSettings({ dashHide: keys.filter((k, i) => !$(`[data-dcard="${i}"]`).checked) }); return 'Dashboard updated'; },
+    });
+  }
 
   // ── Home: Diet charts | Clinic admin, half the screen each ──
   SUBS.home = () => `${me.name} · ${A.ROLES[role]}`;
@@ -528,6 +561,7 @@
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('content')}</div>
       ${reminderBanner(st)}
       <div class="kpis" style="margin-bottom:14px">${kpi('Total videos', num(st.total))}${kpi('With editor', num(st.toEdit), '', 'gold')}${kpi('Received from editor', num(st.edited), '', 'teal')}${kpi('Total posted', num(st.posted), '', 'good')}${kpi('Remaining to post', num(st.remaining), `${st.scheduled} scheduled`, st.remaining ? 'violet' : '')}${kpi('Editor fees', inr(st.fees), `${inr(set().videoFee != null ? set().videoFee : 150)} per video default`)}</div>
+      ${isEd ? '' : socialCard()}
       <div class="card"><h2><span class="ic violet">${svg('<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/>')}</span>${isEd ? 'My profile' : 'Editor profiles'}<span class="sp"></span>${isEd ? '' : '<button class="btn sm primary" data-act="add-editor">+ Add editor</button>'}</h2>
         ${edCards ? `<div class="doc-list">${edCards}</div>` : `<p class="hint" style="margin:0">${isEd ? 'Your login is not linked to an editor profile yet. Ask the Super Admin.' : 'Add your video editors here, with their fee per video. Give an editor a login to let them update their own videos.'}</p>`}</div>
       <div class="filters"><div class="row">
@@ -539,6 +573,53 @@
       <div class="card">${table(['Video', 'Status', 'Schedule / posted', '>Editor fee', ''], list.map(row))}</div>
       ${st.byEditor.length ? `<div class="card"><h2>By editor</h2>${table(['Editor', '>Received', '>Posted', '>Fees'], st.byEditor.map((x) => `<tr><td>${esc(x.name)}</td><td class="r">${num(x.edited)}</td><td class="r">${num(x.posted)}</td><td class="r">${inr(x.cost)}</td></tr>`))}</div>` : ''}`;
   };
+  // YouTube and Instagram counts, fetched through the Google Sheet script (or typed in by hand).
+  const handleOf = (url, fallback) => String(url || '').replace(/\/+$/, '').split('/').pop().replace(/^@/, '') || fallback;
+  function socialCard() {
+    const so = S().social || {}; const yt = so.youtube || {}; const ig = so.instagram || {}; const st = set();
+    const n = (v) => (v == null || v === '' ? '–' : num(v));
+    const stat = (label, v) => `<div class="so-stat"><b>${n(v)}</b><small>${label}</small></div>`;
+    const ytUrl = st.youtube || 'https://www.youtube.com/@ThePrimeFit';
+    const igUrl = st.instagram || 'https://www.instagram.com/theprimefit_';
+    return `<div class="card social"><h2><span class="ic bad">${svg('<rect x="2.5" y="5" width="19" height="14" rx="4"/><path d="M10 9.2v5.6l4.8-2.8z"/>')}</span>Social media<span class="sp"></span>
+        <button class="btn sm" data-act="social-edit">Edit counts</button><button class="btn sm primary" data-act="social-fetch">Fetch now</button></h2>
+      <div class="so-grid">
+        <div class="so-box yt"><a href="${esc(ytUrl)}" target="_blank" rel="noopener" class="so-head"><b>YouTube</b><small>@${esc(handleOf(ytUrl, 'ThePrimeFit'))}</small></a>
+          <div class="so-stats">${stat('Total videos', yt.videos)}${stat('Shorts', yt.shorts)}${stat('Long videos', yt.long)}${stat('Subscribers', yt.subscribers)}</div>
+          ${yt.error ? `<p class="hint">${esc(yt.error)}</p>` : ''}</div>
+        <div class="so-box ig"><a href="${esc(igUrl)}" target="_blank" rel="noopener" class="so-head"><b>Instagram</b><small>@${esc(handleOf(igUrl, 'theprimefit_'))}</small></a>
+          <div class="so-stats">${stat('Posts', ig.posts)}${stat('Reels', ig.reels)}${stat('Followers', ig.followers)}</div>
+          ${ig.error ? `<p class="hint">${esc(ig.error)}</p>` : ''}</div>
+      </div>
+      <p class="hint" style="margin:8px 0 0">${so.fetchedAt ? `Updated ${new Date(so.fetchedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit' })}. ` : ''}${connected() ? 'Fetch now reads the counts through your Google Sheet script (add YT_API_KEY and, for Instagram, IG_TOKEN + IG_USER_ID in its Script properties).' : 'Connect the Google Sheet in Settings to fetch counts automatically, or type them with Edit counts.'}</p></div>`;
+  }
+  async function socialFetch() {
+    if (!connected()) { toast('Connect the Google Sheet in Settings first, or use Edit counts', true); return; }
+    toast('Fetching counts…');
+    try {
+      const url = set().sheetsUrl;
+      const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}action=social&secret=${encodeURIComponent(set().sheetsSecret)}`);
+      const out = await res.json().catch(() => null);
+      if (!out || !out.ok) throw new Error((out && out.error) || 'The Google Sheet script did not answer. Paste the new Code.gs and deploy a new version.');
+      admin.setSocial({ youtube: out.youtube || {}, instagram: out.instagram || {}, fetchedAt: out.fetchedAt });
+      render();
+      toast(out.youtube.error || out.instagram.error ? 'Fetched (some counts need set-up)' : 'Counts updated');
+    } catch (err) { toast(err.message, true); }
+  }
+  function socialForm() {
+    const so = S().social || {}; const yt = so.youtube || {}; const ig = so.instagram || {};
+    const f = (name, label, value) => ({ name, label, type: 'number', value: value == null ? '' : value });
+    openForm({
+      title: 'Social media counts',
+      fields: [f('ytVideos', 'YouTube total videos', yt.videos), f('ytShorts', 'YouTube Shorts', yt.shorts), f('ytLong', 'YouTube long videos', yt.long), f('ytSubs', 'YouTube subscribers', yt.subscribers),
+        f('igPosts', 'Instagram posts', ig.posts), f('igReels', 'Instagram reels', ig.reels), f('igFollowers', 'Instagram followers', ig.followers)],
+      onSubmit: (v) => {
+        const g = (x) => (x === '' ? null : x);
+        admin.setSocial({ youtube: { videos: g(v.ytVideos), shorts: g(v.ytShorts), long: g(v.ytLong), subscribers: g(v.ytSubs), error: '' }, instagram: { posts: g(v.igPosts), reels: g(v.igReels), followers: g(v.igFollowers), error: '' } });
+        return 'Counts saved';
+      },
+    });
+  }
   function editorForm(x) {
     openForm({
       title: x ? `Edit ${x.name}` : 'Add video editor',
@@ -791,6 +872,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.3', 'Services and GLP-1 Success Support packages (1 week to 3 months) come first; injections, protein and diet support can be switched off in Settings; View only role; OPD slip PDF from any appointment; YouTube and Instagram counts in Content; profit card with founder, product and all-time figures; dashboard cards can be hidden; salary per month or per working day and incentive as fixed ₹ or % of the sale.'],
     ['3.0', 'Leads CRM for the front desk with follow-ups, history and conversion to OPD appointments; personal logins for every team member plus a new Admin role; editable role permissions; Today Summary with order-required alerts and PDF / A4 image export; injection kit auto-deducted from stock (travel bag, ice gel, swabs, needles); personal incentive rates and pay mode per team member; stock alerts on/off; patient edit and delete; "+ Add new" options everywhere; services for appointments; month-wise view; report filters; activity log of every change; full redesign with animations.'],
     ['2.0', 'Logins for Super Admin, Manager and Front Desk; OPD appointments (₹1000, clinic visit or online); PDF and Excel export on every screen; renewal alert at 75 days; new design; auto refresh; Android back button fix; AI scanner removed.'],
     ['1.1', 'All data stored in The Prime Fit Google Sheet and shared across devices, with conflict handling and offline use.'],
@@ -917,6 +999,24 @@
     if (!ph) return '';
     return `https://wa.me/${ph.length === 10 ? '91' + ph : ph}?text=${encodeURIComponent(text)}`;
   }
+  // OPD slip PDF for one appointment; the token is its place in that day's list.
+  function opdSlip(id) {
+    const a = admin.appointment(id);
+    if (!a) return;
+    const st = set();
+    const day = S().appointments.filter((x) => x.date === a.date && x.status !== 'cancelled').sort((x, y) => (x.time || '99').localeCompare(y.time || '99') || x.created - y.created);
+    const p = (S().patients || []).find((x) => x.id === a.patientId) || {};
+    try {
+      const name = X.opdSlip({
+        clinic: st.clinic, phone: st.phone, website: st.website, instagram: st.instagram ? '@' + String(st.instagram).replace(/\/+$/, '').split('/').pop() : '',
+        token: String(day.findIndex((x) => x.id === a.id) + 1 || '-'), date: fdate(a.date), time: a.time ? time12(a.time) : '', slipNo: a.id.slice(-6).toUpperCase(),
+        patient: a.patientName, mobile: a.mobile, age: p.age || '', gender: p.gender || '', patientId: (a.patientId || '').slice(-6).toUpperCase(),
+        doctor: admin.doctorName(a), mode: A.APPT_MODES[a.mode], service: a.service, fee: inr(a.fee), payment: a.paid ? `Paid${a.payMethod ? ` · ${a.payMethod}` : ''}` : 'Not paid',
+        notes: a.notes, filename: `OPD-slip-${String(a.patientName || 'patient').replace(/[^\w]+/g, '-')}-${a.date}`,
+      });
+      toast(`Saved ${name}`);
+    } catch (err) { toast(err.message, true); }
+  }
   function apptDetail(id) {
     const a = admin.appointment(id);
     if (!a) return;
@@ -943,6 +1043,7 @@
           ${a.status === 'booked' ? b('appt-noshow', 'No-show') : ''}
           ${a.status !== 'cancelled' ? b('appt-cancel', 'Cancel', 'danger') : b('appt-restore', 'Restore booking')}
           ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+          ${b('opd-slip', 'OPD slip (PDF)')}
           ${b('appt-edit', 'Edit')}
           ${canDelete() ? b('appt-del', 'Delete', 'danger') : ''}
         </div>`,
@@ -950,12 +1051,13 @@
   }
 
   // New / edit sale
-  let saleType = 'injection';
+  let saleType = 'service';
   SCREENS.sell = () => {
     const e = params.edit ? S().sales.find((x) => x.id === params.edit) : null;
     const pre = e || params.prefill || {};
     if (e) saleType = e.type;
     else if (pre.type) saleType = pre.type;
+    else if (!groupOn(saleType)) saleType = (saleTypes()[0] || ['service'])[0];
     const t = saleType;
     if (!activeMembers().length) return `<div class="card"><h2>Add your team first</h2><p>Every sale needs a reference team member for incentives.</p><button class="btn primary" data-act="add-member">Add team member</button></div>`;
     const products = t === 'diet'
@@ -963,13 +1065,13 @@
       : admin.itemsOf(t, true).filter((i) => !i.disabled || i.id === pre.itemId).map((i) => [i.id, `${i.name} · ${i.track === false ? 'no stock limit' : `stock ${admin.stockOf(i.id)}`}${i.price ? ` · ${inr(i.price)}` : ''}`]);
     const patients = S().patients.map((p) => `<option value="${esc(p.name)}">${esc(p.mobile || '')}</option>`).join('');
     return `<form class="card form-card" id="sale-form" autocomplete="off">
-      ${e ? `<h2>Edit ${A.SALE_TYPES[t].toLowerCase()} sale</h2>` : `<div class="seg">${Object.entries(A.SALE_TYPES).map(([k, l]) => `<button type="button" data-saletype="${k}" class="${t === k ? 'on' : ''}">${l} Sale</button>`).join('')}</div>`}
+      ${e ? `<h2>Edit ${A.SALE_TYPES[t].toLowerCase()} sale</h2>` : `<div class="seg">${saleTypes().map(([k, l]) => `<button type="button" data-saletype="${k}" class="${t === k ? 'on' : ''}">${l} Sale</button>`).join('')}</div>`}
       <div class="grid">
         <label class="f">Patient name<input name="patientName" list="patient-list" required value="${esc(pre.patientName || '')}"></label>
         <datalist id="patient-list">${patients}</datalist>
         <label class="f">Mobile number<input name="mobile" type="tel" inputmode="tel" value="${esc(pre.mobile || '')}"></label>
         ${t !== 'diet' ? `<label class="f">New / Renewal<select name="patientType">${opt('new', 'New', pre.patientType || 'new')}${opt('renewal', 'Renewal', pre.patientType)}</select></label>` : ''}
-        <label class="f">${t === 'diet' ? 'Plan' : t === 'protein' ? 'Protein type' : 'Product'}<select name="${t === 'diet' ? 'planId' : 'itemId'}" required>${opt('', 'Choose…', '')}${products.map(([v, l]) => opt(v, l, t === 'diet' ? pre.planId : pre.itemId)).join('')}</select></label>
+        <label class="f">${t === 'diet' ? 'Plan' : t === 'protein' ? 'Protein type' : t === 'service' ? 'Service / package' : 'Product'}<select name="${t === 'diet' ? 'planId' : 'itemId'}" required>${opt('', 'Choose…', '')}${products.map(([v, l]) => opt(v, l, t === 'diet' ? pre.planId : pre.itemId)).join('')}</select></label>
         ${t !== 'diet' ? `<label class="f">Quantity<input name="qty" type="number" min="1" step="1" value="${esc(pre.qty || 1)}"></label>` : ''}
         <label class="f">Sale amount (₹)<input name="amount" type="number" min="0" step="any" required value="${esc(pre.amount != null ? pre.amount : '')}"></label>
         <label class="f">${t === 'injection' ? 'Purchase date' : 'Date'}<input name="date" type="date" required value="${esc(pre.date || admin.today())}"></label>
@@ -1019,7 +1121,8 @@
       const e = params.edit && S().sales.find((x) => x.id === params.edit);
       const stock = admin.stockOf(v.itemId) + (e && e.itemId === v.itemId ? e.qty : 0);
       const qty = Number(v.qty) || 1;
-      parts.push(`Stock: <b class="${stock < qty ? 'err' : ''}">${stock} → ${stock - qty}</b> ${esc(it.unit)}`);
+      if (it.track === false) parts.push(it.days ? `Package: <b>${it.days} days</b>` : 'No stock limit');
+      else parts.push(`Stock: <b class="${stock < qty ? 'err' : ''}">${stock} → ${stock - qty}</b> ${esc(it.unit)}`);
     }
     if (v.refId && (v.itemId || v.planId)) {
       const splits = admin.previewSplits({ type: saleType, itemId: v.itemId, planId: v.planId, qty: v.qty, refId: v.refId, sharedId: v.sharedId, sharePct: v.sharedId ? v.sharePct : '' });
@@ -1154,10 +1257,18 @@
       <td>${p.disabled ? '<span class="badge">Disabled</span>' : '<span class="badge ok">Active</span>'}</td>
       <td class="acts"><span class="move"><button class="btn xs" data-act="plan-up" data-id="${p.id}" aria-label="Move up">▲</button><button class="btn xs" data-act="plan-down" data-id="${p.id}" aria-label="Move down">▼</button></span> <button class="btn sm" data-act="edit-plan" data-id="${p.id}">Edit</button> <button class="btn sm" data-act="toggle-plan" data-id="${p.id}">${p.disabled ? 'Enable' : 'Disable'}</button>${canDelete() ? ` <button class="btn sm danger" data-act="del-plan" data-id="${p.id}">Delete</button>` : ''}</td></tr>`);
     const head = ['Product', '>Price', '>Incentive', '>Stock', 'Status', ''];
+    const svcRows = admin.itemsOf('service', true).map((i) => `<tr class="${i.disabled ? 'off' : ''}"><td><b>${esc(i.name)}</b><span class="sub">${esc([i.days ? `${i.days} days` : '', i.includes ? 'Includes: ' + i.includes : ''].filter(Boolean).join(' · '))}</span></td>
+      <td class="r"><b>${inr(i.price)}</b>${i.mrp ? `<span class="sub"><s>${inr(i.mrp)}</s> · save ${Math.round((1 - i.price / i.mrp) * 100)}%</span>` : ''}</td>
+      <td class="r">${i.incentiveType === 'percent' ? `${num(i.incentive || 0)}%` : inr(i.incentive != null ? i.incentive : inc.service || 0)}</td><td class="r">∞</td>
+      <td>${i.disabled ? '<span class="badge">Disabled</span>' : '<span class="badge ok">Active</span>'}</td>
+      <td class="acts">${moveBtns(i.id)} <button class="btn sm" data-act="edit-product" data-id="${i.id}">Edit</button> <button class="btn sm" data-act="toggle-item" data-id="${i.id}">${i.disabled ? 'Enable' : 'Disable'}</button>${canDelete() ? ` <button class="btn sm danger" data-act="del-item-ask" data-id="${i.id}">Delete</button>` : ''}</td></tr>`);
+    const off = ['service', 'injection', 'protein', 'diet'].filter((k) => !groupOn(k)).map((k) => A.SALE_TYPES[k]);
     return `<div class="toolbar"><span class="grow"></span>${exportBtns('products')}</div>
-      <div class="card"><h2>Injections<span class="sp"></span><button class="btn sm" data-act="add-product" data-kind="injection">+ Add injection</button></h2>${table(head, itemRows('injection'))}</div>
-      <div class="card"><h2>Protein<span class="sp"></span><button class="btn sm" data-act="add-product" data-kind="protein">+ Add protein type</button></h2>${table(head, itemRows('protein'))}</div>
-      <div class="card"><h2>Diet support plans<span class="sp"></span><button class="btn sm" data-act="edit-plan">+ Add plan</button></h2>${table(['Plan', '>Price', '>Incentive', '', 'Status', ''], planRows)}</div>
+      ${off.length ? `<p class="hint">Switched off (not sold now): <b>${esc(off.join(', '))}</b>. Turn them on again in <button class="link" data-go="settings">Settings → What you sell</button>.</p>` : ''}
+      ${groupOn('service') ? `<div class="card"><h2><span class="ic teal">${svg('<path d="M12 2l3 6 6 .9-4.5 4.3 1 6.3L12 16.6 6.5 19.5l1-6.3L3 8.9 9 8z"/>')}</span>Services & packages<span class="sp"></span><button class="btn sm primary" data-act="add-product" data-kind="service">+ Add service</button></h2>${table(['Service / package', '>Offer price', '>Incentive', '>Stock', 'Status', ''], svcRows)}</div>` : ''}
+      ${groupOn('injection') ? `<div class="card"><h2>Injections<span class="sp"></span><button class="btn sm" data-act="add-product" data-kind="injection">+ Add injection</button></h2>${table(head, itemRows('injection'))}</div>` : ''}
+      ${groupOn('protein') ? `<div class="card"><h2>Protein<span class="sp"></span><button class="btn sm" data-act="add-product" data-kind="protein">+ Add protein type</button></h2>${table(head, itemRows('protein'))}</div>` : ''}
+      ${groupOn('diet') ? `<div class="card"><h2>Diet support plans<span class="sp"></span><button class="btn sm" data-act="edit-plan">+ Add plan</button></h2>${table(['Plan', '>Price', '>Incentive', '', 'Status', ''], planRows)}</div>` : ''}
       <p class="hint">Injection incentive is per pen; protein incentive is per sale. Leave a product's incentive blank to use the default from <button class="link" data-go="incentives">Incentives</button>. Changes apply to new sales only.</p>`;
   };
   const moveBtns = (id) => `<span class="move"><button class="btn xs" data-act="item-up" data-id="${id}" aria-label="Move up" title="Move up">▲</button><button class="btn xs" data-act="item-down" data-id="${id}" aria-label="Move down" title="Move down">▼</button></span>`;
@@ -1165,8 +1276,17 @@
   function productForm(it, kind) {
     const k = it ? it.kind : kind;
     openForm({
-      title: it ? `Edit ${it.name}` : `Add ${A.KINDS[k].toLowerCase()} product`,
-      fields: [
+      title: it ? `Edit ${it.name}` : `Add ${A.KINDS[k].toLowerCase()}${k === 'service' ? '' : ' product'}`,
+      fields: k === 'service' ? [
+        { name: 'name', label: 'Service / package name', required: true, value: it ? it.name : '', span: true, placeholder: 'GLP-1 Success Support · 1 Month' },
+        { name: 'price', label: 'Offer price (₹)', type: 'number', value: it ? it.price : '' },
+        { name: 'mrp', label: 'Regular price (₹)', type: 'number', value: it && it.mrp != null ? it.mrp : '', hint: 'Shown struck through' },
+        { name: 'days', label: 'Length (days)', type: 'number', value: it && it.days != null ? it.days : '', hint: 'Renewal reminder 3 days before it ends' },
+        { name: 'incentiveType', label: 'Incentive type', type: 'select', value: it ? it.incentiveType || 'fixed' : 'fixed', options: [['fixed', 'Fixed ₹ per sale'], ['percent', '% of sale amount']] },
+        { name: 'incentive', label: 'Incentive (₹ or %)', type: 'number', value: it && it.incentive != null ? it.incentive : '', hint: `Blank = default ${inr(set().incentive.service || 0)}` },
+        { name: 'includes', label: "What's included", value: it ? it.includes || '' : '', span: true, placeholder: 'Consultation · Diet guidance · WhatsApp support' },
+        { name: 'track', label: 'Count stock (leave off for services)', type: 'checkbox', value: it ? it.track !== false : false, span: true },
+      ] : [
         ...(k === 'injection' ? [{ name: 'brand', label: 'Brand', value: it ? it.brand : '', placeholder: 'Mounjaro' }] : []),
         { name: 'name', label: 'Name', required: true, value: it ? it.name : '', placeholder: k === 'injection' ? 'Mounjaro 7.5mg' : 'Whey protein' },
         { name: 'price', label: 'Sale price (₹)', type: 'number', value: it ? it.price : '' },
@@ -1175,7 +1295,7 @@
         { name: 'lowAt', label: 'Low stock alert at', type: 'number', value: it ? it.lowAt : 2 },
         { name: 'track', label: 'Count stock (off = service / no stock limit)', type: 'checkbox', value: it ? it.track !== false : true, span: true },
       ],
-      onSubmit: (v) => { admin.saveItem({ ...(it || { kind: k, category: k === 'injection' ? 'Injection' : 'Protein' }), ...v }); return 'Product saved'; },
+      onSubmit: (v) => { admin.saveItem({ ...(it || { kind: k, category: k === 'injection' ? 'Injection' : k === 'service' ? (S().categories.find((c) => c.kind === 'service') || { name: 'Services' }).name : 'Protein' }), ...v }); return 'Product saved'; },
     });
   }
   function planForm(p) {
@@ -1338,7 +1458,7 @@
       const acc = S().accounts.find((a) => a.memberId === m.id);
       return `<tr class="${m.disabled ? 'off' : ''}"><td>${esc(m.name)}<span class="sub">${esc(m.designation || '')}${m.mobile ? ` · ${esc(m.mobile)}` : ''}</span></td>
       <td class="r">${inr(m.salary)}</td>
-      <td>${m.incentiveOn === false ? '<span class="badge">Off</span>' : `<span class="badge ok">Inj ${inr(admin.rateFor(m, 'injection'))} · Protein ${inr(admin.rateFor(m, 'protein'))}</span>`}</td>
+      <td>${m.incentiveOn === false || m.incentiveType === 'none' ? '<span class="badge">No incentive</span>' : m.incentiveType === 'percent' ? `<span class="badge ok">${num(m.incPercent || 0)}% of sale</span>` : `<span class="badge ok">${groupOn('service') ? `Service ${inr(admin.rateFor(m, 'service'))} · ` : ''}Inj ${inr(admin.rateFor(m, 'injection'))} · Protein ${inr(admin.rateFor(m, 'protein'))}</span>`}<span class="sub">${esc((A.SALARY_TYPES || {})[m.salaryType || 'monthly'] || '')}</span></td>
       <td><span class="badge info">${PAY[m.payMode || 'both']}</span></td>
       <td>${acc ? `<span class="badge violet">${esc(A.ROLES[acc.role])} login</span>` : '<span class="hint">No login</span>'}</td>
       <td>${m.disabled ? '<span class="badge">Disabled</span>' : '<span class="badge ok">Active</span>'}</td>
@@ -1356,12 +1476,15 @@
         { name: 'name', label: 'Name', required: true, value: m ? m.name : '' },
         { name: 'designation', label: 'Designation', type: 'list', list: 'designations', blank: 'Select', value: m ? m.designation : '' },
         { name: 'mobile', label: 'Mobile', type: 'tel', value: m ? m.mobile : '' },
-        { name: 'salary', label: 'Monthly salary (₹)', type: 'number', value: m ? m.salary : '' },
+        { name: 'salaryType', label: 'Salary type', type: 'select', value: m ? m.salaryType || 'monthly' : 'monthly', options: Object.entries(A.SALARY_TYPES) },
+        { name: 'salary', label: 'Salary (₹ per month, or per day for "per working day")', type: 'number', value: m ? m.salary : '' },
         { name: 'joiningDate', label: 'Joining date', type: 'date', value: m ? m.joiningDate : admin.today() },
+        { name: 'incentiveType', label: 'Incentive type', type: 'select', value: m ? m.incentiveType || (m.incentiveOn === false ? 'none' : 'product') : 'product', options: Object.entries(A.INCENTIVE_TYPES) },
+        { name: 'incPercent', label: 'Incentive % of sale amount', type: 'number', value: m && m.incPercent != null ? m.incPercent : '', hint: 'Used when the type is "% of sale amount"' },
+        { name: 'incService', label: 'Incentive per service / package (₹)', type: 'number', value: m && m.incService != null ? m.incService : '', placeholder: String(set().incentive.service || 0), hint: `Blank = the package's own or default ${inr(set().incentive.service || 0)}` },
         { name: 'incInjection', label: 'Incentive per injection (₹)', type: 'number', value: m && m.incInjection != null ? m.incInjection : '', placeholder: String(set().incentive.injection), hint: `Blank = default ${inr(set().incentive.injection)}` },
         { name: 'incProtein', label: 'Incentive per protein sale (₹)', type: 'number', value: m && m.incProtein != null ? m.incProtein : '', placeholder: String(set().incentive.protein), hint: `Blank = default ${inr(set().incentive.protein)}` },
         { name: 'payMode', label: 'Monthly pay counts', type: 'select', value: m ? m.payMode || 'both' : 'both', options: [['both', 'Salary + Incentive'], ['salary', 'Salary only'], ['incentive', 'Incentive only']] },
-        { name: 'incentiveOn', label: 'Incentive status: On', type: 'checkbox', value: m ? m.incentiveOn !== false : true, span: true },
       ],
       onSubmit: (v) => { admin.saveMember({ ...(m ? { id: m.id } : {}), ...v }); return m ? 'Team member updated' : 'Team member added'; },
     });
@@ -1377,6 +1500,7 @@
     ledger.forEach((l) => { totals[l.name] = (totals[l.name] || 0) + l.amount; });
     return `<form class="card form-card" id="inc-form"><h2>Incentive amounts</h2>
       <div class="grid">
+        <label class="f">Service / package (per sale, ₹)<input type="number" min="0" name="service" value="${esc(inc.service || 0)}"></label>
         <label class="f">Injection (per pen, ₹)<input type="number" min="0" name="injection" value="${esc(inc.injection)}"></label>
         <label class="f">Protein (per sale, ₹)<input type="number" min="0" name="protein" value="${esc(inc.protein)}"></label>
         ${set().dietPlans.map((p) => `<label class="f">Diet support ${esc(p.name)} (₹)<input type="number" min="0" name="plan-${p.id}" value="${esc(p.incentive)}"></label>`).join('')}
@@ -1394,7 +1518,7 @@
       e.preventDefault();
       const v = Object.fromEntries(new FormData(e.target).entries());
       set().dietPlans.forEach((p) => { p.incentive = Number(v[`plan-${p.id}`]) || 0; });
-      admin.updateSettings({ incentive: { injection: Number(v.injection) || 0, protein: Number(v.protein) || 0 } });
+      admin.updateSettings({ incentive: { service: Number(v.service) || 0, injection: Number(v.injection) || 0, protein: Number(v.protein) || 0 } });
       toast('Incentives saved');
       render();
     });
@@ -1411,9 +1535,16 @@
       <span class="grow"></span>${exportBtns('salary')}
       <button class="btn primary" data-act="post-salary" data-month="${month}">${posted ? 'Re-book as expenses' : 'Book as expenses'}</button></div>
       <div class="card">${posted ? '<p><span class="badge ok">Booked</span> Salary and incentive for this month are in Expenses.</p>' : ''}
-      ${table(['Employee', '~Pay counts', '>Salary', '>Incentive', '>Total pay'], rows.map((r) => `<tr><td>${esc(r.name)}<span class="sub">${esc(r.designation || '')}</span></td><td><span class="badge info">${{ both: 'Salary + Incentive', salary: 'Salary only', incentive: 'Incentive only' }[r.mode]}</span></td><td class="r">${inr(r.salary)}</td><td class="r">${inr(r.incentive)}</td><td class="r"><b>${inr(r.total)}</b></td></tr>`),
+      ${table(['Employee', '~Pay counts', '>Salary', '>Incentive', '>Total pay'], rows.map((r) => `<tr><td>${esc(r.name)}<span class="sub">${esc(r.designation || '')}</span></td><td><span class="badge info">${{ both: 'Salary + Incentive', salary: 'Salary only', incentive: 'Incentive only' }[r.mode]}</span></td><td class="r">${inr(r.salary)}${r.salaryType === 'daily' ? `<span class="sub"><input type="number" min="0" max="31" class="days-in" data-workdays="${r.memberId}" value="${esc(r.days || '')}" aria-label="Working days"> days × ${inr(r.rate)}</span>` : r.salaryType === 'none' ? '<span class="sub">No salary</span>' : ''}</td><td class="r">${inr(r.incentive)}</td><td class="r"><b>${inr(r.total)}</b></td></tr>`),
         `<td>Total</td><td></td><td class="r">${inr(t('salary'))}</td><td class="r">${inr(t('incentive'))}</td><td class="r">${inr(t('total'))}</td>`)}
       <p class="hint">Incentive = the member's share of every sale in ${fdate(month)}. “Book as expenses” adds Salary and Incentive entries, so the dashboard profit includes them.</p></div>`;
+  };
+
+  AFTER.salary = () => {
+    $$('[data-workdays]').forEach((el) => el.addEventListener('change', () => {
+      admin.setWorkDays(salaryMonth || admin.today().slice(0, 7), el.dataset.workdays, el.value);
+      render();
+    }));
   };
 
   // Expenses
@@ -1629,14 +1760,15 @@
     };
     return (list || []).length ? `<div class="filters"><div class="row">${list.map((k) => F[k]()).join('')}<button type="button" class="btn sm ghost" data-act="rfilter-clear">Clear filters</button></div></div>` : '';
   }
+  const clinicLine = () => [set().clinic || 'The Prime Fit', set().phone].filter(Boolean).join(' · ');
   function runExport(what, fmt) {
     const rep = EXPORTS[what]();
     rep.filename = `ThePrimeFit-${rep.title.replace(/[^A-Za-z0-9]+/g, '-')}-${stamp()}`;
     rep.by = me ? me.name : '';
     try {
       const pretty = () => ({ ...rep, sections: rep.sections.map((s) => ({ ...s, rows: s.rows.map((r) => r.map((v, i) => fmtCell(s, i, v))), foot: s.foot && s.foot.map((v, i) => fmtCell(s, i, v)) })) });
-      if (fmt === 'pdf') toast(`Saved ${X.pdf(pretty(), set().clinic)}`);
-      else if (fmt === 'jpeg') toast(`Saved ${X.jpeg(pretty(), set().clinic)}`);
+      if (fmt === 'pdf') toast(`Saved ${X.pdf(pretty(), clinicLine())}`);
+      else if (fmt === 'jpeg') toast(`Saved ${X.jpeg(pretty(), clinicLine())}`);
       else toast(`Saved ${X.xlsx(rep)}`);
     } catch (err) { toast(`Export failed: ${err.message}`, true); }
   }
@@ -1659,6 +1791,7 @@
 
   // Settings: Super Admin sees everything; other roles only if granted, and without logins/roles.
   const LIST_LABELS = { expenseCategories: 'Expense categories', expenseNames: 'Expense names (founders, ad platforms, editors…)', platforms: 'Content platforms', specialities: 'Doctor specialities', services: 'Treatments / services', leadSources: 'Lead sources', leadStatuses: 'Lead stages', payMethods: 'Payment methods', designations: 'Designations' };
+  const PERM_ROLES = ['admin', 'manager', 'desk', 'editor', 'viewer'];
   const PERM_SCREENS = [['diet', 'Diet charts (and the Home page)'], ...NAV.filter((n) => !['settings', 'about', 'home'].includes(n[0])).map((n) => [n[0], n[1]])];
   SCREENS.settings = () => {
     const st = set();
@@ -1670,10 +1803,11 @@
       <td>${a.hash ? '<span class="badge ok">Set</span>' : '<span class="badge warn">Not set</span>'}</td>
       <td class="acts"><button class="btn xs" data-act="set-pin" data-id="${a.id}">${a.hash ? 'Change password' : 'Set password'}</button>${a.id !== me.id ? ` <button class="btn xs" data-act="random-pin" data-id="${a.id}">Reset password</button>` : ''} <button class="btn xs" data-act="edit-login" data-id="${a.id}">Edit</button>${a.id !== me.id ? ` <button class="btn xs danger" data-act="del-login" data-id="${a.id}">Delete</button>` : ''}</td></tr>`);
     const perms = st.perms;
-    const permTable = `<div class="tbl-wrap"><table class="perm"><thead><tr><th>Screen</th>${['admin', 'manager', 'desk', 'editor'].map((r) => `<th class="c">${A.ROLES[r]}</th>`).join('')}</tr></thead><tbody>
-      ${PERM_SCREENS.map(([id, label]) => `<tr><td>${esc(label)}</td>${['admin', 'manager', 'desk', 'editor'].map((r) => `<td class="c"><input type="checkbox" data-perm="${r}" value="${id}" ${perms[r].screens.includes(id) ? 'checked' : ''} aria-label="${esc(label)} for ${A.ROLES[r]}"></td>`).join('')}</tr>`).join('')}
-      <tr><td><b>Settings</b></td>${['admin', 'manager', 'desk', 'editor'].map((r) => `<td class="c"><input type="checkbox" data-perm="${r}" value="settings" ${perms[r].screens.includes('settings') ? 'checked' : ''}></td>`).join('')}</tr>
-      <tr><td><b>Can delete records</b></td>${['admin', 'manager', 'desk', 'editor'].map((r) => `<td class="c"><input type="checkbox" data-permdel="${r}" ${perms[r].del ? 'checked' : ''}></td>`).join('')}</tr></tbody></table></div>`;
+    const permTable = `<div class="tbl-wrap"><table class="perm"><thead><tr><th>Screen</th>${PERM_ROLES.map((r) => `<th class="c">${A.ROLES[r]}</th>`).join('')}</tr></thead><tbody>
+      ${PERM_SCREENS.map(([id, label]) => `<tr><td>${esc(label)}</td>${PERM_ROLES.map((r) => `<td class="c"><input type="checkbox" data-perm="${r}" value="${id}" ${perms[r].screens.includes(id) ? 'checked' : ''} aria-label="${esc(label)} for ${A.ROLES[r]}"></td>`).join('')}</tr>`).join('')}
+      <tr><td><b>Settings</b></td>${PERM_ROLES.map((r) => `<td class="c"><input type="checkbox" data-perm="${r}" value="settings" ${perms[r].screens.includes('settings') ? 'checked' : ''}></td>`).join('')}</tr>
+      <tr><td><b>Can delete records</b></td>${PERM_ROLES.map((r) => `<td class="c"><input type="checkbox" data-permdel="${r}" ${perms[r].del ? 'checked' : ''}></td>`).join('')}</tr>
+      <tr><td><b>View only</b> <small class="muted">(no adding, editing or deleting)</small></td>${PERM_ROLES.map((r) => `<td class="c"><input type="checkbox" data-permview="${r}" ${perms[r].view ? 'checked' : ''}></td>`).join('')}</tr></tbody></table></div>`;
     const chips = (list) => `<div class="opt-chips">${st.lists[list].map((x) => `<span class="opt-chip">${esc(x)}<button type="button" data-act="list-rename" data-list="${list}" data-name="${esc(x)}" aria-label="Rename">✎</button><button type="button" data-act="list-del" data-list="${list}" data-name="${esc(x)}" aria-label="Remove">✕</button></span>`).join('')}
       <span class="opt-add"><input placeholder="Add new" data-listadd="${list}"><button type="button" class="btn xs primary" data-act="list-add" data-list="${list}">Add</button></span></div>`;
     const catChips = `<div class="opt-chips">${S().categories.map((c) => `<span class="opt-chip">${esc(c.name)}<small>${A.KINDS[c.kind]}</small><button type="button" data-act="cat-rename" data-name="${esc(c.name)}" aria-label="Rename">✎</button><button type="button" data-act="cat-del" data-name="${esc(c.name)}" aria-label="Delete">✕</button></span>`).join('')}<button type="button" class="btn xs primary" data-act="add-category">+ Category</button></div>`;
@@ -1693,6 +1827,16 @@
       <label class="check"><input type="checkbox" name="purchaseExpense" ${st.purchaseExpense ? 'checked' : ''}> Book every purchase invoice as an expense</label>
       <label class="check"><input type="checkbox" name="stockAlerts" ${st.stockAlerts !== false ? 'checked' : ''}> Low-stock alerts on (each item can also be switched off in Inventory)</label>
       <label class="check"><input type="checkbox" name="kitOn" ${st.kitOn !== false ? 'checked' : ''}> Take the injection kit out of stock with every injection sold <button type="button" class="link" data-act="kit">Edit kit</button></label>
+      <h2 style="margin-top:6px"><span class="ic gold">${svg('<path d="M4 8l8-4 8 4-8 4zM4 8v8l8 4 8-4V8M12 12v8"/>')}</span>What you sell</h2>
+      <p class="hint" style="margin:0">Switch off what the clinic does not offer right now. It is hidden from New Sale, Products and the dashboard; past sales stay.</p>
+      <div class="grid">${Object.entries(A.SALE_TYPES).map(([k, l]) => `<label class="check"><input type="checkbox" name="grp-${k}" ${groupOn(k) ? 'checked' : ''}> ${esc(l)}${k === 'service' ? ' (packages)' : ''}</label>`).join('')}</div>
+      <h2 style="margin-top:6px"><span class="ic teal">${svg('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>')}</span>Clinic contact (on slips, PDFs and posts)</h2>
+      <div class="grid two">
+        <label class="f">Phone / WhatsApp<input name="phone" value="${esc(st.phone || '')}" placeholder="+91 92051 36303"></label>
+        <label class="f">Website<input name="website" value="${esc(st.website || '')}" placeholder="www.theprimefit.in"></label>
+        <label class="f">Instagram link<input name="instagram" value="${esc(st.instagram || '')}"></label>
+        <label class="f">YouTube link<input name="youtube" value="${esc(st.youtube || '')}"></label>
+      </div>
       <h2 style="margin-top:6px"><span class="ic teal">${svg('<path d="M4 4h16v16H4zM4 10h16M10 4v16"/>')}</span>Google Sheet (data storage)</h2>
       <p class="hint" style="margin:0">All data is stored in ${SHEET_LINK ? `<a href="${SHEET_LINK}" target="_blank" rel="noopener">The Prime Fit Google Sheet</a>` : 'The Prime Fit Google Sheet'} and refreshes automatically on every device. Set-up once: open the sheet → Extensions → Apps Script → paste <a href="google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a> → run <b>setup</b> → Deploy → Web app (Execute as: Me, Who has access: Anyone) → paste the URL and the secret here.</p>
       <div class="grid two">
@@ -1731,6 +1875,8 @@
         clinic: f.clinic.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         incentive: { injection: Number(f.incInj.value) || 0, protein: Number(f.incPro.value) || 0 },
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
+        groups: Object.fromEntries(Object.keys(A.SALE_TYPES).map((k) => [k, f[`grp-${k}`].checked])),
+        phone: f.phone.value.trim(), website: f.website.value.trim(), instagram: f.instagram.value.trim(), youtube: f.youtube.value.trim(),
         defaultGst: f.defaultGst.value === '' ? 12 : Number(f.defaultGst.value), videoFee: f.videoFee.value === '' ? 150 : Number(f.videoFee.value),
         sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
       });
@@ -1746,8 +1892,8 @@
       pf.addEventListener('submit', (e) => {
         e.preventDefault();
         const perms = {};
-        ['admin', 'manager', 'desk', 'editor'].forEach((r) => {
-          perms[r] = { screens: $$(`input[data-perm="${r}"]:checked`, pf).map((x) => x.value), del: $(`input[data-permdel="${r}"]`, pf).checked };
+        PERM_ROLES.forEach((r) => {
+          perms[r] = { screens: $$(`input[data-perm="${r}"]:checked`, pf).map((x) => x.value), del: $(`input[data-permdel="${r}"]`, pf).checked, view: $(`input[data-permview="${r}"]`, pf).checked };
         });
         admin.updateSettings({ perms });
         toast('Permissions saved');
@@ -2183,6 +2329,7 @@
     'del-line': (d) => { draft.lines.splice(Number(d.i), 1); if (!draft.lines.length) draft.lines = newDraft().lines; render(); },
     'cancel-purchase': () => { draft = null; go('purchases'); },
     'add-expense': () => expenseForm(null),
+    'dash-cards': () => dashCardsForm(),
     'exp-count': (d) => { const on = d.on !== '1'; admin.setExpenseCounted(d.kind, d.name, on); render(); toast(`${d.name}: ${on ? 'counted' : 'not counted'} in totals`); },
     'exp-pick': (d) => { if (d.key === 'cat') expenseCat = expenseCat === d.name ? '' : d.name; else expenseName = expenseName === d.name ? '' : d.name; render(); },
     'add-doctor': () => doctorForm(null),
@@ -2223,15 +2370,31 @@
       fields: [{ name: 'confirm', label: 'Type ERASE to confirm', required: true }],
       onSubmit: (v) => { if (v.confirm !== 'ERASE') throw new Error('Type ERASE in capitals'); admin.resetAll(); return 'All data erased'; },
     }),
+    'opd-slip': (d) => opdSlip(d.id),
+    'social-fetch': () => socialFetch(),
+    'social-edit': () => socialForm(),
     lock: () => lock(),
   };
 
+  // Actions a view-only login may still use: they open, filter or export, never change data.
+  const RO_ACTIONS = ['refresh', 'export', 'user-menu', 'my-pin', 'lead', 'appt', 'patient', 'toggle-alert', 'alerts-on', 'rfilter-clear', 'exp-pick', 'opd-slip', 'lock'];
+  (function roStyle() {
+    const st = document.createElement('style');
+    st.textContent = `${Object.keys(ACTIONS).filter((k) => !RO_ACTIONS.includes(k)).map((k) => `body.ro [data-act="${k}"]`).join(',')},body.ro [data-go="sell"],body.ro [data-go="purchase-new"],body.ro #view form button[type=submit],body.ro .switch,body.ro .days-in{display:none!important}`;
+    document.head.appendChild(st);
+  }());
+  document.addEventListener('submit', (e) => {
+    const f = e.target;
+    if (!readOnly() || f.id === 'modal-form' || f.id === 'lk-form') return;
+    e.preventDefault(); e.stopImmediatePropagation(); toast('View only: this login cannot change data', true);
+  }, true);
   document.addEventListener('click', (e) => {
     if (!$('#lock').hidden) return;
     if (e.target.closest('.addnew')) return;
     const goEl = e.target.closest('[data-go]');
     if (goEl) { e.preventDefault(); if (modal.open) modal.close(); if (goEl.dataset.go === 'purchase-new' && !draft) draft = newDraft(); go(goEl.dataset.go); return; }
     const act = e.target.closest('[data-act]');
+    if (act && readOnly() && ACTIONS[act.dataset.act] && !RO_ACTIONS.includes(act.dataset.act)) { e.preventDefault(); toast('View only: this login cannot change data', true); return; }
     if (act && ACTIONS[act.dataset.act] && !(act.tagName === 'A' && act.getAttribute('href'))) { e.preventDefault(); ACTIONS[act.dataset.act](act.dataset); return; }
     if (e.target.closest('a[href]')) return;
     const p = e.target.closest('[data-period]');
@@ -2317,6 +2480,7 @@
   function pinForm(id, needOld) {
     const u = admin.account(id);
     openForm({
+      ro: true,
       title: `${u.hash ? 'Change' : 'Set'} password · ${u.name}`,
       fields: [
         ...(needOld && u.hash ? [{ name: 'old', label: 'Current password', type: 'password', required: true, attrs: 'autocomplete="current-password"' }] : []),

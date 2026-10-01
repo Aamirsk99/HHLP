@@ -4,7 +4,7 @@
  * Every save from the app writes:
  *   - the complete app data (JSON) into the hidden sheet "_AppData", which the app loads back
  *     on every device, so all admins share one set of data;
- *   - the 18 readable sheets (Dashboard, Appointments, Leads, Patients, … Renewals, Activity Log), rebuilt from that data.
+ *   - the 19 readable sheets (Dashboard, Appointments, Leads, Patients, … Renewals, Activity Log), rebuilt from that data.
  *
  * Set-up (once):
  * 1. Upload ThePrimeFit_Sheets.xlsx to Google Drive and open it as a Google Sheet (File → Save as Google Sheets),
@@ -13,11 +13,19 @@
  * 3. Deploy → New deployment → Web app: Execute as "Me", Who has access "Anyone".
  * 4. In the admin app: Settings → Google Sheet → paste the web app URL and the secret → Save.
  *
- * Edit data in the app, not in the sheets: each save rewrites the 18 sheets.
+ * Edit data in the app, not in the sheets: each save rewrites the 19 sheets.
+ *
+ * Social media counts (Content & Posts → "Fetch now" in the app), optional:
+ *   Project Settings → Script properties:
+ *   - YT_API_KEY: a YouTube Data API v3 key (Google Cloud console → APIs & Services → Credentials).
+ *     YT_HANDLE defaults to ThePrimeFit. Gives videos, Shorts, long videos, subscribers and views.
+ *   - IG_TOKEN and IG_USER_ID: an Instagram Graph API token for the business account
+ *     (Meta for Developers). Gives posts, reels and followers. Without them the script tries the
+ *     public profile of IG_USERNAME (default theprimefit_), which Instagram may refuse.
  */
 // Leave empty when this script is opened from the sheet (Extensions → Apps Script); or paste a sheet ID.
 const SHEET_ID = '';
-const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
+const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
   'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Activity Log'];
 const DATA_SHEET = '_AppData';
 const CHUNK = 40000; // a cell holds up to 50,000 characters
@@ -100,8 +108,9 @@ function writeSheets(ss, sheets) {
 /** GET ?action=load&secret=… → the app data; GET without action → health check. */
 function doGet(e) {
   const p = (e && e.parameter) || {};
-  if (p.action !== 'load') return json({ ok: true, app: 'primefit-admin-sheets', sheets: SHEETS });
+  if (p.action !== 'load' && p.action !== 'social') return json({ ok: true, app: 'primefit-admin-sheets', sheets: SHEETS });
   if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
+  if (p.action === 'social') return json(socialStats());
   const d = readData(book());
   return json({ ok: true, updated: d.updated, by: d.by, state: d.state });
 }
@@ -136,4 +145,59 @@ function doPost(e) {
 
 function json(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── Social media counts ─────────────────────────────────────────
+function socialStats() {
+  const props = PropertiesService.getScriptProperties();
+  const out = { ok: true, youtube: {}, instagram: {}, fetchedAt: Date.now() };
+  try { out.youtube = youtubeStats(props); } catch (err) { out.youtube = { error: String(err.message || err) }; }
+  try { out.instagram = instagramStats(props); } catch (err) { out.instagram = { error: String(err.message || err) }; }
+  return out;
+}
+
+function getJson(url, headers) {
+  const res = UrlFetchApp.fetch(url, { muteHttpExceptions: true, headers: headers || {} });
+  if (res.getResponseCode() >= 300) throw new Error('HTTP ' + res.getResponseCode() + ' from ' + url.split('?')[0]);
+  return JSON.parse(res.getContentText());
+}
+
+function youtubeStats(props) {
+  const key = props.getProperty('YT_API_KEY');
+  const handle = (props.getProperty('YT_HANDLE') || 'ThePrimeFit').replace(/^@/, '');
+  if (!key) return { error: 'Add YT_API_KEY in Script properties to fetch YouTube counts' };
+  const base = 'https://www.googleapis.com/youtube/v3/';
+  const ch = getJson(base + 'channels?part=statistics&forHandle=@' + encodeURIComponent(handle) + '&key=' + key);
+  const c = (ch.items || [])[0];
+  if (!c) return { error: 'YouTube channel @' + handle + ' not found' };
+  // Uploads split by type: UUSH… = Shorts, UULF… = long videos (playlist id = channel id with a new prefix).
+  const count = (prefix) => {
+    try { return getJson(base + 'playlistItems?part=id&maxResults=1&playlistId=' + prefix + c.id.slice(2) + '&key=' + key).pageInfo.totalResults; } catch (e) { return null; }
+  };
+  return {
+    videos: Number(c.statistics.videoCount) || 0, shorts: count('UUSH'), long: count('UULF'),
+    subscribers: Number(c.statistics.subscriberCount) || 0, views: Number(c.statistics.viewCount) || 0, handle: handle,
+  };
+}
+
+function instagramStats(props) {
+  const token = props.getProperty('IG_TOKEN');
+  const id = props.getProperty('IG_USER_ID');
+  if (token && id) {
+    const g = 'https://graph.facebook.com/v19.0/';
+    const me = getJson(g + id + '?fields=username,media_count,followers_count&access_token=' + token);
+    let reels = 0; let url = g + id + '/media?fields=media_product_type&limit=100&access_token=' + token; let pages = 0;
+    while (url && pages < 30) {
+      const page = getJson(url);
+      (page.data || []).forEach((m) => { if (m.media_product_type === 'REELS') reels += 1; });
+      url = page.paging && page.paging.next; pages += 1;
+    }
+    return { posts: me.media_count, reels: reels, followers: me.followers_count, username: me.username };
+  }
+  const user = props.getProperty('IG_USERNAME') || 'theprimefit_';
+  const res = UrlFetchApp.fetch('https://www.instagram.com/api/v1/users/web_profile_info/?username=' + user,
+    { muteHttpExceptions: true, headers: { 'x-ig-app-id': '936619743392459', 'User-Agent': 'Mozilla/5.0' } });
+  if (res.getResponseCode() !== 200) return { error: 'Instagram refused the public lookup; add IG_TOKEN and IG_USER_ID in Script properties' };
+  const u = JSON.parse(res.getContentText()).data.user;
+  return { posts: u.edge_owner_to_timeline_media.count, reels: u.edge_felix_video_timeline ? u.edge_felix_video_timeline.count : null, followers: u.edge_followed_by.count, username: user };
 }

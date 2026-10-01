@@ -260,5 +260,75 @@
     return name;
   }
 
-  root.EXPORT = { pdf, xlsx, jpeg, pdfText };
+  /** OPD slip: one A5 page for a clinic visit, with patient details and blank space for the doctor's notes. */
+  function opdSlip(d) {
+    const { jsPDF } = root.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const M = 9;
+    const t = (v) => pdfText(v || '-');
+    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 26, 'F');
+    doc.setFillColor(...BRAND); doc.rect(0, 26, W, 1.2, 'F');
+    doc.setFillColor(255, 255, 255); doc.roundedRect(M, 4.5, 46, 15.5, 2, 2, 'F');
+    try { doc.addImage(LOGO, 'JPEG', M + 1.5, 5.4, 43, 14.7); } catch (_) { /* logo optional */ }
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(13);
+    doc.text('OPD SLIP', W - M, 11, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
+    doc.text(pdfText(d.clinic || 'The Prime Fit'), W - M, 16, { align: 'right' });
+    doc.text(pdfText([d.phone, d.website].filter(Boolean).join('  |  ')), W - M, 20.5, { align: 'right' });
+    // Token / date strip
+    let y = 33;
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 13, 2, 2, 'F');
+    const cell = (x, label, value) => {
+      doc.setFontSize(6.5); doc.setTextColor(...MUTED); doc.setFont('helvetica', 'normal'); doc.text(pdfText(label).toUpperCase(), x, y + 4.8);
+      doc.setFontSize(9.5); doc.setTextColor(...INK); doc.setFont('helvetica', 'bold'); doc.text(t(value), x, y + 10);
+    };
+    const cw = (W - 2 * M) / 4;
+    cell(M + 3, 'Token', d.token); cell(M + 3 + cw, 'Date', d.date); cell(M + 3 + 2 * cw, 'Time', d.time); cell(M + 3 + 3 * cw, 'Slip no.', d.slipNo);
+    // Patient details
+    y += 19;
+    const rows = [
+      ['Patient', d.patient], ['Mobile', d.mobile], ['Age / Gender', [d.age, d.gender].filter(Boolean).join(' / ')], ['Patient ID', d.patientId],
+      ['Doctor', d.doctor], ['Visit', d.mode], ['Service', d.service], ['Fee', d.fee], ['Payment', d.payment],
+    ];
+    doc.setDrawColor(219, 228, 226);
+    rows.forEach(([k, v], i) => {
+      const col = i % 2; const x = M + col * ((W - 2 * M) / 2);
+      if (col === 0 && i) y += 9.5;
+      doc.setFontSize(6.5); doc.setTextColor(...MUTED); doc.setFont('helvetica', 'normal'); doc.text(pdfText(k).toUpperCase(), x, y);
+      doc.setFontSize(9.5); doc.setTextColor(...INK); doc.setFont('helvetica', 'bold');
+      doc.text(doc.splitTextToSize(t(v), (W - 2 * M) / 2 - 3)[0], x, y + 4.6);
+    });
+    y += 9;
+    doc.line(M, y, W - M, y);
+    // Vitals
+    y += 6;
+    doc.setFontSize(8); doc.setTextColor(...BRAND); doc.setFont('helvetica', 'bold'); doc.text('VITALS', M, y);
+    y += 6; doc.setTextColor(...INK); doc.setFont('helvetica', 'normal'); doc.setFontSize(8);
+    const vit = ['Weight ______ kg', 'Height ______ cm', 'BP ________', 'Pulse ______', 'Sugar ______', 'BMI ______'];
+    vit.forEach((v, i) => doc.text(v, M + (i % 3) * ((W - 2 * M) / 3), y + Math.floor(i / 3) * 7));
+    y += 13;
+    doc.line(M, y, W - M, y);
+    // Complaints and Rx area
+    y += 6;
+    doc.setFontSize(8); doc.setTextColor(...BRAND); doc.setFont('helvetica', 'bold'); doc.text('COMPLAINTS / NOTES', M, y);
+    if (d.notes) { doc.setFont('helvetica', 'normal'); doc.setTextColor(...INK); doc.text(doc.splitTextToSize(pdfText(d.notes), W - 2 * M).slice(0, 2), M, y + 5); }
+    y += 22;
+    doc.setFontSize(16); doc.setTextColor(...BRAND); doc.setFont('times', 'bolditalic'); doc.text('Rx', M, y);
+    doc.setDrawColor(236, 241, 240);
+    for (let ly = y + 7; ly < H - 26; ly += 8) doc.line(M, ly, W - M, ly);
+    // Footer
+    doc.setDrawColor(219, 228, 226); doc.line(W - M - 45, H - 22, W - M, H - 22);
+    doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.setFont('helvetica', 'normal');
+    doc.text("Doctor's signature", W - M, H - 18, { align: 'right' });
+    doc.setFillColor(...NAVY); doc.rect(0, H - 10, W, 10, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(7);
+    doc.text(pdfText([d.clinic || 'The Prime Fit', d.phone, d.website, d.instagram].filter(Boolean).join('  |  ')), W / 2, H - 4, { align: 'center' });
+    const name = `${d.filename || 'OPD-slip'}.pdf`;
+    save(name, 'application/pdf', doc.output('datauristring').split(',')[1], doc.output('blob'));
+    return name;
+  }
+
+  root.EXPORT = { pdf, xlsx, jpeg, pdfText, opdSlip };
 })(window);

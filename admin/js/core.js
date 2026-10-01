@@ -9,15 +9,15 @@
   // Settings that stay on each device and never go to the shared Google Sheet.
   const LOCAL_SETTINGS = ['sheetsUrl', 'sheetsSecret', 'autoSync', 'lastSync'];
 
-  const KINDS = { injection: 'Injection', protein: 'Protein', other: 'Other' };
-  const SALE_TYPES = { injection: 'Injection', protein: 'Protein', diet: 'Diet Support' };
+  const KINDS = { service: 'Service / Package', injection: 'Injection', protein: 'Protein', other: 'Other' };
+  const SALE_TYPES = { service: 'Service', injection: 'Injection', protein: 'Protein', diet: 'Diet Support' };
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
     'Founder', 'Ads', 'Editing', 'Protein Purchase', 'Injection Purchase', 'Miscellaneous'];
-  const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
+  const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
     'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Activity Log'];
 
   // Login roles. Every person can have their own login (name + PIN), shared through the Google Sheet.
-  const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk', editor: 'Video Editor' };
+  const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk', editor: 'Video Editor', viewer: 'View only' };
   // Choice lists that the admins can extend ("+ Add new") from any form.
   const DEFAULT_LISTS = {
     expenseCategories: EXPENSE_CATEGORIES,
@@ -40,7 +40,12 @@
     manager: { screens: ['diet', 'dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'expenses', 'content', 'reports', 'activity'], del: false },
     desk: { screens: ['diet', 'appointments', 'leads'], del: false },
     editor: { screens: ['content'], del: false },
+    viewer: { screens: ['diet', 'dashboard', 'today', 'appointments', 'sales', 'patients', 'renewals', 'products', 'inventory', 'expenses', 'content', 'reports'], del: false, view: true },
   };
+  // GLP-1 Success Support packages (from the clinic's offer posters): price, regular price, days.
+  const GLP1_INCLUDES = '1-on-1 initial consultation (10–15 mins) · Personalised diet & protein guidance · Side-effect management guidance · WhatsApp support · Weekly progress review';
+  const PACKAGES = [['1 Week', 1499, 3000, 7], ['1 Month', 2999, 5000, 30], ['2 Months', 4500, 8000, 60], ['3 Months', 5999, 12000, 90]];
+  const PACKAGE_CATEGORY = 'GLP-1 Success Support';
   const KIT_DEFAULTS = [['Travel Bags', 1], ['Ice Gel Packs', 1], ['Alcohol Swabs', 16], ['Needles', 2]];
   const LOG_MAX = 3000;
   const APPT_MODES = { clinic: 'Clinic visit', online: 'Online' };
@@ -66,13 +71,17 @@
       kind: 'injection', category: 'Injection', brand, name: `${brand} ${dose}`, unit: 'pen', lowAt: 2,
     })));
     add({ kind: 'protein', category: 'Protein', brand: '', name: 'Protein Sachets', unit: 'sachet', lowAt: 20 });
+    PACKAGES.forEach((pk) => add(packageItem(pk)));
     OTHER_CATEGORIES.forEach((c) => add({ kind: 'other', category: c, brand: '', name: c, lowAt: 20 }));
     applyItemDefaults(items);
     return {
       version: 1,
       settings: {
         clinic: 'The Prime Fit',
-        incentive: { injection: 1000, protein: 500 },
+        incentive: { injection: 1000, protein: 500, service: 0 },
+        groups: { service: true, injection: true, protein: true, diet: true }, // what can be sold (switch off what the clinic does not offer)
+        phone: '+91 92051 36303', instagram: 'https://www.instagram.com/theprimefit_', youtube: 'https://www.youtube.com/@ThePrimeFit', website: 'www.theprimefit.in',
+        dashHide: [], // dashboard cards switched off
         dietPlans: [
           { id: 'd1', name: '1 Month', months: 1, price: 0, incentive: 1000, disabled: false },
           { id: 'd3', name: '3 Month', months: 3, price: 0, incentive: 2000, disabled: false },
@@ -91,10 +100,11 @@
         defaultGst: 12, // GST % filled on new purchase lines
         expenseOff: { categories: [], names: [] }, // expenses not counted in totals and profit
       },
-      categories: [{ name: 'Injection', kind: 'injection' }, { name: 'Protein', kind: 'protein' },
+      categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }, { name: 'Injection', kind: 'injection' }, { name: 'Protein', kind: 'protein' },
         ...OTHER_CATEGORIES.map((name) => ({ name, kind: 'other' }))],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
-      leads: [], log: [], doctors: [], content: [], editors: [],
+      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, social: { youtube: {}, instagram: {}, fetchedAt: 0 },
+      seeded: { packages: true },
       accounts: [
         { id: 'super', name: 'Super Admin', username: 'superadmin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
         { id: 'admin', name: 'Admin', username: 'admin', role: 'admin', hash: '', salt: '', len: 0, pin: '' },
@@ -102,6 +112,9 @@
         { id: 'desk', name: 'Front Desk', username: 'frontdesk', role: 'desk', hash: '', salt: '', len: 0, pin: '' },
       ],
     };
+  }
+  function packageItem([label, price, mrp, days]) {
+    return { kind: 'service', category: PACKAGE_CATEGORY, brand: 'GLP-1', name: `GLP-1 Success Support · ${label}`, unit: 'package', price, mrp, days, lowAt: 0, track: false, includes: GLP1_INCLUDES, incentive: null };
   }
   // "Order required" when stock falls below 2 for protein and Mounjaro 10mg / 15mg (editable per item).
   function applyItemDefaults(items) {
@@ -228,6 +241,16 @@
       s.accounts.forEach((a) => { if (!a.username) a.username = uniqueUsername(s.accounts, a.name, a.id); });
       Object.keys(DEFAULT_PERMS).forEach((r) => { if (!s.settings.perms[r]) s.settings.perms[r] = JSON.parse(JSON.stringify(DEFAULT_PERMS[r])); });
       s.settings.expenseOff = { categories: [], names: [], ...(s.settings.expenseOff || {}) };
+      s.settings.groups = { ...d.settings.groups, ...(s.settings.groups || {}) };
+      if (s.settings.incentive.service == null) s.settings.incentive.service = 0;
+      // Older data: add the GLP-1 support packages once.
+      if (!(s.seeded && s.seeded.packages)) {
+        if (!s.items.some((i) => i.kind === 'service')) {
+          if (!s.categories.some((c) => c.name === PACKAGE_CATEGORY)) s.categories.unshift({ name: PACKAGE_CATEGORY, kind: 'service' });
+          PACKAGES.forEach((pk, i) => s.items.push({ id: `pk${i + 1}${Date.now().toString(36)}`, opening: 0, disabled: false, alertOff: false, orderAt: null, ...packageItem(pk) }));
+        }
+        s.seeded = { ...(s.seeded || {}), packages: true };
+      }
       if (s.settings.renewalDays[0] === 60 && s.settings.renewalDays[1] === 90) s.settings.renewalDays = [75, 90];
       return s;
     }
@@ -246,7 +269,9 @@
     // Team
     const member = (id) => S.team.find((m) => m.id === id) || null;
     const memberName = (id) => (member(id) || {}).name || '—';
-    const TEAM_FIELDS = ['name', 'designation', 'mobile', 'salary', 'incentiveOn', 'joiningDate', 'incInjection', 'incProtein', 'payMode'];
+    const TEAM_FIELDS = ['name', 'designation', 'mobile', 'salary', 'incentiveOn', 'joiningDate', 'incInjection', 'incProtein', 'payMode', 'salaryType', 'incentiveType', 'incPercent', 'incService'];
+    const SALARY_TYPES = { monthly: 'Monthly fixed', daily: 'Per working day', none: 'No salary' };
+    const INCENTIVE_TYPES = { product: 'Fixed ₹ per product / package', percent: '% of sale amount', none: 'No incentive' };
     const numOrNull = (v) => (v === '' || v == null || Number.isNaN(Number(v)) ? null : Number(v));
     function saveMember(input) {
       if (!low(input.name)) fail('Name is required');
@@ -259,6 +284,11 @@
       // Personal incentive rates; blank = the clinic default (₹1000 per injection, ₹500 per protein sale).
       m.incInjection = numOrNull(m.incInjection);
       m.incProtein = numOrNull(m.incProtein);
+      m.incService = numOrNull(m.incService);
+      m.incPercent = numOrNull(m.incPercent);
+      if (!SALARY_TYPES[m.salaryType]) m.salaryType = 'monthly';
+      if (!INCENTIVE_TYPES[m.incentiveType]) m.incentiveType = m.incentiveOn === false ? 'none' : 'product';
+      m.incentiveOn = m.incentiveType !== 'none';
       // What counts in this person's monthly pay: salary + incentive, salary only or incentive only.
       if (!['both', 'salary', 'incentive'].includes(m.payMode)) m.payMode = 'both';
       log(isNew ? 'Team member added' : 'Team member updated', m.name);
@@ -275,8 +305,9 @@
       save();
     }
     /** Incentive rate for one person: their own rate, else the product's, else the clinic default. */
+    const rateOwn = (m, type) => (m ? (type === 'injection' ? m.incInjection : type === 'protein' ? m.incProtein : type === 'service' ? m.incService : null) : null);
     function rateFor(m, type, it) {
-      const own = m && (type === 'injection' ? m.incInjection : type === 'protein' ? m.incProtein : null);
+      const own = m && (type === 'injection' ? m.incInjection : type === 'protein' ? m.incProtein : type === 'service' ? m.incService : null);
       if (own != null) return own;
       if (it && it.incentive != null) return it.incentive;
       return S.settings.incentive[type] || 0;
@@ -297,7 +328,7 @@
         S.items.push(it);
       }
       const isNew = !input.id;
-      ['name', 'brand', 'category', 'kind', 'price', 'incentive', 'opening', 'lowAt', 'unit', 'disabled', 'alertOff', 'orderAt', 'track'].forEach((k) => {
+      ['name', 'brand', 'category', 'kind', 'price', 'incentive', 'incentiveType', 'opening', 'lowAt', 'unit', 'disabled', 'alertOff', 'orderAt', 'track', 'mrp', 'days', 'includes'].forEach((k) => {
         if (k in input) it[k] = input[k];
       });
       it.alertOff = !!it.alertOff;
@@ -308,6 +339,10 @@
       it.kind = it.kind || (cat ? cat.kind : 'other');
       ['price', 'opening', 'lowAt'].forEach((k) => { it[k] = Number(it[k]) || 0; });
       it.incentive = it.incentive === '' || it.incentive == null ? null : Number(it.incentive);
+      it.mrp = it.mrp === '' || it.mrp == null ? null : Number(it.mrp) || 0;
+      it.days = it.days === '' || it.days == null ? null : Number(it.days) || 0;
+      if (it.incentiveType !== 'percent') it.incentiveType = 'fixed';
+      if (it.kind === 'service' && input.track === undefined && isNew) it.track = false;
       log(isNew ? 'Item added' : 'Item updated', it.name);
       save();
       return it;
@@ -446,6 +481,7 @@
         return plan ? Number(plan.incentive) || 0 : 0;
       }
       const it = item(input.itemId);
+      if (it && it.incentiveType === 'percent') return Math.round((Number(input.amount) || 0) * (Number(it.incentive) || 0) / 100);
       const base = it && it.incentive != null ? it.incentive : S.settings.incentive[input.type] || 0;
       // Injections pay per pen; a protein sale pays once, whatever the quantity.
       return input.type === 'injection' ? base * (Number(input.qty) || 1) : base;
@@ -459,13 +495,20 @@
       const units = input.type === 'injection' ? (Number(input.qty) || 1) : 1;
       const plan = input.type === 'diet' ? S.settings.dietPlans.find((p) => p.id === input.planId) : null;
       const it = input.type === 'diet' ? null : item(input.itemId);
-      const bases = refs.map((r) => (input.type === 'diet' ? (plan ? Number(plan.incentive) || 0 : 0) : rateFor(member(r.memberId), input.type, it) * units));
+      const amount = Number(input.amount) || 0;
+      const bases = refs.map((r) => {
+        const m = member(r.memberId);
+        // % of sale: from the person's profile, else the product's own % incentive.
+        if (m && m.incentiveType === 'percent') return Math.round(amount * (Number(m.incPercent) || 0) / 100);
+        if (input.type !== 'diet' && it && it.incentiveType === 'percent' && !(m && rateOwn(m, input.type) != null)) return Math.round(amount * (Number(it.incentive) || 0) / 100);
+        return input.type === 'diet' ? (plan ? Number(plan.incentive) || 0 : 0) : rateFor(m, input.type, it) * units;
+      });
       const same = bases.every((b) => b === bases[0]);
       // Same rate for everyone: split exactly (remainder to the first); otherwise each gets rate × share.
       const parts = same ? splitIncentive(bases[0], refs) : refs.map((r, i) => ({ memberId: r.memberId, pct: r.pct, amount: Math.round(bases[i] * r.pct / 100) }));
       return parts.map((x) => {
         const m = member(x.memberId);
-        return { ...x, name: m ? m.name : '—', amount: m && m.incentiveOn === false ? 0 : x.amount };
+        return { ...x, name: m ? m.name : '—', amount: m && (m.incentiveOn === false || m.incentiveType === 'none') ? 0 : x.amount };
       });
     }
     function previewSplits(input) {
@@ -683,6 +726,15 @@
       save();
     }
     const doctorName = (a) => (a.doctorId && doctor(a.doctorId) ? doctor(a.doctorId).name : a.doctorName || '');
+
+    // Social media counts (fetched through the Google Sheet script, or typed in).
+    function setSocial(patch) {
+      S.social = { youtube: {}, instagram: {}, ...(S.social || {}) };
+      if (patch.youtube) S.social.youtube = { ...S.social.youtube, ...patch.youtube };
+      if (patch.instagram) S.social.instagram = { ...S.social.instagram, ...patch.instagram };
+      S.social.fetchedAt = patch.fetchedAt || Date.now();
+      save();
+    }
 
     // Video editors: profiles with a fee per video; an editor may also have a login.
     const editor = (id) => S.editors.find((x) => x.id === id) || null;
@@ -1032,10 +1084,18 @@
       return [...ids].map((id) => {
         const m = member(id);
         const mode = (m && m.payMode) || 'both';
-        const salary = m && !m.disabled && mode !== 'incentive' && (!m.joiningDate || m.joiningDate <= range.to) ? m.salary : 0;
+        const st = (m && m.salaryType) || 'monthly';
+        const days = st === 'daily' ? Number(((S.workDays || {})[month] || {})[id]) || 0 : null;
+        const base = st === 'none' ? 0 : st === 'daily' ? r2((m ? m.salary : 0) * days) : m ? m.salary : 0;
+        const salary = m && !m.disabled && mode !== 'incentive' && (!m.joiningDate || m.joiningDate <= range.to) ? base : 0;
         const incentive = mode === 'salary' ? 0 : sum(ledger.filter((l) => l.memberId === id), (l) => l.amount);
-        return { memberId: id, name: m ? m.name : (ledger.find((l) => l.memberId === id) || {}).name, designation: m ? m.designation : '', mode, salary, incentive, total: salary + incentive };
+        return { memberId: id, name: m ? m.name : (ledger.find((l) => l.memberId === id) || {}).name, designation: m ? m.designation : '', mode, salaryType: st, days, rate: m ? m.salary : 0, salary, incentive, total: salary + incentive };
       }).sort((a, b) => b.total - a.total);
+    }
+    function setWorkDays(month, memberId, days) {
+      S.workDays = S.workDays || {};
+      S.workDays[month] = { ...(S.workDays[month] || {}), [memberId]: Number(days) || 0 };
+      save();
     }
     /** Book the month's salary and incentive as expenses (replaces an earlier booking of the same month). */
     function postSalary(month) {
@@ -1067,6 +1127,19 @@
         out.push({
           patientId: p.id, name: p.name, mobile: p.mobile, product: last.product, lastDate: last.date, days, stage,
           dueIn, ref: memberName(last.refId), saleId: last.id, done: !!S.renewalsDone[`${last.id}:${stage}`],
+        });
+      });
+      // Service packages (with a length in days): due 3 days before the package ends.
+      S.patients.forEach((p) => {
+        const pk = patientSales(p.id).filter((s) => s.type === 'service' && (item(s.itemId) || {}).days);
+        const last = pk[pk.length - 1];
+        if (!last) return;
+        const len = item(last.itemId).days;
+        const days = daysBetween(last.date, d);
+        const stage = days >= len - 3 ? len : 0;
+        out.push({
+          patientId: p.id, name: p.name, mobile: p.mobile, product: last.product, lastDate: last.date, days, stage, pkgDays: len,
+          dueIn: len - days, ref: memberName(last.refId), saleId: last.id, done: !!S.renewalsDone[`${last.id}:${stage}`],
         });
       });
       return out.sort((a, b) => b.days - a.days);
@@ -1151,6 +1224,7 @@
         sales: {
           orders: sales.length, revenue: fin.revenue, expenses: fin.expenses, profit: fin.profit,
           injection: fin.revenueByType.injection, protein: fin.revenueByType.protein, diet: fin.revenueByType.diet, consultation: fin.revenueByType.consultation,
+          service: fin.revenueByType.service, serviceCount: byType('service').length,
           injectionCount: byType('injection').length, proteinCount: byType('protein').length, dietCount: byType('diet').length,
         },
         patients: {
@@ -1177,6 +1251,8 @@
         todaySales: S.sales.filter((s) => s.date === d),
         content: contentStats(range, d),
         expenseSummary: expenseSummary(range),
+        productExpenses: r2(sum(S.expenses.filter((e) => inRange(e.date, range) && counted(e) && /purchase/i.test(e.category)), (e) => e.amount)),
+        founderExpenses: r2(sum(S.expenses.filter((e) => inRange(e.date, range) && e.category === 'Founder'), (e) => e.amount)),
         leads: leadStats(range),
         renewalsDue: renewals(d).filter((r) => r.stage && !r.done).length,
         appointments: appointmentStats(range),
@@ -1252,10 +1328,12 @@
       out['Injection Sales'] = [['Date', 'Patient', 'Mobile', 'New/Renewal', 'Product', 'Qty', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Dietitian', 'Incentive', 'Notes']];
       out['Protein Sales'] = [['Date', 'Patient', 'Mobile', 'Protein Type', 'Qty', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Incentive', 'Notes']];
       out['Diet Support'] = [['Date', 'Patient', 'Mobile', 'Plan', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Incentive', 'Notes']];
+      out['Service Sales'] = [['Date', 'Patient', 'Mobile', 'New/Renewal', 'Service / Package', 'Qty', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Incentive', 'Notes']];
       byDate.forEach((s) => {
         const [ref, shared] = refNames(s);
         if (s.type === 'injection') out['Injection Sales'].push([s.date, s.patientName, s.mobile, s.patientType === 'new' ? 'New' : 'Renewal', s.product, s.qty, s.amount, ref, shared, split(s), s.dietitianId ? memberName(s.dietitianId) : '', s.incentive, s.notes]);
         else if (s.type === 'protein') out['Protein Sales'].push([s.date, s.patientName, s.mobile, s.product, s.qty, s.amount, ref, shared, split(s), s.incentive, s.notes]);
+        else if (s.type === 'service') out['Service Sales'].push([s.date, s.patientName, s.mobile, s.patientType === 'new' ? 'New' : 'Renewal', s.product, s.qty, s.amount, ref, shared, split(s), s.incentive, s.notes]);
         else out['Diet Support'].push([s.date, s.patientName, s.mobile, s.product.replace('Diet Support ', ''), s.amount, ref, shared, split(s), s.incentive, s.notes]);
       });
       out.Purchases = [['Date', 'Vendor', 'Invoice No', 'Product', 'Invoice Product Name', 'Qty', 'Batch', 'Expiry', 'Rate', 'GST %', 'Line Total']];
@@ -1364,7 +1442,7 @@
       today, onChange: (f) => listeners.push(f),
       member, memberName, saveMember, setMemberDisabled, deleteMember,
       item, itemsOf, liveItems, saveItem, deleteItem, moveItem, moveCategory, setItemKit, kitOf, addCategory, stockOf, adjustStock, lowStock,
-      expenseSummary, counted, setExpenseCounted, editor, videoFee, saveEditor, deleteEditor, moveDietPlan, deleteDietPlan, accountByUsername, doctor, saveDoctor, deleteDoctor, doctorName, contentItem, saveContent, deleteContent, contentStats,
+      expenseSummary, setWorkDays, setSocial, counted, setExpenseCounted, editor, videoFee, saveEditor, deleteEditor, moveDietPlan, deleteDietPlan, accountByUsername, doctor, saveDoctor, deleteDoctor, doctorName, contentItem, saveContent, deleteContent, contentStats,
       matchItem: (name, kind) => matchItem(liveItems().filter((i) => !i.disabled && (!kind || i.kind === kind)), name),
       findOrCreatePatient, patientSales, saveSale, deleteSale, incentiveFor,
       savePurchase, deletePurchase, findDuplicatePurchase, lineTotal,
@@ -1388,7 +1466,7 @@
 
   const api = {
     createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
-    KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, CONTENT_STATUS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
+    SALARY_TYPES: { monthly: 'Monthly fixed', daily: 'Per working day', none: 'No salary' }, INCENTIVE_TYPES: { product: 'Fixed ₹ per product / package', percent: '% of sale amount', none: 'No incentive' }, PACKAGES, KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, CONTENT_STATUS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADMIN = api;

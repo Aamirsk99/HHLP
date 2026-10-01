@@ -116,3 +116,23 @@ test('purchases can switch GST off and diet plans move and delete', () => {
   admin.deleteDietPlan(ids[0]);
   assert.ok(!admin.state.settings.dietPlans.some((x) => x.id === ids[0]));
 });
+
+test('GLP-1 packages are services; percent incentives, daily salary and package renewals work', () => {
+  const admin = fresh();
+  const pk = admin.itemsOf('service', true);
+  assert.strictEqual(pk.length, 4);
+  assert.deepStrictEqual(pk.map((i) => i.price), [1499, 2999, 4500, 5999]);
+  assert.strictEqual(pk[1].mrp, 5000);
+  const m = admin.saveMember({ name: 'Riya', salaryType: 'daily', salary: 800, incentiveType: 'percent', incPercent: 10 });
+  const s = admin.saveSale({ type: 'service', patientName: 'Asha', mobile: '9876543210', itemId: pk[0].id, qty: 1, amount: 1499, date: admin.today(), refId: m.id });
+  assert.strictEqual(s.splits[0].amount, 150);
+  admin.setWorkDays(admin.today().slice(0, 7), m.id, 20);
+  const row = admin.salarySheet(admin.today().slice(0, 7)).find((r) => r.memberId === m.id);
+  assert.strictEqual(row.salary, 16000);
+  assert.ok(admin.renewals().some((r) => r.saleId === s.id));
+  const none = admin.saveMember({ name: 'Raj', salaryType: 'none', incentiveType: 'none' });
+  const s2 = admin.saveSale({ type: 'service', patientName: 'B', itemId: pk[2].id, qty: 1, amount: 4500, date: admin.today(), refId: none.id });
+  assert.strictEqual(s2.splits[0].amount, 0);
+  assert.ok(admin.sheetsData()['Service Sales'].length === 3);
+  assert.ok(A.DEFAULT_PERMS.viewer.view);
+});
