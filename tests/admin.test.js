@@ -49,7 +49,7 @@ test('expenses by founder, ads and editing add up by category and by name', () =
   admin.saveExpense({ category: 'Editing', name: 'New Editor', amount: 200, date: '2026-09-03' });
   const s = admin.expenseSummary({ from: '2026-09-01', to: '2026-09-30' });
   assert.strictEqual(s.total, 2000);
-  assert.deepStrictEqual(s.byName.find((x) => x.name === 'Founder 1'), { name: 'Founder 1', amount: 1500, count: 2 });
+  assert.deepStrictEqual(s.byName.find((x) => x.name === 'Founder 1'), { name: 'Founder 1', amount: 1500, count: 2, counted: true });
   assert.strictEqual(s.byCategory.find((x) => x.name === 'Ads').amount, 300);
   assert.ok(admin.state.settings.lists.expenseNames.includes('New Editor'));
 });
@@ -65,4 +65,54 @@ test('doctor profiles are picked on appointments and videos are counted edited, 
   const st = admin.contentStats({ from: '2026-09-01', to: '2026-09-30' }, '2026-09-05');
   assert.deepStrictEqual([st.total, st.edited, st.posted, st.remaining, st.dueToday.length], [3, 2, 1, 1, 1]);
   assert.ok(admin.state.expenses.some((e) => e.category === 'Editing' && e.amount === 400 && e.name === 'Sam'));
+});
+
+test('expenses switched off are left out of totals and profit', () => {
+  const admin = fresh();
+  admin.saveExpense({ category: 'Ads', name: 'Meta Ads', amount: 300, date: '2026-09-02' });
+  admin.saveExpense({ category: 'Founder', name: 'Founder 1', amount: 1000, date: '2026-09-02' });
+  admin.saveExpense({ category: 'Rent', amount: 50, date: '2026-09-02', noCount: true });
+  const r = { from: '2026-09-01', to: '2026-09-30' };
+  admin.setExpenseCounted('category', 'Founder', false);
+  assert.strictEqual(admin.expenseSummary(r).total, 300);
+  assert.strictEqual(admin.expenseSummary(r).all, 1350);
+  assert.strictEqual(admin.financialReport(r).expenses, 300);
+  admin.setExpenseCounted('category', 'Founder', true);
+  admin.setExpenseCounted('name', 'Meta Ads', false);
+  assert.strictEqual(admin.financialReport(r).expenses, 1000);
+});
+
+test('editors get a fee per video (default 150) booked when the video is received', () => {
+  const admin = fresh();
+  const ed = admin.saveEditor({ name: 'Sam' });
+  const c = admin.saveContent({ title: 'Reel', editorId: ed.id, status: 'edited', date: '2026-09-01', cost: '' });
+  assert.strictEqual(c.cost, 150);
+  assert.strictEqual(c.editor, 'Sam');
+  const c2 = admin.saveContent({ title: 'Reel 2', editorId: ed.id, status: 'edited', cost: 200 });
+  assert.strictEqual(c2.cost, 200);
+  const waiting = admin.saveContent({ title: 'Reel 3', editorId: ed.id, status: 'idea', cost: '' });
+  assert.strictEqual(waiting.cost, 0);
+  assert.ok(admin.sheetsData().Editors[1][3] === 2);
+});
+
+test('logins sign in by user ID and passwords are never kept in plain text', () => {
+  const admin = fresh();
+  assert.strictEqual(admin.accountByUsername('SuperAdmin').id, 'super');
+  const a = admin.saveAccount({ name: 'Riya Shah', role: 'editor' });
+  assert.strictEqual(a.username, 'riyashah');
+  admin.setAccountPin(a.id, 'h', 's', 6, 'secret1');
+  assert.strictEqual(admin.account(a.id).pin, '');
+  assert.throws(() => admin.saveAccount({ name: 'Other', username: 'riyashah', role: 'desk' }), /taken/);
+});
+
+test('purchases can switch GST off and diet plans move and delete', () => {
+  const admin = fresh();
+  const it = admin.itemsOf('protein', true)[0];
+  const p = admin.savePurchase({ vendor: 'V', lines: [{ itemId: it.id, qty: 2, rate: 100, gst: 18 }], gstOff: true });
+  assert.strictEqual(p.total, 200);
+  const ids = admin.state.settings.dietPlans.map((x) => x.id);
+  admin.moveDietPlan(ids[1], -1);
+  assert.strictEqual(admin.state.settings.dietPlans[0].id, ids[1]);
+  admin.deleteDietPlan(ids[0]);
+  assert.ok(!admin.state.settings.dietPlans.some((x) => x.id === ids[0]));
 });

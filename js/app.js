@@ -46,6 +46,25 @@
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = (n) => Number(n).toLocaleString('en-IN');
   const svg = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
+  // Line icons in the brand colors (replace emoji in menus, tiles and tabs).
+  const UI = {
+    home: '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/>',
+    plus: '<path d="M12 5v14M5 12h14"/>',
+    users: '<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20a6.5 6.5 0 0 1 13 0"/><path d="M16 4.5a3.5 3.5 0 0 1 0 7M18 14a6 6 0 0 1 3.5 6"/>',
+    charts: '<rect x="5" y="3.5" width="14" height="17.5" rx="2"/><path d="M9 3.5h6v3H9zM8.5 11h7M8.5 14.5h7M8.5 18h4"/>',
+    upload: '<path d="M12 15V4M7.5 8.5L12 4l4.5 4.5"/><path d="M4 15v4a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-4"/>',
+    recipes: '<path d="M3 11h18a9 9 0 0 1-18 0z"/><path d="M8 7c0-1.5 1-1.5 1-3M12 7c0-1.5 1-1.5 1-3M16 7c0-1.5 1-1.5 1-3"/>',
+    foods: '<path d="M12 21c-5 0-8-3.5-8-8 0-3 2-5 4.5-5 1.5 0 2.5.7 3.5.7s2-.7 3.5-.7C18 8 20 10 20 13c0 4.5-3 8-8 8z"/><path d="M12 8.7c0-2.5 1.2-4.2 3.5-5"/>',
+    settings: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+    clinic: '<path d="M4 21V7l8-4 8 4v14"/><path d="M10 21v-5h4v5M12 8v5M9.5 10.5h5"/>',
+    calendar: '<rect x="3.5" y="5" width="17" height="15.5" rx="2"/><path d="M8 3v4M16 3v4M3.5 10h17M8 14h3M8 17h6"/>',
+    book: '<path d="M4 5a2 2 0 0 1 2-2h13v15H6a2 2 0 0 0-2 2z"/><path d="M4 20a2 2 0 0 0 2 2h13v-4M8 7h7"/>',
+    printer: '<path d="M7 9V3h10v6"/><rect x="3" y="9" width="18" height="8" rx="2"/><path d="M7 14h10v7H7z"/>',
+    table: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>',
+    copy: '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
+    user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+  };
+  const ui = (k) => svg(UI[k]);
   const ICON = {
     edit: svg('<path d="M4 20h4L19 9l-4-4L4 16v4z"/><path d="M14 6l4 4"/>'),
     swap: svg('<path d="M4 7h13l-3-3M20 17H7l3 3"/>'),
@@ -328,7 +347,7 @@
   }
 
   function go(name) {
-    if (name === 'admin') { location.href = 'admin/index.html'; return; } // clinic admin: its own page with its own login
+    if (name === 'admin') { location.href = 'admin/index.html#admin'; return; } // clinic admin: its own page with its own login
     if (location.hash.slice(1) === name) show(name);
     else location.hash = name;
   }
@@ -360,14 +379,14 @@
 
   // ── Menu ─────────────────────────────────────────────────────────
   const NAV = [
-    ['home', '🏠', 'Dashboard'], ['s1', '➕', 'New diet chart'], ['patients', '👥', 'Patients'], ['charts', '📋', 'Saved charts'],
-    ['upload', '📤', 'Upload previous chart'], ['recipes', '🍲', 'Recipes'], ['library', '🥗', 'Food library'], ['settings', '⚙️', 'Settings & backup'],
-    ['admin', '🏥', 'Clinic admin'],
+    ['home', 'home', 'Dashboard'], ['s1', 'plus', 'New diet chart'], ['patients', 'users', 'Patients'], ['charts', 'charts', 'Saved charts'],
+    ['upload', 'upload', 'Upload previous chart'], ['recipes', 'recipes', 'Recipes'], ['library', 'foods', 'Food library'], ['settings', 'settings', 'Settings & backup'],
+    ['admin', 'clinic', 'Clinic admin'],
   ];
-  $('#drawer-nav').innerHTML = NAV.map(([k, icon, label]) => `<button type="button" data-go="${k}" data-nav="${k}"><span class="nav-ico">${icon}</span>${esc(label)}</button>`).join('');
-  const TABS = [['home', '🏠', 'Home'], ['patients', '👥', 'Patients'], ['s1', '➕', 'New'], ['charts', '📋', 'Charts'], ['recipes', '🍲', 'Recipes']];
+  $('#drawer-nav').innerHTML = NAV.map(([k, icon, label]) => `<button type="button" data-go="${k}" data-nav="${k}"><span class="nav-ico">${ui(icon)}</span>${esc(label)}</button>`).join('');
+  const TABS = [['home', 'home', 'Home'], ['patients', 'users', 'Patients'], ['s1', 'plus', 'New'], ['charts', 'charts', 'Charts'], ['recipes', 'recipes', 'Recipes']];
   function renderTabs() {
-    $('#tab-bar').innerHTML = TABS.map(([k, icon, label]) => `<button type="button" class="tab${k === 's1' ? ' tab-new' : ''}" data-go="${k}" aria-current="${k === current}"><span>${icon}</span><small>${label}</small></button>`).join('');
+    $('#tab-bar').innerHTML = TABS.map(([k, icon, label]) => `<button type="button" class="tab${k === 's1' ? ' tab-new' : ''}" data-go="${k}" aria-current="${k === current}"><span>${ui(icon)}</span><small>${label}</small></button>`).join('');
     $$('#drawer-nav button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.nav === current)));
   }
   function openDrawer() { $('#drawer').hidden = false; $('#scrim').hidden = false; requestAnimationFrame(() => document.body.classList.add('drawer-open')); }
@@ -377,17 +396,17 @@
 
   // ── Dashboard ────────────────────────────────────────────────────
   const QUICK = [
-    ['s1', '➕', 'New chart', 'Step by step', 'q-blue'],
-    ['nextweek', '🗓️', 'Next week', 'Full food change', 'q-green'],
-    ['upload', '📤', 'Upload PDF', 'Read last chart', 'q-orange'],
-    ['patients', '👥', 'Patients', 'History & follow-up', 'q-purple'],
-    ['charts', '📋', 'Saved charts', 'Edit or reprint', 'q-teal'],
-    ['recipes', '🍲', 'Recipes', `${DISHES.length} dishes`, 'q-red'],
-    ['library', '🥗', 'Food library', `${num(DB.FOODS.length)} foods`, 'q-lime'],
-    ['settings', '⚙️', 'Settings', 'Dietitian & backup', 'q-grey'],
-    ['admin', '🏥', 'Clinic admin', 'Sales · OPD · Leads', 'q-brand'],
+    ['s1', 'plus', 'New chart', 'Step by step', 'q-blue'],
+    ['nextweek', 'calendar', 'Next week', 'Full food change', 'q-green'],
+    ['upload', 'upload', 'Upload PDF', 'Read last chart', 'q-orange'],
+    ['patients', 'users', 'Patients', 'History & follow-up', 'q-purple'],
+    ['charts', 'charts', 'Saved charts', 'Edit or reprint', 'q-teal'],
+    ['recipes', 'recipes', 'Recipes', `${DISHES.length} dishes`, 'q-red'],
+    ['library', 'foods', 'Food library', `${num(DB.FOODS.length)} foods`, 'q-lime'],
+    ['settings', 'settings', 'Settings', 'Dietitian & backup', 'q-grey'],
+    ['admin', 'clinic', 'Clinic admin', 'Sales · OPD · Leads', 'q-brand'],
   ];
-  $('#quick-grid').innerHTML = QUICK.map(([k, icon, label, sub, cls]) => `<button type="button" class="quick ${cls}" ${k === 'nextweek' ? 'id="quick-next"' : `data-go="${k}"`}><span class="q-ico">${icon}</span><b>${esc(label)}</b><small>${esc(sub)}</small></button>`).join('');
+  $('#quick-grid').innerHTML = QUICK.map(([k, icon, label, sub, cls]) => `<button type="button" class="quick ${cls}" ${k === 'nextweek' ? 'id="quick-next"' : `data-go="${k}"`}><span class="q-ico">${ui(icon)}</span><b>${esc(label)}</b><small>${esc(sub)}</small></button>`).join('');
   $('#quick-next').addEventListener('click', () => {
     if (plan) return nextWeek();
     toast('Open a saved chart (or upload last week\'s PDF) to make next week\'s chart.');
@@ -419,9 +438,9 @@
     const patients = store.listPatients();
     const charts = store.listCharts();
     $('#kpis').innerHTML = [
-      ['👥', num(patients.length), 'Patients'], ['📋', num(charts.length), 'Charts'],
-      ['🍲', num(DISHES.length), 'Recipes'], ['🥗', num(DB.FOODS.length), 'Foods'],
-    ].map(([i, v, l]) => `<div class="kpi"><span>${i}</span><b>${v}</b><small>${l}</small></div>`).join('');
+      ['users', num(patients.length), 'Patients'], ['charts', num(charts.length), 'Charts'],
+      ['recipes', num(DISHES.length), 'Recipes'], ['foods', num(DB.FOODS.length), 'Foods'],
+    ].map(([i, v, l]) => `<div class="kpi"><span>${ui(i)}</span><b>${v}</b><small>${l}</small></div>`).join('');
     $('#continue-chart').hidden = !plan;
     if (plan) {
       $('#continue-title').textContent = profile.name || 'Generic chart';
@@ -729,15 +748,15 @@
   $('#pdf-anon').addEventListener('click', () => printChart('anon'));
   $('#next-week').addEventListener('click', () => nextWeek());
   $('#more').addEventListener('click', () => openSheet([
-    ['recipes', '📖', 'Add recipes to the PDF', 'Printed on A4 pages after the chart'],
-    ['recipes-print', '🖨️', 'Print recipes only (A4)', 'Every dish in this chart, or the ones you added'],
-    ['csv', '📊', 'Export CSV', 'Open in Excel / Google Sheets'],
-    ['copy', '📄', 'Save as a copy', 'Keep this version and edit a new one'],
-    ['patient', '👤', 'Patient history', 'All charts of this patient'],
+    ['recipes', 'book', 'Add recipes to the PDF', 'Printed on A4 pages after the chart'],
+    ['recipes-print', 'printer', 'Print recipes only (A4)', 'Every dish in this chart, or the ones you added'],
+    ['csv', 'table', 'Export CSV', 'Open in Excel / Google Sheets'],
+    ['copy', 'copy', 'Save as a copy', 'Keep this version and edit a new one'],
+    ['patient', 'user', 'Patient history', 'All charts of this patient'],
   ]));
 
   function openSheet(items) {
-    $('#sheet-body').innerHTML = items.map(([k, icon, label, sub]) => `<button type="button" class="sheet-item" data-sheet="${k}"><span>${icon}</span><span><b>${esc(label)}</b><small>${esc(sub)}</small></span></button>`).join('') + '<button type="button" class="btn ghost sheet-cancel" data-close>Cancel</button>';
+    $('#sheet-body').innerHTML = items.map(([k, icon, label, sub]) => `<button type="button" class="sheet-item" data-sheet="${k}"><span class="sheet-ico">${ui(icon)}</span><span><b>${esc(label)}</b><small>${esc(sub)}</small></span></button>`).join('') + '<button type="button" class="btn ghost sheet-cancel" data-close>Cancel</button>';
     if (actionSheet.showModal) actionSheet.showModal(); else actionSheet.setAttribute('open', '');
   }
   const closeDialog = (d) => { if (d.close) d.close(); else d.removeAttribute('open'); };

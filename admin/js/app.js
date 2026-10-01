@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.1';
+  const APP_VERSION = '3.2';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -49,7 +49,8 @@
   const ICON_LEADS = '<path d="M3 4h18l-7 8v6l-4 2v-8z"/>';
   const ICON_INV = '<rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/><path d="M9 7h6M9 17h6"/>';
   const NAV = [
-    ['dashboard', 'Dashboard', '<path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 4v4h6V4z"/>', 'Overview'],
+    ['home', 'Home', '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/>', 'Overview'],
+    ['dashboard', 'Dashboard', '<path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 4v4h6V4z"/>'],
     ['today', 'Today Summary', ICON_TODAY],
     ['appointments', 'OPD Appointments', ICON_CAL, 'Patients & OPD'],
     ['leads', 'Leads (CRM)', ICON_LEADS],
@@ -72,7 +73,7 @@
     ['about', "What's new", '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>'],
   ];
   // Access: Super Admin opens everything; Admin, Manager and Front Desk follow Settings → Roles.
-  const ALL = NAV.map((n) => n[0]).concat('purchase-new');
+  const ALL = NAV.map((n) => n[0]).concat('purchase-new', 'diet');
   const EXTRA = { purchases: ['purchase-new'] };
   const TITLES = { 'purchase-new': 'Purchase Entry' };
   let me = null; // signed-in login
@@ -84,11 +85,13 @@
     if (r === 'super') return ALL;
     const list = ((set().perms || {})[r] || A.DEFAULT_PERMS[r] || { screens: [] }).screens.slice();
     list.forEach((id) => (EXTRA[id] || []).forEach((x) => list.push(x)));
+    if (list.includes('diet')) list.push('home'); // the split Diet charts | Clinic admin start page
     return list.concat('about');
   }
   const can = (id) => !!role && allowed(role).includes(id);
   const canDelete = () => role === 'super' || !!((set().perms || {})[role] || {}).del;
-  const home = () => ['dashboard', 'today', 'appointments', 'leads'].find(can) || 'about';
+  const adminHome = () => ['dashboard', 'today', 'appointments', 'leads', 'content'].find(can) || NAV.map((n) => n[0]).find((id) => id !== 'home' && can(id)) || 'about';
+  const home = () => (can('home') ? 'home' : adminHome());
   let changedScreen = true;
 
   function go(id, p, fromHistory) {
@@ -125,6 +128,7 @@
       : id === 'inventory' && lowN ? `<span class="badge bad">${lowN}</span>`
         : id === 'appointments' && todayN ? `<span class="badge info">${todayN}</span>`
           : id === 'leads' && leadsDue ? `<span class="badge warn">${leadsDue}</span>` : '');
+    const sd = $('.side-diet'); if (sd) sd.hidden = !can('diet');
     const items = NAV.filter((n) => can(n[0]));
     $('#nav').innerHTML = items.map(([id, label, icon, group]) => `${group ? `<div class="nav-group">${group}</div>` : ''}<button type="button" data-go="${id}" class="${screen === id || (id === 'purchases' && screen === 'purchase-new') ? 'on' : ''}">${svg(icon)}<span>${label}</span>${badge(id)}</button>`).join('');
     const tabs = (can('dashboard') ? TAB_ORDER : DESK_TABS).filter(can);
@@ -306,6 +310,11 @@
     const first = $('input:not([type=checkbox]), select, textarea', $('#modal-body'));
     if (first) setTimeout(() => first.focus(), 30);
   }
+  // Sign-in details shown once after creating a login or resetting a password.
+  function showCreds(a, pass, title) {
+    openForm({ title, submitLabel: false, html: `<p style="margin-top:0">Give these sign-in details to <b>${esc(a.name)}</b>. The password is not shown again.</p>
+      <div class="creds"><div><small>User ID</small><b>${esc(a.username)}</b></div><div><small>Password</small><b>${esc(pass)}</b></div></div>` });
+  }
   function confirmBox(title, message, okLabel) {
     return new Promise((resolve) => {
       openForm({ title, html: `<p>${esc(message)}</p>`, submitLabel: okLabel || 'Delete', danger: true, onSubmit: () => resolve(true) });
@@ -423,6 +432,29 @@
       </section>`;
   };
 
+  // ── Home: Diet charts | Clinic admin, half the screen each ──
+  SUBS.home = () => `${me.name} · ${A.ROLES[role]}`;
+  SCREENS.home = () => {
+    const h = new Date().getHours();
+    const hi = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
+    let charts = 0; let patients = 0;
+    try { charts = (JSON.parse(localStorage.getItem('primefit.charts.v1') || '[]') || []).length; patients = (JSON.parse(localStorage.getItem('primefit.patients.v1') || '[]') || []).length; } catch (_) { /* ignore */ }
+    const d = can('dashboard') ? admin.dashboard({ from: admin.today(), to: admin.today() }) : null;
+    return `<div class="home-split">
+      <p class="home-hi">${hi}, <b>${esc(me.name)}</b><span>Choose where to go</span></p>
+      <a class="half half-diet" href="../index.html" data-diet>
+        <span class="half-ic">${svg('<path d="M12 21c-5 0-8-3.5-8-8 0-3 2-5 4.5-5 1.5 0 2.5.7 3.5.7s2-.7 3.5-.7C18 8 20 10 20 13c0 4.5-3 8-8 8z"/><path d="M12 8.7c0-2.5 1.2-4.2 3.5-5"/>')}</span>
+        <b>Diet Charts</b><small>Diet charts, recipes and patient follow-ups in 10 languages</small>
+        <span class="half-stats">${charts ? `<i>${num(charts)} charts</i>` : ''}${patients ? `<i>${num(patients)} patients</i>` : ''}<i>10 languages</i></span>
+        <span class="half-go">Open diet charts ${svg('<path d="M5 12h14M13 6l6 6-6 6"/>')}</span></a>
+      <button type="button" class="half half-admin" data-go="${adminHome()}">
+        <span class="half-ic">${svg('<path d="M4 21V7l8-4 8 4v14"/><path d="M10 21v-5h4v5M12 8v5M9.5 10.5h5"/>')}</span>
+        <b>Clinic Admin</b><small>OPD, sales, stock, team, expenses, content and reports</small>
+        <span class="half-stats">${d ? `<i>Today ${inr(d.sales.revenue)}</i><i>${num(d.appointments.total - d.appointments.cancelled)} OPD</i>` : ''}${can('content') ? `<i>${num(admin.contentStats(null, null, myEditor()).remaining)} videos to post</i>` : ''}</span>
+        <span class="half-go">Open admin ${svg('<path d="M5 12h14M13 6l6 6-6 6"/>')}</span></button>
+    </div>`;
+  };
+
   // Scheduled-post reminders (today and overdue) on Dashboard and Today.
   const reminderBanner = (c) => {
     if (!can('content') || !(c.dueToday.length + c.overdue.length)) return '';
@@ -469,31 +501,57 @@
   const contentF = { status: '', editor: '', platform: '' };
   const CONTENT_CLS = { idea: 'warn', edited: 'info', scheduled: 'violet', posted: 'ok' };
   const contentBadge = (st) => `<span class="badge ${CONTENT_CLS[st]}">${A.CONTENT_STATUS[st]}</span>`;
-  const filteredContent = () => [...S().content].filter((c) => (!contentF.status || c.status === contentF.status) && (!contentF.editor || c.editor === contentF.editor)
-    && (!contentF.platform || c.platform === contentF.platform) && (inR(c.date || '', range()) || inR(c.postedDate || '', range()) || inR(c.scheduledDate || '', range())))
+  const myEditor = () => (role === 'editor' || (ownOnly() && me.editorId) ? (me.editorId || '__none') : '');
+  const filteredContent = () => [...S().content].filter((c) => (!myEditor() || c.editorId === myEditor()) && (!contentF.status || c.status === contentF.status) && (!contentF.editor || c.editor === contentF.editor)
+    && (!contentF.platform || c.platform === contentF.platform) && (inR(c.date || '', range()) || inR(c.postedDate || '', range()) || inR(c.scheduledDate || '', range()) || inR(c.receivedDate || '', range())))
     .sort((a, b) => ((a.scheduledDate || a.date || '') < (b.scheduledDate || b.date || '') ? 1 : -1));
   SUBS.content = () => `Videos · ${periodLabel()}`;
   SCREENS.content = () => {
-    const st = admin.contentStats(range());
+    const st = admin.contentStats(range(), null, myEditor());
     const list = filteredContent();
     const editors = [...new Set(S().content.map((c) => c.editor).filter(Boolean))];
-    const row = (c) => `<tr><td><b>${esc(c.title)}</b><span class="sub">${esc([c.platform, c.editor && `Editor: ${c.editor}`].filter(Boolean).join(' · '))}</span></td>
+    const isEd = role === 'editor';
+    const edCards = (isEd ? S().editors.filter((x) => x.id === me.editorId) : S().editors).map((x) => {
+      const mine = S().content.filter((c) => c.editorId === x.id);
+      const acc = S().accounts.find((a) => a.editorId === x.id);
+      return `<div class="doc-card ${x.disabled ? 'off' : ''}"><div class="doc-av ed">${esc((x.name[0] || 'E').toUpperCase())}</div>
+        <div class="doc-main"><b>${esc(x.name)}</b><small>${esc(x.mobile || 'Video editor')}</small>
+          <div class="meta"><span class="badge teal">${inr(admin.videoFee(x))} / video</span>${acc ? `<span class="badge violet">Login: ${esc(acc.username)}</span>` : ''}${x.disabled ? '<span class="badge">Disabled</span>' : ''}</div></div>
+        <div class="doc-side"><b>${num(mine.filter((c) => c.status !== 'idea').length)}</b><small>received · ${num(mine.filter((c) => c.status === 'posted').length)} posted</small><small>Fees ${inr(mine.reduce((a, c) => a + (Number(c.cost) || 0), 0))}</small>
+          ${isEd ? '' : `<span class="acts"><button class="btn xs" data-act="edit-editor" data-id="${x.id}">Edit</button>${role === 'super' && !acc ? ` <button class="btn xs" data-act="editor-login" data-id="${x.id}">Give login</button>` : ''}${canDelete() ? ` <button class="btn xs danger" data-act="del-editor" data-id="${x.id}">Delete</button>` : ''}</span>`}</div></div>`;
+    }).join('');
+    const row = (c) => `<tr><td><b>${esc(c.title)}</b><span class="sub">${esc([c.platform, c.editor && `Editor: ${c.editor}`, c.receivedDate && `Received ${fdate(c.receivedDate)}`].filter(Boolean).join(' · '))}</span></td>
       <td>${contentBadge(c.status)}</td>
       <td>${c.status === 'posted' ? `Posted ${fdate(c.postedDate)}` : c.scheduledDate ? `${fdate(c.scheduledDate)}${c.scheduledTime ? ` ${time12(c.scheduledTime)}` : ''}${c.status === 'scheduled' && c.scheduledDate < admin.today() ? ' <span class="badge bad">Overdue</span>' : ''}` : '—'}</td>
       <td class="r">${c.cost ? inr(c.cost) : '–'}</td>
-      <td class="acts">${c.status !== 'posted' ? `<button class="btn xs success" data-act="content-posted" data-id="${c.id}">✓ Posted</button> ` : ''}<button class="btn xs" data-act="edit-content" data-id="${c.id}">Edit</button>${canDelete() ? ` <button class="btn xs danger" data-act="del-content" data-id="${c.id}">Delete</button>` : ''}</td></tr>`;
+      <td class="acts">${c.status === 'idea' ? `<button class="btn xs" data-act="content-received" data-id="${c.id}">✓ Received</button> ` : ''}${c.status !== 'posted' && c.status !== 'idea' ? `<button class="btn xs success" data-act="content-posted" data-id="${c.id}">✓ Posted</button> ` : ''}<button class="btn xs" data-act="edit-content" data-id="${c.id}">Edit</button>${canDelete() ? ` <button class="btn xs danger" data-act="del-content" data-id="${c.id}">Delete</button>` : ''}</td></tr>`;
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('content')}</div>
       ${reminderBanner(st)}
-      <div class="kpis" style="margin-bottom:14px">${kpi('Total videos', num(st.total))}${kpi('To edit', num(st.toEdit), '', 'gold')}${kpi('Total edited', num(st.edited), '', 'teal')}${kpi('Total posted', num(st.posted), '', 'good')}${kpi('Remaining to post', num(st.remaining), `${st.scheduled} scheduled`, st.remaining ? 'violet' : '')}</div>
+      <div class="kpis" style="margin-bottom:14px">${kpi('Total videos', num(st.total))}${kpi('With editor', num(st.toEdit), '', 'gold')}${kpi('Received from editor', num(st.edited), '', 'teal')}${kpi('Total posted', num(st.posted), '', 'good')}${kpi('Remaining to post', num(st.remaining), `${st.scheduled} scheduled`, st.remaining ? 'violet' : '')}${kpi('Editor fees', inr(st.fees), `${inr(set().videoFee != null ? set().videoFee : 150)} per video default`)}</div>
+      <div class="card"><h2><span class="ic violet">${svg('<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2"/>')}</span>${isEd ? 'My profile' : 'Editor profiles'}<span class="sp"></span>${isEd ? '' : '<button class="btn sm primary" data-act="add-editor">+ Add editor</button>'}</h2>
+        ${edCards ? `<div class="doc-list">${edCards}</div>` : `<p class="hint" style="margin:0">${isEd ? 'Your login is not linked to an editor profile yet. Ask the Super Admin.' : 'Add your video editors here, with their fee per video. Give an editor a login to let them update their own videos.'}</p>`}</div>
       <div class="filters"><div class="row">
         <select data-cfilter="status" aria-label="Status">${opt('', 'All statuses', contentF.status)}${Object.entries(A.CONTENT_STATUS).map(([k, l]) => opt(k, l, contentF.status)).join('')}</select>
         <select data-cfilter="editor" aria-label="Editor">${opt('', 'All editors', contentF.editor)}${editors.map((x) => opt(x, x, contentF.editor)).join('')}</select>
         <select data-cfilter="platform" aria-label="Platform">${opt('', 'All platforms', contentF.platform)}${set().lists.platforms.map((x) => opt(x, x, contentF.platform)).join('')}</select>
         <button class="btn primary" data-act="add-content">+ Add video</button></div></div>
       ${st.upcoming.length ? `<div class="card"><h2><span class="ic violet">${svg(ICON_CAL)}</span>Scheduled posts</h2><div class="alerts">${st.upcoming.map((c) => `<div class="alert"><b>${esc(c.title)}</b><span class="badge violet">${fdate(c.scheduledDate)}${c.scheduledTime ? ` · ${time12(c.scheduledTime)}` : ''}${c.platform ? ` · ${esc(c.platform)}` : ''}</span></div>`).join('')}</div></div>` : ''}
-      <div class="card">${table(['Video', 'Status', 'Schedule / posted', '>Edit cost', ''], list.map(row))}</div>
-      ${st.byEditor.length ? `<div class="card"><h2>By editor</h2>${table(['Editor', '>Edited', '>Posted', '>Editing cost'], st.byEditor.map((x) => `<tr><td>${esc(x.name)}</td><td class="r">${num(x.edited)}</td><td class="r">${num(x.posted)}</td><td class="r">${inr(x.cost)}</td></tr>`))}</div>` : ''}`;
+      <div class="card">${table(['Video', 'Status', 'Schedule / posted', '>Editor fee', ''], list.map(row))}</div>
+      ${st.byEditor.length ? `<div class="card"><h2>By editor</h2>${table(['Editor', '>Received', '>Posted', '>Fees'], st.byEditor.map((x) => `<tr><td>${esc(x.name)}</td><td class="r">${num(x.edited)}</td><td class="r">${num(x.posted)}</td><td class="r">${inr(x.cost)}</td></tr>`))}</div>` : ''}`;
   };
+  function editorForm(x) {
+    openForm({
+      title: x ? `Edit ${x.name}` : 'Add video editor',
+      fields: [
+        { name: 'name', label: 'Editor name', required: true, value: x ? x.name : '' },
+        { name: 'mobile', label: 'Mobile', type: 'tel', value: x ? x.mobile : '' },
+        { name: 'fee', label: 'Fee per video (₹)', type: 'number', value: x && x.fee != null ? x.fee : '', hint: `Blank = default ${inr(set().videoFee != null ? set().videoFee : 150)}` },
+        { name: 'disabled', label: 'Disabled', type: 'checkbox', value: x ? x.disabled : false },
+        { name: 'notes', label: 'Notes', value: x ? x.notes : '', span: true },
+      ],
+      onSubmit: (v) => { admin.saveEditor({ ...(x ? { id: x.id } : {}), ...v }); return 'Editor saved'; },
+    });
+  }
   function contentForm(c) {
     openForm({
       title: c ? 'Edit video' : 'Add video',
@@ -501,9 +559,10 @@
         { name: 'title', label: 'Video title', required: true, value: c ? c.title : '', span: true, placeholder: 'Patient transformation reel' },
         { name: 'status', label: 'Status', type: 'select', value: c ? c.status : 'idea', options: Object.entries(A.CONTENT_STATUS) },
         { name: 'platform', label: 'Platform', type: 'list', list: 'platforms', value: c ? c.platform : 'Instagram', blank: 'Choose…' },
-        { name: 'editor', label: 'Editor', value: c ? c.editor : '', placeholder: 'Who edited it' },
-        { name: 'cost', label: 'Editing cost (₹)', type: 'number', value: c ? c.cost || '' : '', hint: 'Booked as an "Editing" expense' },
-        { name: 'date', label: 'Added on', type: 'date', value: c ? c.date : admin.today() },
+        { name: 'editorId', label: 'Editor (profile)', type: 'select', value: c ? c.editorId || '' : (role === 'editor' ? me.editorId || '' : ''), options: [['', c && c.editor && !c.editorId ? `${c.editor} (no profile)` : 'No editor'], ...S().editors.filter((x) => !x.disabled || (c && c.editorId === x.id)).filter((x) => role !== 'editor' || x.id === me.editorId).map((x) => [x.id, `${x.name} · ${inr(admin.videoFee(x))}/video`])] },
+        { name: 'cost', label: 'Editor fee for this video (₹)', type: 'number', value: c && c.cost ? c.cost : '', hint: 'Blank = the editor\'s fee per video when received. Booked as an "Editing" expense' },
+        { name: 'date', label: 'Given to editor on', type: 'date', value: c ? c.date : admin.today() },
+        { name: 'receivedDate', label: 'Received from editor on', type: 'date', value: c ? c.receivedDate || '' : '' },
         { name: 'scheduledDate', label: 'Post on (reminder)', type: 'date', value: c ? c.scheduledDate : '' },
         { name: 'scheduledTime', label: 'Post time', type: 'time', value: c ? c.scheduledTime : '' },
         { name: 'postedDate', label: 'Posted on', type: 'date', value: c ? c.postedDate : '' },
@@ -511,7 +570,8 @@
         { name: 'notes', label: 'Notes', value: c ? c.notes : '', span: true },
       ],
       onSubmit: (v) => {
-        const status = v.postedDate ? 'posted' : v.status === 'posted' || v.status === 'idea' ? v.status : v.scheduledDate ? 'scheduled' : v.status;
+        let status = v.postedDate ? 'posted' : v.status === 'posted' || v.status === 'idea' ? v.status : v.scheduledDate ? 'scheduled' : v.status;
+        if (status === 'idea' && v.receivedDate) status = v.scheduledDate ? 'scheduled' : 'edited';
         admin.saveContent({ ...(c ? { id: c.id } : {}), ...v, status });
         return 'Video saved';
       },
@@ -570,7 +630,11 @@
   const leadF = { tab: 'open', q: '', status: '', source: '', priority: '', owner: '' };
   const PRIO_CLS = { hot: 'bad', warm: 'gold', cold: 'info' };
   // Front Desk sees their own leads and unassigned ones; Admin and Manager see everyone's.
+  // "Own data only" logins (and Front Desk for leads) see only their own records.
+  const ownOnly = () => !!(me && me.ownOnly && role !== 'super');
+  const myMember = () => (me && me.memberId) || '__none';
   function myLeadFilter() {
+    if (ownOnly()) return (l) => l.assignedTo === me.id || l.createdBy === me.name;
     if (role !== 'desk') return null;
     return (l) => !l.assignedTo || l.assignedTo === me.id || l.createdBy === me.name;
   }
@@ -996,7 +1060,7 @@
   // Sales list
   let salesFilter = { type: '', q: '', member: '', pt: '' };
   const inR = (date, r) => !r || ((!r.from || date >= r.from) && (!r.to || date <= r.to));
-  const filteredSales = () => S().sales.filter((s) => (!salesFilter.type || s.type === salesFilter.type)
+  const filteredSales = () => S().sales.filter((s) => (!ownOnly() || s.splits.some((x) => x.memberId === myMember())) && (!salesFilter.type || s.type === salesFilter.type)
     && inR(s.date, range())
     && (!salesFilter.member || s.splits.some((x) => x.memberId === salesFilter.member))
     && (!salesFilter.pt || s.patientType === salesFilter.pt)
@@ -1088,7 +1152,7 @@
     const planRows = set().dietPlans.map((p) => `<tr class="${p.disabled ? 'off' : ''}"><td>${esc(p.name)}</td>
       <td class="r">${p.price ? inr(p.price) : '<span class="badge warn">Set price</span>'}</td><td class="r">${inr(p.incentive)}</td><td></td>
       <td>${p.disabled ? '<span class="badge">Disabled</span>' : '<span class="badge ok">Active</span>'}</td>
-      <td class="acts"><button class="btn sm" data-act="edit-plan" data-id="${p.id}">Edit</button> <button class="btn sm" data-act="toggle-plan" data-id="${p.id}">${p.disabled ? 'Enable' : 'Disable'}</button></td></tr>`);
+      <td class="acts"><span class="move"><button class="btn xs" data-act="plan-up" data-id="${p.id}" aria-label="Move up">▲</button><button class="btn xs" data-act="plan-down" data-id="${p.id}" aria-label="Move down">▼</button></span> <button class="btn sm" data-act="edit-plan" data-id="${p.id}">Edit</button> <button class="btn sm" data-act="toggle-plan" data-id="${p.id}">${p.disabled ? 'Enable' : 'Disable'}</button>${canDelete() ? ` <button class="btn sm danger" data-act="del-plan" data-id="${p.id}">Delete</button>` : ''}</td></tr>`);
     const head = ['Product', '>Price', '>Incentive', '>Stock', 'Status', ''];
     return `<div class="toolbar"><span class="grow"></span>${exportBtns('products')}</div>
       <div class="card"><h2>Injections<span class="sp"></span><button class="btn sm" data-act="add-product" data-kind="injection">+ Add injection</button></h2>${table(head, itemRows('injection'))}</div>
@@ -1187,7 +1251,9 @@
   // Purchases
   let draft = null; // purchase being entered
   let purchaseQ = '';
-  const newDraft = () => ({ vendor: '', invoiceNo: '', date: admin.today(), lines: [{ itemId: '', qty: 1, rate: '', gst: 12, batch: '', expiry: '' }] });
+  const gstDefault = () => (set().defaultGst != null ? set().defaultGst : 12);
+  const newDraft = () => ({ vendor: '', invoiceNo: '', date: admin.today(), gstOff: false, lines: [{ itemId: '', qty: 1, rate: '', gst: gstDefault(), batch: '', expiry: '' }] });
+  const draftLineTotal = (l) => admin.lineTotal(draft && draft.gstOff ? { ...l, gst: 0 } : l);
   const filteredPurchases = () => [...S().purchases].sort((a, b) => (a.date < b.date ? 1 : -1)).filter((p) => inR(p.date, range())
     && (!purchaseQ || `${p.vendor} ${p.invoiceNo} ${p.lines.map((l) => l.name).join(' ')}`.toLowerCase().includes(purchaseQ.toLowerCase())));
   SCREENS.purchases = () => {
@@ -1213,8 +1279,8 @@
       <label class="f">Qty<input type="number" min="0" step="1" data-line="${i}" data-k="qty" value="${esc(l.qty)}"></label>
       <label class="f">Expiry<input data-line="${i}" data-k="expiry" value="${esc(l.expiry)}" placeholder="2027-06"></label>
       <label class="f">Rate (₹)<input type="number" min="0" step="any" data-line="${i}" data-k="rate" value="${esc(l.rate)}"></label>
-      <label class="f">GST %<input type="number" min="0" step="any" data-line="${i}" data-k="gst" value="${esc(l.gst)}"></label>
-      <label class="f">Total<input disabled data-total="${i}" value="${inr(admin.lineTotal(l))}"></label>
+      ${draft.gstOff ? '' : `<label class="f">GST % (type any)<input type="number" min="0" max="100" step="any" data-line="${i}" data-k="gst" value="${esc(l.gst)}" list="gst-rates"></label>`}
+      <label class="f">Total<input disabled data-total="${i}" value="${inr(draftLineTotal(l))}"></label>
       <button type="button" class="icon-btn" data-act="del-line" data-i="${i}" aria-label="Remove line">✕</button></div>`).join('');
     return `<form class="card form-card" id="purchase-form" autocomplete="off">
       <h2>${draft.id ? 'Edit purchase' : 'Invoice details'}</h2>
@@ -1224,6 +1290,8 @@
         <label class="f">Invoice number<input data-k="invoiceNo" value="${esc(draft.invoiceNo)}"></label>
         <label class="f">Invoice date<input type="date" data-k="date" value="${esc(draft.date)}"></label>
       </div>
+      <datalist id="gst-rates">${[0, 5, 12, 18, 28].map((g) => `<option value="${g}">`).join('')}</datalist>
+      <label class="check"><input type="checkbox" id="gst-on" ${draft.gstOff ? '' : 'checked'}> GST on this invoice <span class="hint">(turn off for bills without GST; GST % is typed per line)</span></label>
       <div class="lines">${lineHtml}</div>
       <div><button type="button" class="btn sm" data-act="add-line">+ Add line</button></div>
       <div class="summary" id="purchase-total"></div>
@@ -1232,10 +1300,10 @@
     </form>`;
   };
   function purchaseTotal() {
-    const total = draft.lines.reduce((a, l) => a + admin.lineTotal(l), 0);
+    const total = draft.lines.reduce((a, l) => a + draftLineTotal(l), 0);
     const qty = draft.lines.reduce((a, l) => a + (l.itemId ? Number(l.qty) || 0 : 0), 0);
     const el = $('#purchase-total');
-    if (el) el.innerHTML = `Stock in: <b>+${num(qty)}</b><span>·</span>Invoice total (incl. GST): <b>${inr(total)}</b>${set().purchaseExpense ? '<span>·</span>Booked as a purchase expense' : ''}`;
+    if (el) el.innerHTML = `Stock in: <b>+${num(qty)}</b><span>·</span>Invoice total${draft.gstOff ? ' (no GST)' : ' (incl. GST)'}: <b>${inr(total)}</b>${set().purchaseExpense ? '<span>·</span>Booked as a purchase expense' : ''}`;
   }
   AFTER['purchase-new'] = () => {
     const form = $('#purchase-form');
@@ -1244,10 +1312,11 @@
       if (t.dataset.line != null) {
         draft.lines[t.dataset.line][t.dataset.k] = t.value;
         const tot = $(`[data-total="${t.dataset.line}"]`);
-        if (tot) tot.value = inr(admin.lineTotal(draft.lines[t.dataset.line]));
+        if (tot) tot.value = inr(draftLineTotal(draft.lines[t.dataset.line]));
       } else if (t.dataset.k) draft[t.dataset.k] = t.value;
       purchaseTotal();
     });
+    $('#gst-on').addEventListener('change', (e) => { draft.gstOff = !e.target.checked; render(); });
     form.addEventListener('submit', (e) => {
       e.preventDefault();
       try { finishPurchase(); } catch (err) { $('#purchase-err').textContent = err.message; }
@@ -1302,6 +1371,7 @@
   let ledgerMember = '';
   SCREENS.incentives = () => {
     const inc = set().incentive;
+    if (ownOnly()) ledgerMember = myMember();
     const ledger = admin.incentiveLedger(range()).filter((l) => !ledgerMember || l.memberId === ledgerMember);
     const totals = {};
     ledger.forEach((l) => { totals[l.name] = (totals[l.name] || 0) + l.amount; });
@@ -1356,17 +1426,22 @@
     const fin = admin.financialReport(range());
     const sm = admin.expenseSummary(range());
     const names = [...new Set([...set().lists.expenseNames, ...S().expenses.map((e) => e.name).filter(Boolean)])];
-    const mini = (title, rows, key) => `<section class="card"><h2>${title}</h2>${table(['Name', '>Entries', '>Total'], rows.map((x) => `<tr class="${key && (key === 'cat' ? expenseCat : expenseName) === x.name ? 'sel' : ''}"><td>${key ? `<button class="link" data-act="exp-pick" data-key="${key}" data-name="${esc(x.name)}">${esc(x.name)}</button>` : esc(x.name)}</td><td class="r">${num(x.count)}</td><td class="r"><b>${inr(x.amount)}</b></td></tr>`),
-      rows.length ? `<td>Total</td><td class="r">${num(rows.reduce((a, x) => a + x.count, 0))}</td><td class="r">${inr(rows.reduce((a, x) => a + x.amount, 0))}</td>` : '')}</section>`;
+    // Each category / name can be switched off so it is not counted in totals and profit.
+    const mini = (title, rows, key) => `<section class="card"><h2>${title}</h2>${table(['Name', '>Entries', '>Total', ...(key ? ['Count'] : [])], rows.map((x) => `<tr class="${key && (key === 'cat' ? expenseCat : expenseName) === x.name ? 'sel' : ''} ${x.counted === false ? 'off' : ''}"><td>${key ? `<button class="link" data-act="exp-pick" data-key="${key}" data-name="${esc(x.name)}">${esc(x.name)}</button>` : esc(x.name)}</td><td class="r">${num(x.count)}</td><td class="r"><b>${inr(x.amount)}</b></td>${key ? `<td><button type="button" class="switch ${x.counted !== false ? 'on' : ''}" data-act="exp-count" data-on="${x.counted !== false ? 1 : 0}" data-kind="${key === 'cat' ? 'category' : 'name'}" data-name="${esc(x.name)}" aria-pressed="${x.counted !== false}" title="Count in totals and profit"><i></i></button></td>` : ''}</tr>`),
+      rows.length ? `<td>Counted total</td><td class="r">${num(rows.filter((x) => x.counted !== false).reduce((a, x) => a + x.count, 0))}</td><td class="r">${inr(rows.filter((x) => x.counted !== false).reduce((a, x) => a + x.amount, 0))}</td>${key ? '<td></td>' : ''}` : '')}</section>`;
+    const founders = sm.byBoth.filter((x) => x.name.startsWith('Founder · ')).map((x) => ({ ...x, name: x.name.slice(10) }));
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('expenses')}</div>
-      <div class="kpis" style="margin-bottom:14px">${kpi('Revenue', inr(fin.revenue))}${kpi('Expenses', inr(fin.expenses), plural(sm.count, 'entry', 'entries'), 'gold')}${kpi('Profit', inr(fin.profit), 'Revenue − Expenses', fin.profit >= 0 ? 'good' : 'bad')}
+      <div class="kpis" style="margin-bottom:14px">${kpi('Revenue', inr(fin.revenue))}${kpi('Expenses counted', inr(fin.expenses), sm.notCounted ? `${inr(sm.notCounted)} not counted` : plural(sm.count, 'entry', 'entries'), 'gold')}${kpi('Profit', inr(fin.profit), 'Revenue − Expenses', fin.profit >= 0 ? 'good' : 'bad')}
         ${['Founder', 'Ads', 'Editing'].map((c) => { const x = sm.byCategory.find((y) => y.name === c); return kpi(`${c} expenses`, inr(x ? x.amount : 0), x ? plural(x.count, 'entry', 'entries') : '', 'violet'); }).join('')}</div>
       <div class="filters"><div class="row"><select data-filter="expense" aria-label="Category">${opt('', 'All categories', expenseCat)}${set().lists.expenseCategories.map((c) => opt(c, `${c}${fin.byCategory[c] ? ` · ${inr(fin.byCategory[c])}` : ''}`, expenseCat)).join('')}</select>
         <select data-filter="expensename" aria-label="Name">${opt('', 'All names', expenseName)}${names.map((c) => opt(c, c, expenseName)).join('')}</select>
         <button class="btn primary" data-act="add-expense">+ Add expense</button></div></div>
+      ${founders.length ? `<section class="card founder-card"><h2><span class="ic gold">${svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>')}</span>Founder expenses<span class="sp"></span><span class="badge">${inr(founders.reduce((a, x) => a + x.amount, 0))}</span></h2>
+        <div class="founder-row">${founders.map((x) => `<div class="kpi violet"><small>${esc(x.name)}</small><b>${inr(x.amount)}</b><span>${plural(x.count, 'entry', 'entries')}</span></div>`).join('')}</div></section>` : ''}
+      <p class="hint">Use the <b>Count</b> switches to leave a category or name (for example a marketing payment) out of the expense total and profit. The entries stay in the list.</p>
       <div class="cards">${mini('By category', sm.byCategory, 'cat')}${mini('By name (founder, ad platform, editor…)', sm.byName, 'name')}</div>
       ${sm.byBoth.length ? `<div class="cards">${mini('Category × name', sm.byBoth)}</div>` : ''}
-      <div class="card">${table(['Category', 'Name', '~Note', 'Date', '>Amount', ''], list.map((e) => `<tr><td>${esc(e.category)} ${e.auto ? '<span class="badge info">Auto</span>' : ''}</td><td>${esc(e.name || '')}</td><td>${esc(e.note)}</td><td>${fdate(e.date)}</td><td class="r"><b>${inr(e.amount)}</b></td>
+      <div class="card">${table(['Category', 'Name', '~Note', 'Date', '>Amount', ''], list.map((e) => `<tr><td>${esc(e.category)} ${e.auto ? '<span class="badge info">Auto</span>' : ''}</td><td>${esc(e.name || '')}${admin.counted(e) ? '' : ' <span class="badge">Not counted</span>'}</td><td>${esc(e.note)}</td><td>${fdate(e.date)}</td><td class="r"><b>${inr(e.amount)}</b></td>
         <td class="acts">${e.auto ? '' : `<button class="btn xs" data-act="edit-expense" data-id="${e.id}">Edit</button> `}<button class="btn xs danger" data-act="del-expense" data-id="${e.id}">Delete</button></td></tr>`),
         `<td colspan="4">Total · ${list.length} entries</td><td class="r">${inr(list.reduce((a, e) => a + e.amount, 0))}</td><td></td>`)}</div>`;
   };
@@ -1380,6 +1455,7 @@
         { name: 'payMethod', label: 'Paid by', type: 'list', list: 'payMethods', value: e ? e.payMethod || '' : '', blank: '—' },
         { name: 'date', label: 'Date', type: 'date', value: e ? e.date : admin.today() },
         { name: 'note', label: 'Note', value: e ? e.note : '', span: true },
+        { name: 'noCount', label: "Don't count this entry in totals and profit", type: 'checkbox', value: e ? !!e.noCount : false, span: true },
       ],
       onSubmit: (v) => { admin.saveExpense({ ...(e ? { id: e.id } : {}), ...v }); return 'Expense saved'; },
     });
@@ -1556,6 +1632,7 @@
   function runExport(what, fmt) {
     const rep = EXPORTS[what]();
     rep.filename = `ThePrimeFit-${rep.title.replace(/[^A-Za-z0-9]+/g, '-')}-${stamp()}`;
+    rep.by = me ? me.name : '';
     try {
       const pretty = () => ({ ...rep, sections: rep.sections.map((s) => ({ ...s, rows: s.rows.map((r) => r.map((v, i) => fmtCell(s, i, v))), foot: s.foot && s.foot.map((v, i) => fmtCell(s, i, v)) })) });
       if (fmt === 'pdf') toast(`Saved ${X.pdf(pretty(), set().clinic)}`);
@@ -1582,20 +1659,21 @@
 
   // Settings: Super Admin sees everything; other roles only if granted, and without logins/roles.
   const LIST_LABELS = { expenseCategories: 'Expense categories', expenseNames: 'Expense names (founders, ad platforms, editors…)', platforms: 'Content platforms', specialities: 'Doctor specialities', services: 'Treatments / services', leadSources: 'Lead sources', leadStatuses: 'Lead stages', payMethods: 'Payment methods', designations: 'Designations' };
-  const PERM_SCREENS = NAV.filter((n) => !['settings', 'about'].includes(n[0])).map((n) => [n[0], n[1]]);
+  const PERM_SCREENS = [['diet', 'Diet charts (and the Home page)'], ...NAV.filter((n) => !['settings', 'about', 'home'].includes(n[0])).map((n) => [n[0], n[1]])];
   SCREENS.settings = () => {
     const st = set();
     const last = Number(storage.getItem(SYNC_KEY)) || 0;
     const isSuper = role === 'super';
     const accRows = S().accounts.map((a) => `<tr class="${a.disabled ? 'off' : ''}"><td><b>${esc(a.name)}</b><span class="sub">${a.memberId && admin.member(a.memberId) ? `Team: ${esc(admin.member(a.memberId).name)}` : ''}</span></td>
       <td><span class="badge ${a.role === 'super' ? 'gold' : a.role === 'admin' ? 'violet' : a.role === 'manager' ? 'teal' : 'info'}">${A.ROLES[a.role]}</span></td>
-      <td>${a.hash ? (a.pin ? `<code class="pin">${esc(a.pin)}</code>` : '<span class="badge ok">Set</span>') : '<span class="badge warn">Not set</span>'}</td>
-      <td class="acts"><button class="btn xs" data-act="set-pin" data-id="${a.id}">${a.hash ? 'Change PIN' : 'Set PIN'}</button>${a.role !== 'super' ? ` <button class="btn xs" data-act="random-pin" data-id="${a.id}">Random PIN</button>` : ''} <button class="btn xs" data-act="edit-login" data-id="${a.id}">Edit</button>${a.id !== me.id ? ` <button class="btn xs danger" data-act="del-login" data-id="${a.id}">Delete</button>` : ''}</td></tr>`);
+      <td><code class="pin">${esc(a.username || '')}</code>${a.ownOnly ? ' <span class="badge">Own data</span>' : ''}</td>
+      <td>${a.hash ? '<span class="badge ok">Set</span>' : '<span class="badge warn">Not set</span>'}</td>
+      <td class="acts"><button class="btn xs" data-act="set-pin" data-id="${a.id}">${a.hash ? 'Change password' : 'Set password'}</button>${a.id !== me.id ? ` <button class="btn xs" data-act="random-pin" data-id="${a.id}">Reset password</button>` : ''} <button class="btn xs" data-act="edit-login" data-id="${a.id}">Edit</button>${a.id !== me.id ? ` <button class="btn xs danger" data-act="del-login" data-id="${a.id}">Delete</button>` : ''}</td></tr>`);
     const perms = st.perms;
-    const permTable = `<div class="tbl-wrap"><table class="perm"><thead><tr><th>Screen</th>${['admin', 'manager', 'desk'].map((r) => `<th class="c">${A.ROLES[r]}</th>`).join('')}</tr></thead><tbody>
-      ${PERM_SCREENS.map(([id, label]) => `<tr><td>${esc(label)}</td>${['admin', 'manager', 'desk'].map((r) => `<td class="c"><input type="checkbox" data-perm="${r}" value="${id}" ${perms[r].screens.includes(id) ? 'checked' : ''} aria-label="${esc(label)} for ${A.ROLES[r]}"></td>`).join('')}</tr>`).join('')}
-      <tr><td><b>Settings</b></td>${['admin', 'manager', 'desk'].map((r) => `<td class="c"><input type="checkbox" data-perm="${r}" value="settings" ${perms[r].screens.includes('settings') ? 'checked' : ''}></td>`).join('')}</tr>
-      <tr><td><b>Can delete records</b></td>${['admin', 'manager', 'desk'].map((r) => `<td class="c"><input type="checkbox" data-permdel="${r}" ${perms[r].del ? 'checked' : ''}></td>`).join('')}</tr></tbody></table></div>`;
+    const permTable = `<div class="tbl-wrap"><table class="perm"><thead><tr><th>Screen</th>${['admin', 'manager', 'desk', 'editor'].map((r) => `<th class="c">${A.ROLES[r]}</th>`).join('')}</tr></thead><tbody>
+      ${PERM_SCREENS.map(([id, label]) => `<tr><td>${esc(label)}</td>${['admin', 'manager', 'desk', 'editor'].map((r) => `<td class="c"><input type="checkbox" data-perm="${r}" value="${id}" ${perms[r].screens.includes(id) ? 'checked' : ''} aria-label="${esc(label)} for ${A.ROLES[r]}"></td>`).join('')}</tr>`).join('')}
+      <tr><td><b>Settings</b></td>${['admin', 'manager', 'desk', 'editor'].map((r) => `<td class="c"><input type="checkbox" data-perm="${r}" value="settings" ${perms[r].screens.includes('settings') ? 'checked' : ''}></td>`).join('')}</tr>
+      <tr><td><b>Can delete records</b></td>${['admin', 'manager', 'desk', 'editor'].map((r) => `<td class="c"><input type="checkbox" data-permdel="${r}" ${perms[r].del ? 'checked' : ''}></td>`).join('')}</tr></tbody></table></div>`;
     const chips = (list) => `<div class="opt-chips">${st.lists[list].map((x) => `<span class="opt-chip">${esc(x)}<button type="button" data-act="list-rename" data-list="${list}" data-name="${esc(x)}" aria-label="Rename">✎</button><button type="button" data-act="list-del" data-list="${list}" data-name="${esc(x)}" aria-label="Remove">✕</button></span>`).join('')}
       <span class="opt-add"><input placeholder="Add new" data-listadd="${list}"><button type="button" class="btn xs primary" data-act="list-add" data-list="${list}">Add</button></span></div>`;
     const catChips = `<div class="opt-chips">${S().categories.map((c) => `<span class="opt-chip">${esc(c.name)}<small>${A.KINDS[c.kind]}</small><button type="button" data-act="cat-rename" data-name="${esc(c.name)}" aria-label="Rename">✎</button><button type="button" data-act="cat-del" data-name="${esc(c.name)}" aria-label="Delete">✕</button></span>`).join('')}<button type="button" class="btn xs primary" data-act="add-category">+ Category</button></div>`;
@@ -1606,6 +1684,8 @@
         <label class="f">OPD consultation fee (₹)<input type="number" min="0" name="consultFee" value="${esc(st.consultFee)}"></label>
         <label class="f">Default injection incentive (₹)<input type="number" min="0" name="incInj" value="${esc(st.incentive.injection)}"></label>
         <label class="f">Default protein incentive (₹)<input type="number" min="0" name="incPro" value="${esc(st.incentive.protein)}"></label>
+        <label class="f">Default GST % on purchases<input type="number" min="0" max="100" step="any" name="defaultGst" value="${esc(st.defaultGst != null ? st.defaultGst : 12)}"></label>
+        <label class="f">Editor fee per video (₹)<input type="number" min="0" name="videoFee" value="${esc(st.videoFee != null ? st.videoFee : 150)}"></label>
         <label class="f">Renewal alert after (days)<input type="number" min="1" name="r1" value="${esc(st.renewalDays[0])}"></label>
         <label class="f">Overdue after (days)<input type="number" min="1" name="r2" value="${esc(st.renewalDays[1])}"></label>
         <label class="f">Active patient = visited within (days)<input type="number" min="1" name="activeDays" value="${esc(st.activeDays)}"></label>
@@ -1625,8 +1705,8 @@
       <div class="actions"><button class="btn primary" type="submit">Save settings</button></div>
     </form>
     ${isSuper ? `<div class="card"><h2><span class="ic gold">${svg('<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>')}</span>Logins<span class="sp"></span><button class="btn sm primary" data-act="add-login">+ Add login</button></h2>
-      <p class="hint" style="margin-top:0">Give every person their own login (name + PIN). Staff PINs are shown here so you can check or reset them; the Super Admin PIN is never shown. PINs work on every device through the Google Sheet.</p>
-      ${table(['Login', 'Role', 'PIN', ''], accRows)}</div>
+      <p class="hint" style="margin-top:0">Give every person their own login: a user ID and a password. Nobody sees the list of logins on the sign-in screen. Passwords are stored only in coded form; if someone forgets theirs, use <b>Reset password</b>. Logins work on every device through the Google Sheet.</p>
+      ${table(['Login', 'Role', 'User ID', 'Password', ''], accRows)}</div>
     <form class="card" id="perm-form"><h2><span class="ic violet">${svg('<path d="M12 2l8 4v6c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6z"/>')}</span>Roles & permissions</h2>
       <p class="hint" style="margin-top:0">Choose what Admin, Manager and Front Desk can open. Super Admin always has everything.</p>
       ${permTable}<div class="actions" style="margin-top:12px"><button type="button" class="btn ghost" data-act="perm-reset">Reset to default</button><button class="btn primary" type="submit">Save permissions</button></div></form>` : ''}
@@ -1651,6 +1731,7 @@
         clinic: f.clinic.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         incentive: { injection: Number(f.incInj.value) || 0, protein: Number(f.incPro.value) || 0 },
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
+        defaultGst: f.defaultGst.value === '' ? 12 : Number(f.defaultGst.value), videoFee: f.videoFee.value === '' ? 150 : Number(f.videoFee.value),
         sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
       });
       toast('Settings saved');
@@ -1665,7 +1746,7 @@
       pf.addEventListener('submit', (e) => {
         e.preventDefault();
         const perms = {};
-        ['admin', 'manager', 'desk'].forEach((r) => {
+        ['admin', 'manager', 'desk', 'editor'].forEach((r) => {
           perms[r] = { screens: $$(`input[data-perm="${r}"]:checked`, pf).map((x) => x.value), del: $(`input[data-permdel="${r}"]`, pf).checked };
         });
         admin.updateSettings({ perms });
@@ -1711,23 +1792,28 @@
       },
     });
   }
-  function loginForm(a, memberId) {
+  const PASS_RULE = (p) => { if (String(p || '').length < 4) throw new Error('Password must be at least 4 characters'); };
+  function loginForm(a, memberId, preset) {
     const m = memberId ? admin.member(memberId) : null;
-    const v = a || { name: m ? m.name : '', role: 'desk', memberId: memberId || '' };
-    const random = String(Math.floor(100000 + Math.random() * 900000));
+    const v = a || { name: m ? m.name : '', role: 'desk', memberId: memberId || '', ...(preset || {}) };
+    const random = randomPass();
     openForm({
       title: a ? `Edit login · ${a.name}` : 'Add login',
       fields: [
-        { name: 'name', label: 'Login name', required: true, value: v.name },
+        { name: 'name', label: 'Full name', required: true, value: v.name },
+        { name: 'username', label: 'User ID (for sign-in)', value: v.username || '', placeholder: 'Made from the name if blank', attrs: 'autocapitalize="none" autocomplete="off" spellcheck="false"' },
         { name: 'role', label: 'Role', type: 'select', value: v.role, options: Object.entries(A.ROLES).map(([k, x]) => [k, x]) },
         { name: 'memberId', label: 'Team member (optional)', type: 'select', value: v.memberId || '', options: [['', 'Not linked'], ...S().team.map((t) => [t.id, t.name])] },
-        ...(a ? [{ name: 'disabled', label: 'Login disabled', type: 'checkbox', value: !!a.disabled, span: true }] : [{ name: 'pin', label: 'PIN (4–6 digits)', value: random, hint: 'A random 6-digit PIN is filled in; you can change it', attrs: 'inputmode="numeric" maxlength="6" autocomplete="off"' }]),
+        { name: 'editorId', label: 'Video editor profile (optional)', type: 'select', value: v.editorId || '', options: [['', 'Not linked'], ...S().editors.map((t) => [t.id, t.name])] },
+        { name: 'ownOnly', label: 'Show only their own data (sales, leads, incentives, videos)', type: 'checkbox', value: !!v.ownOnly, span: true },
+        ...(a ? [{ name: 'disabled', label: 'Login disabled', type: 'checkbox', value: !!a.disabled, span: true }] : [{ name: 'pin', label: 'Password', value: random, hint: 'A random password is filled in; you can change it', attrs: 'autocomplete="off" autocapitalize="none"' }]),
       ],
       onSubmit: async (x) => {
-        if (!a && !/^\d{4,6}$/.test(x.pin)) throw new Error('PIN must be 4 to 6 digits');
-        const saved = admin.saveAccount({ ...(a ? { id: a.id } : {}), name: x.name, role: x.role, memberId: x.memberId, disabled: !!x.disabled });
+        if (!a) PASS_RULE(x.pin);
+        const saved = admin.saveAccount({ ...(a ? { id: a.id } : {}), name: x.name, username: x.username, role: x.role, memberId: x.memberId, editorId: x.editorId, ownOnly: !!x.ownOnly, disabled: !!x.disabled });
         if (!a) await savePin(saved.id, x.pin);
-        return a ? 'Login saved' : `Login added: ${saved.name} · PIN ${saved.role === 'super' ? 'saved' : x.pin}`;
+        if (!a) setTimeout(() => showCreds(saved, x.pin, 'Login created'), 80);
+        return a ? 'Login saved' : `Login added: ${saved.name} (${saved.username})`;
       },
     });
   }
@@ -1904,15 +1990,15 @@
 
   // ── Actions ───────────────────────────────────────────────────
   const setAppt = (id, patch, msg) => { admin.updateAppointment(id, patch); modal.close(); render(); toast(msg); };
-  const randomPin = () => String(Math.floor(100000 + Math.random() * 900000));
+  const randomPass = () => { const c = 'abcdefghjkmnpqrstuvwxyz23456789'; let o = ''; const r = new Uint32Array(8); (window.crypto || {}).getRandomValues ? crypto.getRandomValues(r) : r.forEach((_, i) => { r[i] = Math.random() * 1e9; }); r.forEach((x) => { o += c[x % c.length]; }); return o; };
   const ACTIONS = {
     refresh: () => refreshNow(),
     export: (d) => runExport(d.what, d.fmt),
     'user-menu': () => {
       openForm({
         title: me.name, submitLabel: false,
-        html: `<dl class="detail-list"><div><dt>Login</dt><dd>${esc(A.ROLES[role])}</dd></div><div><dt>Data</dt><dd>${connected() ? 'Google Sheet · auto refresh' : 'This device only'}</dd></div><div><dt>App</dt><dd>Hindivine Admin ${APP_VERSION}</dd></div></dl>
-          <div class="quick"><button type="button" class="btn" data-act="refresh">Refresh data</button><button type="button" class="btn" data-act="my-pin">Change my PIN</button><button type="button" class="btn" data-go="about">What's new</button><button type="button" class="btn danger" data-act="lock">Log out</button></div>
+        html: `<dl class="detail-list"><div><dt>Login</dt><dd>${esc(A.ROLES[role])} · ${esc(me.username || "")}</dd></div><div><dt>Data</dt><dd>${connected() ? 'Google Sheet · auto refresh' : 'This device only'}</dd></div><div><dt>App</dt><dd>The Prime Fit Admin ${APP_VERSION}</dd></div></dl>
+          <div class="quick"><button type="button" class="btn" data-act="refresh">Refresh data</button><button type="button" class="btn" data-act="my-pin">Change my password</button><button type="button" class="btn" data-go="about">What's new</button><button type="button" class="btn danger" data-act="lock">Log out</button></div>
           <p class="credit-line">${esc(CREDIT)}</p>`,
       });
     },
@@ -1920,11 +2006,11 @@
     'set-pin': (d) => pinForm(d.id, d.id === me.id),
     'random-pin': async (d) => {
       const a = admin.account(d.id);
-      const pin = randomPin();
-      if (!(await confirmBox('New random PIN', `Give ${a.name} the new PIN ${pin}? Their old PIN stops working.`, 'Set PIN'))) return;
-      await savePin(a.id, pin);
+      if (!(await confirmBox('Reset password', `Reset the password of ${a.name} (${a.username})? Their old password stops working and a new one is shown once.`, 'Reset password'))) return;
+      const pass = randomPass();
+      await savePin(a.id, pass);
       render();
-      toast(`${a.name}: new PIN ${pin}`);
+      setTimeout(() => showCreds(a, pass, 'Password reset'), 80);
     },
     'add-login': () => loginForm(null),
     'edit-login': (d) => loginForm(admin.account(d.id)),
@@ -2059,6 +2145,9 @@
     'edit-product': (d) => productForm(admin.item(d.id)),
     'toggle-item': (d) => { const it = admin.item(d.id); admin.saveItem({ ...it, disabled: !it.disabled }); render(); },
     'edit-plan': (d) => planForm(d.id ? set().dietPlans.find((p) => p.id === d.id) : null),
+    'plan-up': (d) => { admin.moveDietPlan(d.id, -1); render(); },
+    'plan-down': (d) => { admin.moveDietPlan(d.id, 1); render(); },
+    'del-plan': async (d) => { const p = set().dietPlans.find((x) => x.id === d.id); if (p && await confirmBox('Delete plan', `Delete the ${p.name} plan? Past sales keep their name.`)) { admin.deleteDietPlan(d.id); render(); toast('Plan deleted'); } },
     'toggle-plan': (d) => { const p = set().dietPlans.find((x) => x.id === d.id); admin.saveDietPlan({ ...p, disabled: !p.disabled }); render(); },
     'add-item': (d) => itemForm(null, d.cat),
     'edit-item': (d) => itemForm(admin.item(d.id)),
@@ -2090,10 +2179,11 @@
       const p = S().purchases.find((x) => x.id === d.id);
       if (await confirmBox('Delete purchase', `Delete invoice ${p.invoiceNo || ''} from ${p.vendor || 'vendor'}? Its stock (${p.lines.map((l) => `${l.name} ${l.qty}`).join(', ')}) and expense are removed.`)) { admin.deletePurchase(d.id); render(); toast('Purchase deleted'); }
     },
-    'add-line': () => { draft.lines.push({ itemId: '', qty: 1, rate: '', gst: 12, batch: '', expiry: '' }); render(); },
+    'add-line': () => { draft.lines.push({ itemId: '', qty: 1, rate: '', gst: gstDefault(), batch: '', expiry: '' }); render(); },
     'del-line': (d) => { draft.lines.splice(Number(d.i), 1); if (!draft.lines.length) draft.lines = newDraft().lines; render(); },
     'cancel-purchase': () => { draft = null; go('purchases'); },
     'add-expense': () => expenseForm(null),
+    'exp-count': (d) => { const on = d.on !== '1'; admin.setExpenseCounted(d.kind, d.name, on); render(); toast(`${d.name}: ${on ? 'counted' : 'not counted'} in totals`); },
     'exp-pick': (d) => { if (d.key === 'cat') expenseCat = expenseCat === d.name ? '' : d.name; else expenseName = expenseName === d.name ? '' : d.name; render(); },
     'add-doctor': () => doctorForm(null),
     'edit-doctor': (d) => doctorForm(admin.doctor(d.id)),
@@ -2101,6 +2191,11 @@
     'add-content': () => contentForm(null),
     'edit-content': (d) => contentForm(admin.contentItem(d.id)),
     'content-posted': (d) => { const c = admin.contentItem(d.id); admin.saveContent({ ...c, status: 'posted', postedDate: admin.today() }); render(); toast(`Posted: ${c.title}`); },
+    'add-editor': () => editorForm(null),
+    'edit-editor': (d) => editorForm(admin.editor(d.id)),
+    'del-editor': async (d) => { const x = admin.editor(d.id); if (x && await confirmBox('Delete editor', `Delete ${x.name}? Their videos keep the name.`)) { admin.deleteEditor(d.id); render(); } },
+    'editor-login': (d) => { const x = admin.editor(d.id); loginForm(null, '', { name: x.name, role: 'editor', editorId: x.id }); },
+    'content-received': (d) => { const c = admin.contentItem(d.id); admin.saveContent({ ...c, status: c.scheduledDate ? 'scheduled' : 'edited', receivedDate: admin.today(), cost: c.cost || '' }); render(); toast('Marked received from editor'); },
     'del-content': async (d) => { const c = admin.contentItem(d.id); if (c && await confirmBox('Delete video', `Delete “${c.title}”?`)) { admin.deleteContent(d.id); render(); } },
     'item-up': (d) => { admin.moveItem(d.id, -1); render(); },
     'item-down': (d) => { admin.moveItem(d.id, 1); render(); },
@@ -2222,38 +2317,32 @@
   function pinForm(id, needOld) {
     const u = admin.account(id);
     openForm({
-      title: `${u.hash ? 'Change' : 'Set'} PIN · ${u.name}`,
+      title: `${u.hash ? 'Change' : 'Set'} password · ${u.name}`,
       fields: [
-        ...(needOld && u.hash ? [{ name: 'old', label: 'Current PIN', type: 'password', required: true, attrs: 'inputmode="numeric" autocomplete="off"' }] : []),
-        { name: 'pin', label: 'New PIN (4–6 digits)', type: 'password', required: true, attrs: 'inputmode="numeric" maxlength="6" autocomplete="off"' },
-        { name: 'pin2', label: 'Repeat new PIN', type: 'password', required: true, attrs: 'inputmode="numeric" maxlength="6" autocomplete="off"' },
+        ...(needOld && u.hash ? [{ name: 'old', label: 'Current password', type: 'password', required: true, attrs: 'autocomplete="current-password"' }] : []),
+        { name: 'pin', label: 'New password (at least 4 characters)', type: 'password', required: true, attrs: 'autocomplete="new-password"' },
+        { name: 'pin2', label: 'Repeat new password', type: 'password', required: true, attrs: 'autocomplete="new-password"' },
       ],
       onSubmit: async (v) => {
-        if (needOld && u.hash && (await hashPin(v.old, u.salt)) !== u.hash) throw new Error('Current PIN is wrong');
-        if (!/^\d{4,6}$/.test(v.pin)) throw new Error('PIN must be 4 to 6 digits');
-        if (v.pin !== v.pin2) throw new Error('The two PINs do not match');
+        if (needOld && u.hash && (await hashPin(v.old, u.salt)) !== u.hash) throw new Error('Current password is wrong');
+        PASS_RULE(v.pin);
+        if (v.pin !== v.pin2) throw new Error('The two passwords do not match');
         await savePin(u.id, v.pin);
-        return `PIN saved for ${u.name}`;
+        return `Password saved for ${u.name}`;
       },
     });
   }
 
-  const ROLE_ICONS = {
-    super: '<path d="M12 3l2.5 5 5.5.8-4 3.9.9 5.5-4.9-2.6-4.9 2.6.9-5.5-4-3.9 5.5-.8z"/>',
-    admin: '<path d="M12 2l8 4v6c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6z"/>',
-    manager: '<rect x="4" y="7" width="16" height="13" rx="2"/><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/>',
-    desk: ICON_CAL,
-  };
-  let lockId = null;
-  let lockPin = '';
   let lockMode = 'login'; // login | setup | connect
-  const loginAccounts = () => S().accounts.filter((a) => a.hash && !a.disabled);
+  const lastUser = () => { try { return localStorage.getItem('primefit.admin.lastUser') || ''; } catch (_) { return ''; } };
+  const passField = (id, label, ac) => `<label class="f" style="text-align:left">${label}<span class="pass-wrap"><input id="${id}" type="password" autocomplete="${ac}" autocapitalize="none" spellcheck="false"><button type="button" class="pass-eye" data-lock="eye" data-for="${id}" aria-label="Show password">${svg('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>')}</button></span></label>`;
   function lockHtml() {
     if (!S().accounts.some((a) => a.role === 'super' && a.hash) && lockMode === 'login') lockMode = 'setup';
     if (lockMode === 'setup') {
-      return `<h1>Welcome to The Prime Fit Admin</h1><p>First time on this device? Create the Super Admin PIN, or connect to The Prime Fit Google Sheet to use the logins already set up there.</p>
-        <label class="f" style="text-align:left">Super Admin PIN (4–6 digits)<input class="pin-input" id="lk-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>
-        <label class="f" style="text-align:left">Repeat PIN<input class="pin-input" id="lk-pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>
+      return `<h1>Welcome to The Prime Fit</h1><p>First time on this device? Create the Super Admin login, or connect to The Prime Fit Google Sheet to use the logins already set up there.</p>
+        <label class="f" style="text-align:left">Super Admin user ID<input id="lk-user" value="superadmin" autocapitalize="none" autocomplete="username" spellcheck="false"></label>
+        ${passField('lk-pin', 'Password (at least 4 characters)', 'new-password')}
+        ${passField('lk-pin2', 'Repeat password', 'new-password')}
         <button class="btn primary" data-lock="create">Create Super Admin</button>
         <div class="lock-links"><button class="link" data-lock="connect-mode">Connect Google Sheet instead</button></div>
         <small class="err" id="lk-err"></small>`;
@@ -2266,92 +2355,80 @@
         <div class="lock-links"><button class="link" data-lock="back">Back</button></div>
         <small class="err" id="lk-err"></small>`;
     }
-    const list = loginAccounts();
-    if (!lockId || !list.some((a) => a.id === lockId)) {
-      let last = null; try { last = localStorage.getItem('primefit.admin.lastLogin'); } catch (_) { last = null; }
-      lockId = (list.find((a) => a.id === last) || list[0] || {}).id;
-    }
-    const acc = admin.account(lockId) || {};
-    return `<h1>Sign in</h1><p>Choose your name and enter your PIN</p>
-      <div class="roles ${list.length > 4 ? 'many' : ''}">${list.map((a) => `<button type="button" class="role r-${a.role} ${lockId === a.id ? 'on' : ''}" data-lock="role" data-id="${a.id}">
-        <span class="ri">${svg(ROLE_ICONS[a.role])}</span><b>${esc(a.name)}</b><small>${A.ROLES[a.role]}</small></button>`).join('')}</div>
-      <div class="dots" id="lk-dots">${Array.from({ length: acc.len || 6 }, (_, i) => `<i class="${i < lockPin.length ? 'on' : ''}"></i>`).join('')}</div>
-      <div class="keypad">${[1, 2, 3, 4, 5, 6, 7, 8, 9].map((n) => `<button type="button" data-key="${n}">${n}</button>`).join('')}
-        <button type="button" class="k-del" data-key="del" aria-label="Delete">⌫</button><button type="button" data-key="0">0</button><button type="button" class="k-ok" data-key="ok">Sign in</button></div>
+    return `<h1>Sign in</h1><p>Enter your user ID and password</p>
+      <form id="lk-form" class="lk-form" autocomplete="on">
+        <label class="f" style="text-align:left">User ID<span class="pass-wrap"><input id="lk-user" value="${esc(lastUser())}" autocapitalize="none" autocomplete="username" spellcheck="false" placeholder="e.g. superadmin"></span></label>
+        ${passField('lk-pass', 'Password', 'current-password')}
+        <button class="btn primary lk-go" type="submit">Sign in</button>
+      </form>
       <small class="err" id="lk-err"></small>
-      <div class="lock-links">${!connected() ? '<button class="link" data-lock="connect-mode">Connect Google Sheet</button>' : ''}<a class="link" href="../index.html">Open diet charts</a></div>`;
+      <p class="lk-help">Forgot your password? Ask the Super Admin to reset it.</p>
+      <div class="lock-links">${!connected() ? '<button class="link" data-lock="connect-mode">Connect Google Sheet</button>' : ''}</div>`;
   }
   function showLock() {
     role = null; me = null;
-    lockPin = '';
     $('#shell').hidden = true; $('#lock').hidden = false;
     if (modal.open) modal.close();
     $('#lock-body').innerHTML = lockHtml();
     const first = $('#lock-body input');
     if (first) setTimeout(() => first.focus(), 60);
   }
-  function refreshDots() { $$('#lk-dots i').forEach((d, i) => d.classList.toggle('on', i < lockPin.length)); }
+  let fails = 0; let waitUntil = 0;
   async function tryLogin() {
-    const u = admin.account(lockId);
-    if (!u || !u.hash || lockPin.length < 4) return;
-    if ((await hashPin(lockPin, u.salt)) === u.hash) { enter(u.id); return; }
-    lockPin = '';
-    refreshDots();
-    const dots = $('#lk-dots'); dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake');
-    $('#lk-err').textContent = 'Wrong PIN';
-  }
-  // Check the PIN as soon as it has as many digits as the saved one (older PINs: from 4 digits on).
-  async function autoCheck() {
-    const u = admin.account(lockId);
-    if (!u || !u.hash || lockPin.length < 4) return;
-    if (u.len) { if (lockPin.length === u.len) tryLogin(); return; }
-    if ((await hashPin(lockPin, u.salt)) === u.hash) enter(u.id);
-    else if (lockPin.length === 6) tryLogin();
+    const err = $('#lk-err');
+    if (Date.now() < waitUntil) { err.textContent = `Too many tries. Wait ${Math.ceil((waitUntil - Date.now()) / 1000)} s.`; return; }
+    const user = $('#lk-user').value.trim(); const pass = $('#lk-pass').value;
+    if (!user || !pass) { err.textContent = 'Enter your user ID and password'; return; }
+    const u = admin.accountByUsername(user);
+    if (u && u.hash && !u.disabled && (await hashPin(pass, u.salt)) === u.hash) {
+      fails = 0;
+      try { localStorage.setItem('primefit.admin.lastUser', u.username); } catch (_) { /* ignore */ }
+      enter(u.id);
+      return;
+    }
+    fails += 1;
+    if (fails >= 5) { waitUntil = Date.now() + 30000; fails = 0; }
+    $('#lk-pass').value = '';
+    const card = $('#lk-form'); card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
+    err.textContent = u && u.disabled ? 'This login is disabled' : 'Wrong user ID or password';
   }
   function enter(id) {
     const acc = admin.account(id);
     if (!acc || acc.disabled) { showLock(); return; }
     me = acc; role = acc.role;
     admin.setActor(acc.name);
-    try { sessionStorage.setItem(ROLE_KEY, id); localStorage.setItem('primefit.admin.lastLogin', id); } catch (_) { /* ignore */ }
+    try { sessionStorage.setItem(ROLE_KEY, id); localStorage.setItem('primefit.admin.lastLogin', id); if (can('diet')) sessionStorage.setItem('primefit.diet', '1'); else sessionStorage.removeItem('primefit.diet'); } catch (_) { /* ignore */ }
     $('#lock').hidden = true; $('#shell').hidden = false;
-    screen = home();
+    screen = /^#admin/.test(location.hash) ? adminHome() : home();
     changedScreen = true;
     try { history.replaceState({ screen }, ''); } catch (_) { /* ignore */ }
     render();
     pull();
   }
   function lock() {
-    try { sessionStorage.removeItem(ROLE_KEY); } catch (_) { /* ignore */ }
+    try { sessionStorage.removeItem(ROLE_KEY); sessionStorage.removeItem('primefit.diet'); } catch (_) { /* ignore */ }
     admin.setActor('');
     showLock();
   }
+  $('#lock').addEventListener('submit', (e) => { if (e.target.id === 'lk-form') { e.preventDefault(); tryLogin(); } });
   $('#lock').addEventListener('click', async (e) => {
-    const key = e.target.closest('[data-key]');
-    if (key) {
-      const k = key.dataset.key;
-      $('#lk-err').textContent = '';
-      if (k === 'del') lockPin = lockPin.slice(0, -1);
-      else if (k === 'ok') { await tryLogin(); return; } else if (lockPin.length < 6) lockPin += k;
-      refreshDots();
-      autoCheck();
-      return;
-    }
     const b = e.target.closest('[data-lock]');
     if (!b) return;
     const a = b.dataset.lock;
-    if (a === 'role') { lockId = b.dataset.id; lockPin = ''; $('#lock-body').innerHTML = lockHtml(); return; }
+    if (a === 'eye') { const i = $(`#${b.dataset.for}`); i.type = i.type === 'password' ? 'text' : 'password'; b.classList.toggle('on', i.type === 'text'); return; }
     if (a === 'connect-mode') { lockMode = 'connect'; showLock(); return; }
     if (a === 'back') { lockMode = 'login'; showLock(); return; }
     if (a === 'create') {
-      const pin = $('#lk-pin').value.trim();
-      if (!/^\d{4,6}$/.test(pin)) { $('#lk-err').textContent = 'Use 4 to 6 digits'; return; }
-      if (pin !== $('#lk-pin2').value.trim()) { $('#lk-err').textContent = 'The two PINs do not match'; return; }
+      const pin = $('#lk-pin').value;
+      if (pin.length < 4) { $('#lk-err').textContent = 'Use at least 4 characters'; return; }
+      if (pin !== $('#lk-pin2').value) { $('#lk-err').textContent = 'The two passwords do not match'; return; }
       const sup = S().accounts.find((x) => x.role === 'super');
+      try { admin.saveAccount({ ...sup, username: $('#lk-user').value.trim() || 'superadmin', disabled: false }); } catch (err) { $('#lk-err').textContent = err.message; return; }
       await savePin(sup.id, pin);
+      try { localStorage.setItem('primefit.admin.lastUser', admin.account(sup.id).username); } catch (_) { /* ignore */ }
       lockMode = 'login';
       enter(sup.id);
-      toast('Welcome! Add logins for your team in Settings → Logins.');
+      toast(`Welcome! Your user ID is ${admin.account(sup.id).username}. Add logins for your team in Settings → Logins.`);
       return;
     }
     if (a === 'connect') {
@@ -2364,17 +2441,12 @@
         if (out.state) { admin.loadState(out.state); setBase(out.updated); setDirty(false); }
         lockMode = 'login';
         showLock();
-        toast(out.state ? 'Connected. Sign in with your login.' : 'Connected. The sheet is empty: create the Super Admin PIN.');
+        toast(out.state ? 'Connected. Sign in with your user ID and password.' : 'Connected. The sheet is empty: create the Super Admin login.');
       } catch (err) {
         $('#lk-err').textContent = err.message;
         b.disabled = false; b.textContent = 'Connect & load data';
       }
     }
-  });
-  document.addEventListener('keydown', (e) => {
-    if ($('#lock').hidden || lockMode !== 'login' || e.target.tagName === 'INPUT') return;
-    if (/^\d$/.test(e.key) && lockPin.length < 6) { lockPin += e.key; refreshDots(); autoCheck(); }
-    else if (e.key === 'Backspace') { lockPin = lockPin.slice(0, -1); refreshDots(); } else if (e.key === 'Enter') tryLogin();
   });
   let idle = Date.now();
   ['click', 'keydown', 'touchstart'].forEach((ev) => document.addEventListener(ev, () => { idle = Date.now(); }, { passive: true }));

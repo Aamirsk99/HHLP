@@ -14,10 +14,10 @@
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
     'Founder', 'Ads', 'Editing', 'Protein Purchase', 'Injection Purchase', 'Miscellaneous'];
   const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
-    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Content', 'Activity Log'];
+    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Activity Log'];
 
   // Login roles. Every person can have their own login (name + PIN), shared through the Google Sheet.
-  const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk' };
+  const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk', editor: 'Video Editor' };
   // Choice lists that the admins can extend ("+ Add new") from any form.
   const DEFAULT_LISTS = {
     expenseCategories: EXPENSE_CATEGORIES,
@@ -36,16 +36,17 @@
   const LEAD_PRIORITIES = { hot: 'Hot', warm: 'Warm', cold: 'Cold' };
   // What each role can open. Super Admin always has everything; the others are editable in Settings.
   const DEFAULT_PERMS = {
-    admin: { screens: ['dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'team', 'incentives', 'salary', 'expenses', 'content', 'reports', 'activity'], del: true },
-    manager: { screens: ['dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'expenses', 'content', 'reports', 'activity'], del: false },
-    desk: { screens: ['appointments', 'leads'], del: false },
+    admin: { screens: ['diet', 'dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'team', 'incentives', 'salary', 'expenses', 'content', 'reports', 'activity'], del: true },
+    manager: { screens: ['diet', 'dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'expenses', 'content', 'reports', 'activity'], del: false },
+    desk: { screens: ['diet', 'appointments', 'leads'], del: false },
+    editor: { screens: ['content'], del: false },
   };
   const KIT_DEFAULTS = [['Travel Bags', 1], ['Ice Gel Packs', 1], ['Alcohol Swabs', 16], ['Needles', 2]];
   const LOG_MAX = 3000;
   const APPT_MODES = { clinic: 'Clinic visit', online: 'Online' };
   const APPT_STATUS = { booked: 'Booked', completed: 'Completed', cancelled: 'Cancelled', noshow: 'No-show' };
   // Content (videos): shot → edited → scheduled → posted.
-  const CONTENT_STATUS = { idea: 'To edit', edited: 'Edited', scheduled: 'Scheduled', posted: 'Posted' };
+  const CONTENT_STATUS = { idea: 'With editor', edited: 'Received', scheduled: 'Scheduled', posted: 'Posted' };
   const PAY_METHODS = ['Cash', 'UPI', 'Card', 'Bank transfer'];
 
   const INJECTIONS = [
@@ -86,16 +87,19 @@
         lists: JSON.parse(JSON.stringify(DEFAULT_LISTS)),
         perms: JSON.parse(JSON.stringify(DEFAULT_PERMS)),
         sheetsUrl: '', sheetsSecret: '', autoSync: false, lastSync: 0,
+        videoFee: 150, // default editor fee per video (₹)
+        defaultGst: 12, // GST % filled on new purchase lines
+        expenseOff: { categories: [], names: [] }, // expenses not counted in totals and profit
       },
       categories: [{ name: 'Injection', kind: 'injection' }, { name: 'Protein', kind: 'protein' },
         ...OTHER_CATEGORIES.map((name) => ({ name, kind: 'other' }))],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
-      leads: [], log: [], doctors: [], content: [],
+      leads: [], log: [], doctors: [], content: [], editors: [],
       accounts: [
-        { id: 'super', name: 'Super Admin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
-        { id: 'admin', name: 'Admin', role: 'admin', hash: '', salt: '', len: 0, pin: '' },
-        { id: 'manager', name: 'Manager', role: 'manager', hash: '', salt: '', len: 0, pin: '' },
-        { id: 'desk', name: 'Front Desk', role: 'desk', hash: '', salt: '', len: 0, pin: '' },
+        { id: 'super', name: 'Super Admin', username: 'superadmin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
+        { id: 'admin', name: 'Admin', username: 'admin', role: 'admin', hash: '', salt: '', len: 0, pin: '' },
+        { id: 'manager', name: 'Manager', username: 'manager', role: 'manager', hash: '', salt: '', len: 0, pin: '' },
+        { id: 'desk', name: 'Front Desk', username: 'frontdesk', role: 'desk', hash: '', salt: '', len: 0, pin: '' },
       ],
     };
   }
@@ -185,6 +189,13 @@
     return bestScore >= 0.5 ? best : null;
   }
 
+  const slug = (t) => String(t || '').toLowerCase().replace(/[^a-z0-9]+/g, '') || 'user';
+  function uniqueUsername(accounts, name, selfId) {
+    const base = slug(name); let u = base; let n = 2;
+    while (accounts.some((a) => a.id !== selfId && a.username === u)) u = `${base}${n++}`;
+    return u;
+  }
+
   // ── Store ─────────────────────────────────────────────────────
   function createAdmin(storage, clock) {
     const today = () => isoDate(clock ? clock() : new Date());
@@ -213,6 +224,10 @@
       }
       if (s.settings.pinHash && !s.accounts.find((a) => a.id === 'super').hash) Object.assign(s.accounts.find((a) => a.id === 'super'), { hash: s.settings.pinHash, salt: s.settings.pinSalt });
       ['pinHash', 'pinSalt', 'apiKey', 'aiModel', 'autoSaveScan'].forEach((k) => { delete s.settings[k]; });
+      // Logins sign in with a user ID; older logins get one from their name.
+      s.accounts.forEach((a) => { if (!a.username) a.username = uniqueUsername(s.accounts, a.name, a.id); });
+      Object.keys(DEFAULT_PERMS).forEach((r) => { if (!s.settings.perms[r]) s.settings.perms[r] = JSON.parse(JSON.stringify(DEFAULT_PERMS[r])); });
+      s.settings.expenseOff = { categories: [], names: [], ...(s.settings.expenseOff || {}) };
       if (s.settings.renewalDays[0] === 60 && s.settings.renewalDays[1] === 90) s.settings.renewalDays = [75, 90];
       return s;
     }
@@ -552,8 +567,8 @@
       const p = {
         id: existing ? existing.id : uid('b'),
         vendor: String(input.vendor || '').trim(), invoiceNo: String(input.invoiceNo || '').trim(),
-        date: input.date || today(), scanned: !!input.scanned,
-        lines: lines.map((l) => ({
+        date: input.date || today(), scanned: !!input.scanned, gstOff: !!input.gstOff,
+        lines: lines.map((l) => (input.gstOff ? { ...l, gst: 0 } : l)).map((l) => ({
           itemId: l.itemId, name: item(l.itemId).name, invoiceName: l.invoiceName || '', qty: Number(l.qty),
           batch: l.batch || '', expiry: l.expiry || '', rate: Number(l.rate) || 0, gst: Number(l.gst) || 0, total: lineTotal(l),
         })),
@@ -596,7 +611,7 @@
       let e = input.id && S.expenses.find((x) => x.id === input.id);
       if (!e) { e = { id: uid('e') }; S.expenses.push(e); }
       Object.assign(e, { date: input.date || today(), category: input.category, amount: r2(input.amount), note: String(input.note || '').trim(),
-        name: String(input.name || '').trim(), payMethod: input.payMethod || '' });
+        name: String(input.name || '').trim(), payMethod: input.payMethod || '', noCount: !!input.noCount });
       if (!S.settings.lists.expenseCategories.includes(e.category)) S.settings.lists.expenseCategories.push(e.category);
       if (e.name && !S.settings.lists.expenseNames.some((x) => low(x) === low(e.name))) S.settings.lists.expenseNames.push(e.name);
       log(input.id ? 'Expense updated' : 'Expense added', `${e.category}${e.name ? ` (${e.name})` : ''} ₹${e.amount}${e.note ? ` · ${e.note}` : ''}`);
@@ -610,17 +625,33 @@
       save();
     }
 
-    /** Expense totals by category, by name and by category + name, with counts. */
+    /** Whether an expense counts in totals and profit (categories, names or single entries can be switched off). */
+    function counted(e) {
+      const off = S.settings.expenseOff || {};
+      return !e.noCount && !(off.categories || []).includes(e.category) && !(e.name && (off.names || []).includes(e.name));
+    }
+    function setExpenseCounted(kind, name, on) {
+      const off = S.settings.expenseOff = { categories: [], names: [], ...(S.settings.expenseOff || {}) };
+      const key = kind === 'name' ? 'names' : 'categories';
+      off[key] = off[key].filter((x) => x !== name);
+      if (!on) off[key].push(name);
+      log('Expense counting changed', `${name}: ${on ? 'counted' : 'not counted'}`);
+      save();
+    }
+    /** Expense totals by category, by name and by category + name, with counts. total = counted only. */
     function expenseSummary(range) {
-      const list = S.expenses.filter((e) => inRange(e.date, range));
+      const all = S.expenses.filter((e) => inRange(e.date, range));
+      const list = all;
       const group = (key) => {
         const m = {};
         list.forEach((e) => { const k = key(e); if (!k) return; m[k] = m[k] || { name: k, amount: 0, count: 0 }; m[k].amount = r2(m[k].amount + e.amount); m[k].count += 1; });
         return Object.values(m).sort((a, b) => b.amount - a.amount);
       };
+      const off = S.settings.expenseOff || { categories: [], names: [] };
+      const mark = (arr, kind) => arr.map((x) => ({ ...x, counted: !(off[kind] || []).includes(x.name) }));
       return {
-        total: r2(sum(list, (e) => e.amount)), count: list.length,
-        byCategory: group((e) => e.category), byName: group((e) => e.name),
+        total: r2(sum(all.filter(counted), (e) => e.amount)), all: r2(sum(all, (e) => e.amount)), notCounted: r2(sum(all.filter((e) => !counted(e)), (e) => e.amount)), count: list.length,
+        byCategory: mark(group((e) => e.category), 'categories'), byName: mark(group((e) => e.name), 'names'),
         byBoth: group((e) => (e.name ? `${e.category} · ${e.name}` : '')),
       };
     }
@@ -653,6 +684,36 @@
     }
     const doctorName = (a) => (a.doctorId && doctor(a.doctorId) ? doctor(a.doctorId).name : a.doctorName || '');
 
+    // Video editors: profiles with a fee per video; an editor may also have a login.
+    const editor = (id) => S.editors.find((x) => x.id === id) || null;
+    const videoFee = (ed) => (ed && ed.fee != null ? ed.fee : S.settings.videoFee != null ? S.settings.videoFee : 150);
+    function saveEditor(input) {
+      const name = String(input.name || '').trim();
+      if (!name) fail('Enter the editor name');
+      if (S.editors.some((x) => x.id !== input.id && low(x.name) === low(name))) fail('An editor with this name already exists');
+      let ed = input.id && editor(input.id);
+      const isNew = !ed;
+      if (!ed) { ed = { id: uid('ed'), disabled: false, created: Date.now() }; S.editors.push(ed); }
+      const old = ed.name;
+      ['mobile', 'notes'].forEach((k) => { if (k in input) ed[k] = String(input[k] || '').trim(); });
+      ed.name = name;
+      ed.fee = input.fee === '' || input.fee == null ? null : Number(input.fee) || 0;
+      if ('disabled' in input) ed.disabled = !!input.disabled;
+      if (old && old !== name) S.content.forEach((c) => { if (c.editorId === ed.id) c.editor = name; });
+      log(isNew ? 'Editor added' : 'Editor updated', ed.name);
+      save();
+      return ed;
+    }
+    function deleteEditor(id) {
+      const ed = editor(id);
+      if (!ed) return;
+      S.content.forEach((c) => { if (c.editorId === id) c.editorId = ''; });
+      S.editors = S.editors.filter((x) => x.id !== id);
+      S.accounts.forEach((a) => { if (a.editorId === id) a.editorId = ''; });
+      log('Editor deleted', ed.name);
+      save();
+    }
+
     // Content (videos): edit, schedule and post tracking with reminders.
     const contentItem = (id) => S.content.find((c) => c.id === id) || null;
     function saveContent(input) {
@@ -661,20 +722,28 @@
       let c = input.id && contentItem(input.id);
       const isNew = !c;
       if (!c) { c = { id: uid('c'), created: Date.now(), date: today() }; S.content.push(c); }
-      ['title', 'platform', 'editor', 'scheduledDate', 'scheduledTime', 'postedDate', 'link', 'notes', 'date'].forEach((k) => { if (k in input) c[k] = String(input[k] || '').trim(); });
+      ['title', 'platform', 'editor', 'scheduledDate', 'scheduledTime', 'postedDate', 'link', 'notes', 'date', 'receivedDate'].forEach((k) => { if (k in input) c[k] = String(input[k] || '').trim(); });
       c.title = title;
+      if ('editorId' in input) {
+        c.editorId = input.editorId || '';
+        const ed = editor(c.editorId);
+        if (ed) c.editor = ed.name;
+      }
       c.status = CONTENT_STATUS[input.status] ? input.status : c.status || 'idea';
       if (c.status === 'posted' && !c.postedDate) c.postedDate = today();
+      if (c.status !== 'idea' && !c.receivedDate) c.receivedDate = today();
+      if (c.status === 'idea') c.receivedDate = '';
       if (c.status !== 'posted') c.postedDate = '';
       if (c.platform && !S.settings.lists.platforms.some((x) => low(x) === low(c.platform))) S.settings.lists.platforms.push(c.platform);
       // Editing cost books an "Editing" expense, named after the editor.
-      const cost = Number(input.cost) || 0;
+      // Fee: as entered; blank = the editor's fee per video once the video is received.
+      const cost = input.cost === '' || input.cost == null ? (c.status !== 'idea' && (c.editorId || c.editor) ? videoFee(editor(c.editorId)) : 0) : Number(input.cost) || 0;
       c.cost = cost;
       const ex = S.expenses.find((e) => e.ref === `content:${c.id}`);
       if (cost > 0) {
         const e = ex || { id: uid('e'), ref: `content:${c.id}` };
         if (!ex) S.expenses.push(e);
-        Object.assign(e, { date: c.date || today(), category: 'Editing', name: c.editor || '', amount: r2(cost), note: `Video: ${c.title}` });
+        Object.assign(e, { date: c.receivedDate || c.date || today(), category: 'Editing', name: c.editor || '', amount: r2(cost), note: `Video: ${c.title}` });
       } else if (ex) S.expenses = S.expenses.filter((e) => e !== ex);
       log(isNew ? 'Video added' : 'Video updated', `${c.title} · ${CONTENT_STATUS[c.status]}`);
       save();
@@ -688,15 +757,17 @@
       save();
     }
     /** Totals: videos, edited, posted, remaining (edited or scheduled, not posted yet), and post reminders. */
-    function contentStats(range, onDate) {
+    function contentStats(range, onDate, editorId) {
       const d = onDate || today();
-      const list = S.content.filter((c) => !range || inRange(c.date || '', range) || inRange(c.postedDate || '', range));
+      const mine = S.content.filter((c) => !editorId || c.editorId === editorId);
+      const list = mine.filter((c) => !range || inRange(c.date || '', range) || inRange(c.postedDate || '', range) || inRange(c.receivedDate || '', range));
       const n = (f) => list.filter(f).length;
-      const scheduled = S.content.filter((c) => c.status === 'scheduled' && c.scheduledDate)
+      const scheduled = mine.filter((c) => c.status === 'scheduled' && c.scheduledDate)
         .sort((a, b) => (`${a.scheduledDate} ${a.scheduledTime}` < `${b.scheduledDate} ${b.scheduledTime}` ? -1 : 1));
       return {
         total: list.length,
         toEdit: n((c) => c.status === 'idea'),
+        fees: r2(sum(list, (c) => Number(c.cost) || 0)),
         edited: n((c) => c.status !== 'idea'),
         posted: n((c) => c.status === 'posted'),
         remaining: n((c) => c.status === 'edited' || c.status === 'scheduled'),
@@ -773,7 +844,9 @@
       const isNew = !a;
       if (!a) { a = { id: uid('u'), hash: '', salt: '', len: 0, pin: '', created: Date.now() }; S.accounts.push(a); }
       if (a.role === 'super' && input.role !== 'super' && S.accounts.filter((x) => x.role === 'super' && !x.disabled).length === 1) fail('Keep at least one Super Admin');
-      Object.assign(a, { name, role: input.role, memberId: input.memberId || '', disabled: !!input.disabled });
+      const username = slug(input.username || a.username || name);
+      if (S.accounts.some((x) => x.id !== a.id && x.username === username)) fail(`User ID "${username}" is taken`);
+      Object.assign(a, { name, username, role: input.role, memberId: input.memberId || '', editorId: input.editorId || '', ownOnly: !!input.ownOnly, disabled: !!input.disabled });
       log(isNew ? 'Login added' : 'Login updated', `${a.name} (${ROLES[a.role]})`);
       save();
       return a;
@@ -781,8 +854,9 @@
     function setAccountPin(id, hash, salt, len, plain) {
       const a = account(id);
       if (!a) fail('Unknown login');
-      Object.assign(a, { hash, salt, len: len || 0, pin: a.role === 'super' ? '' : (plain || '') });
-      log(hash ? 'PIN changed' : 'PIN removed', a.name);
+      // Passwords are stored only as a salted hash; a forgotten one is reset by the Super Admin.
+      Object.assign(a, { hash, salt, len: 0, pin: '' });
+      log(hash ? 'Password changed' : 'Password removed', a.name);
       save();
     }
     function deleteAccount(id) {
@@ -794,6 +868,7 @@
       save();
     }
     const setActor = (name) => { actor = name || ''; };
+    const accountByUsername = (u) => S.accounts.find((a) => a.username === slug(u)) || null;
 
     // Choice lists ("+ Add new" everywhere)
     function addListItem(list, name) {
@@ -928,7 +1003,7 @@
       return {
         date: d, sales, purchases, appointments: appointmentsIn(r), appt: appointmentStats(r),
         salesTotal: r2(sum(sales, (x) => x.amount)), purchaseTotal: r2(sum(purchases, (x) => x.total)),
-        expenses: S.expenses.filter((e) => e.date === d), expenseTotal: r2(sum(S.expenses.filter((e) => e.date === d), (e) => e.amount)),
+        expenses: S.expenses.filter((e) => e.date === d), expenseTotal: r2(sum(S.expenses.filter((e) => e.date === d && counted(e)), (e) => e.amount)),
         available: stock.filter((x) => x.stock > 0), notAvailable: stock.filter((x) => x.stock <= 0),
         order: stock.filter((x) => x.item.orderAt != null && x.stock < x.item.orderAt),
         leads: S.leads.filter((l) => l.date === d).length,
@@ -1027,7 +1102,7 @@
     }
     function financialReport(range) {
       const sales = S.sales.filter((s) => inRange(s.date, range));
-      const expenses = S.expenses.filter((e) => inRange(e.date, range));
+      const expenses = S.expenses.filter((e) => inRange(e.date, range) && counted(e));
       const appts = S.appointments.filter((a) => inRange(a.date, range));
       const consultation = r2(sum(appts, feeEarned));
       const revenue = r2(sum(sales, (s) => s.amount) + consultation);
@@ -1198,16 +1273,18 @@
       out.Salary = [['Month', 'Name', 'Designation', 'Salary', 'Incentive', 'Total Pay', 'Booked as Expense']];
       const months = new Set([monthOf(d), ...S.sales.map((s) => monthOf(s.date))]);
       [...months].sort().forEach((mo) => salarySheet(mo).forEach((r) => out.Salary.push([mo, r.name, r.designation || '', r.salary, r.incentive, r.total, salaryPosted(mo) ? 'Yes' : 'No'])));
-      out.Expenses = [['Date', 'Category', 'Name', 'Amount', 'Payment Method', 'Note']];
-      [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.category, e.name || '', e.amount, e.payMethod || '', e.note || '']));
+      out.Expenses = [['Date', 'Category', 'Name', 'Amount', 'Payment Method', 'Note', 'Counted']];
+      [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.category, e.name || '', e.amount, e.payMethod || '', e.note || '', counted(e) ? 'Yes' : 'No']));
       out.Renewals = [['Patient', 'Mobile', 'Product', 'Last Purchase Date', 'Days Since', 'Reminder', 'Reference Team', 'Contacted']];
       renewals(d).forEach((r) => out.Renewals.push([r.name, r.mobile, r.product, r.lastDate, r.days, r.stage ? `${r.stage} Day alert` : `Due in ${r.dueIn} days`, r.ref, r.done ? 'Yes' : 'No']));
       out.Doctors = [['Name', 'Speciality', 'Qualification', 'Mobile', 'Fee', 'Days', 'Timing', 'Appointments', 'Status']];
       S.doctors.forEach((x) => out.Doctors.push([x.name, x.speciality || '', x.qualification || '', x.mobile || '', x.fee == null ? '' : x.fee, x.days || '', x.timing || '',
         S.appointments.filter((a) => a.doctorId === x.id).length, x.disabled ? 'Disabled' : 'Active']));
-      out.Content = [['Added', 'Title', 'Platform', 'Editor', 'Status', 'Scheduled', 'Posted', 'Editing Cost', 'Link', 'Notes']];
-      [...S.content].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((c) => out.Content.push([c.date || '', c.title, c.platform || '', c.editor || '', CONTENT_STATUS[c.status],
+      out.Content = [['Added', 'Title', 'Platform', 'Editor', 'Status', 'Received', 'Scheduled', 'Posted', 'Editor Fee', 'Link', 'Notes']];
+      [...S.content].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((c) => out.Content.push([c.date || '', c.title, c.platform || '', c.editor || '', CONTENT_STATUS[c.status], c.receivedDate || '',
         c.scheduledDate ? `${c.scheduledDate} ${c.scheduledTime || ''}`.trim() : '', c.postedDate || '', c.cost || 0, c.link || '', c.notes || '']));
+      out.Editors = [['Name', 'Mobile', 'Fee per Video', 'Videos Received', 'Videos Posted', 'Total Fees', 'Status']];
+      S.editors.forEach((x) => { const mine = S.content.filter((c) => c.editorId === x.id); out.Editors.push([x.name, x.mobile || '', videoFee(x), mine.filter((c) => c.status !== 'idea').length, mine.filter((c) => c.status === 'posted').length, sum(mine, (c) => Number(c.cost) || 0), x.disabled ? 'Disabled' : 'Active']); });
       out['Activity Log'] = [['Date & Time', 'By', 'Action', 'Details']];
       S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.by, x.action, x.detail]));
       return out;
@@ -1228,6 +1305,19 @@
       log('Diet plan saved', p.name);
       save();
       return p;
+    }
+    function moveDietPlan(id, dir) {
+      const L = S.settings.dietPlans; const i = L.findIndex((p) => p.id === id); const j = i + (dir < 0 ? -1 : 1);
+      if (i < 0 || j < 0 || j >= L.length) return;
+      [L[i], L[j]] = [L[j], L[i]];
+      save();
+    }
+    function deleteDietPlan(id) {
+      const p = S.settings.dietPlans.find((x) => x.id === id);
+      if (!p) return;
+      S.settings.dietPlans = S.settings.dietPlans.filter((x) => x.id !== id);
+      log('Diet plan deleted', p.name);
+      save();
     }
     const exportBackup = () => JSON.stringify({ app: 'primefit-admin', exported: new Date().toISOString(), data: exportState() });
     function importBackup(text) {
@@ -1274,7 +1364,7 @@
       today, onChange: (f) => listeners.push(f),
       member, memberName, saveMember, setMemberDisabled, deleteMember,
       item, itemsOf, liveItems, saveItem, deleteItem, moveItem, moveCategory, setItemKit, kitOf, addCategory, stockOf, adjustStock, lowStock,
-      expenseSummary, doctor, saveDoctor, deleteDoctor, doctorName, contentItem, saveContent, deleteContent, contentStats,
+      expenseSummary, counted, setExpenseCounted, editor, videoFee, saveEditor, deleteEditor, moveDietPlan, deleteDietPlan, accountByUsername, doctor, saveDoctor, deleteDoctor, doctorName, contentItem, saveContent, deleteContent, contentStats,
       matchItem: (name, kind) => matchItem(liveItems().filter((i) => !i.disabled && (!kind || i.kind === kind)), name),
       findOrCreatePatient, patientSales, saveSale, deleteSale, incentiveFor,
       savePurchase, deletePurchase, findDuplicatePurchase, lineTotal,

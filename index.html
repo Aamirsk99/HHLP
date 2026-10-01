@@ -5,8 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>The Prime Fit</title>
   <script>
-    // In the iPhone app the admin sign-in is the home page; diet charts open from its menu.
-    try { if (window.Capacitor && !sessionStorage.getItem('primefit.started')) { sessionStorage.setItem('primefit.started', '1'); location.replace('admin/index.html'); } } catch (_) { /* ignore */ }
+    // In the Android / iPhone app everything starts at the sign-in; diet charts open after signing in.
+    try { if ((window.AndroidBridge || window.Capacitor) && !sessionStorage.getItem('primefit.diet')) location.replace('admin/index.html'); } catch (_) { /* ignore */ }
   </script>
   <meta name="description" content="The Prime Fit — premium 1–7 day Indian and worldwide diet charts with recipes in 10 languages: weight loss, diabetes, PCOS, thyroid, travel and more, as a 2-page A4 PDF.">
   <meta name="theme-color" content="#015B53">
@@ -70,7 +70,7 @@
           <div class="kpis" id="kpis"></div>
         </div>
         <button type="button" class="continue-card" id="continue-chart" hidden>
-          <span class="cc-icon">📋</span>
+          <span class="cc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17.5" rx="2"/><path d="M9 3.5h6v3H9zM8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg></span>
           <span class="cc-text"><small>Continue last chart</small><b id="continue-title"></b><span id="continue-sub"></span></span>
           <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
         </button>
@@ -363,7 +363,7 @@
     <!-- ── Upload previous chart ────────────────────── -->
     <section class="screen" data-screen="upload" data-title="Upload previous chart" hidden>
       <label class="dropzone" for="pdf-file">
-        <span class="dz-icon">📄</span>
+        <span class="dz-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M12 18v-6M9.5 14.5L12 12l2.5 2.5"/></svg></span>
         <b>Choose last week's diet chart PDF</b>
         <small>Charts made with The Prime Fit are read exactly (patient, targets and every meal). Other PDFs: the foods in them are found by name.</small>
         <input type="file" id="pdf-file" accept="application/pdf,.pdf">

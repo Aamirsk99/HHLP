@@ -56,7 +56,14 @@
     header();
     let y = 32;
     doc.setTextColor(...INK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-    if (report.subtitle) { doc.text(pdfText(report.subtitle), M, y); y += 6; }
+    // Info strip: period, prepared by, generated time, section count.
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y - 4.5, W - 2 * M, 10, 2, 2, 'F');
+    doc.setFillColor(...BRAND); doc.rect(M, y - 4.5, 1.4, 10, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(...INK);
+    doc.text(pdfText(report.subtitle || ''), M + 4, y + 1.8);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); doc.setTextColor(...MUTED);
+    doc.text(pdfText(`${report.by ? `Prepared by ${report.by} · ` : ''}${report.sections.length} section${report.sections.length === 1 ? '' : 's'} · ${when}`), W - M - 3, y + 1.6, { align: 'right' });
+    y += 11;
 
     // KPI tiles
     const kpis = report.kpis || [];
