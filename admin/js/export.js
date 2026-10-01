@@ -16,6 +16,10 @@
   const pdfText = (v) => String(v == null ? '' : v).replace(/₹/g, 'Rs ').replace(/[−–—]/g, '-').replace(/[✓✔]/g, 'Yes')
     .replace(/…/g, '...').replace(/[^\x00-\xFF]/g, '');
 
+  const ACCENTS = [[14, 111, 181], [15, 157, 143], [108, 91, 212], [217, 154, 30], [41, 168, 224], [20, 138, 94]];
+  const RED = [204, 59, 47];
+
+  // Files are saved one after another (Android can only show one "Save as" screen at a time).
   function save(filename, mime, base64, blob) {
     if (root.AndroidBridge && root.AndroidBridge.saveBase64) { root.AndroidBridge.saveBase64(filename, mime, base64); return; }
     const a = document.createElement('a');
@@ -24,41 +28,66 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   }
+  const b64ToBlob = (b64, mime) => {
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  };
+  const nowText = () => new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  /**
+   * A4 PDF: branded header, report meta line, coloured summary tiles, sections with an accent
+   * bar and record count, striped tables with totals, page numbers and credit on every page.
+   */
   function pdf(report, clinic) {
     const { jsPDF } = root.jspdf;
     const widest = Math.max(0, ...report.sections.map((s) => s.head.length));
     const landscape = widest > 7;
-    const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4', compress: true });
     const W = doc.internal.pageSize.getWidth();
     const H = doc.internal.pageSize.getHeight();
     const M = 12;
-    const when = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const when = nowText();
+    const name = clinic || 'Hindivine Healthcare';
 
-    const header = () => {
-      doc.setFillColor(...NAVY); doc.rect(0, 0, W, 24, 'F');
-      doc.setFillColor(...BRAND); doc.rect(0, 24, W, 1.2, 'F');
-      doc.setFillColor(255, 255, 255); doc.roundedRect(M, 4.5, 46, 15.5, 2, 2, 'F');
-      try { doc.addImage(LOGO, 'JPEG', M + 1.5, 5.4, 43, 14.7); } catch (_) { /* logo optional */ }
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
-      doc.text(pdfText(report.title), W - M, 12, { align: 'right' });
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-      doc.text(pdfText(clinic || 'Hindivine Healthcare'), W - M, 18, { align: 'right' });
+    const header = (first) => {
+      doc.setFillColor(...NAVY); doc.rect(0, 0, W, first ? 30 : 18, 'F');
+      doc.setFillColor(...BRAND); doc.rect(0, first ? 30 : 18, W, 1.4, 'F');
+      doc.setFillColor(41, 168, 224); doc.rect(W * 0.62, first ? 30 : 18, W * 0.38, 1.4, 'F');
+      if (first) {
+        doc.setFillColor(255, 255, 255); doc.roundedRect(M, 6, 50, 17.5, 2.5, 2.5, 'F');
+        try { doc.addImage(LOGO, 'JPEG', M + 1.8, 7, 46.4, 15.8); } catch (_) { /* logo optional */ }
+        doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
+        doc.text(pdfText(report.title), W - M, 15, { align: 'right' });
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+        doc.text(pdfText(name), W - M, 21.5, { align: 'right' });
+      } else {
+        doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+        doc.text(pdfText(name), M, 11.5);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+        doc.text(pdfText(`${report.title}${report.subtitle ? ` · ${report.subtitle}` : ''}`), W - M, 11.5, { align: 'right' });
+      }
     };
     const footer = (n, total) => {
-      doc.setDrawColor(219, 228, 238); doc.line(M, H - 11, W - M, H - 11);
+      doc.setFillColor(242, 246, 250); doc.rect(0, H - 14, W, 14, 'F');
+      doc.setFillColor(...BRAND); doc.rect(0, H - 14, W, 0.6, 'F');
       doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.setFont('helvetica', 'normal');
-      doc.text(pdfText(`${clinic || 'Hindivine Healthcare'} · Generated ${when}`), M, H - 6.5);
-      doc.text(`Page ${n} of ${total}`, W - M, H - 6.5, { align: 'right' });
+      doc.text(pdfText(`${name} · Generated ${when}${report.preparedBy ? ` by ${report.preparedBy}` : ''}`), M, H - 8);
+      doc.setFontSize(6.8); doc.text(pdfText('Hindivine Admin · Developed by Aamir Sk · Hindivine Digital Marketing Team'), M, H - 4);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY); doc.text(`Page ${n} of ${total}`, W - M, H - 6, { align: 'right' });
     };
 
-    header();
-    let y = 32;
-    doc.setTextColor(...INK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-    if (report.subtitle) { doc.text(pdfText(report.subtitle), M, y); y += 6; }
+    header(true);
+    let y = 38;
+    // Meta strip: period / date and record summary
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y - 4.5, W - 2 * M, 9, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...NAVY);
+    doc.text(pdfText(report.subtitle || ''), M + 4, y + 1.6);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED); doc.setFontSize(8.5);
+    const recs = report.sections.reduce((a, s) => a + s.rows.length, 0);
+    doc.text(pdfText(`${report.sections.length} section${report.sections.length === 1 ? '' : 's'} · ${recs} record${recs === 1 ? '' : 's'}`), W - M - 4, y + 1.6, { align: 'right' });
+    y += 10;
 
-    // KPI tiles
     const kpis = report.kpis || [];
     if (kpis.length) {
       const per = landscape ? 5 : 4;
@@ -66,54 +95,125 @@
       const bw = (W - 2 * M - gap * (per - 1)) / per;
       kpis.forEach(([label, value], i) => {
         const col = i % per; const row = Math.floor(i / per);
-        const x = M + col * (bw + gap); const by = y + row * 17;
-        doc.setFillColor(...ZEBRA); doc.roundedRect(x, by, bw, 14.5, 1.8, 1.8, 'F');
-        doc.setFillColor(...BRAND); doc.rect(x, by + 2, 0.9, 10.5, 'F');
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(...MUTED);
-        doc.text(pdfText(label).toUpperCase(), x + 3.5, by + 5.2, { maxWidth: bw - 5 });
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...INK);
-        doc.text(pdfText(value), x + 3.5, by + 11.5, { maxWidth: bw - 5 });
+        const x = M + col * (bw + gap); const by = y + row * 18.5;
+        const ac = (report.alertKpis || []).includes(i) ? RED : ACCENTS[i % ACCENTS.length];
+        doc.setFillColor(...ac.map((c) => Math.round(c + (255 - c) * 0.9))); doc.roundedRect(x, by, bw, 15.5, 2.2, 2.2, 'F');
+        doc.setFillColor(...ac); doc.roundedRect(x, by, 1.6, 15.5, 0.8, 0.8, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...MUTED);
+        doc.text(pdfText(label).toUpperCase(), x + 4.2, by + 5.4, { maxWidth: bw - 6 });
+        doc.setFontSize(12.5); doc.setTextColor(...ac.map((c) => Math.round(c * 0.75)));
+        doc.text(pdfText(value), x + 4.2, by + 12.2, { maxWidth: bw - 6 });
       });
-      y += Math.ceil(kpis.length / per) * 17 + 3;
+      y += Math.ceil(kpis.length / per) * 18.5 + 4;
     }
 
-    report.sections.forEach((s) => {
-      if (y > H - 60) { doc.addPage(); header(); y = 32; }
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY);
-      doc.text(pdfText(s.title), M, y + 4);
+    report.sections.forEach((s, si) => {
+      if (y > H - 55) { doc.addPage(); header(false); y = 26; }
+      const ac = /ORDER REQUIRED/i.test(s.title) ? RED : ACCENTS[si % ACCENTS.length];
+      doc.setFillColor(...ac); doc.roundedRect(M, y - 1, 2.2, 7, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY);
+      doc.text(pdfText(s.title), M + 5, y + 4.4);
+      const tw = doc.getTextWidth(pdfText(s.title));
+      doc.setFillColor(...ac.map((c) => Math.round(c + (255 - c) * 0.85))); doc.roundedRect(M + 7 + tw, y, 16, 5.6, 2.8, 2.8, 'F');
+      doc.setFontSize(7.5); doc.setTextColor(...ac); doc.text(`${s.rows.length}`, M + 15 + tw, y + 3.9, { align: 'center' });
       if (s.note) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text(pdfText(s.note), W - M, y + 4, { align: 'right' }); }
       const right = {};
       (s.right || []).forEach((i) => { right[i] = { halign: 'right' }; });
       doc.autoTable({
-        startY: y + 6.5,
+        startY: y + 8,
         head: [s.head.map(pdfText)],
-        body: s.rows.length ? s.rows.map((r) => r.map(pdfText)) : [[{ content: 'No records for this selection', colSpan: s.head.length, styles: { halign: 'center', textColor: MUTED } }]],
+        body: s.rows.length ? s.rows.map((r) => r.map(pdfText)) : [[{ content: 'No records for this selection', colSpan: s.head.length, styles: { halign: 'center', textColor: MUTED, fontStyle: 'italic' } }]],
         foot: s.foot ? [s.foot.map(pdfText)] : undefined,
-        theme: 'grid',
+        theme: 'striped',
         showHead: 'everyPage',
         showFoot: 'lastPage',
         rowPageBreak: 'avoid',
-        margin: { left: M, right: M, top: 30, bottom: 16 },
-        styles: { font: 'helvetica', fontSize: s.head.length > 9 ? 7 : 8.2, cellPadding: 1.8, lineColor: [219, 228, 238], lineWidth: 0.2, textColor: INK, overflow: 'linebreak' },
-        headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', halign: 'left' },
-        footStyles: { fillColor: [226, 236, 246], textColor: INK, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: ZEBRA },
+        margin: { left: M, right: M, top: 24, bottom: 18 },
+        styles: { font: 'helvetica', fontSize: s.head.length > 9 ? 7 : 8.3, cellPadding: { top: 2.1, bottom: 2.1, left: 2.2, right: 2.2 }, textColor: INK, overflow: 'linebreak', lineColor: [226, 233, 241], lineWidth: { bottom: 0.2 } },
+        headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', halign: 'left', fontSize: s.head.length > 9 ? 7 : 8.2 },
+        footStyles: { fillColor: ac.map((c) => Math.round(c + (255 - c) * 0.85)), textColor: NAVY, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [246, 249, 252] },
         columnStyles: right,
         didParseCell: (d) => {
           if ((d.section === 'head' || d.section === 'foot') && right[d.column.index]) d.cell.styles.halign = 'right';
-          if (d.section === 'body' && /ORDER REQUIRED/.test(String(d.cell.raw))) { d.cell.styles.textColor = [204, 59, 47]; d.cell.styles.fontStyle = 'bold'; }
+          if (d.section === 'body' && /ORDER REQUIRED|Not available|Overdue/i.test(String(d.cell.raw))) { d.cell.styles.textColor = RED; d.cell.styles.fontStyle = 'bold'; }
+          if (d.section === 'body' && /^(Paid|Completed|Available|Converted)/.test(String(d.cell.raw))) { d.cell.styles.textColor = [20, 138, 94]; d.cell.styles.fontStyle = 'bold'; }
         },
-        didDrawPage: () => { header(); },
+        didDrawPage: () => { if (doc.getCurrentPageInfo().pageNumber > 1) header(false); },
       });
-      y = doc.lastAutoTable.finalY + 9;
+      y = doc.lastAutoTable.finalY + 10;
     });
 
     const total = doc.getNumberOfPages();
     for (let i = 1; i <= total; i++) { doc.setPage(i); footer(i, total); }
-    const name = `${report.filename}.pdf`;
+    const fname = `${report.filename}.pdf`;
     const b64 = doc.output('datauristring').split(',')[1];
-    save(name, 'application/pdf', b64, doc.output('blob'));
-    return name;
+    save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
+    return fname;
+  }
+
+  /** OPD slip (A4): clinic header, token, patient and visit details, fee, notes / Rx space, signature. */
+  function opdSlip(a, info) {
+    const { jsPDF } = root.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 14;
+    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 34, 'F');
+    doc.setFillColor(...BRAND); doc.rect(0, 34, W, 1.6, 'F');
+    doc.setFillColor(255, 255, 255); doc.roundedRect(M, 7, 56, 20, 3, 3, 'F');
+    try { doc.addImage(LOGO, 'JPEG', M + 2, 8, 52, 17.8); } catch (_) { /* optional */ }
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.text('OPD SLIP', W - M, 17, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.text(pdfText(info.clinic), W - M, 24, { align: 'right' });
+    doc.setFontSize(8.5); doc.text('www.hindivine.com', W - M, 29.5, { align: 'right' });
+    // Token + date strip
+    let y = 44;
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 20, 3, 3, 'F');
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 40, 20, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.text('TOKEN NO.', M + 20, y + 6.5, { align: 'center' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(String(info.token || '-'), M + 20, y + 15.5, { align: 'center' });
+    const cell = (x, label, value) => {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); doc.setTextColor(...MUTED); doc.text(label, x, y + 7);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...INK); doc.text(pdfText(value), x, y + 14.5);
+    };
+    cell(M + 47, 'DATE', info.date); cell(M + 92, 'TIME', info.time || 'Walk-in'); cell(M + 128, 'VISIT', info.mode);
+    y += 28;
+    // Patient box
+    const box = (title, rows) => {
+      doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 7, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY); doc.text(title, M + 5, y + 5.2);
+      y += 9;
+      doc.setDrawColor(226, 233, 241); doc.setLineWidth(0.3);
+      rows.forEach(([k, v], i) => {
+        if (i % 2 === 0) { doc.setFillColor(246, 249, 252); doc.rect(M, y, W - 2 * M, 8.5, 'F'); }
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTED); doc.text(k, M + 3, y + 5.6);
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(...INK); doc.text(pdfText(v || '-'), M + 52, y + 5.6, { maxWidth: W - 2 * M - 55 });
+        y += 8.5;
+      });
+      y += 6;
+    };
+    box('Patient details', [['Patient name', a.patientName], ['Mobile', a.mobile], ['Age / Gender', info.ageGender], ['City', info.city]]);
+    box('Visit details', [['Treatment / service', a.service || 'Consultation'], ['Consultation mode', info.mode], ['Status', info.status], ...(a.link ? [['Online meeting link', a.link]] : []), ['Booked by', a.by || '']]);
+    box('Payment', [['Consultation fee', info.fee], ['Payment status', a.paid ? `Paid${a.payMethod ? ` (${a.payMethod})` : ''}` : 'Unpaid'], ['Notes', a.notes]]);
+    // Vitals + Rx
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 7, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY); doc.text('Doctor / dietitian notes', M + 5, y + 5.2);
+    y += 10;
+    const vit = ['Weight (kg)', 'Height (cm)', 'BMI', 'BP', 'Sugar'];
+    const vw = (W - 2 * M) / vit.length;
+    vit.forEach((v, i) => { doc.setDrawColor(210, 220, 232); doc.roundedRect(M + i * vw + 1, y, vw - 2, 13, 2, 2); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text(v, M + i * vw + 4, y + 4.5); });
+    y += 18;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...BRAND); doc.text('Rx', M, y + 6);
+    doc.setDrawColor(226, 233, 241);
+    for (let ly = y + 12; ly < H - 42; ly += 9) doc.line(M, ly, W - M, ly);
+    // Signature + footer
+    doc.setDrawColor(...MUTED); doc.line(W - M - 60, H - 30, W - M, H - 30);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MUTED); doc.text('Doctor / dietitian signature', W - M - 30, H - 25, { align: 'center' });
+    doc.setFillColor(242, 246, 250); doc.rect(0, H - 14, W, 14, 'F');
+    doc.setFontSize(7.5); doc.text(pdfText(`${info.clinic} · Slip generated ${nowText()}`), M, H - 6);
+    doc.text('Developed by Aamir Sk · Hindivine Digital Marketing Team', W - M, H - 6, { align: 'right' });
+    const fname = `OPD-Slip-${String(a.patientName).replace(/[^A-Za-z0-9]+/g, '-')}-${a.date}.pdf`;
+    const b64 = doc.output('datauristring').split(',')[1];
+    save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
+    return fname;
   }
 
   function xlsx(report) {
@@ -143,100 +243,127 @@
    * A4 image (JPEG, 1240 × 1754 px ≈ 150 dpi) drawn on a canvas in the same layout as the PDF.
    * Long reports continue on extra images (…-page-2.jpg).
    */
+  /**
+   * A4 image (JPEG, 1240 px wide ≈ 150 dpi) in the same layout as the PDF. Always ONE file:
+   * the report is drawn at full size and fitted onto the A4 page; very long reports become one
+   * long A4-width image instead of several files.
+   */
   function jpeg(report, clinic) {
-    const W = 1240; const H = 1754; const M = 60;
+    const W = 1240; const A4H = 1754; const M = 56; const ROW = 44; const MAX_H = 15000;
     const rgb = (a) => `rgb(${a.join(',')})`;
-    const pages = [];
-    let c; let g; let y;
-    const logo = LOGO_IMG;
-    const start = () => {
-      c = document.createElement('canvas'); c.width = W; c.height = H; g = c.getContext('2d');
-      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-      g.fillStyle = rgb(NAVY); g.fillRect(0, 0, W, 130);
-      g.fillStyle = rgb(BRAND); g.fillRect(0, 130, W, 6);
-      g.fillStyle = '#fff'; roundRect(M, 22, 250, 86, 12); g.fill();
-      try { g.drawImage(logo, M + 8, 26, 234, 80); } catch (_) { /* logo optional */ }
-      g.textAlign = 'right'; g.fillStyle = '#fff';
-      g.font = 'bold 44px Helvetica, Arial, sans-serif'; g.fillText(report.title, W - M, 72);
-      g.font = '24px Helvetica, Arial, sans-serif'; g.fillText(clinic || 'Hindivine Healthcare', W - M, 108);
-      g.textAlign = 'left';
-      y = 180;
-      pages.push(c);
-    };
-    function roundRect(x, yy, w, h, r) { g.beginPath(); g.moveTo(x + r, yy); g.arcTo(x + w, yy, x + w, yy + h, r); g.arcTo(x + w, yy + h, x, yy + h, r); g.arcTo(x, yy + h, x, yy, r); g.arcTo(x, yy, x + w, yy, r); g.closePath(); }
-    const fit = (text, max) => { let t = String(text == null ? '' : text); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
-    const ensure = (need) => { if (y + need > H - 90) start(); };
-    start();
-    if (report.subtitle) { g.font = 'bold 28px Helvetica, Arial, sans-serif'; g.fillStyle = rgb(INK); g.fillText(report.subtitle, M, y); y += 34; }
+    const tint = (a, k) => rgb(a.map((c) => Math.round(c + (255 - c) * k)));
     const kpis = report.kpis || [];
+    const sections = report.sections.map((s) => ({ ...s, rows: s.rows.length ? s.rows : [['No records for this selection']] }));
+    // Measure first so the canvas has the right size.
+    let H = 210 + (report.subtitle ? 50 : 0) + (kpis.length ? Math.ceil(kpis.length / 4) * 112 + 16 : 0) + 100;
+    sections.forEach((s) => { H += 60 + (s.rows.length + 1 + (s.foot ? 1 : 0)) * ROW + 30; });
+    H = Math.min(Math.max(H, 600), MAX_H);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const font = (w, px) => { g.font = `${w} ${px}px Helvetica, Arial, sans-serif`; };
+    const rr = (x, yy, w, h, r) => { g.beginPath(); g.moveTo(x + r, yy); g.arcTo(x + w, yy, x + w, yy + h, r); g.arcTo(x + w, yy + h, x, yy + h, r); g.arcTo(x, yy + h, x, yy, r); g.arcTo(x, yy, x + w, yy, r); g.closePath(); };
+    const fit = (text, max) => { let t = String(text == null ? '' : text); if (g.measureText(t).width <= max) return t; while (t.length > 1 && g.measureText(t + '…').width > max) t = t.slice(0, -1); return t + '…'; };
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    // Header
+    const grd = g.createLinearGradient(0, 0, W, 0); grd.addColorStop(0, rgb(NAVY)); grd.addColorStop(1, '#0e5a9b');
+    g.fillStyle = grd; g.fillRect(0, 0, W, 150);
+    g.fillStyle = rgb(BRAND); g.fillRect(0, 150, W, 7); g.fillStyle = '#29a8e0'; g.fillRect(W * 0.62, 150, W * 0.38, 7);
+    g.fillStyle = '#fff'; rr(M, 28, 270, 94, 14); g.fill();
+    try { if (LOGO_IMG && LOGO_IMG.complete) g.drawImage(LOGO_IMG, M + 9, 33, 252, 85); } catch (_) { /* logo optional */ }
+    g.textAlign = 'right'; g.fillStyle = '#fff'; font('bold', 46); g.fillText(fit(report.title, 600), W - M, 82);
+    font('normal', 24); g.fillText(fit(clinic || 'Hindivine Healthcare', 600), W - M, 118);
+    g.textAlign = 'left';
+    let y = 196;
+    if (report.subtitle) {
+      g.fillStyle = rgb(ZEBRA); rr(M, y - 34, W - 2 * M, 48, 12); g.fill();
+      font('bold', 26); g.fillStyle = rgb(NAVY); g.fillText(fit(report.subtitle, 700), M + 18, y - 2);
+      font('normal', 20); g.fillStyle = rgb(MUTED); g.textAlign = 'right';
+      g.fillText(`Generated ${nowText()}`, W - M - 18, y - 4); g.textAlign = 'left';
+      y += 40;
+    }
     if (kpis.length) {
       const per = 4; const gap = 16; const bw = (W - 2 * M - gap * (per - 1)) / per;
       kpis.forEach(([label, value], i) => {
-        const col = i % per; const row = Math.floor(i / per);
-        const x = M + col * (bw + gap); const by = y + row * 110;
-        g.fillStyle = rgb(ZEBRA); roundRect(x, by, bw, 92, 12); g.fill();
-        g.fillStyle = (report.alertKpis || []).includes(i) ? '#cc3b2f' : rgb(BRAND); g.fillRect(x, by + 12, 6, 68);
-        g.fillStyle = rgb(MUTED); g.font = '19px Helvetica, Arial, sans-serif'; g.fillText(fit(String(label).toUpperCase(), bw - 30), x + 22, by + 34);
-        g.fillStyle = rgb(INK); g.font = 'bold 34px Helvetica, Arial, sans-serif'; g.fillText(fit(value, bw - 30), x + 22, by + 76);
+        const x = M + (i % per) * (bw + gap); const by = y + Math.floor(i / per) * 112;
+        const ac = (report.alertKpis || []).includes(i) ? RED : ACCENTS[i % ACCENTS.length];
+        g.fillStyle = tint(ac, 0.9); rr(x, by, bw, 96, 14); g.fill();
+        g.fillStyle = rgb(ac); rr(x, by, 8, 96, 4); g.fill();
+        font('bold', 18); g.fillStyle = rgb(MUTED); g.fillText(fit(String(label).toUpperCase(), bw - 36), x + 26, by + 34);
+        font('bold', 36); g.fillStyle = rgb(ac.map((v) => Math.round(v * 0.75))); g.fillText(fit(value, bw - 36), x + 26, by + 78);
       });
-      y += Math.ceil(kpis.length / per) * 110 + 16;
+      y += Math.ceil(kpis.length / per) * 112 + 16;
     }
-    report.sections.forEach((s) => {
+    let cut = false;
+    sections.forEach((s, si) => {
+      if (cut) return;
+      const ac = /ORDER REQUIRED/i.test(s.title) ? RED : ACCENTS[si % ACCENTS.length];
+      g.fillStyle = rgb(ac); rr(M, y, 10, 34, 5); g.fill();
+      font('bold', 30); g.fillStyle = rgb(NAVY); g.fillText(s.title, M + 22, y + 27);
+      const tw = g.measureText(s.title).width;
+      g.fillStyle = tint(ac, 0.85); rr(M + 34 + tw, y + 4, 60, 28, 14); g.fill();
+      font('bold', 18); g.fillStyle = rgb(ac); g.textAlign = 'center'; g.fillText(String(report.sections[si].rows.length), M + 64 + tw, y + 24); g.textAlign = 'left';
+      y += 50;
+      font('normal', 21);
       const cols = s.head.length;
-      const rows = s.rows.length ? s.rows : [['No records']];
-      g.font = '22px Helvetica, Arial, sans-serif';
-      const widths = s.head.map((h, i) => Math.max(g.measureText(String(h)).width, ...rows.map((r) => g.measureText(String(r[i] == null ? '' : r[i])).width)) + 28);
-      const total = widths.reduce((a, b) => a + b, 0);
-      const scale = (W - 2 * M) / total;
+      const widths = s.head.map((h, i) => Math.min(520, Math.max(g.measureText(String(h)).width, ...s.rows.map((r) => g.measureText(String(r[i] == null ? '' : r[i])).width)) + 30));
+      const scale = (W - 2 * M) / widths.reduce((a, b) => a + b, 0);
       const cw = widths.map((w) => w * scale);
-      ensure(140);
-      g.fillStyle = rgb(NAVY); g.font = 'bold 30px Helvetica, Arial, sans-serif'; g.fillText(s.title, M, y + 26); y += 46;
-      const rowH = 44;
-      const drawRow = (cells, style) => {
-        ensure(rowH);
+      const drawRow = (cells, style, i) => {
+        if (y + ROW > H - 80) { cut = true; return; }
+        g.fillStyle = style === 'head' ? rgb(NAVY) : style === 'foot' ? tint(ac, 0.85) : i % 2 ? 'rgb(246,249,252)' : '#fff';
+        if (style === 'head') { rr(M, y, W - 2 * M, ROW, 10); g.fill(); } else g.fillRect(M, y, W - 2 * M, ROW);
+        g.fillStyle = 'rgb(226,233,241)'; g.fillRect(M, y + ROW - 1, W - 2 * M, 1);
         let x = M;
-        g.fillStyle = style === 'head' ? rgb(NAVY) : style === 'foot' ? 'rgb(226,236,246)' : style === 'alt' ? rgb(ZEBRA) : '#fff';
-        g.fillRect(M, y, W - 2 * M, rowH);
-        g.strokeStyle = 'rgb(219,228,238)'; g.lineWidth = 1; g.strokeRect(M, y, W - 2 * M, rowH);
-        cells.forEach((v, i) => {
-          if (i >= cols) return;
-          const right = (s.right || []).includes(i);
-          const hot = (style === 'body' || style === 'alt') && /ORDER REQUIRED/.test(String(v));
-          g.fillStyle = style === 'head' ? '#fff' : hot ? '#cc3b2f' : rgb(INK);
-          g.font = `${style === 'head' || style === 'foot' || hot ? 'bold ' : ''}21px Helvetica, Arial, sans-serif`;
-          const t = fit(v, cw[i] - 20);
+        const full = cells.length === 1 && cols > 1;
+        cells.forEach((v, k) => {
+          if (k >= cols) return;
+          const right = (s.right || []).includes(k);
+          const txt = String(v == null ? '' : v);
+          const hot = style === 'body' && /ORDER REQUIRED|Not available|Overdue/i.test(txt);
+          const good = style === 'body' && /^(Paid|Completed|Available|Converted)/.test(txt);
+          g.fillStyle = style === 'head' ? '#fff' : hot ? rgb(RED) : good ? 'rgb(20,138,94)' : style === 'foot' ? rgb(NAVY) : rgb(INK);
+          font(style === 'body' && !hot && !good ? 'normal' : 'bold', 21);
+          const width = full ? W - 2 * M : cw[k];
+          const t = fit(txt, width - 24);
           g.textAlign = right ? 'right' : 'left';
-          g.fillText(t, right ? x + cw[i] - 12 : x + 12, y + 29);
+          g.fillText(t, right ? x + width - 12 : x + 12, y + 29);
           g.textAlign = 'left';
-          x += cw[i];
+          x += cw[k];
         });
-        y += rowH;
+        y += ROW;
       };
-      drawRow(s.head, 'head');
-      rows.forEach((r, i) => drawRow(r, i % 2 ? 'alt' : 'body'));
-      if (s.foot) drawRow(s.foot, 'foot');
+      drawRow(s.head, 'head', 0);
+      s.rows.forEach((r, i) => drawRow(r, 'body', i));
+      if (s.foot) drawRow(s.foot, 'foot', 0);
       y += 30;
     });
-    const when = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    pages.forEach((pg, i) => {
-      const gg = pg.getContext('2d');
-      gg.fillStyle = 'rgb(219,228,238)'; gg.fillRect(M, H - 70, W - 2 * M, 2);
-      gg.fillStyle = rgb(MUTED); gg.font = '19px Helvetica, Arial, sans-serif';
-      gg.fillText(`${clinic || 'Hindivine Healthcare'} · Generated ${when}`, M, H - 38);
-      gg.textAlign = 'right'; gg.fillText(`Page ${i + 1} of ${pages.length}`, W - M, H - 38); gg.textAlign = 'left';
-    });
-    const names = [];
-    pages.forEach((pg, i) => {
-      const name = `${report.filename}${pages.length > 1 ? `-page-${i + 1}` : ''}.jpg`;
-      const url = pg.toDataURL('image/jpeg', 0.92);
-      const b64 = url.split(',')[1];
-      const bin = atob(b64); const bytes = new Uint8Array(bin.length);
-      for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
-      save(name, 'image/jpeg', b64, new Blob([bytes], { type: 'image/jpeg' }));
-      names.push(name);
-    });
-    return names.join(', ');
+    if (cut) { font('bold', 22); g.fillStyle = rgb(RED); g.fillText('More rows in the PDF / Excel export…', M, H - 92); }
+    // Footer
+    g.fillStyle = 'rgb(242,246,250)'; g.fillRect(0, H - 64, W, 64);
+    font('normal', 19); g.fillStyle = rgb(MUTED);
+    g.fillText(fit(`${clinic || 'Hindivine Healthcare'} · Generated ${nowText()}${report.preparedBy ? ` by ${report.preparedBy}` : ''}`, 700), M, H - 26);
+    g.textAlign = 'right'; g.fillText('Developed by Aamir Sk · Hindivine Digital Marketing Team', W - M, H - 26); g.textAlign = 'left';
+    // Fit onto one A4 page when it is not too long; otherwise keep one long A4-width image.
+    let out = c;
+    if (H > A4H && A4H / H >= 0.55) {
+      const page = document.createElement('canvas'); page.width = W; page.height = A4H;
+      const pg = page.getContext('2d'); pg.fillStyle = '#fff'; pg.fillRect(0, 0, W, A4H);
+      const k = A4H / H; const w = W * k;
+      pg.imageSmoothingQuality = 'high';
+      pg.drawImage(c, (W - w) / 2, 0, w, A4H);
+      out = page;
+    } else if (H < A4H) {
+      const page = document.createElement('canvas'); page.width = W; page.height = A4H;
+      const pg = page.getContext('2d'); pg.fillStyle = '#fff'; pg.fillRect(0, 0, W, A4H);
+      pg.drawImage(c, 0, 0, W, H - 64, 0, 0, W, H - 64);
+      pg.drawImage(c, 0, H - 64, W, 64, 0, A4H - 64, W, 64);
+      out = page;
+    }
+    const fname = `${report.filename}.jpg`;
+    const b64 = out.toDataURL('image/jpeg', 0.93).split(',')[1];
+    save(fname, 'image/jpeg', b64, b64ToBlob(b64, 'image/jpeg'));
+    return fname;
   }
 
-  root.EXPORT = { pdf, xlsx, jpeg, pdfText };
+  root.EXPORT = { pdf, xlsx, jpeg, opdSlip, pdfText };
 })(window);

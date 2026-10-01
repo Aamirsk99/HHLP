@@ -19,6 +19,7 @@ import android.widget.Toast;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 
 /** Hosts the Hindivine Diet or Hindivine Admin web app (bundled in assets/www) in a full-screen WebView. */
 public class MainActivity extends Activity {
@@ -26,14 +27,46 @@ public class MainActivity extends Activity {
     private static final int REQUEST_OPEN = 2;
 
     private WebView webView;
-    private String pendingFileContent;
-    private byte[] pendingFileBytes;
     private ValueCallback<Uri[]> fileCallback;
+
+    /** A file waiting for its "Save as" screen. Files are saved one after another. */
+    private static class PendingSave {
+        final String name; final String mime; final byte[] bytes;
+        PendingSave(String name, String mime, byte[] bytes) { this.name = name; this.mime = mime; this.bytes = bytes; }
+    }
+    private final ArrayDeque<PendingSave> saveQueue = new ArrayDeque<>();
+    private PendingSave saving;
+
+    private void enqueueSave(PendingSave p) {
+        saveQueue.add(p);
+        if (saving == null) startNextSave();
+    }
+
+    private void startNextSave() {
+        saving = saveQueue.poll();
+        if (saving == null) return;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(saving.mime);
+        intent.putExtra(Intent.EXTRA_TITLE, saving.name);
+        try {
+            startActivityForResult(intent, REQUEST_SAVE);
+        } catch (Exception e) {
+            saving = null;
+            saveQueue.clear();
+            Toast.makeText(this, "No app available to save files", Toast.LENGTH_LONG).show();
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
+        // Android 13+: ask once so follow-up reminders can show as notifications.
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] { "android.permission.POST_NOTIFICATIONS" }, 7);
+        }
 
         webView = new WebView(this);
         WebSettings s = webView.getSettings();
@@ -53,6 +86,13 @@ public class MainActivity extends Activity {
                     startActivity(new Intent(Intent.ACTION_VIEW, url));
                 } catch (Exception ignored) {
                 }
+                return true;
+            }
+
+            // The page's renderer crashed or was stopped to free memory: reload instead of closing the app.
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                recreate();
                 return true;
             }
         });
@@ -145,49 +185,42 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void saveFile(final String fileName, final String mimeType, final String content) {
+            final byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
             runOnUiThread(new Runnable() {
                 @Override
-                public void run() {
-                    pendingFileContent = content;
-                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                    intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    intent.setType(mimeType);
-                    intent.putExtra(Intent.EXTRA_TITLE, fileName);
-                    try {
-                        startActivityForResult(intent, REQUEST_SAVE);
-                    } catch (Exception e) {
-                        pendingFileContent = null;
-                        Toast.makeText(MainActivity.this, "No app available to save files", Toast.LENGTH_LONG).show();
-                    }
-                }
+                public void run() { enqueueSave(new PendingSave(fileName, mimeType, bytes)); }
             });
         }
 
-        /** Binary files (PDF, Excel) arrive base64-encoded from JavaScript. */
+        /** Binary files (PDF, Excel, JPEG) arrive base64-encoded from JavaScript. */
         @JavascriptInterface
         public void saveBase64(final String fileName, final String mimeType, final String base64) {
+            final byte[] bytes;
+            try {
+                bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+            } catch (Exception e) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() { Toast.makeText(MainActivity.this, "Could not prepare the file", Toast.LENGTH_LONG).show(); }
+                });
+                return;
+            }
             runOnUiThread(new Runnable() {
                 @Override
-                public void run() {
-                    try {
-                        pendingFileBytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
-                    } catch (Exception e) {
-                        Toast.makeText(MainActivity.this, "Could not prepare the file", Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    pendingFileContent = null;
-                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                    intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    intent.setType(mimeType);
-                    intent.putExtra(Intent.EXTRA_TITLE, fileName);
-                    try {
-                        startActivityForResult(intent, REQUEST_SAVE);
-                    } catch (Exception e) {
-                        pendingFileBytes = null;
-                        Toast.makeText(MainActivity.this, "No app available to save files", Toast.LENGTH_LONG).show();
-                    }
-                }
+                public void run() { enqueueSave(new PendingSave(fileName, mimeType, bytes)); }
             });
+        }
+
+        /** Follow-up reminders: JSON [{id, at (ms), title, text}] replaces every reminder scheduled before. */
+        @JavascriptInterface
+        public void scheduleReminders(String json) {
+            ReminderReceiver.schedule(MainActivity.this, json);
+        }
+
+        /** Shows a notification right away (reminder due while the app is open). */
+        @JavascriptInterface
+        public void notifyNow(String title, String text) {
+            ReminderReceiver.show(MainActivity.this, title, text, (int) (System.currentTimeMillis() % 100000));
         }
     }
 
@@ -202,16 +235,27 @@ public class MainActivity extends Activity {
             return;
         }
         if (requestCode != REQUEST_SAVE) return;
-        String content = pendingFileContent;
-        byte[] bytes = pendingFileBytes;
-        pendingFileContent = null;
-        pendingFileBytes = null;
-        if (resultCode != RESULT_OK || data == null || data.getData() == null || (content == null && bytes == null)) return;
-        try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
-            out.write(bytes != null ? bytes : content.getBytes(StandardCharsets.UTF_8));
-            Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "Could not save file", Toast.LENGTH_LONG).show();
+        PendingSave p = saving;
+        saving = null;
+        if (p != null && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri uri = data.getData();
+            try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                out.write(p.bytes);
+                Toast.makeText(this, "Saved " + p.name, Toast.LENGTH_SHORT).show();
+                // Open the saved PDF / image / sheet so it can be checked or shared straight away.
+                if (saveQueue.isEmpty()) {
+                    try {
+                        Intent view = new Intent(Intent.ACTION_VIEW);
+                        view.setDataAndType(uri, p.mime);
+                        view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(view);
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception e) {
+                Toast.makeText(this, "Could not save file", Toast.LENGTH_LONG).show();
+            }
         }
+        startNextSave();
     }
 }

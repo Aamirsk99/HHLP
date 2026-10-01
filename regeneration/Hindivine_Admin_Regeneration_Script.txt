@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.0)
+ HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.1)
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
  Hindivine Healthcare Pvt. Ltd. · www.hindivine.com
 ================================================================================
@@ -14,7 +14,7 @@ from scratch by a developer or by an AI coding assistant. It has three parts:
           rule, every screen, exports, Google Sheet storage, Android build.
   PART C  Step-by-step rebuild and release checklist.
 
-The exact source code of version 3.0 is in the companion file
+The exact source code of version 3.1 is in the companion file
 "Hindivine_Admin_Full_Source.txt" (every file, with an unpack script). If you
 want an identical app, use that file. If you want to regenerate or extend the
 app, use this file.
@@ -330,7 +330,7 @@ Reports, Admin.
     Roles & permissions matrix (Super Admin only); Choice lists (chips with
     rename/remove + add) incl. inventory categories; Backup (export/import
     JSON), All reports, Erase all data (Super Admin).
-20. What's new — version history (1.0, 1.1, 2.0, 3.0) and credits.
+20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1) and credits.
 Every drop-down backed by a list ends with "+ Add new…" which shows an
 inline input and saves the new option for everyone.
 Period options everywhere: Today, This month (auto), Choose month, Last
@@ -377,9 +377,52 @@ File chooser supports several MIME types. Back button: ask the page
 (window.hdvBack()) first; exit only on a second press within 2 s on the home
 screen. Build without Android SDK/Gradle using android/build.sh
 (aapt2 from apktool, dx, apksig, android-all jar from Maven Central):
-  APP=admin VERSION_CODE=4 VERSION_NAME=3.0 ./android/build.sh
+  APP=admin VERSION_CODE=5 VERSION_NAME=3.1 ./android/build.sh
 Keep android/release.p12 (password dietchart) safe: updates must be signed
 with the same key.
+
+B15. VERSION 3.1 ADDITIONS
+--------------------------
+* Themes (per device, localStorage "hindivine.admin.theme"): royal, emerald,
+  purple, sunset, midnight (dark). <html data-theme="..."> overrides the CSS
+  variables --navy, --brand, --grad, --grad-btn, --side-bg, --nav-on, --glow.
+  Picked from the dots in the side-menu profile card or the account menu.
+* Side menu: profile card (avatar coloured by role, name, role, clinic),
+  menu search (filters as you type, Enter opens the first match), quick
+  actions + Sale / + OPD / + Lead, icon squares, items slide in one after
+  another when the menu opens on a phone.
+* App feel: body { user-select: none; -webkit-touch-callout: none } while
+  inputs, textareas and selects stay selectable; lighter effects on phones.
+* Reminders: bell in the top bar with a count (overdue + today follow-ups +
+  order required); it shakes when something is overdue. Reminders sheet:
+  overdue follow-ups, today's follow-ups, OPD waiting, order required,
+  renewal alerts; each follow-up has Call, WhatsApp, +1 h, Tomorrow, Update.
+  Shown once a day at sign-in when follow-ups are due. Every 30 s the app
+  checks for a follow-up whose time has come and shows a pop-up card at the
+  top (vibrates; snooze 15 min). Scope: Front Desk = own leads; others pick
+  "All follow-ups" or "Only mine" in the account menu (device preference
+  "hindivine.admin.prefs").
+* Android notifications: AndroidBridge.scheduleReminders(json) gets the
+  next 14 days of follow-ups (max 50, default time 10:00); ReminderReceiver
+  sets AlarmManager alarms (setAndAllowWhileIdle) and shows a notification
+  on channel "followups" that opens the app. notifyNow(title, text) shows
+  one immediately. Manifest: POST_NOTIFICATIONS, VIBRATE, the receiver.
+  Android 13+: the app asks for notification permission at start.
+* Leads: "Follow-ups" tab grouped Overdue / Today / Tomorrow / This week /
+  Later; one-tap follow-up chips (In 1 hour, Today 6 PM, Tomorrow 11 AM,
+  In 3 days, Next week) in the lead form and the lead update sheet.
+* OPD slip: button in the appointment sheet → A4 PDF "OPD SLIP" with token
+  number (position among that day's non-cancelled appointments by time),
+  date, time, visit type, patient details (name, mobile, age/gender, city),
+  visit details, payment, vitals boxes, Rx area and signature line.
+* Today Summary: Reference column on every sale (with % when shared) and a
+  "Sales by reference" board listing every active team member, including
+  those with no sales; both are in the PDF and the image.
+* Image export: always one JPEG file (A4 when it fits, otherwise one long
+  page); Android saves files one after another (queue in MainActivity).
+* PDF: big header on page 1, slim header on the next pages, tinted KPI
+  tiles, section bars with record counts, red/green status cells, totals,
+  two-line footer (generated time and person, credit, page x of y).
 
 B14. TESTS (node --test tests/*.test.js)
 ----------------------------------------

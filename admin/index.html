@@ -15,7 +15,7 @@
   <link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
-  <!-- Login: Super Admin, Manager or Front Desk, each with its own PIN -->
+  <!-- Login: every person signs in with their own name and PIN -->
   <div class="lock" id="lock" hidden>
     <div class="lock-card">
       <img src="../img/logo.jpg" alt="Hindivine Healthcare" class="lock-logo" width="900" height="308">
@@ -28,8 +28,11 @@
     <aside class="side" id="side" aria-label="Main menu">
       <div class="side-head">
         <img src="../img/icon-192.png" alt="" width="42" height="42">
-        <div><b>Hindivine Admin</b><small id="side-sub"></small></div>
+        <div><b>Hindivine Admin</b><small>Clinic management</small></div>
       </div>
+      <div class="side-profile" id="side-profile"></div>
+      <div class="side-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><input type="search" id="nav-search" placeholder="Search menu" aria-label="Search menu" autocomplete="off"></div>
+      <div class="side-quick" id="side-quick"></div>
       <nav id="nav"></nav>
       <button type="button" class="side-lock" data-act="lock">
         <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Log out</button>
@@ -43,6 +46,9 @@
           <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
         <div class="top-title"><h1 id="title">Dashboard</h1><small id="top-sub"></small></div>
+        <button type="button" class="icon-btn bell" id="bell-btn" data-act="reminders" aria-label="Reminders" title="Reminders">
+          <svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><span class="bell-n" id="bell-n" hidden></span>
+        </button>
         <button type="button" class="icon-btn" id="refresh-btn" data-act="refresh" aria-label="Refresh data" title="Refresh">
           <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
         </button>
@@ -64,6 +70,7 @@
     </form>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="reminder-pop" id="reminder-pop" hidden></div>
 
   <script src="vendor/jspdf.umd.min.js"></script>
   <script src="vendor/jspdf.plugin.autotable.min.js"></script>

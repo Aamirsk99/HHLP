@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.0';
+  const APP_VERSION = '3.1';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -15,6 +15,21 @@
   const DIRTY_KEY = 'hindivine.admin.savedHash'; // fingerprint of the data last saved to / loaded from the sheet
   const SHEET_LINK = 'https://docs.google.com/spreadsheets/d/1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y/edit';
   const IDLE_LOCK_MS = 15 * 60 * 1000;
+  // Colour themes (chosen per device).
+  const THEMES = [['royal', 'Royal Blue', '#0e6fb5'], ['emerald', 'Emerald', '#0f9d8f'], ['purple', 'Royal Purple', '#6c5bd4'], ['sunset', 'Sunset', '#e0622f'], ['midnight', 'Midnight', '#111c2b']];
+  const THEME_KEY = 'hindivine.admin.theme';
+  const PREF_KEY = 'hindivine.admin.prefs'; // device preferences: reminder scope, sound
+  const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (_) { return d; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } };
+  const prefs = () => { try { return JSON.parse(lsGet(PREF_KEY, '{}')) || {}; } catch (_) { return {}; } };
+  const setPref = (k, v) => { const p = prefs(); p[k] = v; lsSet(PREF_KEY, JSON.stringify(p)); };
+  function applyTheme(t) {
+    const th = THEMES.find((x) => x[0] === t) || THEMES[0];
+    document.documentElement.dataset.theme = th[0];
+    const meta = document.querySelector('meta[name=theme-color]');
+    if (meta) meta.setAttribute('content', th[0] === 'midnight' ? '#0a111c' : th[0] === 'royal' ? '#0A2F55' : th[2]);
+  }
+  applyTheme(lsGet(THEME_KEY, 'royal'));
 
   let storage;
   try { storage = window.localStorage; storage.getItem('x'); } catch (_) { storage = A.memoryStorage(); }
@@ -124,7 +139,8 @@
         : id === 'appointments' && todayN ? `<span class="badge info">${todayN}</span>`
           : id === 'leads' && leadsDue ? `<span class="badge warn">${leadsDue}</span>` : '');
     const items = NAV.filter((n) => can(n[0]));
-    $('#nav').innerHTML = items.map(([id, label, icon, group]) => `${group ? `<div class="nav-group">${group}</div>` : ''}<button type="button" data-go="${id}" class="${screen === id || (id === 'purchases' && screen === 'purchase-new') ? 'on' : ''}">${svg(icon)}<span>${label}</span>${badge(id)}</button>`).join('');
+    $('#nav').innerHTML = items.map(([id, label, icon, group], i) => `${group ? `<div class="nav-group">${group}</div>` : ''}<button type="button" data-go="${id}" style="--i:${i}" class="${screen === id || (id === 'purchases' && screen === 'purchase-new') ? 'on' : ''}"><span class="nav-ic">${svg(icon)}</span><span>${label}</span>${badge(id)}</button>`).join('');
+    filterNav();
     const tabs = (can('dashboard') ? TAB_ORDER : DESK_TABS).filter(can);
     $('#tabs').hidden = tabs.length < 2;
     const tabLabel = { dashboard: 'Dashboard', today: 'Today', appointments: 'OPD', inventory: 'Inventory', leads: 'Leads' };
@@ -133,8 +149,13 @@
       const n = NAV.find((x) => x[0] === id);
       return `<button type="button" data-go="${id}" class="${screen === id ? 'on' : ''}">${svg(n[2])}<span>${tabLabel[id] || n[1]}</span>${badge(id).replace('badge', 'badge dot')}</button>`;
     }).join('');
-    $('#side-sub').textContent = `${me.name} · ${A.ROLES[role]}`;
+    const theme = lsGet(THEME_KEY, 'royal');
+    $('#side-profile').innerHTML = `<span class="avatar r-${role}">${esc(me.name.trim().charAt(0).toUpperCase())}</span><div><b>${esc(me.name)}</b><small>${A.ROLES[role]} · ${esc(set().clinic || '')}</small></div>
+      <div class="theme-dots">${THEMES.map(([k, l, c]) => `<button type="button" class="tdot ${theme === k ? 'on' : ''}" style="--c:${c}" data-act="theme" data-theme="${k}" title="${l}" aria-label="${l} theme"></button>`).join('')}</div>`;
+    const quick = [['sell', 'Sale', '<path d="M12 5v14M5 12h14"/>', 'new-sale'], ['appointments', 'OPD', ICON_CAL, 'new-appt'], ['leads', 'Lead', ICON_LEADS, 'new-lead']].filter((q) => can(q[0]));
+    $('#side-quick').innerHTML = quick.map(([id, l, ic, act]) => `<button type="button" data-act="${act}">${svg(ic)}<span>+ ${l}</span></button>`).join('');
     $('#user-initial').textContent = me.name.trim().charAt(0).toUpperCase();
+    updateBell();
   }
 
   function render() {
@@ -143,12 +164,19 @@
     const nav = NAV.find((n) => n[0] === screen);
     $('#title').textContent = TITLES[screen] || (screen === 'sell' && params.edit ? 'Edit Sale' : nav ? nav[1] : '');
     $('#top-sub').textContent = SUBS[screen] ? SUBS[screen]() : `${me.name} · ${A.ROLES[role]}`;
-    view.innerHTML = f();
+    try {
+      view.innerHTML = f();
+    } catch (err) {
+      // A screen that fails must never leave a blank or frozen app.
+      console.error(err);
+      view.innerHTML = `<div class="card empty"><h2>Something went wrong on this screen</h2><p class="hint">${esc(err.message)}</p><button class="btn primary" data-go="${home()}">Go to ${esc((NAV.find((n) => n[0] === home()) || [])[1] || 'home')}</button></div>`;
+    }
     view.classList.toggle('enter', changedScreen);
     labelTables(view);
     renderNav();
-    if (AFTER[screen]) AFTER[screen]();
+    try { if (AFTER[screen]) AFTER[screen](); } catch (err) { console.error(err); }
     if (changedScreen) countUp(view);
+    scheduleReminders();
     changedScreen = false;
   }
   // Numbers in the summary boxes count up when a screen opens.
@@ -289,7 +317,7 @@
     $('#modal-title').textContent = title;
     $('#modal-body').innerHTML = (html || '') + (fields ? `<div class="grid">${fields.map(field).join('')}</div>` : '');
     $('#modal-err').textContent = '';
-    $('#modal-foot').innerHTML = `<button type="button" class="btn" data-close>Cancel</button>${submitLabel !== false ? `<button type="submit" class="btn primary${danger ? ' danger' : ''}">${esc(submitLabel || 'Save')}</button>` : ''}`;
+    $('#modal-foot').innerHTML = `<button type="button" class="btn" data-close>${submitLabel === false ? 'Close' : 'Cancel'}</button>${submitLabel !== false ? `<button type="submit" class="btn primary${danger ? ' danger' : ''}">${esc(submitLabel || 'Save')}</button>` : ''}`;
     modalSubmit = () => {
       const values = {};
       (fields || []).forEach((f) => {
@@ -411,6 +439,17 @@
   let todayDate = '';
   SUBS.today = () => `${fdate(todayDate || admin.today())}${(todayDate || admin.today()) === admin.today() ? ' · Today' : ''}`;
   const shiftDay = (d, n) => { const [y, m, dd] = d.split('-').map(Number); return A.isoDate(new Date(y, m - 1, dd + n)); };
+  // Every active team member (reference) with the day's sales credited to them, including those with none.
+  function refSummary(x) {
+    const by = new Map();
+    S().team.filter((m) => !m.disabled).forEach((m) => by.set(m.name, { name: m.name, count: 0, credited: 0, incentive: 0 }));
+    x.sales.forEach((s) => s.splits.forEach((y) => {
+      const o = by.get(y.name) || { name: y.name, count: 0, credited: 0, incentive: 0 };
+      o.count++; o.credited += s.amount * (y.pct || 0) / 100; o.incentive += y.amount || 0;
+      by.set(y.name, o);
+    }));
+    return [...by.values()].sort((a, b) => b.credited - a.credited || a.name.localeCompare(b.name));
+  }
   SCREENS.today = () => {
     const d = todayDate || admin.today();
     const x = admin.daySummary(d);
@@ -428,10 +467,14 @@
         <div class="alerts">${x.order.map((o) => `<div class="alert bad"><b>${esc(o.item.name)}</b><span class="badge bad">${num(o.stock)} left · below ${o.item.orderAt}</span></div>`).join('')}</div></section>` : ''}
       <div class="cards">
         <section class="card"><h2><span class="ic">${svg('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>')}</span>Sales<span class="sp"></span><span class="badge">${inr(x.salesTotal)}</span></h2>
-          ${table(['Patient', 'Product', '>Qty', '>Amount', '~Reference'], x.sales.map((s) => `<tr><td>${esc(s.patientName)}</td><td>${typeBadge(s.type)} ${esc(s.product)}</td><td class="r">${s.qty}</td><td class="r"><b>${inr(s.amount)}</b></td><td>${splitText(s)}</td></tr>`))}</section>
+          ${table(['Patient', 'Product', '>Qty', '>Amount', 'Reference', '>Incentive'], x.sales.map((s) => `<tr><td>${esc(s.patientName)}</td><td>${typeBadge(s.type)} ${esc(s.product)}</td><td class="r">${s.qty}</td><td class="r"><b>${inr(s.amount)}</b></td><td><span class="ref-chips">${s.splits.map((y) => `<span class="ref-chip">${esc(y.name)}${s.splits.length > 1 ? ` · ${y.pct}%` : ''}</span>`).join('')}</span></td><td class="r">${inr(s.incentive)}</td></tr>`))}</section>
         <section class="card"><h2><span class="ic gold">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}</span>Purchases<span class="sp"></span><span class="badge">${inr(x.purchaseTotal)}</span></h2>
           ${table(['Vendor', 'Stock in', '>Total'], x.purchases.map((p) => `<tr><td>${esc(p.vendor || 'Vendor')}<span class="sub">${esc(p.invoiceNo)}</span></td><td>${p.lines.map((l) => `${esc(l.name)} +${num(l.qty)}`).join('<br>')}</td><td class="r">${inr(p.total)}</td></tr>`))}</section>
       </div>
+      <section class="card"><h2><span class="ic teal">${svg('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2.2.6 3.5 2.6 3.5 6"/>')}</span>Sales by reference<span class="sp"></span><span class="badge">${refSummary(x).length}</span></h2>
+        <div class="ref-board">${refSummary(x).map((r) => `<div class="ref-tile ${r.count ? '' : 'zero'}"><b>${esc(r.name)}</b><small>${plural(r.count, 'sale')} · ${inr(Math.round(r.credited))}</small><small>Incentive ${inr(r.incentive)}</small></div>`).join('') || '<p class="empty">No team members yet.</p>'}</div></section>
+      <section class="card"><h2><span class="ic violet">${svg(ICON_CAL)}</span>OPD appointments<span class="sp"></span><span class="badge">${x.appointments.length}</span></h2>
+        ${table(['Patient', 'Time', 'Mode', 'Service', 'Status', '>Fee'], x.appointments.map((a) => `<tr><td>${esc(a.patientName)}</td><td>${esc(time12(a.time))}</td><td>${modeBadge(a.mode)}</td><td>${esc(a.service || '—')}</td><td>${statusBadge(a.status)}</td><td class="r">${inr(a.fee)} ${a.status !== 'cancelled' ? (a.paid ? '<span class="badge ok">Paid</span>' : '<span class="badge warn">Unpaid</span>') : ''}</td></tr>`))}</section>
       <div class="cards">
         <section class="card"><h2><span class="ic teal">${svg('<path d="M20 6L9 17l-5-5"/>')}</span>Stock available<span class="sp"></span><span class="badge ok">${x.available.length}</span></h2>
           ${table(['Item', '~Category', '>Stock', 'Status'], x.available.map(stockRow))}</section>
@@ -454,7 +497,7 @@
     const mine = myLeadFilter();
     const q = leadF.q.toLowerCase();
     return S().leads.filter((l) => (!mine || mine(l))
-      && (leadF.tab === 'all' || (leadF.tab === 'open' && !admin.isClosedLead(l)) || (leadF.tab === 'due' && !admin.isClosedLead(l) && l.followUp === d)
+      && (leadF.tab === 'all' || (leadF.tab === 'open' && !admin.isClosedLead(l)) || (leadF.tab === 'follow' && !admin.isClosedLead(l) && l.followUp) || (leadF.tab === 'due' && !admin.isClosedLead(l) && l.followUp === d)
         || (leadF.tab === 'overdue' && !admin.isClosedLead(l) && l.followUp && l.followUp < d) || (leadF.tab === 'won' && ['Converted', 'Appointment booked'].includes(l.status))
         || (leadF.tab === 'lost' && ['Not interested', 'Lost'].includes(l.status)))
       && (!leadF.status || l.status === leadF.status) && (!leadF.source || l.source === leadF.source)
@@ -469,7 +512,7 @@
     const st = admin.leadStats(null, mine);
     const list = filteredLeads();
     const base = S().leads.filter((l) => !mine || mine(l));
-    const tabs = [['open', 'Open'], ['due', `Due today (${st.dueToday})`], ['overdue', `Overdue (${st.overdue})`], ['won', 'Converted'], ['lost', 'Lost'], ['all', 'All']];
+    const tabs = [['open', 'Open'], ['follow', '⏰ Follow-ups'], ['due', `Due today (${st.dueToday})`], ['overdue', `Overdue (${st.overdue})`], ['won', 'Converted'], ['lost', 'Lost'], ['all', 'All']];
     const pipeline = set().lists.leadStatuses.map((x) => [x, base.filter((l) => l.status === x).length]);
     const people = S().accounts.filter((a) => !a.disabled);
     const card = (l) => {
@@ -491,8 +534,20 @@
         <select data-lfilter="priority" aria-label="Priority">${opt('', 'Any priority', leadF.priority)}${Object.entries(A.LEAD_PRIORITIES).map(([k, v]) => opt(k, v, leadF.priority)).join('')}</select>
         ${role !== 'desk' ? `<select data-lfilter="owner" aria-label="Assigned to">${opt('', 'Everyone', leadF.owner)}${opt('__none', 'Not assigned', leadF.owner)}${people.map((a) => opt(a.id, a.name, leadF.owner)).join('')}</select>` : ''}
       </div></div>
-      <div class="lead-list">${list.map(card).join('') || `<div class="card empty">${svg(ICON_LEADS)}No leads here.<br><br><button class="btn primary" data-act="new-lead">Add a lead</button></div>`}</div>`;
+      ${leadF.tab === 'follow' ? followGroups(list, card) : `<div class="lead-list">${list.map(card).join('') || `<div class="card empty">${svg(ICON_LEADS)}No leads here.<br><br><button class="btn primary" data-act="new-lead">Add a lead</button></div>`}</div>`}`;
   };
+  // Follow-ups tab: open leads grouped by when to call them.
+  function followGroups(list, card) {
+    const d = admin.today(); const tm = shiftDay(d, 1); const wk = shiftDay(d, 7);
+    const groups = [['Overdue', 'bad', (l) => l.followUp < d], ['Today', 'warn', (l) => l.followUp === d], ['Tomorrow', 'info', (l) => l.followUp === tm],
+      ['This week', 'teal', (l) => l.followUp > tm && l.followUp <= wk], ['Later', '', (l) => l.followUp > wk]];
+    const sorted = list.slice().sort((a, b) => (a.followUp + (a.followTime || '99')).localeCompare(b.followUp + (b.followTime || '99')));
+    const html = groups.map(([t, cls, fn]) => {
+      const g = sorted.filter(fn);
+      return g.length ? `<div class="fu-group ${cls}"><h3><span class="fu-dot"></span>${t}<span class="badge ${cls}">${g.length}</span></h3><div class="lead-list">${g.map(card).join('')}</div></div>` : '';
+    }).join('');
+    return html || `<div class="card empty">${svg(ICON_LEADS)}No follow-ups scheduled. 🎉</div>`;
+  }
   function leadForm(l) {
     const v = l || { priority: 'warm', status: 'New', assignedTo: role === 'desk' ? me.id : '', followUp: admin.today() };
     const people = S().accounts.filter((a) => !a.disabled || a.id === v.assignedTo);
@@ -513,6 +568,7 @@
         <label class="f">Assigned to<select id="ld-owner">${opt('', 'Not assigned', v.assignedTo)}${people.map((a) => opt(a.id, `${a.name} · ${A.ROLES[a.role]}`, v.assignedTo)).join('')}</select></label>
         <label class="f">Next follow-up<input id="ld-follow" type="date" value="${esc(v.followUp || '')}"></label>
         <label class="f">Follow-up time<input id="ld-ftime" type="time" value="${esc(v.followTime || '')}"></label>
+        <div class="f span fu-chips">${FOLLOW_CHIPS.map(([k, x]) => `<button type="button" class="chip-btn" data-fu="${k}">${x}</button>`).join('')}</div>
         <label class="f">Current weight (kg)<input id="ld-weight" type="number" min="0" step="any" value="${esc(v.weight || '')}"></label>
         <label class="f">Target weight (kg)<input id="ld-target" type="number" min="0" step="any" value="${esc(v.targetWeight || '')}"></label>
         <label class="f">Height (cm)<input id="ld-height" type="number" min="0" step="any" value="${esc(v.height || '')}"></label>
@@ -548,6 +604,7 @@
           <div class="grid"><label class="f">Update type<select id="la-type">${[['call', '📞 Call'], ['whatsapp', '💬 WhatsApp'], ['note', '📝 Note'], ['visit', '🏥 Visit']].map(([k, x]) => opt(k, x, 'call')).join('')}</select></label>
           <label class="f">Next follow-up<input id="la-follow" type="date" value="${esc(l.followUp || '')}"></label>
           <label class="f">Time<input id="la-ftime" type="time" value="${esc(l.followTime || '')}"></label>
+          <div class="f span fu-chips">${FOLLOW_CHIPS.map(([k, l]) => `<button type="button" class="chip-btn" data-fu="${k}">${l}</button>`).join('')}<button type="button" class="chip-btn" data-fu="clear">No follow-up</button></div>
           <label class="f span">What happened?<textarea id="la-text" rows="2" placeholder="e.g. Called, interested in Mounjaro, asked for price. Call back Monday."></textarea></label></div></div>
         <dl class="detail-list">${row('Mobile', `<a href="tel:${esc(l.mobile)}">${esc(l.mobile)}</a>${l.altMobile ? ` · ${esc(l.altMobile)}` : ''}`)}${row('Interested in', esc(l.interest))}${row('City', esc(l.city))}
           ${row('Age / gender', [l.age, l.gender].filter(Boolean).map(esc).join(' · '))}${row('Weight → target', l.weight ? `${esc(l.weight)} kg → ${esc(l.targetWeight || '?')} kg${bmi ? ` · BMI ${bmi}` : ''}` : '')}
@@ -565,6 +622,27 @@
     });
     if (focusNote) setTimeout(() => { const t = $('#la-text'); if (t) t.focus(); }, 80);
   }
+  // Quick follow-up choices: set the date and time with one tap.
+  const FOLLOW_CHIPS = [['1h', 'In 1 hour'], ['eve', 'Today 6 PM'], ['tm', 'Tomorrow 11 AM'], ['3d', 'In 3 days'], ['1w', 'Next week']];
+  function followChoice(k) {
+    const pad = (n) => String(n).padStart(2, '0');
+    if (k === 'clear') return ['', ''];
+    if (k === '1h') { const t = new Date(Date.now() + 3600000); return [A.isoDate(t), `${pad(t.getHours())}:${pad(t.getMinutes())}`]; }
+    if (k === 'eve') return [admin.today(), '18:00'];
+    if (k === 'tm') return [shiftDay(admin.today(), 1), '11:00'];
+    if (k === '3d') return [shiftDay(admin.today(), 3), '11:00'];
+    return [shiftDay(admin.today(), 7), '11:00'];
+  }
+  modal.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fu]');
+    if (!b) return;
+    e.preventDefault();
+    const [d, t] = followChoice(b.dataset.fu);
+    const f = $('#la-follow') || $('#ld-follow'); const ft = $('#la-ftime') || $('#ld-ftime');
+    if (f) f.value = d;
+    if (ft) ft.value = t;
+    $$('[data-fu]', modal).forEach((x) => x.classList.toggle('on', x === b));
+  });
 
   // ── Activity log: every change, who made it and when ─────────
   const actF = { by: '', q: '' };
@@ -601,6 +679,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.1', 'Follow-up reminders: bell with count, reminders list on sign-in, pop-up at the follow-up time, phone notifications even when the app is closed, snooze; Follow-ups tab and one-tap follow-up times for leads; OPD slip PDF for every appointment; Today Summary shows every reference (team member) with sales and incentive, also in PDF and image; image export is one clean A4 file; better structured PDF reports; 5 colour themes including dark Midnight; redesigned animated side menu with search and quick actions; app-like screens (no text selection); crash protection and smoother animations.'],
     ['3.0', 'Leads CRM for the front desk with follow-ups, history and conversion to OPD appointments; personal logins for every team member plus a new Admin role; editable role permissions; Today Summary with order-required alerts and PDF / A4 image export; injection kit auto-deducted from stock (travel bag, ice gel, swabs, needles); personal incentive rates and pay mode per team member; stock alerts on/off; patient edit and delete; "+ Add new" options everywhere; services for appointments; month-wise view; report filters; activity log of every change; full redesign with animations.'],
     ['2.0', 'Logins for Super Admin, Manager and Front Desk; OPD appointments (₹1000, clinic visit or online); PDF and Excel export on every screen; renewal alert at 75 days; new design; auto refresh; Android back button fix; AI scanner removed.'],
     ['1.1', 'All data stored in the Hindivine Google Sheet and shared across devices, with conflict handling and offline use.'],
@@ -737,6 +816,7 @@
           ${a.status === 'booked' ? b('appt-noshow', 'No-show') : ''}
           ${a.status !== 'cancelled' ? b('appt-cancel', 'Cancel', 'danger') : b('appt-restore', 'Restore booking')}
           ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+          ${b('appt-slip', '🧾 OPD slip (PDF)', 'gold')}
           ${b('appt-edit', 'Edit')}
           ${canDelete() ? b('appt-del', 'Delete', 'danger') : ''}
         </div>`,
@@ -1261,7 +1341,9 @@
       return sec('Leads by Team Member', ['Person', '>Leads', '>Open', '>Converted', '>Overdue Follow-ups'], Object.entries(by).map(([k, v]) => [k, ...v]), { total: [1, 2, 3, 4] });
     },
     activity: (list) => sec('Activity Log', ['Date & Time', 'By', 'Action', 'Details'], list.map((x) => [ftime(x.at), x.by, x.action, x.detail])),
-    daySales: (x) => sec('Sales', ['Patient', 'Type', 'Product', '>Qty', '>Amount'], x.sales.map((s) => [s.patientName, A.SALE_TYPES[s.type], s.product, s.qty, s.amount]), { money: [4], total: [3, 4] }),
+    daySales: (x) => sec('Sales', ['Patient', 'Type', 'Product', '>Qty', '>Amount', 'Reference', '>Incentive'], x.sales.map((s) => [s.patientName, A.SALE_TYPES[s.type], s.product, s.qty, s.amount, s.splits.map((y) => `${y.name}${s.splits.length > 1 ? ` ${y.pct}%` : ''}`).join(' + '), s.incentive]), { money: [4, 6], total: [3, 4, 6] }),
+    dayAppts: (x) => sec('OPD Appointments', ['Patient', 'Time', 'Mode', 'Service', 'Status', 'Payment', '>Fee'], x.appointments.map((a) => [a.patientName, time12(a.time), A.APPT_MODES[a.mode], a.service || '', A.APPT_STATUS[a.status], a.status === 'cancelled' ? '—' : a.paid ? `Paid ${a.payMethod || ''}`.trim() : 'Unpaid', a.fee]), { money: [6], total: [6] }),
+    dayRefs: (x) => sec('Sales by Reference (all team)', ['Reference', '>Sales', '>Sales Credited', '>Incentive'], refSummary(x).map((r) => [r.name, r.count, Math.round(r.credited), r.incentive]), { money: [2, 3], total: [1, 2, 3] }),
     dayPurchases: (x) => sec('Purchases', ['Vendor', 'Invoice', 'Product', '>Qty', '>Total'], x.purchases.flatMap((p) => p.lines.map((l) => [p.vendor, p.invoiceNo, l.name, l.qty, l.total])), { money: [4], total: [3, 4] }),
     dayStock: (title, list) => sec(title, ['Item', 'Category', '>Stock', 'Status'], list.map((y) => [y.item.name, y.item.category, y.stock, y.item.orderAt != null && y.stock < y.item.orderAt ? 'ORDER REQUIRED' : y.stock > 0 ? 'Available' : 'Not available'])),
     purchases: (list) => sec('Purchases', ['Date', 'Vendor', 'Invoice', 'Product', '>Qty', 'Batch', 'Expiry', '>Rate', '>GST %', '>Total'],
@@ -1320,7 +1402,7 @@
       const kp = [['Sales', inr(x.salesTotal)], ['Purchases', inr(x.purchaseTotal)], ['OPD appointments', num(x.appt.total - x.appt.cancelled)], ['OPD fees', inr(x.appt.fees)],
         ['Expenses', inr(x.expenseTotal)], ['New leads', num(x.leads)], ['Items available', num(x.available.length)], ['Not available', num(x.notAvailable.length)]];
       return { title: 'Today Summary', subtitle: fdate(d), kpis: kp, alertKpis: [7], sections: [
-        ...(x.order.length ? [R.dayStock('ORDER REQUIRED', x.order)] : []), R.daySales(x), R.dayPurchases(x), R.dayStock('Stock Available', x.available), R.dayStock('Stock Not Available', x.notAvailable)] };
+        ...(x.order.length ? [R.dayStock('ORDER REQUIRED', x.order)] : []), R.daySales(x), R.dayRefs(x), R.dayAppts(x), R.dayPurchases(x), R.dayStock('Stock Available', x.available), R.dayStock('Stock Not Available', x.notAvailable)] };
     },
     leads: () => { const list = filteredLeads(); return { title: 'Leads', subtitle: role === 'desk' ? `${me.name} · ${fdate(stamp())}` : fdate(stamp()), sections: [R.leads(list), ...(role !== 'desk' ? [R.leadOwners(list)] : [])] }; },
     activity: () => ({ title: 'Activity Log', subtitle: periodLabel(), sections: [R.activity(filteredLog())] }),
@@ -1371,6 +1453,7 @@
   function runExport(what, fmt) {
     const rep = EXPORTS[what]();
     rep.filename = `Hindivine-${rep.title.replace(/[^A-Za-z0-9]+/g, '-')}-${stamp()}`;
+    rep.preparedBy = me ? me.name : '';
     try {
       const pretty = () => ({ ...rep, sections: rep.sections.map((s) => ({ ...s, rows: s.rows.map((r) => r.map((v, i) => fmtCell(s, i, v))), foot: s.foot && s.foot.map((v, i) => fmtCell(s, i, v)) })) });
       if (fmt === 'pdf') toast(`Saved ${X.pdf(pretty(), set().clinic)}`);
@@ -1701,6 +1784,136 @@
     });
   }());
 
+  // ── Follow-up reminders ───────────────────────────────────────
+  // Whose follow-ups this device reminds about: Front Desk always their own; others choose.
+  const reminderScope = () => (role === 'desk' ? 'mine' : prefs().remindScope || 'all');
+  function reminderLeads() {
+    if (!role || !can('leads')) return [];
+    const mine = reminderScope() === 'mine' ? (l) => l.assignedTo === me.id || (!l.assignedTo && l.createdBy === me.name) : myLeadFilter();
+    return S().leads.filter((l) => l.followUp && !admin.isClosedLead(l) && (!mine || mine(l)));
+  }
+  const nowHM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  function dueFollowUps() {
+    const d = admin.today();
+    const list = reminderLeads().filter((l) => l.followUp <= d);
+    return {
+      overdue: list.filter((l) => l.followUp < d || (l.followTime && l.followTime < nowHM())).sort((a, b) => (a.followUp + (a.followTime || '')).localeCompare(b.followUp + (b.followTime || ''))),
+      today: list.filter((l) => l.followUp === d && !(l.followTime && l.followTime < nowHM())).sort((a, b) => (a.followTime || '99').localeCompare(b.followTime || '99')),
+    };
+  }
+  function updateBell() {
+    const n = $('#bell-n'); const btn = $('#bell-btn');
+    if (!n || !btn) return;
+    btn.hidden = !can('leads') && !can('appointments') && !can('inventory');
+    const f = dueFollowUps();
+    const count = f.overdue.length + f.today.length + (can('inventory') ? admin.orderRequired().length : 0);
+    n.hidden = !count; n.textContent = count > 99 ? '99+' : String(count);
+    btn.classList.toggle('ring', f.overdue.length > 0);
+  }
+  function remindersSheet() {
+    const f = dueFollowUps();
+    const d = admin.today();
+    const appts = can('appointments') ? admin.appointmentsIn({ from: d, to: d }).filter((a) => a.status === 'booked') : [];
+    const order = can('inventory') ? admin.orderRequired() : [];
+    const renew = can('renewals') ? admin.renewals().filter((r) => r.stage && !r.done) : [];
+    const row = (l, cls) => {
+      const wa = waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`);
+      return `<div class="rem-row ${cls}"><div class="rem-main"><b>${esc(l.name)}</b><small>${l.followUp < d ? `Overdue · ${fdate(l.followUp)}` : 'Today'}${l.followTime ? ` · ${time12(l.followTime)}` : ''}${l.interest ? ` · ${esc(l.interest)}` : ''}</small></div>
+        <div class="rem-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs" data-act="snooze" data-id="${l.id}" data-m="60">+1 h</button><button type="button" class="btn xs" data-act="snooze" data-id="${l.id}" data-m="tomorrow">Tomorrow</button><button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></div></div>`;
+    };
+    const sec = (title, cls, body, n) => (n ? `<div class="rem-sec ${cls}"><h3>${title}<span class="badge">${n}</span></h3>${body}</div>` : '');
+    const empty = !f.overdue.length && !f.today.length && !appts.length && !order.length && !renew.length;
+    openForm({
+      title: 'Reminders', submitLabel: false,
+      html: `${empty ? '<div class="empty">🎉 Nothing due right now.</div>' : ''}
+        ${sec('Overdue follow-ups', 'bad', f.overdue.map((l) => row(l, 'bad')).join(''), f.overdue.length)}
+        ${sec("Today's follow-ups", 'warn', f.today.map((l) => row(l, 'warn')).join(''), f.today.length)}
+        ${sec('OPD waiting today', 'info', appts.map((a) => `<div class="rem-row"><div class="rem-main"><b>${esc(a.patientName)}</b><small>${esc(time12(a.time))} · ${a.mode === 'online' ? 'Online' : 'Clinic'}${a.service ? ` · ${esc(a.service)}` : ''}</small></div><div class="rem-acts"><button type="button" class="btn xs primary" data-act="appt" data-id="${a.id}">Open</button></div></div>`).join(''), appts.length)}
+        ${sec('Order required', 'bad', order.map((o) => `<div class="rem-row bad"><div class="rem-main"><b>${esc(o.item.name)}</b><small>${o.stock} left · below ${o.item.orderAt}</small></div></div>`).join(''), order.length)}
+        ${sec('Renewal alerts', 'gold', `<button type="button" class="btn sm gold" data-go="renewals">${renew.length} patients due for renewal →</button>`, renew.length)}
+        <p class="hint">${reminderScope() === 'mine' ? 'Showing your follow-ups.' : 'Showing all follow-ups.'} ${window.AndroidBridge && window.AndroidBridge.scheduleReminders ? 'Phone notifications remind you at the follow-up time, even when the app is closed.' : ''}</p>`,
+    });
+  }
+  // Pop-up (and phone notification) when a follow-up time is reached while the app is open.
+  const notifiedKey = () => `hindivine.admin.notified.${admin.today()}`;
+  function checkDueNow() {
+    if (!role || !can('leads') || !$('#lock').hidden) return;
+    const d = admin.today(); const hm = nowHM();
+    let done = {}; try { done = JSON.parse(lsGet(notifiedKey(), '{}')) || {}; } catch (_) { done = {}; }
+    const due = reminderLeads().filter((l) => l.followUp === d && (l.followTime || '10:00') <= hm && !done[`${l.id}|${l.followTime || ''}`]);
+    if (!due.length) return;
+    const l = due[0];
+    done[`${l.id}|${l.followTime || ''}`] = 1; lsSet(notifiedKey(), JSON.stringify(done));
+    showReminderPop(l);
+    try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch (_) { /* no vibration */ }
+    try { if (window.AndroidBridge && window.AndroidBridge.notifyNow) window.AndroidBridge.notifyNow(`Follow-up: ${l.name}`, `${l.followTime ? time12(l.followTime) : 'Today'} · ${l.interest || 'Call back'} · ${l.mobile}`); } catch (_) { /* optional */ }
+  }
+  function showReminderPop(l) {
+    const pop = $('#reminder-pop');
+    const wa = waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`);
+    pop.innerHTML = `<div class="rp-ic">⏰</div><div class="rp-main"><small>Follow-up reminder${l.followTime ? ` · ${time12(l.followTime)}` : ''}</small><b>${esc(l.name)}</b><span>${esc(l.interest || '')}${l.notes ? ` · ${esc(l.notes.slice(0, 60))}` : ''}</span>
+      <div class="rp-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs" data-act="snooze" data-id="${l.id}" data-m="15">Snooze 15 min</button><button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></div></div>
+      <button type="button" class="rp-x" data-act="pop-close" aria-label="Close">✕</button>`;
+    pop.hidden = false;
+    requestAnimationFrame(() => pop.classList.add('show'));
+  }
+  const closePop = () => { const pop = $('#reminder-pop'); pop.classList.remove('show'); setTimeout(() => { pop.hidden = true; }, 250); };
+  $('#reminder-pop').addEventListener('click', (e) => {
+    const act = e.target.closest('[data-act]');
+    if (!act) return;
+    e.stopPropagation();
+    if (act.dataset.act === 'pop-close') { closePop(); return; }
+    closePop();
+    if (act.tagName === 'A') return;
+    e.preventDefault();
+    if (ACTIONS[act.dataset.act]) ACTIONS[act.dataset.act](act.dataset);
+  });
+  setInterval(() => { try { checkDueNow(); updateBell(); } catch (err) { console.error(err); } }, 30000);
+  // Android: hand the upcoming follow-ups to the phone so it can notify even when the app is closed.
+  let lastSchedule = '';
+  let scheduleTimer = null;
+  function scheduleReminders() {
+    if (!window.AndroidBridge || !window.AndroidBridge.scheduleReminders) return;
+    clearTimeout(scheduleTimer);
+    scheduleTimer = setTimeout(() => {
+      try {
+        const now = Date.now(); const until = now + 14 * 86400000;
+        const list = (role ? reminderLeads() : []).map((l) => {
+          const [y, m, dd] = l.followUp.split('-').map(Number); const [hh, mm] = (l.followTime || '10:00').split(':').map(Number);
+          return { id: l.id, at: new Date(y, m - 1, dd, hh, mm).getTime(), title: `Follow-up: ${l.name}`, text: `${l.followTime ? time12(l.followTime) : '10:00 AM'} · ${l.interest || 'Call back'} · ${l.mobile}` };
+        }).filter((r) => r.at > now && r.at < until).sort((a, b) => a.at - b.at).slice(0, 50);
+        const json = JSON.stringify(list);
+        if (json !== lastSchedule) { lastSchedule = json; window.AndroidBridge.scheduleReminders(json); }
+      } catch (err) { console.error(err); }
+    }, 800);
+  }
+  function snooze(id, m) {
+    const l = admin.lead(id);
+    if (!l) return;
+    let date; let time;
+    if (m === 'tomorrow') { date = shiftDay(admin.today(), 1); time = l.followTime || '10:00'; } else {
+      const t = new Date(Date.now() + Number(m) * 60000);
+      date = A.isoDate(t); time = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+    }
+    admin.addLeadActivity(id, { type: 'note', text: '', followUp: date, followTime: time });
+    toast(`${l.name}: reminder moved to ${fdate(date)} ${time12(time)}`);
+  }
+
+  // Menu search: filters the side menu as you type.
+  function filterNav() {
+    const q = ($('#nav-search').value || '').trim().toLowerCase();
+    $$('#nav button').forEach((b) => { b.hidden = !!q && !b.textContent.toLowerCase().includes(q); });
+    $$('#nav .nav-group').forEach((g) => { g.hidden = !!q; });
+  }
+  $('#nav-search').addEventListener('input', filterNav);
+  $('#nav-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const b = $$('#nav button').find((x) => !x.hidden); if (b) b.click(); } });
+
+  // Never let an unexpected error freeze the app: show a short message instead.
+  let lastErr = 0;
+  const softError = (msg) => { if (Date.now() - lastErr > 4000 && role) { lastErr = Date.now(); toast(`Something went wrong: ${String(msg).slice(0, 80)}`, true); } };
+  window.addEventListener('error', (e) => { if (e && e.message && !/ResizeObserver/.test(e.message)) softError(e.message); });
+  window.addEventListener('unhandledrejection', (e) => softError((e.reason && e.reason.message) || e.reason || 'error'));
+
   // ── Actions ───────────────────────────────────────────────────
   const setAppt = (id, patch, msg) => { admin.updateAppointment(id, patch); modal.close(); render(); toast(msg); };
   const randomPin = () => String(Math.floor(100000 + Math.random() * 900000));
@@ -1711,7 +1924,9 @@
       openForm({
         title: me.name, submitLabel: false,
         html: `<dl class="detail-list"><div><dt>Login</dt><dd>${esc(A.ROLES[role])}</dd></div><div><dt>Data</dt><dd>${connected() ? 'Google Sheet · auto refresh' : 'This device only'}</dd></div><div><dt>App</dt><dd>Hindivine Admin ${APP_VERSION}</dd></div></dl>
-          <div class="quick"><button type="button" class="btn" data-act="refresh">Refresh data</button><button type="button" class="btn" data-act="my-pin">Change my PIN</button><button type="button" class="btn" data-go="about">What's new</button><button type="button" class="btn danger" data-act="lock">Log out</button></div>
+          <h3 class="menu-h">Theme</h3><div class="theme-row">${THEMES.map(([k, l, c]) => `<button type="button" class="theme-chip ${lsGet(THEME_KEY, 'royal') === k ? 'on' : ''}" style="--c:${c}" data-act="theme" data-theme="${k}" data-inmenu="1"><i></i>${l}</button>`).join('')}</div>
+          ${can('leads') && role !== 'desk' ? `<h3 class="menu-h">Follow-up reminders</h3><div class="seg">${[['all', 'All follow-ups'], ['mine', 'Only mine']].map(([k, l]) => `<button type="button" class="${reminderScope() === k ? 'on' : ''}" data-act="remind-scope" data-scope="${k}">${l}</button>`).join('')}</div>` : ''}
+          <div class="quick"><button type="button" class="btn" data-act="refresh">Refresh data</button><button type="button" class="btn" data-act="reminders">🔔 Reminders</button><button type="button" class="btn" data-act="my-pin">Change my PIN</button><button type="button" class="btn" data-go="about">What's new</button><button type="button" class="btn danger" data-act="lock">Log out</button></div>
           <p class="credit-line">${esc(CREDIT)}</p>`,
       });
     },
@@ -1797,6 +2012,29 @@
     },
     'lead-convert': (d) => { admin.convertLead(d.id); modal.close(); render(); toast('Lead converted to patient'); },
     'new-appt': () => apptForm(null),
+    'new-sale': () => { openMenu(false); go('sell'); },
+    'appt-slip': (d) => {
+      const a = admin.appointment(d.id);
+      if (!a) return;
+      const day = S().appointments.filter((x) => x.date === a.date && x.status !== 'cancelled').sort((x, y) => (x.time || '').localeCompare(y.time || '') || x.created - y.created);
+      const p = S().patients.find((x) => x.id === a.patientId) || {};
+      try {
+        X.opdSlip(a, {
+          clinic: set().clinic, token: day.findIndex((x) => x.id === a.id) + 1 || '', date: fdate(a.date), time: time12(a.time),
+          mode: A.APPT_MODES[a.mode] || a.mode, status: A.APPT_STATUS[a.status] || a.status, fee: inr(a.fee),
+          ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city || '',
+        });
+        toast('OPD slip ready');
+      } catch (err) { console.error(err); toast(`Could not make the slip: ${err.message}`, true); }
+    },
+    reminders: () => { openMenu(false); remindersSheet(); },
+    snooze: (d) => {
+      snooze(d.id, d.m);
+      render();
+      if (modal.open && $('#modal-title').textContent === 'Reminders') remindersSheet();
+    },
+    theme: (d) => { lsSet(THEME_KEY, d.theme); applyTheme(d.theme); renderNav(); if (modal.open && d.inmenu) ACTIONS['user-menu'](); },
+    'remind-scope': (d) => { setPref('remindScope', d.scope); updateBell(); scheduleReminders(); ACTIONS['user-menu'](); toast(d.scope === 'mine' ? 'Reminders: my follow-ups only' : 'Reminders: all follow-ups'); },
     appt: (d) => apptDetail(d.id),
     'appt-edit': (d) => apptForm(admin.appointment(d.id)),
     'appt-complete': (d) => { const a = admin.appointment(d.id); setAppt(d.id, { status: 'completed' }, `${a.patientName}: completed${a.paid ? '' : ' · fee still unpaid'}`); },
@@ -1910,7 +2148,7 @@
     const goEl = e.target.closest('[data-go]');
     if (goEl) { e.preventDefault(); if (modal.open) modal.close(); if (goEl.dataset.go === 'purchase-new' && !draft) draft = newDraft(); go(goEl.dataset.go); return; }
     const act = e.target.closest('[data-act]');
-    if (act && ACTIONS[act.dataset.act] && !(act.tagName === 'A' && act.getAttribute('href'))) { e.preventDefault(); ACTIONS[act.dataset.act](act.dataset); return; }
+    if (act && ACTIONS[act.dataset.act] && !(act.tagName === 'A' && act.getAttribute('href'))) { e.preventDefault(); if (act.closest('#side') && act.dataset.act !== 'theme') openMenu(false); ACTIONS[act.dataset.act](act.dataset); return; }
     if (e.target.closest('a[href]')) return;
     const p = e.target.closest('[data-period]');
     if (p) { period.name = p.dataset.period; render(); return; }
@@ -2092,6 +2330,17 @@
     try { history.replaceState({ screen }, ''); } catch (_) { /* ignore */ }
     render();
     pull();
+    // Show what is due once a day when someone signs in.
+    setTimeout(() => {
+      try {
+        const key = `hindivine.admin.remindShown.${id}`;
+        if (!role || lsGet(key, '') === admin.today()) return;
+        const f = dueFollowUps();
+        if (!f.overdue.length && !f.today.length) return;
+        lsSet(key, admin.today());
+        if (!modal.open) remindersSheet();
+      } catch (err) { console.error(err); }
+    }, 900);
   }
   function lock() {
     try { sessionStorage.removeItem(ROLE_KEY); } catch (_) { /* ignore */ }

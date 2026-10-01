@@ -44,7 +44,7 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 - **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
 - **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
 
-## Hindivine Admin app (`admin/`) — version 3.0
+## Hindivine Admin app (`admin/`) — version 3.1
 
 A separate app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*.
 
@@ -62,9 +62,11 @@ The app logs out after 15 minutes without use. On Android, back goes to the prev
 | Area | What it does |
 | --- | --- |
 | **Dashboard** | Today's OPD, revenue, profit and renewals; *Order required* banner; sales, OPD, patients, leads, team and stock summaries (available stock first); revenue vs expenses by month. Periods: today, this month (updates automatically), any chosen month, last month, year, all time or custom dates. |
-| **Today Summary** | Sales, purchases, OPD, expenses, stock available and not available for any day. **Protein and Mounjaro 10mg / 15mg below 2 show “Order required”** (the limit is editable per item). Export as A4 **PDF** or A4 **JPEG** image. |
-| **OPD Appointments** | Clinic visit or online, fee ₹1000 (editable), optional **treatment / service**, day view and filtered list, complete / paid / no-show / cancel, WhatsApp confirmation. |
+| **Today Summary** | Sales with the **reference (team member) on every sale**, sales by reference for the whole team, purchases, OPD, expenses, stock available and not available for any day. **Protein and Mounjaro 10mg / 15mg below 2 show “Order required”** (the limit is editable per item). Export as A4 **PDF** or one A4 **JPEG** image. |
+| **OPD Appointments** | Clinic visit or online, fee ₹1000 (editable), optional **treatment / service**, day view and filtered list, complete / paid / no-show / cancel, WhatsApp confirmation, **OPD slip PDF** (token number, patient, visit, payment, vitals and Rx space). |
 | **Leads (CRM)** | Name, mobiles, age, gender, city, source, interest, priority (hot / warm / cold), stage, assigned person, follow-up date and time, weight / target / height (BMI), budget, notes. Pipeline by stage, due-today and overdue follow-ups, call / WhatsApp, update history (who and when), book an OPD appointment from the lead (converts it), conversion rate, leads per person. |
+| **Follow-up reminders** | Bell in the top bar with the number due; reminder list (overdue and today's follow-ups, OPD waiting, order required, renewals) shown once a day at sign-in; pop-up when a follow-up time arrives; on Android a phone notification at the follow-up time even when the app is closed; snooze (+1 h, 15 min, tomorrow). Front Desk get their own follow-ups; others choose all or only theirs (account menu). Leads have a **Follow-ups** tab (overdue / today / tomorrow / this week / later) and one-tap times (in 1 hour, today 6 PM, tomorrow 11 AM, in 3 days, next week). |
+| **Look & feel** | Five colour themes (Royal Blue, Emerald, Royal Purple, Sunset, dark Midnight) chosen per device from the side menu or account menu; side menu with profile, search and quick + Sale / + OPD / + Lead; animated menus and cards; screens behave like an app (text is not selectable, inputs still are). |
 | **Sales** | Injection, protein and diet support. Incentive uses each person's own rate (default ₹1000 per injection, ₹500 per protein sale), split single / 50-50 / custom %. Every injection pen also takes its **kit** out of stock: travel bag 1, ice gel 1, alcohol swabs 16, needles 2 (editable, can be switched off). |
 | **Patients** | Search, active / inactive, visits and spend; edit or delete a patient (with their sales and appointments). |
 | **Stock** | Products, inventory with kit usage, per-item low-stock alert on/off (or all alerts off), “order required” limits, purchases, custom categories. |
@@ -102,7 +104,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 
 ```sh
 VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
-APP=admin VERSION_CODE=4 VERSION_NAME=3.0 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
+APP=admin VERSION_CODE=5 VERSION_NAME=3.1 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.

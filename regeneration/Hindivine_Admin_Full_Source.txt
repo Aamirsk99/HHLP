@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN 3.0 — COMPLETE SOURCE CODE
+ HINDIVINE ADMIN 3.1 — COMPLETE SOURCE CODE
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
 ================================================================================
 
@@ -26,7 +26,7 @@ Then:
   3. chmod +x android/build.sh
   4. npm test                      (unit tests, Node 18+)
   5. npx serve .   → open /admin/  (try it in a browser)
-  6. APP=admin VERSION_CODE=4 VERSION_NAME=3.0 ./android/build.sh
+  6. APP=admin VERSION_CODE=5 VERSION_NAME=3.1 ./android/build.sh
                                    (Android APK → dist/HindivineAdmin.apk)
 See "Hindivine_Admin_Regeneration_Script.txt" for the full explanation.
 
@@ -70,7 +70,7 @@ FILES IN THIS BUNDLE
   <link rel="stylesheet" href="css/admin.css">
 </head>
 <body>
-  <!-- Login: Super Admin, Manager or Front Desk, each with its own PIN -->
+  <!-- Login: every person signs in with their own name and PIN -->
   <div class="lock" id="lock" hidden>
     <div class="lock-card">
       <img src="../img/logo.jpg" alt="Hindivine Healthcare" class="lock-logo" width="900" height="308">
@@ -83,8 +83,11 @@ FILES IN THIS BUNDLE
     <aside class="side" id="side" aria-label="Main menu">
       <div class="side-head">
         <img src="../img/icon-192.png" alt="" width="42" height="42">
-        <div><b>Hindivine Admin</b><small id="side-sub"></small></div>
+        <div><b>Hindivine Admin</b><small>Clinic management</small></div>
       </div>
+      <div class="side-profile" id="side-profile"></div>
+      <div class="side-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg><input type="search" id="nav-search" placeholder="Search menu" aria-label="Search menu" autocomplete="off"></div>
+      <div class="side-quick" id="side-quick"></div>
       <nav id="nav"></nav>
       <button type="button" class="side-lock" data-act="lock">
         <svg viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Log out</button>
@@ -98,6 +101,9 @@ FILES IN THIS BUNDLE
           <svg viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></svg>
         </button>
         <div class="top-title"><h1 id="title">Dashboard</h1><small id="top-sub"></small></div>
+        <button type="button" class="icon-btn bell" id="bell-btn" data-act="reminders" aria-label="Reminders" title="Reminders">
+          <svg viewBox="0 0 24 24"><path d="M6 8a6 6 0 1 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.9 1.9 0 0 0 3.4 0"/></svg><span class="bell-n" id="bell-n" hidden></span>
+        </button>
         <button type="button" class="icon-btn" id="refresh-btn" data-act="refresh" aria-label="Refresh data" title="Refresh">
           <svg viewBox="0 0 24 24"><path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/></svg>
         </button>
@@ -119,6 +125,7 @@ FILES IN THIS BUNDLE
     </form>
   </dialog>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
+  <div class="reminder-pop" id="reminder-pop" hidden></div>
 
   <script src="vendor/jspdf.umd.min.js"></script>
   <script src="vendor/jspdf.plugin.autotable.min.js"></script>
@@ -576,6 +583,155 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
   table.perm td[data-label]::before { content: none !important; }
   .lead-list { grid-template-columns: 1fr; }
 }
+
+/* ── 3.1: colour themes ────────────────────────────── */
+:root { --side-bg: linear-gradient(180deg, #0a2f55 0%, #0b3a66 100%); --nav-on: linear-gradient(135deg, #1690d3, #29a8e0); --side-ink: #d6e6f6; --side-dim: #7fa6c9; --glow: rgba(14, 111, 181, .55); }
+[data-theme="emerald"] { --navy: #063f3a; --navy-2: #0a5f56; --brand: #0f9d8f; --sky: #2cc7b4; --accent: #0f8f82;
+  --grad: linear-gradient(135deg, #053a35 0%, #0a7468 55%, #14ad9a 100%); --grad-btn: linear-gradient(135deg, #0f9d8f, #1bbba8);
+  --side-bg: linear-gradient(180deg, #053a35 0%, #07463f 100%); --nav-on: linear-gradient(135deg, #12a594, #2cc7b4); --side-ink: #d3f1ec; --side-dim: #79bdb3; --glow: rgba(15, 157, 143, .55); }
+[data-theme="purple"] { --navy: #2a1d5c; --navy-2: #3d2b85; --brand: #6c5bd4; --sky: #9a8cf5; --accent: #5f4fd0;
+  --grad: linear-gradient(135deg, #251a52 0%, #4a37a6 55%, #7b6ae6 100%); --grad-btn: linear-gradient(135deg, #6c5bd4, #8b7df0);
+  --side-bg: linear-gradient(180deg, #221849 0%, #2c1f5e 100%); --nav-on: linear-gradient(135deg, #7464de, #9a8cf5); --side-ink: #e2dcff; --side-dim: #9f95d6; --glow: rgba(108, 91, 212, .55); }
+[data-theme="sunset"] { --navy: #4a1a0c; --navy-2: #7a2c12; --brand: #e0622f; --sky: #f39a4c; --accent: #c9521f;
+  --grad: linear-gradient(135deg, #521c0b 0%, #b2441c 55%, #ef8a3c 100%); --grad-btn: linear-gradient(135deg, #e0622f, #f08a3e);
+  --side-bg: linear-gradient(180deg, #43170a 0%, #561f0e 100%); --nav-on: linear-gradient(135deg, #e86a33, #f39a4c); --side-ink: #ffe3d6; --side-dim: #d39a80; --glow: rgba(224, 98, 47, .55); }
+[data-theme="midnight"] { color-scheme: dark; --navy: #0b1626; --navy-2: #13243c; --brand: #3a9fe0; --sky: #59c3f2;
+  --bg: #070d16; --surface: #0f1928; --surface-2: #142236; --surface-3: #1b2d46; --text: #e7eef8; --muted: #93a7bf; --border: #20344d;
+  --accent: #4cb4ea; --accent-ink: #06121f; --ok: #3cc98f; --warn: #f2a65a; --danger: #f07f72; --shadow: 0 1px 2px rgba(0, 0, 0, .5), 0 12px 30px -16px rgba(0, 0, 0, .8); --shadow-sm: none;
+  --grad: linear-gradient(135deg, #0a1422 0%, #12263f 60%, #1b3a5f 100%); --grad-btn: linear-gradient(135deg, #2a8fd4, #45b3ea);
+  --side-bg: linear-gradient(180deg, #060b13 0%, #0a1320 100%); --nav-on: linear-gradient(135deg, #2a8fd4, #45b3ea); --side-ink: #c9d8ea; --side-dim: #6f87a4; --glow: rgba(69, 179, 234, .45); }
+@media (prefers-color-scheme: dark) {
+  [data-theme="emerald"] { --accent: #3fd0bd; } [data-theme="purple"] { --accent: #a99cff; } [data-theme="sunset"] { --accent: #ffa36b; }
+}
+.side { background: var(--side-bg); color: var(--side-ink); }
+#nav button.on { background: var(--nav-on); box-shadow: 0 8px 18px -10px var(--glow); }
+#nav .nav-group, .side-credit { color: var(--side-dim); }
+.btn.primary { box-shadow: 0 6px 16px -6px var(--glow); }
+.seg button.on, .tabs button.fab { box-shadow: 0 6px 14px -6px var(--glow); }
+.toast { background: var(--navy); }
+
+/* ── 3.1: feels like an app: no text selection, smooth touch ── */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select, [contenteditable], code.pin { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+img, svg { -webkit-user-drag: none; }
+button, .btn, a, [role="button"] { touch-action: manipulation; }
+html { scroll-behavior: smooth; }
+#view, .side, dialog .modal-body { -webkit-overflow-scrolling: touch; }
+
+/* ── 3.1: premium plates ───────────────────────────── */
+.card { border-radius: 20px; background: linear-gradient(180deg, var(--surface), color-mix(in srgb, var(--surface) 92%, var(--surface-2))); position: relative; }
+.card::before { content: ""; position: absolute; left: 18px; right: 18px; top: 0; height: 3px; border-radius: 0 0 4px 4px; background: var(--grad-btn); opacity: .55; }
+.card.empty::before, .form-card::before { display: none; }
+.card h2 .ic { box-shadow: 0 6px 14px -6px var(--glow); }
+.kpi { border: 1px solid color-mix(in srgb, var(--border) 70%, transparent); }
+.kpi b { letter-spacing: -.01em; }
+.lead, .appt { border-radius: 18px; }
+.top { background: var(--grad); box-shadow: 0 10px 28px -18px var(--glow); }
+
+/* ── 3.1: side menu ────────────────────────────────── */
+.side-profile { position: relative; margin: 12px 12px 4px; padding: 12px; border-radius: 16px; background: rgba(255, 255, 255, .07); border: 1px solid rgba(255, 255, 255, .09); display: grid; grid-template-columns: auto 1fr; gap: 4px 11px; align-items: center; }
+.side-profile b { display: block; color: #fff; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-profile small { display: block; font-size: 11.5px; color: var(--side-dim); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.avatar { width: 42px; height: 42px; border-radius: 14px; display: grid; place-items: center; font-weight: 800; font-size: 18px; color: #fff; background: linear-gradient(135deg, #d99a1e, #eab44a); box-shadow: 0 6px 14px -6px rgba(0, 0, 0, .5); }
+.avatar.r-admin { background: linear-gradient(135deg, #6c5bd4, #8b7df0); }
+.avatar.r-manager { background: linear-gradient(135deg, #0f9d8f, #16b39a); }
+.avatar.r-desk { background: linear-gradient(135deg, #e0622f, #f08a3e); }
+.theme-dots { grid-column: 1 / -1; display: flex; gap: 8px; margin-top: 8px; }
+.tdot { width: 22px; height: 22px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, .35); background: var(--c); cursor: pointer; padding: 0; transition: transform .15s; }
+.tdot:hover { transform: scale(1.12); }
+.tdot.on { border-color: #fff; box-shadow: 0 0 0 2px var(--c), 0 0 12px var(--c); }
+.side-search { display: flex; align-items: center; gap: 8px; margin: 10px 12px 4px; padding: 0 12px; border-radius: 12px; background: rgba(255, 255, 255, .08); border: 1px solid rgba(255, 255, 255, .08); transition: background .15s, border-color .15s; }
+.side-search:focus-within { background: rgba(255, 255, 255, .13); border-color: rgba(255, 255, 255, .25); }
+.side-search svg { width: 17px; height: 17px; color: var(--side-dim); }
+.side-search input { flex: 1; min-height: 38px; border: 0; background: none; color: #fff; font: inherit; font-size: 14px; outline: 0; padding: 0; box-shadow: none; }
+.side-search input::placeholder { color: var(--side-dim); }
+.side-quick { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin: 8px 12px 0; }
+.side-quick:empty { display: none; }
+.side-quick button { display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 9px 4px; border-radius: 13px; border: 1px solid rgba(255, 255, 255, .1); background: rgba(255, 255, 255, .06); color: #fff; font: inherit; font-size: 11.5px; font-weight: 700; cursor: pointer; transition: transform .15s, background .15s; }
+.side-quick button:hover { background: rgba(255, 255, 255, .12); transform: translateY(-1px); }
+.side-quick button:active { transform: scale(.95); }
+.side-quick svg { width: 18px; height: 18px; padding: 5px; box-sizing: content-box; border-radius: 9px; background: var(--nav-on); }
+#nav button { position: relative; transition: background .15s, transform .15s, color .15s; }
+#nav button:active { transform: scale(.97); }
+.nav-ic { width: 32px; height: 32px; border-radius: 10px; display: grid; place-items: center; background: rgba(255, 255, 255, .07); flex: none; transition: background .2s, transform .2s; }
+.nav-ic svg { width: 17px; height: 17px; }
+#nav button:hover .nav-ic { transform: scale(1.06); }
+#nav button.on .nav-ic { background: rgba(255, 255, 255, .22); }
+#nav button.on::before { content: ""; position: absolute; left: -10px; top: 9px; bottom: 9px; width: 4px; border-radius: 0 4px 4px 0; background: #fff; }
+@keyframes nav-in { from { opacity: 0; transform: translateX(-16px); } to { opacity: 1; transform: none; } }
+@media (max-width: 900px) {
+  .side { transition: transform .3s cubic-bezier(.2, .8, .2, 1); width: min(300px, 86vw); }
+  .side.open #nav button, .side.open .side-profile, .side.open .side-quick button { animation: nav-in .38s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 22ms + 60ms); }
+  .side.open .side-profile { animation-delay: 0ms; }
+  .scrim { backdrop-filter: none; background: rgba(5, 15, 30, .5); animation: fade-in .2s ease; }
+  /* lighter effects on phones keep scrolling smooth */
+  .card:hover, .kpi:hover, .lead:hover, .btn:hover { transform: none; }
+  dialog::backdrop { backdrop-filter: none; }
+}
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+
+/* ── 3.1: user menu ────────────────────────────────── */
+.menu-h { font-size: 12px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 14px 0 8px; }
+.theme-row { display: flex; flex-wrap: wrap; gap: 7px; }
+.theme-chip { display: inline-flex; align-items: center; gap: 7px; border: 1.5px solid var(--border); background: var(--surface); color: var(--text); border-radius: 99px; padding: 6px 12px 6px 6px; font: inherit; font-size: 13px; font-weight: 650; cursor: pointer; transition: border-color .15s, transform .15s; }
+.theme-chip i { width: 20px; height: 20px; border-radius: 50%; background: var(--c); }
+.theme-chip.on { border-color: var(--c); box-shadow: 0 0 0 3px color-mix(in srgb, var(--c) 22%, transparent); }
+.theme-chip:active { transform: scale(.96); }
+
+/* ── 3.1: reminders ────────────────────────────────── */
+.bell { position: relative; }
+.bell-n { position: absolute; top: 4px; right: 3px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; background: #ff4d3d; color: #fff; font-size: 10.5px; font-weight: 800; display: grid; place-items: center; box-shadow: 0 0 0 2px rgba(255, 255, 255, .85); animation: pop .3s ease; }
+@keyframes ring { 0%, 60%, 100% { transform: rotate(0); } 10%, 30% { transform: rotate(14deg); } 20%, 40% { transform: rotate(-14deg); } 50% { transform: rotate(6deg); } }
+.bell.ring svg { animation: ring 2.4s ease-in-out infinite; transform-origin: 50% 10%; }
+.rem-sec { margin-bottom: 14px; border-radius: 16px; padding: 10px; background: var(--surface-2); border-left: 4px solid var(--accent); }
+.rem-sec.bad { border-left-color: var(--danger); background: color-mix(in srgb, var(--danger) 7%, var(--surface)); }
+.rem-sec.warn { border-left-color: var(--warn); background: color-mix(in srgb, var(--warn) 8%, var(--surface)); }
+.rem-sec.gold { border-left-color: var(--gold); }
+.rem-sec h3 { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 2px 4px 8px; }
+.rem-sec h3 .badge { margin-left: auto; }
+.rem-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; padding: 9px 10px; border-radius: 12px; background: var(--surface); margin-top: 6px; box-shadow: var(--shadow-sm); animation: rise .3s ease both; }
+.rem-main { flex: 1; min-width: 150px; }
+.rem-main b { display: block; font-size: 14.5px; }
+.rem-main small { color: var(--muted); font-size: 12px; }
+.rem-acts { display: flex; gap: 5px; flex-wrap: wrap; }
+.reminder-pop { position: fixed; z-index: 120; left: 50%; top: calc(12px + env(safe-area-inset-top)); width: min(440px, calc(100vw - 20px)); display: flex; gap: 12px; align-items: flex-start; padding: 14px; border-radius: 20px;
+  background: var(--surface); color: var(--text); border: 1px solid var(--border); box-shadow: 0 24px 60px -18px rgba(0, 0, 0, .55); transform: translate(-50%, -140%); opacity: 0; transition: transform .38s cubic-bezier(.2, .9, .25, 1.15), opacity .25s; }
+.reminder-pop.show { transform: translate(-50%, 0); opacity: 1; }
+.rp-ic { width: 44px; height: 44px; border-radius: 14px; flex: none; display: grid; place-items: center; font-size: 22px; background: var(--grad-btn); animation: pulse-ring 1.6s ease-out infinite; }
+.rp-main { flex: 1; min-width: 0; display: grid; gap: 2px; }
+.rp-main small { color: var(--accent); font-weight: 700; font-size: 12px; }
+.rp-main b { font-size: 16px; }
+.rp-main span { color: var(--muted); font-size: 13px; }
+.rp-acts { display: flex; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
+.rp-x { border: 0; background: var(--surface-2); color: var(--muted); width: 30px; height: 30px; border-radius: 50%; cursor: pointer; flex: none; }
+
+/* ── 3.1: follow-ups ───────────────────────────────── */
+.fu-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.fu-chips .chip-btn { font-size: 12px; padding: 5px 10px; transition: transform .12s, background .15s; }
+.fu-chips .chip-btn:active { transform: scale(.94); }
+.fu-group { margin-bottom: 18px; }
+.fu-group h3 { display: flex; align-items: center; gap: 9px; font-size: 15px; margin: 0 2px 10px; }
+.fu-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent); }
+.fu-group.bad .fu-dot { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 18%, transparent); animation: pulse-ring 1.8s infinite; }
+.fu-group.warn .fu-dot { background: var(--warn); box-shadow: 0 0 0 4px color-mix(in srgb, var(--warn) 18%, transparent); }
+.fu-group.teal .fu-dot { background: var(--teal); }
+
+/* ── 3.1: references on Today ──────────────────────── */
+.ref-chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.ref-chip { display: inline-block; font-size: 12px; font-weight: 650; padding: 2px 9px; border-radius: 99px; color: var(--accent); background: color-mix(in srgb, var(--accent) 11%, transparent); border: 1px solid color-mix(in srgb, var(--accent) 22%, transparent); }
+.ref-chip.none { color: var(--muted); background: var(--surface-2); border-color: var(--border); }
+.ref-board { display: grid; gap: 8px; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); }
+.ref-tile { padding: 11px 12px; border-radius: 14px; background: var(--surface-2); border: 1px solid var(--border); }
+.ref-tile b { display: block; font-size: 14px; }
+.ref-tile small { color: var(--muted); font-size: 12px; }
+.ref-tile small { display: block; }
+.ref-tile.zero { opacity: .6; }
+.ref-tile:not(.zero) { border-color: color-mix(in srgb, var(--accent) 35%, var(--border)); background: color-mix(in srgb, var(--accent) 6%, var(--surface)); }
+a.btn { text-decoration: none; }
+.side-profile > div:not(.theme-dots) { min-width: 0; }
+#nav .badge { background: rgba(255, 255, 255, .14); color: #fff; }
+#nav .badge.warn { background: #f2a65a; color: #3a1d00; }
+#nav .badge.bad { background: #ff5a4a; color: #fff; }
 ===== END FILE: admin/css/admin.css =====
 
 ===== BEGIN FILE: admin/js/core.js =====
@@ -1739,6 +1895,10 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
   const pdfText = (v) => String(v == null ? '' : v).replace(/₹/g, 'Rs ').replace(/[−–—]/g, '-').replace(/[✓✔]/g, 'Yes')
     .replace(/…/g, '...').replace(/[^\x00-\xFF]/g, '');
 
+  const ACCENTS = [[14, 111, 181], [15, 157, 143], [108, 91, 212], [217, 154, 30], [41, 168, 224], [20, 138, 94]];
+  const RED = [204, 59, 47];
+
+  // Files are saved one after another (Android can only show one "Save as" screen at a time).
   function save(filename, mime, base64, blob) {
     if (root.AndroidBridge && root.AndroidBridge.saveBase64) { root.AndroidBridge.saveBase64(filename, mime, base64); return; }
     const a = document.createElement('a');
@@ -1747,41 +1907,66 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   }
+  const b64ToBlob = (b64, mime) => {
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+    return new Blob([bytes], { type: mime });
+  };
+  const nowText = () => new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
+  /**
+   * A4 PDF: branded header, report meta line, coloured summary tiles, sections with an accent
+   * bar and record count, striped tables with totals, page numbers and credit on every page.
+   */
   function pdf(report, clinic) {
     const { jsPDF } = root.jspdf;
     const widest = Math.max(0, ...report.sections.map((s) => s.head.length));
     const landscape = widest > 7;
-    const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4' });
+    const doc = new jsPDF({ orientation: landscape ? 'landscape' : 'portrait', unit: 'mm', format: 'a4', compress: true });
     const W = doc.internal.pageSize.getWidth();
     const H = doc.internal.pageSize.getHeight();
     const M = 12;
-    const when = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
+    const when = nowText();
+    const name = clinic || 'Hindivine Healthcare';
 
-    const header = () => {
-      doc.setFillColor(...NAVY); doc.rect(0, 0, W, 24, 'F');
-      doc.setFillColor(...BRAND); doc.rect(0, 24, W, 1.2, 'F');
-      doc.setFillColor(255, 255, 255); doc.roundedRect(M, 4.5, 46, 15.5, 2, 2, 'F');
-      try { doc.addImage(LOGO, 'JPEG', M + 1.5, 5.4, 43, 14.7); } catch (_) { /* logo optional */ }
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
-      doc.text(pdfText(report.title), W - M, 12, { align: 'right' });
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5);
-      doc.text(pdfText(clinic || 'Hindivine Healthcare'), W - M, 18, { align: 'right' });
+    const header = (first) => {
+      doc.setFillColor(...NAVY); doc.rect(0, 0, W, first ? 30 : 18, 'F');
+      doc.setFillColor(...BRAND); doc.rect(0, first ? 30 : 18, W, 1.4, 'F');
+      doc.setFillColor(41, 168, 224); doc.rect(W * 0.62, first ? 30 : 18, W * 0.38, 1.4, 'F');
+      if (first) {
+        doc.setFillColor(255, 255, 255); doc.roundedRect(M, 6, 50, 17.5, 2.5, 2.5, 'F');
+        try { doc.addImage(LOGO, 'JPEG', M + 1.8, 7, 46.4, 15.8); } catch (_) { /* logo optional */ }
+        doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
+        doc.text(pdfText(report.title), W - M, 15, { align: 'right' });
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+        doc.text(pdfText(name), W - M, 21.5, { align: 'right' });
+      } else {
+        doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+        doc.text(pdfText(name), M, 11.5);
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5);
+        doc.text(pdfText(`${report.title}${report.subtitle ? ` · ${report.subtitle}` : ''}`), W - M, 11.5, { align: 'right' });
+      }
     };
     const footer = (n, total) => {
-      doc.setDrawColor(219, 228, 238); doc.line(M, H - 11, W - M, H - 11);
+      doc.setFillColor(242, 246, 250); doc.rect(0, H - 14, W, 14, 'F');
+      doc.setFillColor(...BRAND); doc.rect(0, H - 14, W, 0.6, 'F');
       doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.setFont('helvetica', 'normal');
-      doc.text(pdfText(`${clinic || 'Hindivine Healthcare'} · Generated ${when}`), M, H - 6.5);
-      doc.text(`Page ${n} of ${total}`, W - M, H - 6.5, { align: 'right' });
+      doc.text(pdfText(`${name} · Generated ${when}${report.preparedBy ? ` by ${report.preparedBy}` : ''}`), M, H - 8);
+      doc.setFontSize(6.8); doc.text(pdfText('Hindivine Admin · Developed by Aamir Sk · Hindivine Digital Marketing Team'), M, H - 4);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY); doc.text(`Page ${n} of ${total}`, W - M, H - 6, { align: 'right' });
     };
 
-    header();
-    let y = 32;
-    doc.setTextColor(...INK); doc.setFont('helvetica', 'bold'); doc.setFontSize(10);
-    if (report.subtitle) { doc.text(pdfText(report.subtitle), M, y); y += 6; }
+    header(true);
+    let y = 38;
+    // Meta strip: period / date and record summary
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y - 4.5, W - 2 * M, 9, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...NAVY);
+    doc.text(pdfText(report.subtitle || ''), M + 4, y + 1.6);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED); doc.setFontSize(8.5);
+    const recs = report.sections.reduce((a, s) => a + s.rows.length, 0);
+    doc.text(pdfText(`${report.sections.length} section${report.sections.length === 1 ? '' : 's'} · ${recs} record${recs === 1 ? '' : 's'}`), W - M - 4, y + 1.6, { align: 'right' });
+    y += 10;
 
-    // KPI tiles
     const kpis = report.kpis || [];
     if (kpis.length) {
       const per = landscape ? 5 : 4;
@@ -1789,54 +1974,125 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
       const bw = (W - 2 * M - gap * (per - 1)) / per;
       kpis.forEach(([label, value], i) => {
         const col = i % per; const row = Math.floor(i / per);
-        const x = M + col * (bw + gap); const by = y + row * 17;
-        doc.setFillColor(...ZEBRA); doc.roundedRect(x, by, bw, 14.5, 1.8, 1.8, 'F');
-        doc.setFillColor(...BRAND); doc.rect(x, by + 2, 0.9, 10.5, 'F');
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(...MUTED);
-        doc.text(pdfText(label).toUpperCase(), x + 3.5, by + 5.2, { maxWidth: bw - 5 });
-        doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...INK);
-        doc.text(pdfText(value), x + 3.5, by + 11.5, { maxWidth: bw - 5 });
+        const x = M + col * (bw + gap); const by = y + row * 18.5;
+        const ac = (report.alertKpis || []).includes(i) ? RED : ACCENTS[i % ACCENTS.length];
+        doc.setFillColor(...ac.map((c) => Math.round(c + (255 - c) * 0.9))); doc.roundedRect(x, by, bw, 15.5, 2.2, 2.2, 'F');
+        doc.setFillColor(...ac); doc.roundedRect(x, by, 1.6, 15.5, 0.8, 0.8, 'F');
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...MUTED);
+        doc.text(pdfText(label).toUpperCase(), x + 4.2, by + 5.4, { maxWidth: bw - 6 });
+        doc.setFontSize(12.5); doc.setTextColor(...ac.map((c) => Math.round(c * 0.75)));
+        doc.text(pdfText(value), x + 4.2, by + 12.2, { maxWidth: bw - 6 });
       });
-      y += Math.ceil(kpis.length / per) * 17 + 3;
+      y += Math.ceil(kpis.length / per) * 18.5 + 4;
     }
 
-    report.sections.forEach((s) => {
-      if (y > H - 60) { doc.addPage(); header(); y = 32; }
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY);
-      doc.text(pdfText(s.title), M, y + 4);
+    report.sections.forEach((s, si) => {
+      if (y > H - 55) { doc.addPage(); header(false); y = 26; }
+      const ac = /ORDER REQUIRED/i.test(s.title) ? RED : ACCENTS[si % ACCENTS.length];
+      doc.setFillColor(...ac); doc.roundedRect(M, y - 1, 2.2, 7, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY);
+      doc.text(pdfText(s.title), M + 5, y + 4.4);
+      const tw = doc.getTextWidth(pdfText(s.title));
+      doc.setFillColor(...ac.map((c) => Math.round(c + (255 - c) * 0.85))); doc.roundedRect(M + 7 + tw, y, 16, 5.6, 2.8, 2.8, 'F');
+      doc.setFontSize(7.5); doc.setTextColor(...ac); doc.text(`${s.rows.length}`, M + 15 + tw, y + 3.9, { align: 'center' });
       if (s.note) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text(pdfText(s.note), W - M, y + 4, { align: 'right' }); }
       const right = {};
       (s.right || []).forEach((i) => { right[i] = { halign: 'right' }; });
       doc.autoTable({
-        startY: y + 6.5,
+        startY: y + 8,
         head: [s.head.map(pdfText)],
-        body: s.rows.length ? s.rows.map((r) => r.map(pdfText)) : [[{ content: 'No records for this selection', colSpan: s.head.length, styles: { halign: 'center', textColor: MUTED } }]],
+        body: s.rows.length ? s.rows.map((r) => r.map(pdfText)) : [[{ content: 'No records for this selection', colSpan: s.head.length, styles: { halign: 'center', textColor: MUTED, fontStyle: 'italic' } }]],
         foot: s.foot ? [s.foot.map(pdfText)] : undefined,
-        theme: 'grid',
+        theme: 'striped',
         showHead: 'everyPage',
         showFoot: 'lastPage',
         rowPageBreak: 'avoid',
-        margin: { left: M, right: M, top: 30, bottom: 16 },
-        styles: { font: 'helvetica', fontSize: s.head.length > 9 ? 7 : 8.2, cellPadding: 1.8, lineColor: [219, 228, 238], lineWidth: 0.2, textColor: INK, overflow: 'linebreak' },
-        headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', halign: 'left' },
-        footStyles: { fillColor: [226, 236, 246], textColor: INK, fontStyle: 'bold' },
-        alternateRowStyles: { fillColor: ZEBRA },
+        margin: { left: M, right: M, top: 24, bottom: 18 },
+        styles: { font: 'helvetica', fontSize: s.head.length > 9 ? 7 : 8.3, cellPadding: { top: 2.1, bottom: 2.1, left: 2.2, right: 2.2 }, textColor: INK, overflow: 'linebreak', lineColor: [226, 233, 241], lineWidth: { bottom: 0.2 } },
+        headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', halign: 'left', fontSize: s.head.length > 9 ? 7 : 8.2 },
+        footStyles: { fillColor: ac.map((c) => Math.round(c + (255 - c) * 0.85)), textColor: NAVY, fontStyle: 'bold' },
+        alternateRowStyles: { fillColor: [246, 249, 252] },
         columnStyles: right,
         didParseCell: (d) => {
           if ((d.section === 'head' || d.section === 'foot') && right[d.column.index]) d.cell.styles.halign = 'right';
-          if (d.section === 'body' && /ORDER REQUIRED/.test(String(d.cell.raw))) { d.cell.styles.textColor = [204, 59, 47]; d.cell.styles.fontStyle = 'bold'; }
+          if (d.section === 'body' && /ORDER REQUIRED|Not available|Overdue/i.test(String(d.cell.raw))) { d.cell.styles.textColor = RED; d.cell.styles.fontStyle = 'bold'; }
+          if (d.section === 'body' && /^(Paid|Completed|Available|Converted)/.test(String(d.cell.raw))) { d.cell.styles.textColor = [20, 138, 94]; d.cell.styles.fontStyle = 'bold'; }
         },
-        didDrawPage: () => { header(); },
+        didDrawPage: () => { if (doc.getCurrentPageInfo().pageNumber > 1) header(false); },
       });
-      y = doc.lastAutoTable.finalY + 9;
+      y = doc.lastAutoTable.finalY + 10;
     });
 
     const total = doc.getNumberOfPages();
     for (let i = 1; i <= total; i++) { doc.setPage(i); footer(i, total); }
-    const name = `${report.filename}.pdf`;
+    const fname = `${report.filename}.pdf`;
     const b64 = doc.output('datauristring').split(',')[1];
-    save(name, 'application/pdf', b64, doc.output('blob'));
-    return name;
+    save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
+    return fname;
+  }
+
+  /** OPD slip (A4): clinic header, token, patient and visit details, fee, notes / Rx space, signature. */
+  function opdSlip(a, info) {
+    const { jsPDF } = root.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 14;
+    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 34, 'F');
+    doc.setFillColor(...BRAND); doc.rect(0, 34, W, 1.6, 'F');
+    doc.setFillColor(255, 255, 255); doc.roundedRect(M, 7, 56, 20, 3, 3, 'F');
+    try { doc.addImage(LOGO, 'JPEG', M + 2, 8, 52, 17.8); } catch (_) { /* optional */ }
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.text('OPD SLIP', W - M, 17, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.text(pdfText(info.clinic), W - M, 24, { align: 'right' });
+    doc.setFontSize(8.5); doc.text('www.hindivine.com', W - M, 29.5, { align: 'right' });
+    // Token + date strip
+    let y = 44;
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 20, 3, 3, 'F');
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 40, 20, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.text('TOKEN NO.', M + 20, y + 6.5, { align: 'center' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(String(info.token || '-'), M + 20, y + 15.5, { align: 'center' });
+    const cell = (x, label, value) => {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); doc.setTextColor(...MUTED); doc.text(label, x, y + 7);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...INK); doc.text(pdfText(value), x, y + 14.5);
+    };
+    cell(M + 47, 'DATE', info.date); cell(M + 92, 'TIME', info.time || 'Walk-in'); cell(M + 128, 'VISIT', info.mode);
+    y += 28;
+    // Patient box
+    const box = (title, rows) => {
+      doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 7, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY); doc.text(title, M + 5, y + 5.2);
+      y += 9;
+      doc.setDrawColor(226, 233, 241); doc.setLineWidth(0.3);
+      rows.forEach(([k, v], i) => {
+        if (i % 2 === 0) { doc.setFillColor(246, 249, 252); doc.rect(M, y, W - 2 * M, 8.5, 'F'); }
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTED); doc.text(k, M + 3, y + 5.6);
+        doc.setFont('helvetica', 'bold'); doc.setTextColor(...INK); doc.text(pdfText(v || '-'), M + 52, y + 5.6, { maxWidth: W - 2 * M - 55 });
+        y += 8.5;
+      });
+      y += 6;
+    };
+    box('Patient details', [['Patient name', a.patientName], ['Mobile', a.mobile], ['Age / Gender', info.ageGender], ['City', info.city]]);
+    box('Visit details', [['Treatment / service', a.service || 'Consultation'], ['Consultation mode', info.mode], ['Status', info.status], ...(a.link ? [['Online meeting link', a.link]] : []), ['Booked by', a.by || '']]);
+    box('Payment', [['Consultation fee', info.fee], ['Payment status', a.paid ? `Paid${a.payMethod ? ` (${a.payMethod})` : ''}` : 'Unpaid'], ['Notes', a.notes]]);
+    // Vitals + Rx
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 7, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY); doc.text('Doctor / dietitian notes', M + 5, y + 5.2);
+    y += 10;
+    const vit = ['Weight (kg)', 'Height (cm)', 'BMI', 'BP', 'Sugar'];
+    const vw = (W - 2 * M) / vit.length;
+    vit.forEach((v, i) => { doc.setDrawColor(210, 220, 232); doc.roundedRect(M + i * vw + 1, y, vw - 2, 13, 2, 2); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text(v, M + i * vw + 4, y + 4.5); });
+    y += 18;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...BRAND); doc.text('Rx', M, y + 6);
+    doc.setDrawColor(226, 233, 241);
+    for (let ly = y + 12; ly < H - 42; ly += 9) doc.line(M, ly, W - M, ly);
+    // Signature + footer
+    doc.setDrawColor(...MUTED); doc.line(W - M - 60, H - 30, W - M, H - 30);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MUTED); doc.text('Doctor / dietitian signature', W - M - 30, H - 25, { align: 'center' });
+    doc.setFillColor(242, 246, 250); doc.rect(0, H - 14, W, 14, 'F');
+    doc.setFontSize(7.5); doc.text(pdfText(`${info.clinic} · Slip generated ${nowText()}`), M, H - 6);
+    doc.text('Developed by Aamir Sk · Hindivine Digital Marketing Team', W - M, H - 6, { align: 'right' });
+    const fname = `OPD-Slip-${String(a.patientName).replace(/[^A-Za-z0-9]+/g, '-')}-${a.date}.pdf`;
+    const b64 = doc.output('datauristring').split(',')[1];
+    save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
+    return fname;
   }
 
   function xlsx(report) {
@@ -1866,102 +2122,129 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
    * A4 image (JPEG, 1240 × 1754 px ≈ 150 dpi) drawn on a canvas in the same layout as the PDF.
    * Long reports continue on extra images (…-page-2.jpg).
    */
+  /**
+   * A4 image (JPEG, 1240 px wide ≈ 150 dpi) in the same layout as the PDF. Always ONE file:
+   * the report is drawn at full size and fitted onto the A4 page; very long reports become one
+   * long A4-width image instead of several files.
+   */
   function jpeg(report, clinic) {
-    const W = 1240; const H = 1754; const M = 60;
+    const W = 1240; const A4H = 1754; const M = 56; const ROW = 44; const MAX_H = 15000;
     const rgb = (a) => `rgb(${a.join(',')})`;
-    const pages = [];
-    let c; let g; let y;
-    const logo = LOGO_IMG;
-    const start = () => {
-      c = document.createElement('canvas'); c.width = W; c.height = H; g = c.getContext('2d');
-      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-      g.fillStyle = rgb(NAVY); g.fillRect(0, 0, W, 130);
-      g.fillStyle = rgb(BRAND); g.fillRect(0, 130, W, 6);
-      g.fillStyle = '#fff'; roundRect(M, 22, 250, 86, 12); g.fill();
-      try { g.drawImage(logo, M + 8, 26, 234, 80); } catch (_) { /* logo optional */ }
-      g.textAlign = 'right'; g.fillStyle = '#fff';
-      g.font = 'bold 44px Helvetica, Arial, sans-serif'; g.fillText(report.title, W - M, 72);
-      g.font = '24px Helvetica, Arial, sans-serif'; g.fillText(clinic || 'Hindivine Healthcare', W - M, 108);
-      g.textAlign = 'left';
-      y = 180;
-      pages.push(c);
-    };
-    function roundRect(x, yy, w, h, r) { g.beginPath(); g.moveTo(x + r, yy); g.arcTo(x + w, yy, x + w, yy + h, r); g.arcTo(x + w, yy + h, x, yy + h, r); g.arcTo(x, yy + h, x, yy, r); g.arcTo(x, yy, x + w, yy, r); g.closePath(); }
-    const fit = (text, max) => { let t = String(text == null ? '' : text); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
-    const ensure = (need) => { if (y + need > H - 90) start(); };
-    start();
-    if (report.subtitle) { g.font = 'bold 28px Helvetica, Arial, sans-serif'; g.fillStyle = rgb(INK); g.fillText(report.subtitle, M, y); y += 34; }
+    const tint = (a, k) => rgb(a.map((c) => Math.round(c + (255 - c) * k)));
     const kpis = report.kpis || [];
+    const sections = report.sections.map((s) => ({ ...s, rows: s.rows.length ? s.rows : [['No records for this selection']] }));
+    // Measure first so the canvas has the right size.
+    let H = 210 + (report.subtitle ? 50 : 0) + (kpis.length ? Math.ceil(kpis.length / 4) * 112 + 16 : 0) + 100;
+    sections.forEach((s) => { H += 60 + (s.rows.length + 1 + (s.foot ? 1 : 0)) * ROW + 30; });
+    H = Math.min(Math.max(H, 600), MAX_H);
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
+    const font = (w, px) => { g.font = `${w} ${px}px Helvetica, Arial, sans-serif`; };
+    const rr = (x, yy, w, h, r) => { g.beginPath(); g.moveTo(x + r, yy); g.arcTo(x + w, yy, x + w, yy + h, r); g.arcTo(x + w, yy + h, x, yy + h, r); g.arcTo(x, yy + h, x, yy, r); g.arcTo(x, yy, x + w, yy, r); g.closePath(); };
+    const fit = (text, max) => { let t = String(text == null ? '' : text); if (g.measureText(t).width <= max) return t; while (t.length > 1 && g.measureText(t + '…').width > max) t = t.slice(0, -1); return t + '…'; };
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    // Header
+    const grd = g.createLinearGradient(0, 0, W, 0); grd.addColorStop(0, rgb(NAVY)); grd.addColorStop(1, '#0e5a9b');
+    g.fillStyle = grd; g.fillRect(0, 0, W, 150);
+    g.fillStyle = rgb(BRAND); g.fillRect(0, 150, W, 7); g.fillStyle = '#29a8e0'; g.fillRect(W * 0.62, 150, W * 0.38, 7);
+    g.fillStyle = '#fff'; rr(M, 28, 270, 94, 14); g.fill();
+    try { if (LOGO_IMG && LOGO_IMG.complete) g.drawImage(LOGO_IMG, M + 9, 33, 252, 85); } catch (_) { /* logo optional */ }
+    g.textAlign = 'right'; g.fillStyle = '#fff'; font('bold', 46); g.fillText(fit(report.title, 600), W - M, 82);
+    font('normal', 24); g.fillText(fit(clinic || 'Hindivine Healthcare', 600), W - M, 118);
+    g.textAlign = 'left';
+    let y = 196;
+    if (report.subtitle) {
+      g.fillStyle = rgb(ZEBRA); rr(M, y - 34, W - 2 * M, 48, 12); g.fill();
+      font('bold', 26); g.fillStyle = rgb(NAVY); g.fillText(fit(report.subtitle, 700), M + 18, y - 2);
+      font('normal', 20); g.fillStyle = rgb(MUTED); g.textAlign = 'right';
+      g.fillText(`Generated ${nowText()}`, W - M - 18, y - 4); g.textAlign = 'left';
+      y += 40;
+    }
     if (kpis.length) {
       const per = 4; const gap = 16; const bw = (W - 2 * M - gap * (per - 1)) / per;
       kpis.forEach(([label, value], i) => {
-        const col = i % per; const row = Math.floor(i / per);
-        const x = M + col * (bw + gap); const by = y + row * 110;
-        g.fillStyle = rgb(ZEBRA); roundRect(x, by, bw, 92, 12); g.fill();
-        g.fillStyle = (report.alertKpis || []).includes(i) ? '#cc3b2f' : rgb(BRAND); g.fillRect(x, by + 12, 6, 68);
-        g.fillStyle = rgb(MUTED); g.font = '19px Helvetica, Arial, sans-serif'; g.fillText(fit(String(label).toUpperCase(), bw - 30), x + 22, by + 34);
-        g.fillStyle = rgb(INK); g.font = 'bold 34px Helvetica, Arial, sans-serif'; g.fillText(fit(value, bw - 30), x + 22, by + 76);
+        const x = M + (i % per) * (bw + gap); const by = y + Math.floor(i / per) * 112;
+        const ac = (report.alertKpis || []).includes(i) ? RED : ACCENTS[i % ACCENTS.length];
+        g.fillStyle = tint(ac, 0.9); rr(x, by, bw, 96, 14); g.fill();
+        g.fillStyle = rgb(ac); rr(x, by, 8, 96, 4); g.fill();
+        font('bold', 18); g.fillStyle = rgb(MUTED); g.fillText(fit(String(label).toUpperCase(), bw - 36), x + 26, by + 34);
+        font('bold', 36); g.fillStyle = rgb(ac.map((v) => Math.round(v * 0.75))); g.fillText(fit(value, bw - 36), x + 26, by + 78);
       });
-      y += Math.ceil(kpis.length / per) * 110 + 16;
+      y += Math.ceil(kpis.length / per) * 112 + 16;
     }
-    report.sections.forEach((s) => {
+    let cut = false;
+    sections.forEach((s, si) => {
+      if (cut) return;
+      const ac = /ORDER REQUIRED/i.test(s.title) ? RED : ACCENTS[si % ACCENTS.length];
+      g.fillStyle = rgb(ac); rr(M, y, 10, 34, 5); g.fill();
+      font('bold', 30); g.fillStyle = rgb(NAVY); g.fillText(s.title, M + 22, y + 27);
+      const tw = g.measureText(s.title).width;
+      g.fillStyle = tint(ac, 0.85); rr(M + 34 + tw, y + 4, 60, 28, 14); g.fill();
+      font('bold', 18); g.fillStyle = rgb(ac); g.textAlign = 'center'; g.fillText(String(report.sections[si].rows.length), M + 64 + tw, y + 24); g.textAlign = 'left';
+      y += 50;
+      font('normal', 21);
       const cols = s.head.length;
-      const rows = s.rows.length ? s.rows : [['No records']];
-      g.font = '22px Helvetica, Arial, sans-serif';
-      const widths = s.head.map((h, i) => Math.max(g.measureText(String(h)).width, ...rows.map((r) => g.measureText(String(r[i] == null ? '' : r[i])).width)) + 28);
-      const total = widths.reduce((a, b) => a + b, 0);
-      const scale = (W - 2 * M) / total;
+      const widths = s.head.map((h, i) => Math.min(520, Math.max(g.measureText(String(h)).width, ...s.rows.map((r) => g.measureText(String(r[i] == null ? '' : r[i])).width)) + 30));
+      const scale = (W - 2 * M) / widths.reduce((a, b) => a + b, 0);
       const cw = widths.map((w) => w * scale);
-      ensure(140);
-      g.fillStyle = rgb(NAVY); g.font = 'bold 30px Helvetica, Arial, sans-serif'; g.fillText(s.title, M, y + 26); y += 46;
-      const rowH = 44;
-      const drawRow = (cells, style) => {
-        ensure(rowH);
+      const drawRow = (cells, style, i) => {
+        if (y + ROW > H - 80) { cut = true; return; }
+        g.fillStyle = style === 'head' ? rgb(NAVY) : style === 'foot' ? tint(ac, 0.85) : i % 2 ? 'rgb(246,249,252)' : '#fff';
+        if (style === 'head') { rr(M, y, W - 2 * M, ROW, 10); g.fill(); } else g.fillRect(M, y, W - 2 * M, ROW);
+        g.fillStyle = 'rgb(226,233,241)'; g.fillRect(M, y + ROW - 1, W - 2 * M, 1);
         let x = M;
-        g.fillStyle = style === 'head' ? rgb(NAVY) : style === 'foot' ? 'rgb(226,236,246)' : style === 'alt' ? rgb(ZEBRA) : '#fff';
-        g.fillRect(M, y, W - 2 * M, rowH);
-        g.strokeStyle = 'rgb(219,228,238)'; g.lineWidth = 1; g.strokeRect(M, y, W - 2 * M, rowH);
-        cells.forEach((v, i) => {
-          if (i >= cols) return;
-          const right = (s.right || []).includes(i);
-          const hot = (style === 'body' || style === 'alt') && /ORDER REQUIRED/.test(String(v));
-          g.fillStyle = style === 'head' ? '#fff' : hot ? '#cc3b2f' : rgb(INK);
-          g.font = `${style === 'head' || style === 'foot' || hot ? 'bold ' : ''}21px Helvetica, Arial, sans-serif`;
-          const t = fit(v, cw[i] - 20);
+        const full = cells.length === 1 && cols > 1;
+        cells.forEach((v, k) => {
+          if (k >= cols) return;
+          const right = (s.right || []).includes(k);
+          const txt = String(v == null ? '' : v);
+          const hot = style === 'body' && /ORDER REQUIRED|Not available|Overdue/i.test(txt);
+          const good = style === 'body' && /^(Paid|Completed|Available|Converted)/.test(txt);
+          g.fillStyle = style === 'head' ? '#fff' : hot ? rgb(RED) : good ? 'rgb(20,138,94)' : style === 'foot' ? rgb(NAVY) : rgb(INK);
+          font(style === 'body' && !hot && !good ? 'normal' : 'bold', 21);
+          const width = full ? W - 2 * M : cw[k];
+          const t = fit(txt, width - 24);
           g.textAlign = right ? 'right' : 'left';
-          g.fillText(t, right ? x + cw[i] - 12 : x + 12, y + 29);
+          g.fillText(t, right ? x + width - 12 : x + 12, y + 29);
           g.textAlign = 'left';
-          x += cw[i];
+          x += cw[k];
         });
-        y += rowH;
+        y += ROW;
       };
-      drawRow(s.head, 'head');
-      rows.forEach((r, i) => drawRow(r, i % 2 ? 'alt' : 'body'));
-      if (s.foot) drawRow(s.foot, 'foot');
+      drawRow(s.head, 'head', 0);
+      s.rows.forEach((r, i) => drawRow(r, 'body', i));
+      if (s.foot) drawRow(s.foot, 'foot', 0);
       y += 30;
     });
-    const when = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    pages.forEach((pg, i) => {
-      const gg = pg.getContext('2d');
-      gg.fillStyle = 'rgb(219,228,238)'; gg.fillRect(M, H - 70, W - 2 * M, 2);
-      gg.fillStyle = rgb(MUTED); gg.font = '19px Helvetica, Arial, sans-serif';
-      gg.fillText(`${clinic || 'Hindivine Healthcare'} · Generated ${when}`, M, H - 38);
-      gg.textAlign = 'right'; gg.fillText(`Page ${i + 1} of ${pages.length}`, W - M, H - 38); gg.textAlign = 'left';
-    });
-    const names = [];
-    pages.forEach((pg, i) => {
-      const name = `${report.filename}${pages.length > 1 ? `-page-${i + 1}` : ''}.jpg`;
-      const url = pg.toDataURL('image/jpeg', 0.92);
-      const b64 = url.split(',')[1];
-      const bin = atob(b64); const bytes = new Uint8Array(bin.length);
-      for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
-      save(name, 'image/jpeg', b64, new Blob([bytes], { type: 'image/jpeg' }));
-      names.push(name);
-    });
-    return names.join(', ');
+    if (cut) { font('bold', 22); g.fillStyle = rgb(RED); g.fillText('More rows in the PDF / Excel export…', M, H - 92); }
+    // Footer
+    g.fillStyle = 'rgb(242,246,250)'; g.fillRect(0, H - 64, W, 64);
+    font('normal', 19); g.fillStyle = rgb(MUTED);
+    g.fillText(fit(`${clinic || 'Hindivine Healthcare'} · Generated ${nowText()}${report.preparedBy ? ` by ${report.preparedBy}` : ''}`, 700), M, H - 26);
+    g.textAlign = 'right'; g.fillText('Developed by Aamir Sk · Hindivine Digital Marketing Team', W - M, H - 26); g.textAlign = 'left';
+    // Fit onto one A4 page when it is not too long; otherwise keep one long A4-width image.
+    let out = c;
+    if (H > A4H && A4H / H >= 0.55) {
+      const page = document.createElement('canvas'); page.width = W; page.height = A4H;
+      const pg = page.getContext('2d'); pg.fillStyle = '#fff'; pg.fillRect(0, 0, W, A4H);
+      const k = A4H / H; const w = W * k;
+      pg.imageSmoothingQuality = 'high';
+      pg.drawImage(c, (W - w) / 2, 0, w, A4H);
+      out = page;
+    } else if (H < A4H) {
+      const page = document.createElement('canvas'); page.width = W; page.height = A4H;
+      const pg = page.getContext('2d'); pg.fillStyle = '#fff'; pg.fillRect(0, 0, W, A4H);
+      pg.drawImage(c, 0, 0, W, H - 64, 0, 0, W, H - 64);
+      pg.drawImage(c, 0, H - 64, W, 64, 0, A4H - 64, W, 64);
+      out = page;
+    }
+    const fname = `${report.filename}.jpg`;
+    const b64 = out.toDataURL('image/jpeg', 0.93).split(',')[1];
+    save(fname, 'image/jpeg', b64, b64ToBlob(b64, 'image/jpeg'));
+    return fname;
   }
 
-  root.EXPORT = { pdf, xlsx, jpeg, pdfText };
+  root.EXPORT = { pdf, xlsx, jpeg, opdSlip, pdfText };
 })(window);
 ===== END FILE: admin/js/export.js =====
 
@@ -1974,7 +2257,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.0';
+  const APP_VERSION = '3.1';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1983,6 +2266,21 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
   const DIRTY_KEY = 'hindivine.admin.savedHash'; // fingerprint of the data last saved to / loaded from the sheet
   const SHEET_LINK = 'https://docs.google.com/spreadsheets/d/1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y/edit';
   const IDLE_LOCK_MS = 15 * 60 * 1000;
+  // Colour themes (chosen per device).
+  const THEMES = [['royal', 'Royal Blue', '#0e6fb5'], ['emerald', 'Emerald', '#0f9d8f'], ['purple', 'Royal Purple', '#6c5bd4'], ['sunset', 'Sunset', '#e0622f'], ['midnight', 'Midnight', '#111c2b']];
+  const THEME_KEY = 'hindivine.admin.theme';
+  const PREF_KEY = 'hindivine.admin.prefs'; // device preferences: reminder scope, sound
+  const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (_) { return d; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (_) { /* private mode */ } };
+  const prefs = () => { try { return JSON.parse(lsGet(PREF_KEY, '{}')) || {}; } catch (_) { return {}; } };
+  const setPref = (k, v) => { const p = prefs(); p[k] = v; lsSet(PREF_KEY, JSON.stringify(p)); };
+  function applyTheme(t) {
+    const th = THEMES.find((x) => x[0] === t) || THEMES[0];
+    document.documentElement.dataset.theme = th[0];
+    const meta = document.querySelector('meta[name=theme-color]');
+    if (meta) meta.setAttribute('content', th[0] === 'midnight' ? '#0a111c' : th[0] === 'royal' ? '#0A2F55' : th[2]);
+  }
+  applyTheme(lsGet(THEME_KEY, 'royal'));
 
   let storage;
   try { storage = window.localStorage; storage.getItem('x'); } catch (_) { storage = A.memoryStorage(); }
@@ -2092,7 +2390,8 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
         : id === 'appointments' && todayN ? `<span class="badge info">${todayN}</span>`
           : id === 'leads' && leadsDue ? `<span class="badge warn">${leadsDue}</span>` : '');
     const items = NAV.filter((n) => can(n[0]));
-    $('#nav').innerHTML = items.map(([id, label, icon, group]) => `${group ? `<div class="nav-group">${group}</div>` : ''}<button type="button" data-go="${id}" class="${screen === id || (id === 'purchases' && screen === 'purchase-new') ? 'on' : ''}">${svg(icon)}<span>${label}</span>${badge(id)}</button>`).join('');
+    $('#nav').innerHTML = items.map(([id, label, icon, group], i) => `${group ? `<div class="nav-group">${group}</div>` : ''}<button type="button" data-go="${id}" style="--i:${i}" class="${screen === id || (id === 'purchases' && screen === 'purchase-new') ? 'on' : ''}"><span class="nav-ic">${svg(icon)}</span><span>${label}</span>${badge(id)}</button>`).join('');
+    filterNav();
     const tabs = (can('dashboard') ? TAB_ORDER : DESK_TABS).filter(can);
     $('#tabs').hidden = tabs.length < 2;
     const tabLabel = { dashboard: 'Dashboard', today: 'Today', appointments: 'OPD', inventory: 'Inventory', leads: 'Leads' };
@@ -2101,8 +2400,13 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
       const n = NAV.find((x) => x[0] === id);
       return `<button type="button" data-go="${id}" class="${screen === id ? 'on' : ''}">${svg(n[2])}<span>${tabLabel[id] || n[1]}</span>${badge(id).replace('badge', 'badge dot')}</button>`;
     }).join('');
-    $('#side-sub').textContent = `${me.name} · ${A.ROLES[role]}`;
+    const theme = lsGet(THEME_KEY, 'royal');
+    $('#side-profile').innerHTML = `<span class="avatar r-${role}">${esc(me.name.trim().charAt(0).toUpperCase())}</span><div><b>${esc(me.name)}</b><small>${A.ROLES[role]} · ${esc(set().clinic || '')}</small></div>
+      <div class="theme-dots">${THEMES.map(([k, l, c]) => `<button type="button" class="tdot ${theme === k ? 'on' : ''}" style="--c:${c}" data-act="theme" data-theme="${k}" title="${l}" aria-label="${l} theme"></button>`).join('')}</div>`;
+    const quick = [['sell', 'Sale', '<path d="M12 5v14M5 12h14"/>', 'new-sale'], ['appointments', 'OPD', ICON_CAL, 'new-appt'], ['leads', 'Lead', ICON_LEADS, 'new-lead']].filter((q) => can(q[0]));
+    $('#side-quick').innerHTML = quick.map(([id, l, ic, act]) => `<button type="button" data-act="${act}">${svg(ic)}<span>+ ${l}</span></button>`).join('');
     $('#user-initial').textContent = me.name.trim().charAt(0).toUpperCase();
+    updateBell();
   }
 
   function render() {
@@ -2111,12 +2415,19 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     const nav = NAV.find((n) => n[0] === screen);
     $('#title').textContent = TITLES[screen] || (screen === 'sell' && params.edit ? 'Edit Sale' : nav ? nav[1] : '');
     $('#top-sub').textContent = SUBS[screen] ? SUBS[screen]() : `${me.name} · ${A.ROLES[role]}`;
-    view.innerHTML = f();
+    try {
+      view.innerHTML = f();
+    } catch (err) {
+      // A screen that fails must never leave a blank or frozen app.
+      console.error(err);
+      view.innerHTML = `<div class="card empty"><h2>Something went wrong on this screen</h2><p class="hint">${esc(err.message)}</p><button class="btn primary" data-go="${home()}">Go to ${esc((NAV.find((n) => n[0] === home()) || [])[1] || 'home')}</button></div>`;
+    }
     view.classList.toggle('enter', changedScreen);
     labelTables(view);
     renderNav();
-    if (AFTER[screen]) AFTER[screen]();
+    try { if (AFTER[screen]) AFTER[screen](); } catch (err) { console.error(err); }
     if (changedScreen) countUp(view);
+    scheduleReminders();
     changedScreen = false;
   }
   // Numbers in the summary boxes count up when a screen opens.
@@ -2257,7 +2568,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     $('#modal-title').textContent = title;
     $('#modal-body').innerHTML = (html || '') + (fields ? `<div class="grid">${fields.map(field).join('')}</div>` : '');
     $('#modal-err').textContent = '';
-    $('#modal-foot').innerHTML = `<button type="button" class="btn" data-close>Cancel</button>${submitLabel !== false ? `<button type="submit" class="btn primary${danger ? ' danger' : ''}">${esc(submitLabel || 'Save')}</button>` : ''}`;
+    $('#modal-foot').innerHTML = `<button type="button" class="btn" data-close>${submitLabel === false ? 'Close' : 'Cancel'}</button>${submitLabel !== false ? `<button type="submit" class="btn primary${danger ? ' danger' : ''}">${esc(submitLabel || 'Save')}</button>` : ''}`;
     modalSubmit = () => {
       const values = {};
       (fields || []).forEach((f) => {
@@ -2379,6 +2690,17 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
   let todayDate = '';
   SUBS.today = () => `${fdate(todayDate || admin.today())}${(todayDate || admin.today()) === admin.today() ? ' · Today' : ''}`;
   const shiftDay = (d, n) => { const [y, m, dd] = d.split('-').map(Number); return A.isoDate(new Date(y, m - 1, dd + n)); };
+  // Every active team member (reference) with the day's sales credited to them, including those with none.
+  function refSummary(x) {
+    const by = new Map();
+    S().team.filter((m) => !m.disabled).forEach((m) => by.set(m.name, { name: m.name, count: 0, credited: 0, incentive: 0 }));
+    x.sales.forEach((s) => s.splits.forEach((y) => {
+      const o = by.get(y.name) || { name: y.name, count: 0, credited: 0, incentive: 0 };
+      o.count++; o.credited += s.amount * (y.pct || 0) / 100; o.incentive += y.amount || 0;
+      by.set(y.name, o);
+    }));
+    return [...by.values()].sort((a, b) => b.credited - a.credited || a.name.localeCompare(b.name));
+  }
   SCREENS.today = () => {
     const d = todayDate || admin.today();
     const x = admin.daySummary(d);
@@ -2396,10 +2718,14 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
         <div class="alerts">${x.order.map((o) => `<div class="alert bad"><b>${esc(o.item.name)}</b><span class="badge bad">${num(o.stock)} left · below ${o.item.orderAt}</span></div>`).join('')}</div></section>` : ''}
       <div class="cards">
         <section class="card"><h2><span class="ic">${svg('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>')}</span>Sales<span class="sp"></span><span class="badge">${inr(x.salesTotal)}</span></h2>
-          ${table(['Patient', 'Product', '>Qty', '>Amount', '~Reference'], x.sales.map((s) => `<tr><td>${esc(s.patientName)}</td><td>${typeBadge(s.type)} ${esc(s.product)}</td><td class="r">${s.qty}</td><td class="r"><b>${inr(s.amount)}</b></td><td>${splitText(s)}</td></tr>`))}</section>
+          ${table(['Patient', 'Product', '>Qty', '>Amount', 'Reference', '>Incentive'], x.sales.map((s) => `<tr><td>${esc(s.patientName)}</td><td>${typeBadge(s.type)} ${esc(s.product)}</td><td class="r">${s.qty}</td><td class="r"><b>${inr(s.amount)}</b></td><td><span class="ref-chips">${s.splits.map((y) => `<span class="ref-chip">${esc(y.name)}${s.splits.length > 1 ? ` · ${y.pct}%` : ''}</span>`).join('')}</span></td><td class="r">${inr(s.incentive)}</td></tr>`))}</section>
         <section class="card"><h2><span class="ic gold">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}</span>Purchases<span class="sp"></span><span class="badge">${inr(x.purchaseTotal)}</span></h2>
           ${table(['Vendor', 'Stock in', '>Total'], x.purchases.map((p) => `<tr><td>${esc(p.vendor || 'Vendor')}<span class="sub">${esc(p.invoiceNo)}</span></td><td>${p.lines.map((l) => `${esc(l.name)} +${num(l.qty)}`).join('<br>')}</td><td class="r">${inr(p.total)}</td></tr>`))}</section>
       </div>
+      <section class="card"><h2><span class="ic teal">${svg('<circle cx="9" cy="8" r="3.5"/><path d="M2.5 20c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6M16 4.5a3.5 3.5 0 0 1 0 7M18 14c2.2.6 3.5 2.6 3.5 6"/>')}</span>Sales by reference<span class="sp"></span><span class="badge">${refSummary(x).length}</span></h2>
+        <div class="ref-board">${refSummary(x).map((r) => `<div class="ref-tile ${r.count ? '' : 'zero'}"><b>${esc(r.name)}</b><small>${plural(r.count, 'sale')} · ${inr(Math.round(r.credited))}</small><small>Incentive ${inr(r.incentive)}</small></div>`).join('') || '<p class="empty">No team members yet.</p>'}</div></section>
+      <section class="card"><h2><span class="ic violet">${svg(ICON_CAL)}</span>OPD appointments<span class="sp"></span><span class="badge">${x.appointments.length}</span></h2>
+        ${table(['Patient', 'Time', 'Mode', 'Service', 'Status', '>Fee'], x.appointments.map((a) => `<tr><td>${esc(a.patientName)}</td><td>${esc(time12(a.time))}</td><td>${modeBadge(a.mode)}</td><td>${esc(a.service || '—')}</td><td>${statusBadge(a.status)}</td><td class="r">${inr(a.fee)} ${a.status !== 'cancelled' ? (a.paid ? '<span class="badge ok">Paid</span>' : '<span class="badge warn">Unpaid</span>') : ''}</td></tr>`))}</section>
       <div class="cards">
         <section class="card"><h2><span class="ic teal">${svg('<path d="M20 6L9 17l-5-5"/>')}</span>Stock available<span class="sp"></span><span class="badge ok">${x.available.length}</span></h2>
           ${table(['Item', '~Category', '>Stock', 'Status'], x.available.map(stockRow))}</section>
@@ -2422,7 +2748,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     const mine = myLeadFilter();
     const q = leadF.q.toLowerCase();
     return S().leads.filter((l) => (!mine || mine(l))
-      && (leadF.tab === 'all' || (leadF.tab === 'open' && !admin.isClosedLead(l)) || (leadF.tab === 'due' && !admin.isClosedLead(l) && l.followUp === d)
+      && (leadF.tab === 'all' || (leadF.tab === 'open' && !admin.isClosedLead(l)) || (leadF.tab === 'follow' && !admin.isClosedLead(l) && l.followUp) || (leadF.tab === 'due' && !admin.isClosedLead(l) && l.followUp === d)
         || (leadF.tab === 'overdue' && !admin.isClosedLead(l) && l.followUp && l.followUp < d) || (leadF.tab === 'won' && ['Converted', 'Appointment booked'].includes(l.status))
         || (leadF.tab === 'lost' && ['Not interested', 'Lost'].includes(l.status)))
       && (!leadF.status || l.status === leadF.status) && (!leadF.source || l.source === leadF.source)
@@ -2437,7 +2763,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     const st = admin.leadStats(null, mine);
     const list = filteredLeads();
     const base = S().leads.filter((l) => !mine || mine(l));
-    const tabs = [['open', 'Open'], ['due', `Due today (${st.dueToday})`], ['overdue', `Overdue (${st.overdue})`], ['won', 'Converted'], ['lost', 'Lost'], ['all', 'All']];
+    const tabs = [['open', 'Open'], ['follow', '⏰ Follow-ups'], ['due', `Due today (${st.dueToday})`], ['overdue', `Overdue (${st.overdue})`], ['won', 'Converted'], ['lost', 'Lost'], ['all', 'All']];
     const pipeline = set().lists.leadStatuses.map((x) => [x, base.filter((l) => l.status === x).length]);
     const people = S().accounts.filter((a) => !a.disabled);
     const card = (l) => {
@@ -2459,8 +2785,20 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
         <select data-lfilter="priority" aria-label="Priority">${opt('', 'Any priority', leadF.priority)}${Object.entries(A.LEAD_PRIORITIES).map(([k, v]) => opt(k, v, leadF.priority)).join('')}</select>
         ${role !== 'desk' ? `<select data-lfilter="owner" aria-label="Assigned to">${opt('', 'Everyone', leadF.owner)}${opt('__none', 'Not assigned', leadF.owner)}${people.map((a) => opt(a.id, a.name, leadF.owner)).join('')}</select>` : ''}
       </div></div>
-      <div class="lead-list">${list.map(card).join('') || `<div class="card empty">${svg(ICON_LEADS)}No leads here.<br><br><button class="btn primary" data-act="new-lead">Add a lead</button></div>`}</div>`;
+      ${leadF.tab === 'follow' ? followGroups(list, card) : `<div class="lead-list">${list.map(card).join('') || `<div class="card empty">${svg(ICON_LEADS)}No leads here.<br><br><button class="btn primary" data-act="new-lead">Add a lead</button></div>`}</div>`}`;
   };
+  // Follow-ups tab: open leads grouped by when to call them.
+  function followGroups(list, card) {
+    const d = admin.today(); const tm = shiftDay(d, 1); const wk = shiftDay(d, 7);
+    const groups = [['Overdue', 'bad', (l) => l.followUp < d], ['Today', 'warn', (l) => l.followUp === d], ['Tomorrow', 'info', (l) => l.followUp === tm],
+      ['This week', 'teal', (l) => l.followUp > tm && l.followUp <= wk], ['Later', '', (l) => l.followUp > wk]];
+    const sorted = list.slice().sort((a, b) => (a.followUp + (a.followTime || '99')).localeCompare(b.followUp + (b.followTime || '99')));
+    const html = groups.map(([t, cls, fn]) => {
+      const g = sorted.filter(fn);
+      return g.length ? `<div class="fu-group ${cls}"><h3><span class="fu-dot"></span>${t}<span class="badge ${cls}">${g.length}</span></h3><div class="lead-list">${g.map(card).join('')}</div></div>` : '';
+    }).join('');
+    return html || `<div class="card empty">${svg(ICON_LEADS)}No follow-ups scheduled. 🎉</div>`;
+  }
   function leadForm(l) {
     const v = l || { priority: 'warm', status: 'New', assignedTo: role === 'desk' ? me.id : '', followUp: admin.today() };
     const people = S().accounts.filter((a) => !a.disabled || a.id === v.assignedTo);
@@ -2481,6 +2819,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
         <label class="f">Assigned to<select id="ld-owner">${opt('', 'Not assigned', v.assignedTo)}${people.map((a) => opt(a.id, `${a.name} · ${A.ROLES[a.role]}`, v.assignedTo)).join('')}</select></label>
         <label class="f">Next follow-up<input id="ld-follow" type="date" value="${esc(v.followUp || '')}"></label>
         <label class="f">Follow-up time<input id="ld-ftime" type="time" value="${esc(v.followTime || '')}"></label>
+        <div class="f span fu-chips">${FOLLOW_CHIPS.map(([k, x]) => `<button type="button" class="chip-btn" data-fu="${k}">${x}</button>`).join('')}</div>
         <label class="f">Current weight (kg)<input id="ld-weight" type="number" min="0" step="any" value="${esc(v.weight || '')}"></label>
         <label class="f">Target weight (kg)<input id="ld-target" type="number" min="0" step="any" value="${esc(v.targetWeight || '')}"></label>
         <label class="f">Height (cm)<input id="ld-height" type="number" min="0" step="any" value="${esc(v.height || '')}"></label>
@@ -2516,6 +2855,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
           <div class="grid"><label class="f">Update type<select id="la-type">${[['call', '📞 Call'], ['whatsapp', '💬 WhatsApp'], ['note', '📝 Note'], ['visit', '🏥 Visit']].map(([k, x]) => opt(k, x, 'call')).join('')}</select></label>
           <label class="f">Next follow-up<input id="la-follow" type="date" value="${esc(l.followUp || '')}"></label>
           <label class="f">Time<input id="la-ftime" type="time" value="${esc(l.followTime || '')}"></label>
+          <div class="f span fu-chips">${FOLLOW_CHIPS.map(([k, l]) => `<button type="button" class="chip-btn" data-fu="${k}">${l}</button>`).join('')}<button type="button" class="chip-btn" data-fu="clear">No follow-up</button></div>
           <label class="f span">What happened?<textarea id="la-text" rows="2" placeholder="e.g. Called, interested in Mounjaro, asked for price. Call back Monday."></textarea></label></div></div>
         <dl class="detail-list">${row('Mobile', `<a href="tel:${esc(l.mobile)}">${esc(l.mobile)}</a>${l.altMobile ? ` · ${esc(l.altMobile)}` : ''}`)}${row('Interested in', esc(l.interest))}${row('City', esc(l.city))}
           ${row('Age / gender', [l.age, l.gender].filter(Boolean).map(esc).join(' · '))}${row('Weight → target', l.weight ? `${esc(l.weight)} kg → ${esc(l.targetWeight || '?')} kg${bmi ? ` · BMI ${bmi}` : ''}` : '')}
@@ -2533,6 +2873,27 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     });
     if (focusNote) setTimeout(() => { const t = $('#la-text'); if (t) t.focus(); }, 80);
   }
+  // Quick follow-up choices: set the date and time with one tap.
+  const FOLLOW_CHIPS = [['1h', 'In 1 hour'], ['eve', 'Today 6 PM'], ['tm', 'Tomorrow 11 AM'], ['3d', 'In 3 days'], ['1w', 'Next week']];
+  function followChoice(k) {
+    const pad = (n) => String(n).padStart(2, '0');
+    if (k === 'clear') return ['', ''];
+    if (k === '1h') { const t = new Date(Date.now() + 3600000); return [A.isoDate(t), `${pad(t.getHours())}:${pad(t.getMinutes())}`]; }
+    if (k === 'eve') return [admin.today(), '18:00'];
+    if (k === 'tm') return [shiftDay(admin.today(), 1), '11:00'];
+    if (k === '3d') return [shiftDay(admin.today(), 3), '11:00'];
+    return [shiftDay(admin.today(), 7), '11:00'];
+  }
+  modal.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-fu]');
+    if (!b) return;
+    e.preventDefault();
+    const [d, t] = followChoice(b.dataset.fu);
+    const f = $('#la-follow') || $('#ld-follow'); const ft = $('#la-ftime') || $('#ld-ftime');
+    if (f) f.value = d;
+    if (ft) ft.value = t;
+    $$('[data-fu]', modal).forEach((x) => x.classList.toggle('on', x === b));
+  });
 
   // ── Activity log: every change, who made it and when ─────────
   const actF = { by: '', q: '' };
@@ -2569,6 +2930,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.1', 'Follow-up reminders: bell with count, reminders list on sign-in, pop-up at the follow-up time, phone notifications even when the app is closed, snooze; Follow-ups tab and one-tap follow-up times for leads; OPD slip PDF for every appointment; Today Summary shows every reference (team member) with sales and incentive, also in PDF and image; image export is one clean A4 file; better structured PDF reports; 5 colour themes including dark Midnight; redesigned animated side menu with search and quick actions; app-like screens (no text selection); crash protection and smoother animations.'],
     ['3.0', 'Leads CRM for the front desk with follow-ups, history and conversion to OPD appointments; personal logins for every team member plus a new Admin role; editable role permissions; Today Summary with order-required alerts and PDF / A4 image export; injection kit auto-deducted from stock (travel bag, ice gel, swabs, needles); personal incentive rates and pay mode per team member; stock alerts on/off; patient edit and delete; "+ Add new" options everywhere; services for appointments; month-wise view; report filters; activity log of every change; full redesign with animations.'],
     ['2.0', 'Logins for Super Admin, Manager and Front Desk; OPD appointments (₹1000, clinic visit or online); PDF and Excel export on every screen; renewal alert at 75 days; new design; auto refresh; Android back button fix; AI scanner removed.'],
     ['1.1', 'All data stored in the Hindivine Google Sheet and shared across devices, with conflict handling and offline use.'],
@@ -2705,6 +3067,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
           ${a.status === 'booked' ? b('appt-noshow', 'No-show') : ''}
           ${a.status !== 'cancelled' ? b('appt-cancel', 'Cancel', 'danger') : b('appt-restore', 'Restore booking')}
           ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
+          ${b('appt-slip', '🧾 OPD slip (PDF)', 'gold')}
           ${b('appt-edit', 'Edit')}
           ${canDelete() ? b('appt-del', 'Delete', 'danger') : ''}
         </div>`,
@@ -3229,7 +3592,9 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
       return sec('Leads by Team Member', ['Person', '>Leads', '>Open', '>Converted', '>Overdue Follow-ups'], Object.entries(by).map(([k, v]) => [k, ...v]), { total: [1, 2, 3, 4] });
     },
     activity: (list) => sec('Activity Log', ['Date & Time', 'By', 'Action', 'Details'], list.map((x) => [ftime(x.at), x.by, x.action, x.detail])),
-    daySales: (x) => sec('Sales', ['Patient', 'Type', 'Product', '>Qty', '>Amount'], x.sales.map((s) => [s.patientName, A.SALE_TYPES[s.type], s.product, s.qty, s.amount]), { money: [4], total: [3, 4] }),
+    daySales: (x) => sec('Sales', ['Patient', 'Type', 'Product', '>Qty', '>Amount', 'Reference', '>Incentive'], x.sales.map((s) => [s.patientName, A.SALE_TYPES[s.type], s.product, s.qty, s.amount, s.splits.map((y) => `${y.name}${s.splits.length > 1 ? ` ${y.pct}%` : ''}`).join(' + '), s.incentive]), { money: [4, 6], total: [3, 4, 6] }),
+    dayAppts: (x) => sec('OPD Appointments', ['Patient', 'Time', 'Mode', 'Service', 'Status', 'Payment', '>Fee'], x.appointments.map((a) => [a.patientName, time12(a.time), A.APPT_MODES[a.mode], a.service || '', A.APPT_STATUS[a.status], a.status === 'cancelled' ? '—' : a.paid ? `Paid ${a.payMethod || ''}`.trim() : 'Unpaid', a.fee]), { money: [6], total: [6] }),
+    dayRefs: (x) => sec('Sales by Reference (all team)', ['Reference', '>Sales', '>Sales Credited', '>Incentive'], refSummary(x).map((r) => [r.name, r.count, Math.round(r.credited), r.incentive]), { money: [2, 3], total: [1, 2, 3] }),
     dayPurchases: (x) => sec('Purchases', ['Vendor', 'Invoice', 'Product', '>Qty', '>Total'], x.purchases.flatMap((p) => p.lines.map((l) => [p.vendor, p.invoiceNo, l.name, l.qty, l.total])), { money: [4], total: [3, 4] }),
     dayStock: (title, list) => sec(title, ['Item', 'Category', '>Stock', 'Status'], list.map((y) => [y.item.name, y.item.category, y.stock, y.item.orderAt != null && y.stock < y.item.orderAt ? 'ORDER REQUIRED' : y.stock > 0 ? 'Available' : 'Not available'])),
     purchases: (list) => sec('Purchases', ['Date', 'Vendor', 'Invoice', 'Product', '>Qty', 'Batch', 'Expiry', '>Rate', '>GST %', '>Total'],
@@ -3288,7 +3653,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
       const kp = [['Sales', inr(x.salesTotal)], ['Purchases', inr(x.purchaseTotal)], ['OPD appointments', num(x.appt.total - x.appt.cancelled)], ['OPD fees', inr(x.appt.fees)],
         ['Expenses', inr(x.expenseTotal)], ['New leads', num(x.leads)], ['Items available', num(x.available.length)], ['Not available', num(x.notAvailable.length)]];
       return { title: 'Today Summary', subtitle: fdate(d), kpis: kp, alertKpis: [7], sections: [
-        ...(x.order.length ? [R.dayStock('ORDER REQUIRED', x.order)] : []), R.daySales(x), R.dayPurchases(x), R.dayStock('Stock Available', x.available), R.dayStock('Stock Not Available', x.notAvailable)] };
+        ...(x.order.length ? [R.dayStock('ORDER REQUIRED', x.order)] : []), R.daySales(x), R.dayRefs(x), R.dayAppts(x), R.dayPurchases(x), R.dayStock('Stock Available', x.available), R.dayStock('Stock Not Available', x.notAvailable)] };
     },
     leads: () => { const list = filteredLeads(); return { title: 'Leads', subtitle: role === 'desk' ? `${me.name} · ${fdate(stamp())}` : fdate(stamp()), sections: [R.leads(list), ...(role !== 'desk' ? [R.leadOwners(list)] : [])] }; },
     activity: () => ({ title: 'Activity Log', subtitle: periodLabel(), sections: [R.activity(filteredLog())] }),
@@ -3339,6 +3704,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
   function runExport(what, fmt) {
     const rep = EXPORTS[what]();
     rep.filename = `Hindivine-${rep.title.replace(/[^A-Za-z0-9]+/g, '-')}-${stamp()}`;
+    rep.preparedBy = me ? me.name : '';
     try {
       const pretty = () => ({ ...rep, sections: rep.sections.map((s) => ({ ...s, rows: s.rows.map((r) => r.map((v, i) => fmtCell(s, i, v))), foot: s.foot && s.foot.map((v, i) => fmtCell(s, i, v)) })) });
       if (fmt === 'pdf') toast(`Saved ${X.pdf(pretty(), set().clinic)}`);
@@ -3669,6 +4035,136 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     });
   }());
 
+  // ── Follow-up reminders ───────────────────────────────────────
+  // Whose follow-ups this device reminds about: Front Desk always their own; others choose.
+  const reminderScope = () => (role === 'desk' ? 'mine' : prefs().remindScope || 'all');
+  function reminderLeads() {
+    if (!role || !can('leads')) return [];
+    const mine = reminderScope() === 'mine' ? (l) => l.assignedTo === me.id || (!l.assignedTo && l.createdBy === me.name) : myLeadFilter();
+    return S().leads.filter((l) => l.followUp && !admin.isClosedLead(l) && (!mine || mine(l)));
+  }
+  const nowHM = () => { const d = new Date(); return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; };
+  function dueFollowUps() {
+    const d = admin.today();
+    const list = reminderLeads().filter((l) => l.followUp <= d);
+    return {
+      overdue: list.filter((l) => l.followUp < d || (l.followTime && l.followTime < nowHM())).sort((a, b) => (a.followUp + (a.followTime || '')).localeCompare(b.followUp + (b.followTime || ''))),
+      today: list.filter((l) => l.followUp === d && !(l.followTime && l.followTime < nowHM())).sort((a, b) => (a.followTime || '99').localeCompare(b.followTime || '99')),
+    };
+  }
+  function updateBell() {
+    const n = $('#bell-n'); const btn = $('#bell-btn');
+    if (!n || !btn) return;
+    btn.hidden = !can('leads') && !can('appointments') && !can('inventory');
+    const f = dueFollowUps();
+    const count = f.overdue.length + f.today.length + (can('inventory') ? admin.orderRequired().length : 0);
+    n.hidden = !count; n.textContent = count > 99 ? '99+' : String(count);
+    btn.classList.toggle('ring', f.overdue.length > 0);
+  }
+  function remindersSheet() {
+    const f = dueFollowUps();
+    const d = admin.today();
+    const appts = can('appointments') ? admin.appointmentsIn({ from: d, to: d }).filter((a) => a.status === 'booked') : [];
+    const order = can('inventory') ? admin.orderRequired() : [];
+    const renew = can('renewals') ? admin.renewals().filter((r) => r.stage && !r.done) : [];
+    const row = (l, cls) => {
+      const wa = waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`);
+      return `<div class="rem-row ${cls}"><div class="rem-main"><b>${esc(l.name)}</b><small>${l.followUp < d ? `Overdue · ${fdate(l.followUp)}` : 'Today'}${l.followTime ? ` · ${time12(l.followTime)}` : ''}${l.interest ? ` · ${esc(l.interest)}` : ''}</small></div>
+        <div class="rem-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs" data-act="snooze" data-id="${l.id}" data-m="60">+1 h</button><button type="button" class="btn xs" data-act="snooze" data-id="${l.id}" data-m="tomorrow">Tomorrow</button><button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></div></div>`;
+    };
+    const sec = (title, cls, body, n) => (n ? `<div class="rem-sec ${cls}"><h3>${title}<span class="badge">${n}</span></h3>${body}</div>` : '');
+    const empty = !f.overdue.length && !f.today.length && !appts.length && !order.length && !renew.length;
+    openForm({
+      title: 'Reminders', submitLabel: false,
+      html: `${empty ? '<div class="empty">🎉 Nothing due right now.</div>' : ''}
+        ${sec('Overdue follow-ups', 'bad', f.overdue.map((l) => row(l, 'bad')).join(''), f.overdue.length)}
+        ${sec("Today's follow-ups", 'warn', f.today.map((l) => row(l, 'warn')).join(''), f.today.length)}
+        ${sec('OPD waiting today', 'info', appts.map((a) => `<div class="rem-row"><div class="rem-main"><b>${esc(a.patientName)}</b><small>${esc(time12(a.time))} · ${a.mode === 'online' ? 'Online' : 'Clinic'}${a.service ? ` · ${esc(a.service)}` : ''}</small></div><div class="rem-acts"><button type="button" class="btn xs primary" data-act="appt" data-id="${a.id}">Open</button></div></div>`).join(''), appts.length)}
+        ${sec('Order required', 'bad', order.map((o) => `<div class="rem-row bad"><div class="rem-main"><b>${esc(o.item.name)}</b><small>${o.stock} left · below ${o.item.orderAt}</small></div></div>`).join(''), order.length)}
+        ${sec('Renewal alerts', 'gold', `<button type="button" class="btn sm gold" data-go="renewals">${renew.length} patients due for renewal →</button>`, renew.length)}
+        <p class="hint">${reminderScope() === 'mine' ? 'Showing your follow-ups.' : 'Showing all follow-ups.'} ${window.AndroidBridge && window.AndroidBridge.scheduleReminders ? 'Phone notifications remind you at the follow-up time, even when the app is closed.' : ''}</p>`,
+    });
+  }
+  // Pop-up (and phone notification) when a follow-up time is reached while the app is open.
+  const notifiedKey = () => `hindivine.admin.notified.${admin.today()}`;
+  function checkDueNow() {
+    if (!role || !can('leads') || !$('#lock').hidden) return;
+    const d = admin.today(); const hm = nowHM();
+    let done = {}; try { done = JSON.parse(lsGet(notifiedKey(), '{}')) || {}; } catch (_) { done = {}; }
+    const due = reminderLeads().filter((l) => l.followUp === d && (l.followTime || '10:00') <= hm && !done[`${l.id}|${l.followTime || ''}`]);
+    if (!due.length) return;
+    const l = due[0];
+    done[`${l.id}|${l.followTime || ''}`] = 1; lsSet(notifiedKey(), JSON.stringify(done));
+    showReminderPop(l);
+    try { if (navigator.vibrate) navigator.vibrate([180, 80, 180]); } catch (_) { /* no vibration */ }
+    try { if (window.AndroidBridge && window.AndroidBridge.notifyNow) window.AndroidBridge.notifyNow(`Follow-up: ${l.name}`, `${l.followTime ? time12(l.followTime) : 'Today'} · ${l.interest || 'Call back'} · ${l.mobile}`); } catch (_) { /* optional */ }
+  }
+  function showReminderPop(l) {
+    const pop = $('#reminder-pop');
+    const wa = waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`);
+    pop.innerHTML = `<div class="rp-ic">⏰</div><div class="rp-main"><small>Follow-up reminder${l.followTime ? ` · ${time12(l.followTime)}` : ''}</small><b>${esc(l.name)}</b><span>${esc(l.interest || '')}${l.notes ? ` · ${esc(l.notes.slice(0, 60))}` : ''}</span>
+      <div class="rp-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs" data-act="snooze" data-id="${l.id}" data-m="15">Snooze 15 min</button><button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></div></div>
+      <button type="button" class="rp-x" data-act="pop-close" aria-label="Close">✕</button>`;
+    pop.hidden = false;
+    requestAnimationFrame(() => pop.classList.add('show'));
+  }
+  const closePop = () => { const pop = $('#reminder-pop'); pop.classList.remove('show'); setTimeout(() => { pop.hidden = true; }, 250); };
+  $('#reminder-pop').addEventListener('click', (e) => {
+    const act = e.target.closest('[data-act]');
+    if (!act) return;
+    e.stopPropagation();
+    if (act.dataset.act === 'pop-close') { closePop(); return; }
+    closePop();
+    if (act.tagName === 'A') return;
+    e.preventDefault();
+    if (ACTIONS[act.dataset.act]) ACTIONS[act.dataset.act](act.dataset);
+  });
+  setInterval(() => { try { checkDueNow(); updateBell(); } catch (err) { console.error(err); } }, 30000);
+  // Android: hand the upcoming follow-ups to the phone so it can notify even when the app is closed.
+  let lastSchedule = '';
+  let scheduleTimer = null;
+  function scheduleReminders() {
+    if (!window.AndroidBridge || !window.AndroidBridge.scheduleReminders) return;
+    clearTimeout(scheduleTimer);
+    scheduleTimer = setTimeout(() => {
+      try {
+        const now = Date.now(); const until = now + 14 * 86400000;
+        const list = (role ? reminderLeads() : []).map((l) => {
+          const [y, m, dd] = l.followUp.split('-').map(Number); const [hh, mm] = (l.followTime || '10:00').split(':').map(Number);
+          return { id: l.id, at: new Date(y, m - 1, dd, hh, mm).getTime(), title: `Follow-up: ${l.name}`, text: `${l.followTime ? time12(l.followTime) : '10:00 AM'} · ${l.interest || 'Call back'} · ${l.mobile}` };
+        }).filter((r) => r.at > now && r.at < until).sort((a, b) => a.at - b.at).slice(0, 50);
+        const json = JSON.stringify(list);
+        if (json !== lastSchedule) { lastSchedule = json; window.AndroidBridge.scheduleReminders(json); }
+      } catch (err) { console.error(err); }
+    }, 800);
+  }
+  function snooze(id, m) {
+    const l = admin.lead(id);
+    if (!l) return;
+    let date; let time;
+    if (m === 'tomorrow') { date = shiftDay(admin.today(), 1); time = l.followTime || '10:00'; } else {
+      const t = new Date(Date.now() + Number(m) * 60000);
+      date = A.isoDate(t); time = `${String(t.getHours()).padStart(2, '0')}:${String(t.getMinutes()).padStart(2, '0')}`;
+    }
+    admin.addLeadActivity(id, { type: 'note', text: '', followUp: date, followTime: time });
+    toast(`${l.name}: reminder moved to ${fdate(date)} ${time12(time)}`);
+  }
+
+  // Menu search: filters the side menu as you type.
+  function filterNav() {
+    const q = ($('#nav-search').value || '').trim().toLowerCase();
+    $$('#nav button').forEach((b) => { b.hidden = !!q && !b.textContent.toLowerCase().includes(q); });
+    $$('#nav .nav-group').forEach((g) => { g.hidden = !!q; });
+  }
+  $('#nav-search').addEventListener('input', filterNav);
+  $('#nav-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const b = $$('#nav button').find((x) => !x.hidden); if (b) b.click(); } });
+
+  // Never let an unexpected error freeze the app: show a short message instead.
+  let lastErr = 0;
+  const softError = (msg) => { if (Date.now() - lastErr > 4000 && role) { lastErr = Date.now(); toast(`Something went wrong: ${String(msg).slice(0, 80)}`, true); } };
+  window.addEventListener('error', (e) => { if (e && e.message && !/ResizeObserver/.test(e.message)) softError(e.message); });
+  window.addEventListener('unhandledrejection', (e) => softError((e.reason && e.reason.message) || e.reason || 'error'));
+
   // ── Actions ───────────────────────────────────────────────────
   const setAppt = (id, patch, msg) => { admin.updateAppointment(id, patch); modal.close(); render(); toast(msg); };
   const randomPin = () => String(Math.floor(100000 + Math.random() * 900000));
@@ -3679,7 +4175,9 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
       openForm({
         title: me.name, submitLabel: false,
         html: `<dl class="detail-list"><div><dt>Login</dt><dd>${esc(A.ROLES[role])}</dd></div><div><dt>Data</dt><dd>${connected() ? 'Google Sheet · auto refresh' : 'This device only'}</dd></div><div><dt>App</dt><dd>Hindivine Admin ${APP_VERSION}</dd></div></dl>
-          <div class="quick"><button type="button" class="btn" data-act="refresh">Refresh data</button><button type="button" class="btn" data-act="my-pin">Change my PIN</button><button type="button" class="btn" data-go="about">What's new</button><button type="button" class="btn danger" data-act="lock">Log out</button></div>
+          <h3 class="menu-h">Theme</h3><div class="theme-row">${THEMES.map(([k, l, c]) => `<button type="button" class="theme-chip ${lsGet(THEME_KEY, 'royal') === k ? 'on' : ''}" style="--c:${c}" data-act="theme" data-theme="${k}" data-inmenu="1"><i></i>${l}</button>`).join('')}</div>
+          ${can('leads') && role !== 'desk' ? `<h3 class="menu-h">Follow-up reminders</h3><div class="seg">${[['all', 'All follow-ups'], ['mine', 'Only mine']].map(([k, l]) => `<button type="button" class="${reminderScope() === k ? 'on' : ''}" data-act="remind-scope" data-scope="${k}">${l}</button>`).join('')}</div>` : ''}
+          <div class="quick"><button type="button" class="btn" data-act="refresh">Refresh data</button><button type="button" class="btn" data-act="reminders">🔔 Reminders</button><button type="button" class="btn" data-act="my-pin">Change my PIN</button><button type="button" class="btn" data-go="about">What's new</button><button type="button" class="btn danger" data-act="lock">Log out</button></div>
           <p class="credit-line">${esc(CREDIT)}</p>`,
       });
     },
@@ -3765,6 +4263,29 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     },
     'lead-convert': (d) => { admin.convertLead(d.id); modal.close(); render(); toast('Lead converted to patient'); },
     'new-appt': () => apptForm(null),
+    'new-sale': () => { openMenu(false); go('sell'); },
+    'appt-slip': (d) => {
+      const a = admin.appointment(d.id);
+      if (!a) return;
+      const day = S().appointments.filter((x) => x.date === a.date && x.status !== 'cancelled').sort((x, y) => (x.time || '').localeCompare(y.time || '') || x.created - y.created);
+      const p = S().patients.find((x) => x.id === a.patientId) || {};
+      try {
+        X.opdSlip(a, {
+          clinic: set().clinic, token: day.findIndex((x) => x.id === a.id) + 1 || '', date: fdate(a.date), time: time12(a.time),
+          mode: A.APPT_MODES[a.mode] || a.mode, status: A.APPT_STATUS[a.status] || a.status, fee: inr(a.fee),
+          ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city || '',
+        });
+        toast('OPD slip ready');
+      } catch (err) { console.error(err); toast(`Could not make the slip: ${err.message}`, true); }
+    },
+    reminders: () => { openMenu(false); remindersSheet(); },
+    snooze: (d) => {
+      snooze(d.id, d.m);
+      render();
+      if (modal.open && $('#modal-title').textContent === 'Reminders') remindersSheet();
+    },
+    theme: (d) => { lsSet(THEME_KEY, d.theme); applyTheme(d.theme); renderNav(); if (modal.open && d.inmenu) ACTIONS['user-menu'](); },
+    'remind-scope': (d) => { setPref('remindScope', d.scope); updateBell(); scheduleReminders(); ACTIONS['user-menu'](); toast(d.scope === 'mine' ? 'Reminders: my follow-ups only' : 'Reminders: all follow-ups'); },
     appt: (d) => apptDetail(d.id),
     'appt-edit': (d) => apptForm(admin.appointment(d.id)),
     'appt-complete': (d) => { const a = admin.appointment(d.id); setAppt(d.id, { status: 'completed' }, `${a.patientName}: completed${a.paid ? '' : ' · fee still unpaid'}`); },
@@ -3878,7 +4399,7 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     const goEl = e.target.closest('[data-go]');
     if (goEl) { e.preventDefault(); if (modal.open) modal.close(); if (goEl.dataset.go === 'purchase-new' && !draft) draft = newDraft(); go(goEl.dataset.go); return; }
     const act = e.target.closest('[data-act]');
-    if (act && ACTIONS[act.dataset.act] && !(act.tagName === 'A' && act.getAttribute('href'))) { e.preventDefault(); ACTIONS[act.dataset.act](act.dataset); return; }
+    if (act && ACTIONS[act.dataset.act] && !(act.tagName === 'A' && act.getAttribute('href'))) { e.preventDefault(); if (act.closest('#side') && act.dataset.act !== 'theme') openMenu(false); ACTIONS[act.dataset.act](act.dataset); return; }
     if (e.target.closest('a[href]')) return;
     const p = e.target.closest('[data-period]');
     if (p) { period.name = p.dataset.period; render(); return; }
@@ -4060,6 +4581,17 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
     try { history.replaceState({ screen }, ''); } catch (_) { /* ignore */ }
     render();
     pull();
+    // Show what is due once a day when someone signs in.
+    setTimeout(() => {
+      try {
+        const key = `hindivine.admin.remindShown.${id}`;
+        if (!role || lsGet(key, '') === admin.today()) return;
+        const f = dueFollowUps();
+        if (!f.overdue.length && !f.today.length) return;
+        lsSet(key, admin.today());
+        if (!modal.open) remindersSheet();
+      } catch (err) { console.error(err); }
+    }, 900);
   }
   function lock() {
     try { sessionStorage.removeItem(ROLE_KEY); } catch (_) { /* ignore */ }
@@ -4278,7 +4810,7 @@ function json(o) {
 
 ===== BEGIN FILE: admin/sw.js =====
 /* Offline cache for Hindivine Admin (installed web app). */
-const CACHE = 'hindivine-admin-v3';
+const CACHE = 'hindivine-admin-v4';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js',
   '../img/logo.jpg', '../img/icon-192.png', '../img/icon-512.png',
@@ -4333,6 +4865,8 @@ self.addEventListener('fetch', (e) => {
     package="com.hindivine.admin">
 
     <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.VIBRATE" />
 
     <application
         android:label="@string/app_name"
@@ -4350,6 +4884,7 @@ self.addEventListener('fetch', (e) => {
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <receiver android:name="com.hindivine.diet.ReminderReceiver" android:exported="false" />
     </application>
 </manifest>
 ===== END FILE: android/admin/AndroidManifest.xml =====
@@ -4438,6 +4973,7 @@ import android.widget.Toast;
 
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayDeque;
 
 /** Hosts the Hindivine Diet or Hindivine Admin web app (bundled in assets/www) in a full-screen WebView. */
 public class MainActivity extends Activity {
@@ -4445,14 +4981,46 @@ public class MainActivity extends Activity {
     private static final int REQUEST_OPEN = 2;
 
     private WebView webView;
-    private String pendingFileContent;
-    private byte[] pendingFileBytes;
     private ValueCallback<Uri[]> fileCallback;
+
+    /** A file waiting for its "Save as" screen. Files are saved one after another. */
+    private static class PendingSave {
+        final String name; final String mime; final byte[] bytes;
+        PendingSave(String name, String mime, byte[] bytes) { this.name = name; this.mime = mime; this.bytes = bytes; }
+    }
+    private final ArrayDeque<PendingSave> saveQueue = new ArrayDeque<>();
+    private PendingSave saving;
+
+    private void enqueueSave(PendingSave p) {
+        saveQueue.add(p);
+        if (saving == null) startNextSave();
+    }
+
+    private void startNextSave() {
+        saving = saveQueue.poll();
+        if (saving == null) return;
+        Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
+        intent.addCategory(Intent.CATEGORY_OPENABLE);
+        intent.setType(saving.mime);
+        intent.putExtra(Intent.EXTRA_TITLE, saving.name);
+        try {
+            startActivityForResult(intent, REQUEST_SAVE);
+        } catch (Exception e) {
+            saving = null;
+            saveQueue.clear();
+            Toast.makeText(this, "No app available to save files", Toast.LENGTH_LONG).show();
+        }
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
+        // Android 13+: ask once so follow-up reminders can show as notifications.
+        if (android.os.Build.VERSION.SDK_INT >= 33
+                && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[] { "android.permission.POST_NOTIFICATIONS" }, 7);
+        }
 
         webView = new WebView(this);
         WebSettings s = webView.getSettings();
@@ -4472,6 +5040,13 @@ public class MainActivity extends Activity {
                     startActivity(new Intent(Intent.ACTION_VIEW, url));
                 } catch (Exception ignored) {
                 }
+                return true;
+            }
+
+            // The page's renderer crashed or was stopped to free memory: reload instead of closing the app.
+            @Override
+            public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                recreate();
                 return true;
             }
         });
@@ -4564,49 +5139,42 @@ public class MainActivity extends Activity {
 
         @JavascriptInterface
         public void saveFile(final String fileName, final String mimeType, final String content) {
+            final byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
             runOnUiThread(new Runnable() {
                 @Override
-                public void run() {
-                    pendingFileContent = content;
-                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                    intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    intent.setType(mimeType);
-                    intent.putExtra(Intent.EXTRA_TITLE, fileName);
-                    try {
-                        startActivityForResult(intent, REQUEST_SAVE);
-                    } catch (Exception e) {
-                        pendingFileContent = null;
-                        Toast.makeText(MainActivity.this, "No app available to save files", Toast.LENGTH_LONG).show();
-                    }
-                }
+                public void run() { enqueueSave(new PendingSave(fileName, mimeType, bytes)); }
             });
         }
 
-        /** Binary files (PDF, Excel) arrive base64-encoded from JavaScript. */
+        /** Binary files (PDF, Excel, JPEG) arrive base64-encoded from JavaScript. */
         @JavascriptInterface
         public void saveBase64(final String fileName, final String mimeType, final String base64) {
+            final byte[] bytes;
+            try {
+                bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+            } catch (Exception e) {
+                runOnUiThread(new Runnable() {
+                    @Override
+                    public void run() { Toast.makeText(MainActivity.this, "Could not prepare the file", Toast.LENGTH_LONG).show(); }
+                });
+                return;
+            }
             runOnUiThread(new Runnable() {
                 @Override
-                public void run() {
-                    try {
-                        pendingFileBytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
-                    } catch (Exception e) {
-                        Toast.makeText(MainActivity.this, "Could not prepare the file", Toast.LENGTH_LONG).show();
-                        return;
-                    }
-                    pendingFileContent = null;
-                    Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
-                    intent.addCategory(Intent.CATEGORY_OPENABLE);
-                    intent.setType(mimeType);
-                    intent.putExtra(Intent.EXTRA_TITLE, fileName);
-                    try {
-                        startActivityForResult(intent, REQUEST_SAVE);
-                    } catch (Exception e) {
-                        pendingFileBytes = null;
-                        Toast.makeText(MainActivity.this, "No app available to save files", Toast.LENGTH_LONG).show();
-                    }
-                }
+                public void run() { enqueueSave(new PendingSave(fileName, mimeType, bytes)); }
             });
+        }
+
+        /** Follow-up reminders: JSON [{id, at (ms), title, text}] replaces every reminder scheduled before. */
+        @JavascriptInterface
+        public void scheduleReminders(String json) {
+            ReminderReceiver.schedule(MainActivity.this, json);
+        }
+
+        /** Shows a notification right away (reminder due while the app is open). */
+        @JavascriptInterface
+        public void notifyNow(String title, String text) {
+            ReminderReceiver.show(MainActivity.this, title, text, (int) (System.currentTimeMillis() % 100000));
         }
     }
 
@@ -4621,20 +5189,131 @@ public class MainActivity extends Activity {
             return;
         }
         if (requestCode != REQUEST_SAVE) return;
-        String content = pendingFileContent;
-        byte[] bytes = pendingFileBytes;
-        pendingFileContent = null;
-        pendingFileBytes = null;
-        if (resultCode != RESULT_OK || data == null || data.getData() == null || (content == null && bytes == null)) return;
-        try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
-            out.write(bytes != null ? bytes : content.getBytes(StandardCharsets.UTF_8));
-            Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
-        } catch (Exception e) {
-            Toast.makeText(this, "Could not save file", Toast.LENGTH_LONG).show();
+        PendingSave p = saving;
+        saving = null;
+        if (p != null && resultCode == RESULT_OK && data != null && data.getData() != null) {
+            Uri uri = data.getData();
+            try (OutputStream out = getContentResolver().openOutputStream(uri)) {
+                out.write(p.bytes);
+                Toast.makeText(this, "Saved " + p.name, Toast.LENGTH_SHORT).show();
+                // Open the saved PDF / image / sheet so it can be checked or shared straight away.
+                if (saveQueue.isEmpty()) {
+                    try {
+                        Intent view = new Intent(Intent.ACTION_VIEW);
+                        view.setDataAndType(uri, p.mime);
+                        view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                        startActivity(view);
+                    } catch (Exception ignored) {
+                    }
+                }
+            } catch (Exception e) {
+                Toast.makeText(this, "Could not save file", Toast.LENGTH_LONG).show();
+            }
         }
+        startNextSave();
     }
 }
 ===== END FILE: android/src/com/hindivine/diet/MainActivity.java =====
+
+===== BEGIN FILE: android/src/com/hindivine/diet/ReminderReceiver.java =====
+package com.hindivine.diet;
+
+import android.app.AlarmManager;
+import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
+import android.app.PendingIntent;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.SharedPreferences;
+import android.os.Build;
+
+import org.json.JSONArray;
+import org.json.JSONObject;
+
+/**
+ * Lead follow-up reminders for Hindivine Admin: the page schedules them through the
+ * JavaScript bridge, AlarmManager wakes this receiver at the follow-up time and it shows a
+ * notification that opens the app. (Alarms are cleared by a phone restart; the app
+ * schedules them again the next time it is opened.)
+ */
+public class ReminderReceiver extends BroadcastReceiver {
+    private static final String CHANNEL = "followups";
+    private static final String PREFS = "hindivine.reminders";
+    private static final int FLAG_IMMUTABLE = 0x04000000; // PendingIntent.FLAG_IMMUTABLE (API 23+)
+
+    @Override
+    public void onReceive(Context context, Intent intent) {
+        show(context, intent.getStringExtra("title"), intent.getStringExtra("text"), intent.getIntExtra("code", 1));
+    }
+
+    static void schedule(Context context, String json) {
+        try {
+            AlarmManager am = (AlarmManager) context.getSystemService(Context.ALARM_SERVICE);
+            SharedPreferences prefs = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE);
+            String old = prefs.getString("codes", "");
+            for (String c : old.split(",")) {
+                if (c.isEmpty()) continue;
+                am.cancel(pending(context, Integer.parseInt(c), null, null));
+            }
+            JSONArray list = new JSONArray(json);
+            StringBuilder codes = new StringBuilder();
+            long now = System.currentTimeMillis();
+            for (int i = 0; i < list.length() && i < 60; i++) {
+                JSONObject r = list.getJSONObject(i);
+                long at = r.getLong("at");
+                if (at <= now) continue;
+                int code = 1000 + i;
+                PendingIntent pi = pending(context, code, r.optString("title"), r.optString("text"));
+                if (Build.VERSION.SDK_INT >= 23) am.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, at, pi);
+                else am.set(AlarmManager.RTC_WAKEUP, at, pi);
+                codes.append(code).append(',');
+            }
+            prefs.edit().putString("codes", codes.toString()).apply();
+        } catch (Exception ignored) {
+            // A bad list must never crash the app.
+        }
+    }
+
+    private static PendingIntent pending(Context context, int code, String title, String text) {
+        Intent i = new Intent(context, ReminderReceiver.class);
+        i.putExtra("code", code);
+        if (title != null) i.putExtra("title", title);
+        if (text != null) i.putExtra("text", text);
+        int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? FLAG_IMMUTABLE : 0);
+        return PendingIntent.getBroadcast(context, code, i, flags);
+    }
+
+    static void show(Context context, String title, String text, int id) {
+        try {
+            NotificationManager nm = (NotificationManager) context.getSystemService(Context.NOTIFICATION_SERVICE);
+            Notification.Builder b;
+            if (Build.VERSION.SDK_INT >= 26) {
+                NotificationChannel ch = new NotificationChannel(CHANNEL, "Follow-up reminders", NotificationManager.IMPORTANCE_HIGH);
+                ch.setDescription("Lead follow-ups due in Hindivine Admin");
+                nm.createNotificationChannel(ch);
+                b = new Notification.Builder(context, CHANNEL);
+            } else {
+                b = new Notification.Builder(context);
+                b.setPriority(Notification.PRIORITY_HIGH);
+                b.setDefaults(Notification.DEFAULT_ALL);
+            }
+            Intent open = context.getPackageManager().getLaunchIntentForPackage(context.getPackageName());
+            int flags = PendingIntent.FLAG_UPDATE_CURRENT | (Build.VERSION.SDK_INT >= 23 ? FLAG_IMMUTABLE : 0);
+            b.setSmallIcon(context.getApplicationInfo().icon)
+                    .setContentTitle(title == null ? "Follow-up reminder" : title)
+                    .setContentText(text == null ? "" : text)
+                    .setStyle(new Notification.BigTextStyle().bigText(text == null ? "" : text))
+                    .setAutoCancel(true)
+                    .setContentIntent(PendingIntent.getActivity(context, id, open, flags));
+            nm.notify(id, b.build());
+        } catch (Exception ignored) {
+            // Notifications switched off or not allowed: nothing to show.
+        }
+    }
+}
+===== END FILE: android/src/com/hindivine/diet/ReminderReceiver.java =====
 
 ===== BEGIN FILE: android/tools/SignApk.java =====
 import com.android.apksig.ApkSigner;
