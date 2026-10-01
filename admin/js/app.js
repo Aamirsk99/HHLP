@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.6';
+  const APP_VERSION = '3.7';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -173,6 +173,7 @@
     if (AFTER[screen]) AFTER[screen]();
     applyHidden();
     updateBell();
+    if (!$('#side').classList.contains('open')) document.body.classList.remove('menu-open');
     if (changedScreen) countUp(view);
     changedScreen = false;
   }
@@ -547,84 +548,146 @@
   }
 
   // ── Founder Hub: founder profile, common vs founder expenses, alerts, discussions and key numbers ──
-  let noteF = '';
-  const NOTE_TAGS = { discussion: 'Discussion', decision: 'Decision', important: 'Important', idea: 'Idea' };
-  SUBS.founder = () => `${(set().founder || {}).name || 'Founder'} · ${periodLabel()}`;
+  let noteF = ''; let fdSel = ''; let noteQ = '';
+  const NOTE_TAGS = { discussion: 'Discussion', decision: 'Decision', important: 'Important', idea: 'Idea', meeting: 'Meeting' };
+  const NOTE_MODES = { 'In person': '🤝', Call: '📞', WhatsApp: '💬', 'Video call': '🎥', Meeting: '🗓️', Email: '✉️' };
+  const fName = (id) => (admin.founder(id) || {}).name || '';
+  const initialsOf = (n) => String(n || 'F').split(/\s+/).map((x) => x[0]).join('').slice(0, 2).toUpperCase();
+  const pctChange = (a, b) => (b ? Math.round(((a - b) / Math.abs(b)) * 100) : 0);
+  const trend = (a, b, goodUp = true) => { if (!b) return ''; const p = pctChange(a, b); const up = p >= 0; return `<em class="trend ${up === goodUp ? 'up' : 'down'}">${up ? '▲' : '▼'} ${Math.abs(p)}%</em>`; };
+  SUBS.founder = () => `${admin.founders().length ? plural(admin.founders().length, 'founder') : 'Founders'} · ${periodLabel()}`;
   SCREENS.founder = () => {
-    const f = set().founder || {}; const r = range();
-    const sm = admin.expenseSummary(r); const fin = admin.financialReport(r); const d = admin.dashboard(r);
-    const month = admin.today().slice(0, 7);
-    const monthF = S().expenses.filter((e) => (e.date || '').startsWith(month) && scopeOf(e) === 'founder').reduce((a, e) => a + e.amount, 0);
-    const limitPct = f.budget ? Math.round((monthF / f.budget) * 100) : 0;
-    const share = Math.round((fin.profit * (Number(f.share) || 0)) / 100);
+    const r = range(); const today = admin.today();
+    const fin = admin.financialReport(r); const d = admin.dashboard(r); const sm = admin.expenseSummary(r);
+    const fs = admin.founderStats(r); const sel = fs.find((f) => f.id === fdSel) || null;
+    const month = today.slice(0, 7); const prevM = (() => { const x = new Date(`${month}-01T00:00:00`); x.setMonth(x.getMonth() - 1); return A.isoDate(x).slice(0, 7); })();
+    const mFin = admin.financialReport({ from: `${month}-01`, to: `${month}-31` }); const pFin = admin.financialReport({ from: `${prevM}-01`, to: `${prevM}-31` });
     const al = myAlerts();
     const months = Array.from({ length: 6 }, (_, i) => { const dt = new Date(); dt.setDate(1); dt.setMonth(dt.getMonth() - 5 + i); return A.isoDate(dt).slice(0, 7); });
-    const mrow = months.map((m) => { const ex = S().expenses.filter((e) => (e.date || '').startsWith(m) && admin.counted(e)); return { m, c: ex.filter((e) => scopeOf(e) !== 'founder').reduce((a, e) => a + e.amount, 0), f: ex.filter((e) => scopeOf(e) === 'founder').reduce((a, e) => a + e.amount, 0) }; });
+    const mrow = months.map((m) => { const ex = S().expenses.filter((e) => (e.date || '').startsWith(m) && admin.counted(e)); return { m, c: ex.filter((e) => scopeOf(e) !== 'founder').reduce((a, e) => a + e.amount, 0), f: ex.filter((e) => scopeOf(e) === 'founder' && (!sel || e.founderId === sel.id)).reduce((a, e) => a + e.amount, 0) }; });
     const mx = Math.max(1, ...mrow.map((x) => x.c + x.f));
-    const fx = S().expenses.filter((e) => inR(e.date, r) && scopeOf(e) === 'founder').sort((a, b) => (a.date < b.date ? 1 : -1));
-    const notes = (S().notes || []).filter((n) => (!noteF ? !n.done : noteF === 'done' ? n.done : n.tag === noteF && !n.done)).sort((a, b) => (b.pinned - a.pinned) || (b.updated || b.at) - (a.updated || a.at));
+    const fx = S().expenses.filter((e) => inR(e.date, r) && scopeOf(e) === 'founder' && (!sel || e.founderId === sel.id)).sort((a, b) => (a.date < b.date ? 1 : -1));
+    const cap = (S().capital || []).filter((c) => !sel || c.founderId === sel.id).sort((a, b) => (a.date < b.date ? 1 : -1));
+    const notes = (S().notes || []).filter((n) => (!noteF ? !n.done : noteF === 'done' ? n.done : n.tag === noteF && !n.done) && (!sel || !(n.with || []).length || (n.with || []).includes(sel.id))
+      && (!noteQ || `${n.title} ${n.text} ${n.outcome} ${n.nextStep}`.toLowerCase().includes(noteQ.toLowerCase())))
+      .sort((a, b) => (b.pinned - a.pinned) || `${b.date || ''}${b.time || ''}`.localeCompare(`${a.date || ''}${a.time || ''}`) || (b.at - a.at));
     const ad = admin.adReport(r);
-    const initials = (f.name || 'Founder').split(/\s+/).map((x) => x[0]).join('').slice(0, 2).toUpperCase();
+    const pay = {}; S().sales.filter((x) => inR(x.date, r)).forEach((x) => { const k = x.payMethod || 'Not set'; pay[k] = (pay[k] || 0) + x.amount; });
+    S().appointments.filter((a) => inR(a.date, r) && a.paid && a.status !== 'cancelled').forEach((a) => { const k = a.payMethod || 'Not set'; pay[k] = (pay[k] || 0) + (Number(a.fee) || 0); });
+    const payRows = Object.entries(pay).sort((a, b) => b[1] - a[1]); const payMax = Math.max(1, ...payRows.map((x) => x[1]));
+    const prod = {}; S().sales.filter((x) => inR(x.date, r)).forEach((x) => { prod[x.product] = prod[x.product] || { n: 0, amt: 0 }; prod[x.product].n += x.qty || 1; prod[x.product].amt += x.amount; });
+    const topProd = Object.entries(prod).sort((a, b) => b[1].amt - a[1].amt).slice(0, 5);
+    const team = admin.teamReport(r).filter((x) => x.totalSales).slice(0, 3);
+    const renewVal = admin.renewals().filter((x) => x.stage && !x.done).reduce((a, x) => { const it = S().sales.filter((y) => y.patientId === x.patientId).slice(-1)[0]; return a + (it ? it.amount : 0); }, 0);
+    const tp = admin.targetProgress(month);
+    const fCard = (f) => `<button type="button" class="f-card ${fdSel === f.id ? 'on' : ''}" data-fdsel="${f.id}"><span class="fh-av sm">${esc(initialsOf(f.name))}</span><span class="f-main"><b>${esc(f.name)}</b><small>${esc(f.title || 'Founder')} · ${f.share}% share</small>
+      <span class="f-nums"><i>Spent <b>${inr(f.spent)}</b></i><i>Capital <b>${inr(f.net)}</b></i></span>${f.budget ? `<span class="meter lux ${f.limitPct > 100 ? 'bad' : f.limitPct > 80 ? 'warn' : ''}"><i style="width:${Math.min(100, f.limitPct)}%"></i></span><small>${inr(f.monthSpent)} of ${inr(f.budget)} this month</small>` : '<small>No monthly limit</small>'}</span></button>`;
+    const heroName = sel ? sel.name : fs.length === 1 ? fs[0].name : fs.length ? 'All founders' : 'Founder Hub';
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('founder')}</div>
       <section class="hero founder-hero">
-        <div class="fh-top"><div class="fh-av">${esc(initials)}</div><div class="fh-id"><small>${esc(f.title || 'Founder')}</small><b>${esc(f.name || 'Add your name')}</b><span>${esc([f.mobile, f.email].filter(Boolean).join(' · ') || set().clinic)}</span></div>
-          ${readOnly() ? '' : '<button type="button" class="btn sm glass" data-act="founder-edit">Edit profile</button>'}</div>
+        <div class="fh-top"><div class="fh-av">${fs.length > 1 && !sel ? `${fs.length}` : esc(initialsOf(sel ? sel.name : (fs[0] || {}).name))}</div><div class="fh-id"><small>${sel ? esc(sel.title || 'Founder') : 'Founder Hub'}</small><b>${esc(heroName)}</b><span>${sel ? esc([sel.mobile, sel.email].filter(Boolean).join(' · ') || set().clinic) : `${esc(set().clinic)} · ${esc(periodLabel())}`}</span></div>
+          ${readOnly() ? '' : `<button type="button" class="btn sm glass" data-act="${sel ? 'founder-edit' : 'founder-add'}" ${sel ? `data-id="${sel.id}"` : ''}>${sel ? 'Edit' : '+ Founder'}</button>`}</div>
         <div class="hero-row">
           <div class="hk"><small>Revenue</small><b>${inr(fin.revenue)}</b><small>${esc(periodLabel())}</small></div>
-          <div class="hk"><small>Net profit</small><b>${inr(fin.profit)}</b><small>${f.share != null && Number(f.share) !== 100 ? `Your ${f.share}%: ${inr(share)}` : 'after all counted expenses'}</small></div>
-          <div class="hk"><small>Founder expenses</small><b>${inr(sm.founderAll)}</b><small>${f.budget ? `${inr(monthF)} of ${inr(f.budget)} this month` : 'no monthly limit set'}</small></div>
+          <div class="hk"><small>Net profit</small><b>${inr(fin.profit)}</b><small>${sel ? `${sel.name.split(' ')[0]}'s ${sel.share}%: ${inr(sel.profitShare)}` : 'after all counted expenses'}</small></div>
+          <div class="hk"><small>${sel ? `${esc(sel.name.split(' ')[0])}'s spending` : 'Founder expenses'}</small><b>${inr(sel ? sel.spent : sm.founderAll)}</b><small>${sel && sel.budget ? `${sel.limitPct}% of monthly limit` : `${plural(fx.length, 'entry', 'entries')}`}</small></div>
           <div class="hk"><small>Common expenses</small><b>${inr(sm.common)}</b><small>clinic running costs</small></div>
         </div>
-        ${f.budget ? `<div class="meter lux ${limitPct > 100 ? 'bad' : limitPct > 80 ? 'warn' : ''}"><i style="width:${Math.min(100, limitPct)}%"></i></div>` : ''}
       </section>
+      <section class="card"><h2><span class="ic gold">${svg('<path d="M3 7l4 4 5-7 5 7 4-4-2 12H5z"/>')}</span>Founders<span class="sp"></span>${readOnly() ? '' : '<button class="btn sm primary" data-act="founder-add">+ Add founder</button>'}</h2>
+        ${fs.length ? `<div class="f-cards"><button type="button" class="f-card all ${!fdSel ? 'on' : ''}" data-fdsel=""><span class="fh-av sm">${fs.length}</span><span class="f-main"><b>All founders</b><small>${fs.map((f) => `${esc(f.name.split(' ')[0])} ${f.share}%`).join(' · ')}</small><span class="f-nums"><i>Spent <b>${inr(fs.reduce((a, f) => a + f.spent, 0))}</b></i><i>Capital <b>${inr(fs.reduce((a, f) => a + f.net, 0))}</b></i></span></span></button>${fs.map(fCard).join('')}</div>`
+          : '<p class="hint" style="margin:0">Add each founder or partner with their profit share and a monthly spending limit. Founder expenses, capital and discussions are then kept per person.</p>'}</section>
       <section class="card"><h2><span class="ic ${al.some((x) => x.level === 'bad') ? 'bad' : 'gold'}">${svg('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>')}</span>Alerts<span class="sp"></span><span class="badge ${al.length ? 'warn' : 'ok'}">${al.length}</span></h2>${alertRows(al.slice(0, 12))}</section>
+      <section class="card discuss-card"><h2><span class="ic violet">${svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/>')}</span>Discussions<span class="sp"></span><button class="btn sm" data-act="export" data-what="discussions" data-fmt="pdf">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}PDF</button>${readOnly() ? '' : '<button class="btn sm primary" data-act="note-add">+ Discussion</button>'}</h2>
+        ${readOnly() ? '' : `<div class="quick-note"><textarea id="qn-text" rows="2" placeholder="Write a quick discussion point… (saved with today's date and time)"></textarea><div class="qn-row"><select id="qn-mode" aria-label="Mode">${Object.keys(NOTE_MODES).map((m) => opt(m, `${NOTE_MODES[m]} ${m}`, 'In person')).join('')}</select><select id="qn-tag" aria-label="Type">${Object.entries(NOTE_TAGS).map(([k, l]) => opt(k, l, 'discussion')).join('')}</select><button type="button" class="btn primary sm" data-act="note-quick">Save</button></div></div>`}
+        <div class="row-tools"><div class="seg sm scroll-x">${[['', 'Open'], ...Object.entries(NOTE_TAGS), ['done', 'Done']].map(([k, l]) => `<button type="button" data-notef="${k}" class="${noteF === k ? 'on' : ''}">${l}</button>`).join('')}</div><input type="search" data-noteq placeholder="Search discussions" value="${esc(noteQ)}"></div>
+        ${notes.length ? `<ol class="d-timeline">${notes.map((n) => `<li class="note ${n.tag} ${n.pinned ? 'pin' : ''} ${n.done ? 'done' : ''}"><span class="d-dot">${NOTE_MODES[n.mode] || '💬'}</span><div class="d-body">
+          <div class="note-top"><b class="d-when">${fdate(n.date || A.isoDate(new Date(n.at)))}${n.time ? ` · ${time12(n.time)}` : ''}</b><span class="badge ${n.tag === 'important' ? 'bad' : n.tag === 'decision' ? 'ok' : n.tag === 'idea' ? 'violet' : n.tag === 'meeting' ? 'gold' : 'info'}">${NOTE_TAGS[n.tag] || 'Note'}</span>${n.mode ? `<span class="badge">${esc(n.mode)}</span>` : ''}${n.pinned ? '<span class="pin-ic">📌</span>' : ''}</div>
+          ${n.title ? `<b class="d-title">${esc(n.title)}</b>` : ''}${n.text ? `<p>${esc(n.text).replace(/\n/g, '<br>')}</p>` : ''}
+          ${n.outcome ? `<div class="d-out"><small>Outcome / decision</small>${esc(n.outcome)}</div>` : ''}${n.nextStep ? `<div class="d-out next"><small>Next step${n.due ? ` · by ${fdate(n.due)}` : ''}</small>${esc(n.nextStep)}</div>` : ''}
+          <small class="d-meta">${(n.with || []).length ? `With ${esc((n.with || []).map((x) => fName(x) || x).join(', '))} · ` : ''}${n.place ? `${esc(n.place)} · ` : ''}${n.mins ? `${n.mins} min · ` : ''}Saved ${esc(ftime(n.updated || n.at))}${n.by ? ` by ${esc(n.by)}` : ''}</small>
+          ${readOnly() ? '' : `<div class="acts"><button class="btn xs" data-act="note-pin" data-id="${n.id}">${n.pinned ? 'Unpin' : 'Pin'}</button><button class="btn xs" data-act="note-done" data-id="${n.id}">${n.done ? 'Reopen' : 'Done'}</button><button class="btn xs" data-act="note-edit" data-id="${n.id}">Edit</button>${canDelete() ? `<button class="btn xs danger" data-act="note-del" data-id="${n.id}">✕</button>` : ''}</div>`}</div></li>`).join('')}</ol>`
+          : '<p class="hint" style="margin:0">Every discussion is saved with its date, time and mode (in person, call, WhatsApp, video…). Add who was there, the outcome and the next step, then export them all as a PDF.</p>'}</section>
+      <section class="card"><h2><span class="ic teal">${svg('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>')}</span>This month vs last month</h2>
+        <div class="kpis">${kpi('Revenue', inr(mFin.revenue), `${fdate(prevM)}: ${inr(pFin.revenue)}`, 'teal').replace('</b>', `</b>${trend(mFin.revenue, pFin.revenue)}`)}${kpi('Expenses', inr(mFin.expenses), `${fdate(prevM)}: ${inr(pFin.expenses)}`, 'gold').replace('</b>', `</b>${trend(mFin.expenses, pFin.expenses, false)}`)}${kpi('Profit', inr(mFin.profit), `${fdate(prevM)}: ${inr(pFin.profit)}`, mFin.profit >= 0 ? 'good' : 'bad').replace('</b>', `</b>${trend(mFin.profit, pFin.profit)}`)}${kpi('Target', tp.revenueGoal ? `${tp.revenuePct}%` : '–', tp.revenueGoal ? `of ${inr(tp.revenueGoal)}` : 'Set in Team Desk', 'violet')}</div></section>
       <div class="cards">
-        <section class="card"><h2><span class="ic violet">${svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>')}</span>Founder expenses<span class="sp"></span>${readOnly() ? '' : '<button class="btn sm primary" data-act="add-expense-founder">+ Add</button>'}</h2>
-          ${fx.length ? `<div class="lux-list">${fx.slice(0, 8).map((e) => `<div class="lux-row"><span><b>${esc(e.name || e.category)}</b><small>${fdate(e.date)}${e.note ? ` · ${esc(e.note)}` : ''}</small></span><b>${inr(e.amount)}</b></div>`).join('')}</div>${fx.length > 8 ? `<button class="link" data-act="exp-founder-all">See all ${fx.length}</button>` : ''}` : '<p class="hint" style="margin:0">No founder expenses in this period. Add your own spending here to keep it apart from clinic costs.</p>'}</section>
+        <section class="card"><h2><span class="ic violet">${svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>')}</span>${sel ? `${esc(sel.name.split(' ')[0])}'s expenses` : 'Founder expenses'}<span class="sp"></span>${readOnly() ? '' : '<button class="btn sm primary" data-act="add-expense-founder">+ Add</button>'}</h2>
+          ${fx.length ? `<div class="lux-list">${fx.slice(0, 8).map((e) => `<div class="lux-row"><span><b>${esc(e.name || e.category)}</b><small>${fdate(e.date)}${!sel && fName(e.founderId) ? ` · ${esc(fName(e.founderId))}` : ''}${e.note ? ` · ${esc(e.note)}` : ''}</small></span><b>${inr(e.amount)}</b></div>`).join('')}</div>${fx.length > 8 ? `<button class="link" data-act="exp-founder-all">See all ${fx.length}</button>` : ''}` : '<p class="hint" style="margin:0">No founder expenses in this period.</p>'}</section>
+        <section class="card"><h2><span class="ic gold">${svg('<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M16 15h2"/>')}</span>Capital in / out<span class="sp"></span>${readOnly() || !fs.length ? '' : '<button class="btn sm primary" data-act="capital-add">+ Entry</button>'}</h2>
+          <div class="kpis">${kpi('Invested', inr(cap.filter((c) => c.type === 'invest').reduce((a, c) => a + c.amount, 0)), '', 'good')}${kpi('Withdrawn', inr(cap.filter((c) => c.type === 'withdraw').reduce((a, c) => a + c.amount, 0)), '', 'gold')}</div>
+          ${cap.length ? `<div class="lux-list" style="margin-top:10px">${cap.slice(0, 6).map((c) => `<div class="lux-row"><span><b>${c.type === 'invest' ? 'Invested' : 'Withdrawn'}${!sel ? ` · ${esc(fName(c.founderId))}` : ''}</b><small>${fdate(c.date)}${c.note ? ` · ${esc(c.note)}` : ''}</small></span><b class="${c.type === 'invest' ? 'good-t' : ''}">${c.type === 'invest' ? '+' : '−'}${inr(c.amount)}</b>${canDelete() ? `<button class="btn xs ghost" data-act="capital-del" data-id="${c.id}" aria-label="Delete">✕</button>` : ''}</div>`).join('')}</div>` : '<p class="hint" style="margin:10px 0 0">Record money each founder puts in or takes out.</p>'}</section>
+      </div>
+      <div class="cards">
         <section class="card"><h2><span class="ic teal">${svg('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>')}</span>Common vs founder · 6 months</h2>
           <div class="split-bars">${mrow.map((x) => `<div class="sb"><div class="sb-col"><i class="c" style="height:${(x.c / mx) * 100}%"></i><i class="f" style="height:${(x.f / mx) * 100}%"></i></div><small>${fdate(x.m).split(' ')[0]}</small></div>`).join('')}</div>
           <div class="legend"><span><i class="c"></i>Common</span><span><i class="f"></i>Founder</span></div></section>
+        <section class="card"><h2><span class="ic good">${svg('<rect x="2" y="6" width="20" height="12" rx="2"/><circle cx="12" cy="12" r="2.5"/>')}</span>Money received by mode</h2>
+          ${payRows.length ? `<div class="src-list">${payRows.map(([k, v]) => `<div class="src-row"><b>${esc(k)}</b><div class="src-bar"><i style="width:${(v / payMax) * 100}%"></i></div><span><b>${inr(v)}</b></span></div>`).join('')}</div>` : '<p class="hint" style="margin:0">Sales and OPD fees by payment mode show here.</p>'}</section>
       </div>
-      <section class="card"><h2><span class="ic gold">${svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>')}</span>Discussions & notes<span class="sp"></span>${readOnly() ? '' : '<button class="btn sm primary" data-act="note-add">+ Note</button>'}</h2>
-        <div class="seg sm" style="margin-bottom:10px">${[['', 'Open'], ...Object.entries(NOTE_TAGS), ['done', 'Done']].map(([k, l]) => `<button type="button" data-notef="${k}" class="${noteF === k ? 'on' : ''}">${l}</button>`).join('')}</div>
-        ${notes.length ? `<div class="note-list">${notes.map((n) => `<div class="note ${n.tag} ${n.pinned ? 'pin' : ''} ${n.done ? 'done' : ''}"><div class="note-top"><span class="badge ${n.tag === 'important' ? 'bad' : n.tag === 'decision' ? 'ok' : n.tag === 'idea' ? 'violet' : 'info'}">${NOTE_TAGS[n.tag] || 'Note'}</span>${n.pinned ? '<span class="pin-ic">📌</span>' : ''}<span class="sp"></span><small>${n.by ? `${esc(n.by)} · ` : ''}${fdate(A.isoDate(new Date(n.updated || n.at)))}${n.due ? ` · due ${fdate(n.due)}` : ''}</small></div>
-          ${n.title ? `<b>${esc(n.title)}</b>` : ''}${n.text ? `<p>${esc(n.text).replace(/\n/g, '<br>')}</p>` : ''}
-          ${readOnly() ? '' : `<div class="acts"><button class="btn xs" data-act="note-pin" data-id="${n.id}">${n.pinned ? 'Unpin' : 'Pin'}</button><button class="btn xs" data-act="note-done" data-id="${n.id}">${n.done ? 'Reopen' : 'Done'}</button><button class="btn xs" data-act="note-edit" data-id="${n.id}">Edit</button>${canDelete() ? `<button class="btn xs danger" data-act="note-del" data-id="${n.id}">✕</button>` : ''}</div>`}</div>`).join('')}</div>`
-          : '<p class="hint" style="margin:0">Keep partner discussions, decisions and important points here. Pin what matters; set a due date to get an alert.</p>'}</section>
+      <div class="cards">
+        <section class="card"><h2><span class="ic violet">${svg('<path d="M4 8l8-4 8 4-8 4zM4 8v8l8 4 8-4V8"/>')}</span>Top products</h2>
+          ${topProd.length ? `<div class="lux-list">${topProd.map(([k, v], i) => `<div class="lux-row"><span><b><i class="rank">${i + 1}</i>${esc(k)}</b><small>${num(v.n)} sold</small></span><b>${inr(v.amt)}</b></div>`).join('')}</div>` : '<p class="hint" style="margin:0">No sales in this period.</p>'}</section>
+        <section class="card"><h2><span class="ic gold">${svg('<path d="M8 21h8M12 17v4M7 4h10v5a5 5 0 0 1-10 0z"/>')}</span>Top team</h2>
+          ${team.length ? `<div class="lux-list">${team.map((x, i) => `<div class="lux-row"><span><b><i class="rank r${i + 1}">${i + 1}</i>${esc(x.name)}</b><small>${plural(x.orders, 'sale')} · incentive ${inr(x.incentive)}</small></span><b>${inr(x.totalSales)}</b></div>`).join('')}</div>` : '<p class="hint" style="margin:0">Team sales show here.</p>'}</section>
+      </div>
       <section class="card"><h2><span class="ic">${svg('<path d="M12 2l3 7h7l-5.5 4.5 2 7.5-6.5-4.5L5.5 21l2-7.5L2 9h7z"/>')}</span>Important numbers</h2><div class="kpis">
         ${kpi('Total patients', num(d.patients.total), `${num(d.patients.active)} active`, 'teal')}${kpi('New / renewal', `${d.patients.new} / ${d.patients.renewal}`, periodLabel())}
         ${kpi('Leads', num(d.leads.total), `${d.leads.conversion}% converted`, 'gold')}${kpi('Ad spend', inr(ad.spend), ad.cpl ? `${inr(ad.cpl)} per lead` : 'no ad spend', 'violet')}
-        ${kpi('OPD appointments', num(d.appointments.total - d.appointments.cancelled), `${inr(d.sales.consultation)} fees`, 'teal')}${kpi('Renewals due', num(d.renewalsDue), '', 'gold')}
+        ${kpi('OPD appointments', num(d.appointments.total - d.appointments.cancelled), `${inr(d.sales.consultation)} fees`, 'teal')}${kpi('Renewals due', num(d.renewalsDue), renewVal ? `≈ ${inr(renewVal)} to collect` : '', 'gold')}
         ${kpi('Team incentives', inr(d.team.incentives), d.team.top ? `Top: ${d.team.top.name}` : '', 'violet')}${kpi('Low stock', num(d.stock.low.length), `${d.stock.order.length} order required`, d.stock.order.length ? 'bad' : '')}
       </div></section>`;
   };
-  function founderForm() {
-    const f = set().founder || {};
+  function founderForm(f) {
     openForm({
-      title: 'Founder profile',
+      title: f ? `Edit ${f.name}` : 'Add founder',
       fields: [
-        { name: 'name', label: 'Founder name', value: f.name || '', required: true },
-        { name: 'title', label: 'Title', value: f.title || 'Founder', placeholder: 'Founder & CEO' },
-        { name: 'mobile', label: 'Mobile', type: 'tel', value: f.mobile || '' },
-        { name: 'email', label: 'Email', type: 'email', value: f.email || '' },
-        { name: 'share', label: 'Profit share (%)', type: 'number', value: f.share != null ? f.share : 100 },
-        { name: 'budget', label: 'Monthly founder expense limit (₹, 0 = none)', type: 'number', value: f.budget || '' },
-        { name: 'about', label: 'About / notes', type: 'textarea', value: f.about || '', span: true },
+        { name: 'name', label: 'Founder name', value: f ? f.name : '', required: true },
+        { name: 'title', label: 'Title', value: f ? f.title : 'Founder', placeholder: 'Co-founder & CEO' },
+        { name: 'mobile', label: 'Mobile', type: 'tel', value: f ? f.mobile : '' },
+        { name: 'email', label: 'Email', type: 'email', value: f ? f.email : '' },
+        { name: 'share', label: 'Profit share (%)', type: 'number', value: f ? f.share : (admin.founders().length ? '' : 100) },
+        { name: 'budget', label: 'Monthly spending limit (₹, 0 = none)', type: 'number', value: f ? f.budget || '' : '' },
+        { name: 'about', label: 'About / notes', type: 'textarea', value: f ? f.about : '', span: true },
       ],
-      onSubmit: (v) => { admin.updateSettings({ founder: { ...f, ...v, share: Number(v.share) || 0, budget: Number(v.budget) || 0 } }); if (v.name && !set().lists.expenseNames.includes(v.name)) admin.updateSettings({ lists: { ...set().lists, expenseNames: [...set().lists.expenseNames, v.name] } }); return 'Founder profile saved'; },
+      html: f && canDelete() ? `<p style="margin:0"><button type="button" class="btn sm danger" data-act="founder-del" data-id="${f.id}">Remove founder</button></p>` : '',
+      onSubmit: (v) => { const x = admin.saveFounder({ ...(f ? { id: f.id } : {}), ...v }); const tot = admin.founders().reduce((a, y) => a + (Number(y.share) || 0), 0); return tot > 100 ? `Saved ${x.name}. Profit shares add up to ${tot}%` : `Saved ${x.name}`; },
+    });
+  }
+  function capitalForm() {
+    const fs = admin.founders();
+    openForm({
+      title: 'Founder capital',
+      fields: [
+        { name: 'founderId', label: 'Founder', type: 'select', value: fdSel || (fs[0] || {}).id, options: fs.map((f) => [f.id, f.name]) },
+        { name: 'type', label: 'Type', type: 'select', value: 'invest', options: [['invest', 'Invested (money in)'], ['withdraw', 'Withdrawn / drawing (money out)']] },
+        { name: 'amount', label: 'Amount (₹)', type: 'number', required: true },
+        { name: 'date', label: 'Date', type: 'date', value: admin.today() },
+        { name: 'note', label: 'Note', span: true },
+      ],
+      onSubmit: (v) => { admin.saveCapital(v); return 'Capital entry saved'; },
     });
   }
   function noteForm(n) {
+    const fs = admin.founders(); const now = new Date();
+    const v = n || { tag: 'discussion', mode: 'In person', date: admin.today(), time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, with: fdSel ? [fdSel] : fs.map((f) => f.id) };
     openForm({
-      title: n ? 'Edit note' : 'New note',
+      title: n ? 'Edit discussion' : 'New discussion',
+      html: fs.length ? `<div class="f span">With<div class="tag-pick">${fs.map((f) => `<label class="tag-opt"><input type="checkbox" data-nwith value="${f.id}" ${(v.with || []).includes(f.id) ? 'checked' : ''}><span>${esc(f.name)}</span></label>`).join('')}</div></div>` : '',
       fields: [
-        { name: 'tag', label: 'Type', type: 'select', value: n ? n.tag : 'discussion', options: Object.entries(NOTE_TAGS) },
-        { name: 'due', label: 'Due / follow-up date (optional)', type: 'date', value: n ? n.due || '' : '' },
-        { name: 'title', label: 'Title', value: n ? n.title || '' : '', span: true, placeholder: 'Second clinic in Andheri?' },
-        { name: 'text', label: 'Details', type: 'textarea', value: n ? n.text || '' : '', span: true },
-        { name: 'pinned', label: 'Pin to top', type: 'checkbox', value: n ? !!n.pinned : false, span: true },
+        { name: 'date', label: 'Date', type: 'date', value: v.date || admin.today() },
+        { name: 'time', label: 'Time', type: 'time', value: v.time || '' },
+        { name: 'mode', label: 'Mode', type: 'select', value: v.mode || 'In person', options: Object.keys(NOTE_MODES).map((m) => [m, `${NOTE_MODES[m]} ${m}`]) },
+        { name: 'tag', label: 'Type', type: 'select', value: v.tag || 'discussion', options: Object.entries(NOTE_TAGS) },
+        { name: 'title', label: 'Topic', value: v.title || '', span: true, placeholder: 'Second clinic in Andheri?' },
+        { name: 'text', label: 'What was discussed', type: 'textarea', value: v.text || '', span: true },
+        { name: 'outcome', label: 'Outcome / decision', type: 'textarea', value: v.outcome || '', span: true },
+        { name: 'nextStep', label: 'Next step', value: v.nextStep || '', span: true },
+        { name: 'due', label: 'Next step by (alert)', type: 'date', value: v.due || '' },
+        { name: 'mins', label: 'Duration (minutes)', type: 'number', value: v.mins || '' },
+        { name: 'place', label: 'Place / others present', value: v.place || '', span: true },
+        { name: 'pinned', label: 'Pin to top', type: 'checkbox', value: !!v.pinned, span: true },
       ],
-      onSubmit: (v) => { admin.saveNote({ ...(n ? { id: n.id } : {}), ...v }); return 'Note saved'; },
+      onSubmit: (x) => { admin.saveNote({ ...(n ? { id: n.id } : {}), ...x, with: $$('[data-nwith]:checked').map((c) => c.value) }); return 'Discussion saved'; },
     });
   }
 
@@ -1086,6 +1149,23 @@
     return (l) => !l.assignedTo || l.assignedTo === me.id || l.createdBy === me.name;
   }
   const accountName = (id) => (admin.account(id) || {}).name || '';
+  // The stage after this one in the pipeline (none for closed leads or the last open stage).
+  function nextStage(l) {
+    if (admin.isClosedLead(l)) return '';
+    const list = set().lists.leadStatuses.filter((x) => !['Not interested', 'Lost'].includes(x));
+    const i = list.indexOf(l.status);
+    return i >= 0 && i < list.length - 1 ? list[i + 1] : '';
+  }
+  // After tapping Call: one tap records how it went and sets the next follow-up.
+  const CALL_OUTCOMES = [
+    ['interested', '😊 Interested', 'Interested', 1], ['callback', '⏰ Call back tomorrow', 'Follow-up', 1], ['noreach', '📵 Not reachable', '', 1],
+    ['booked', '📅 Booked appointment', 'Appointment booked', null], ['no', '🙅 Not interested', 'Not interested', null]];
+  function callOutcome(id) {
+    const l = admin.lead(id); if (!l || readOnly()) return;
+    openForm({ title: `How did the call go? · ${l.name}`, submitLabel: false, html: `<div class="call-outs">${CALL_OUTCOMES.map(([k, label]) => `<button type="button" class="call-out ${k}" data-act="call-out" data-id="${l.id}" data-o="${k}">${label}</button>`).join('')}</div>
+      <label class="f">Note (optional)<input id="co-note" placeholder="What did they say?"></label>
+      <label class="f">Next follow-up<input type="date" id="co-date" value="${shiftDay(admin.today(), 1)}"></label>` });
+  }
   function filteredLeads() {
     const d = admin.today();
     const mine = myLeadFilter();
@@ -1120,8 +1200,14 @@
         <div class="lead-top">${leadSelMode ? `<span class="pick-box ${leadSel.has(l.id) ? 'on' : ''}"></span>` : ''}<span class="prio ${PRIO_CLS[l.priority] || ''}" title="${esc(A.LEAD_PRIORITIES[l.priority] || '')}"></span><b>${esc(l.name)}</b><span class="score ${scoreCls(sc)}" title="Lead score">${sc}</span><span class="badge ${['Converted', 'Appointment booked'].includes(l.status) ? 'ok' : ['Lost', 'Not interested'].includes(l.status) ? 'bad' : 'info'}">${esc(l.status)}</span></div>
         <div class="lead-meta">${l.interest ? `<span>${esc(l.interest)}</span>` : ''}${l.source ? `<span>${esc(l.source)}</span>` : ''}${l.city ? `<span>${esc(l.city)}</span>` : ''}${l.assignedTo ? `<span>👤 ${esc(accountName(l.assignedTo))}</span>` : ''}${tagsOf(l).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>
         <div class="lead-foot">${l.followUp ? `<span class="badge ${due}">Follow-up ${fdate(l.followUp)}${l.followTime ? ` ${time12(l.followTime)}` : ''}</span>` : '<span class="hint">No follow-up set</span>'}
-          <span class="lead-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></span></div></div>`;
+          <span class="lead-acts"><a class="btn xs" href="tel:${esc(l.mobile)}" data-callout="${l.id}">📞 Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${nextStage(l) && !readOnly() ? `<button type="button" class="btn xs" data-act="lead-next" data-id="${l.id}" title="Move to the next stage">→ ${esc(nextStage(l))}</button>` : ''}<button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></span></div></div>`;
     };
+    const srcs = set().lists.leadSources;
+    const quickAdd = readOnly() ? '' : `<section class="card quick-lead"><h2><span class="ic teal">${svg('<path d="M12 5v14M5 12h14"/>')}</span>Quick add<span class="sp"></span><small class="hint">Name and mobile are enough</small></h2>
+      <div class="ql-row"><input id="ql-name" placeholder="Name" autocomplete="off"><input id="ql-mobile" type="tel" inputmode="tel" placeholder="Mobile" autocomplete="off">
+        <select id="ql-source" aria-label="Source">${opt('', 'Source…', '')}${srcs.map((x) => opt(x, x, '')).join('')}</select>
+        <div class="seg sm" id="ql-prio">${Object.entries(A.LEAD_PRIORITIES).map(([k, v]) => `<button type="button" data-qlprio="${k}" class="${k === 'warm' ? 'on' : ''}">${esc(v)}</button>`).join('')}</div>
+        <button type="button" class="btn primary" data-act="lead-quick">Add lead</button></div></section>`;
     const board = () => `<div class="board scroll-x">${set().lists.leadStatuses.map((x) => { const col = list.filter((l) => l.status === x); return `<div class="board-col"><h4>${esc(x)}<span>${col.length}</span></h4>${col.slice(0, 60).map((l) => `<button type="button" class="board-card" data-act="lead" data-id="${l.id}"><span class="prio ${PRIO_CLS[l.priority] || ''}"></span><b>${esc(l.name)}</b><small>${esc([l.interest, l.followUp ? `⏰ ${fdate(l.followUp)}` : ''].filter(Boolean).join(' · '))}</small></button>`).join('') || '<p class="hint">—</p>'}</div>`; }).join('')}</div>`;
     const bulk = leadSelMode ? `<div class="bulk-bar"><b>${leadSel.size} selected</b><button type="button" class="btn xs" data-act="lead-pick-all">Select all ${list.length}</button><span class="grow"></span>
       ${readOnly() ? '' : `<select id="bk-status" aria-label="Status">${opt('', 'Set stage…', '')}${set().lists.leadStatuses.map((x) => opt(x, x, '')).join('')}</select>
@@ -1134,6 +1220,7 @@
         <button type="button" class="btn sm ${leadSelMode ? 'primary' : ''}" data-act="lead-select">${leadSelMode ? 'Done selecting' : 'Select'}</button>
         <span class="grow"></span>${exportBtns('leads')}${readOnly() ? '' : '<button class="btn sm" data-act="lead-import">Import</button>'}<button class="btn primary" data-act="new-lead">${svg('<path d="M12 5v14M5 12h14"/>')}New lead</button></div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Open leads', num(st.open))}${kpi('New today', num(st.newToday), '', 'teal')}${kpi('Due today', num(st.dueToday), '', 'gold')}${kpi('Overdue', num(st.overdue), '', st.overdue ? 'bad' : '')}${kpi('Hot leads', num(st.hot), '', 'bad')}${kpi('Conversion', `${st.conversion}%`, `${st.won} of ${st.total}`, 'good')}</div>
+      ${quickAdd}
       ${leadSummaryCard(mine)}
       <div class="pipeline scroll-x">${pipeline.map(([x, n]) => `<button type="button" class="pipe ${leadF.status === x ? 'on' : ''}" data-leadstatus="${esc(x)}"><b>${n}</b><span>${esc(x)}</span></button>`).join('')}</div>
       <div class="filters"><div class="row">
@@ -1154,7 +1241,7 @@
     const x = admin.leadDay(d, mine);
     const fu = (l) => `<div class="fu-row"><span class="fu-when ${l.followUp < today ? 'bad' : l.followUp === today ? 'warn' : ''}">${l.followUp === today ? 'Today' : fdate(l.followUp)}${l.followTime ? `<small>${time12(l.followTime)}</small>` : ''}</span>
       <button type="button" class="fu-name" data-act="lead" data-id="${l.id}"><b>${esc(l.name)}</b><small>${esc([l.status, l.interest].filter(Boolean).join(' · '))}</small></button>
-      <span class="fu-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`) ? `<a class="btn xs" href="${esc(waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</span></div>`;
+      <span class="fu-acts"><a class="btn xs" href="tel:${esc(l.mobile)}" data-callout="${l.id}">Call</a>${waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`) ? `<a class="btn xs" href="${esc(waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</span></div>`;
     const next = [...x.overdue, ...x.dueToday, ...x.upcoming].slice(0, 8);
     return `<section class="card lead-sum"><h2><span class="ic gold">${svg(ICON_TODAY)}</span>Daily summary<span class="sp"></span>
         <span class="day-nav"><button type="button" class="btn xs" data-leadsum="-1" aria-label="Previous day">‹</button><b>${d === today ? 'Today' : fdate(d)}</b><button type="button" class="btn xs" data-leadsum="1" aria-label="Next day" ${d >= today ? 'disabled' : ''}>›</button></span></h2>
@@ -1214,7 +1301,7 @@
     openForm({
       title: l.name, submitLabel: 'Save update',
       html: `<div class="meta" style="display:flex;gap:6px;flex-wrap:wrap"><span class="badge ${PRIO_CLS[l.priority]}">${esc(A.LEAD_PRIORITIES[l.priority] || '')}</span><span class="badge info">${esc(l.status)}</span>${l.source ? `<span class="badge">${esc(l.source)}</span>` : ''}</div>
-        <div class="quick"><a class="btn" href="tel:${esc(l.mobile)}">📞 Call</a>${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}${can('appointments') && !l.apptId ? `<button type="button" class="btn success" data-act="lead-book" data-id="${l.id}">Book appointment</button>` : ''}${l.status !== 'Converted' ? `<button type="button" class="btn" data-act="lead-convert" data-id="${l.id}">Mark converted</button>` : ''}<button type="button" class="btn" data-act="lead-edit" data-id="${l.id}">Edit</button>${canDelete() ? `<button type="button" class="btn danger" data-act="lead-del" data-id="${l.id}">Delete</button>` : ''}</div>
+        <div class="quick"><a class="btn" href="tel:${esc(l.mobile)}" data-callout="${l.id}">📞 Call</a>${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}${can('appointments') && !l.apptId ? `<button type="button" class="btn success" data-act="lead-book" data-id="${l.id}">Book appointment</button>` : ''}${l.status !== 'Converted' ? `<button type="button" class="btn" data-act="lead-convert" data-id="${l.id}">Mark converted</button>` : ''}<button type="button" class="btn" data-act="lead-edit" data-id="${l.id}">Edit</button>${canDelete() ? `<button type="button" class="btn danger" data-act="lead-del" data-id="${l.id}">Delete</button>` : ''}</div>
         <div class="wa-tpl"><small>WhatsApp message</small>${Object.keys(WA_DEFAULTS).map((k) => (waLink(l.mobile, waText(k, l)) ? `<a class="chip-btn" href="${esc(waLink(l.mobile, waText(k, l)))}" target="_blank" rel="noopener">${WA_LABELS[k]}</a>` : '')).join('')}</div>
         <div class="lead-score-row"><span class="score big ${scoreCls(admin.leadScore(l))}">${admin.leadScore(l)}</span><span><b>Lead score</b><small>From priority, contacts, follow-up, budget and booking</small></span>${tagsOf(l).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>
         <b style="font-size:13px">Move to stage</b>
@@ -1276,6 +1363,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.7', 'Several founder profiles (profit share, monthly limit, capital in / out, profit share per founder); Founder Hub discussions saved with date, time and mode (in person, call, WhatsApp, video…), who was there, outcome and next step, with a quick note box, search and a PDF of all discussions; more Founder Hub numbers (this month vs last, money by payment mode, top products and team); easier leads: quick add, one-tap call outcome after each call, next-stage button; scrolling fixed on Settings and every screen; more luxury styling.'],
     ['3.6', 'Founder Hub (founder profile, founder vs common expenses, monthly limit, all alerts, discussions & notes, key numbers); expenses split into Common and Founder; alerts bell on every screen; Ads report (spend, leads from sources or typed in, cost per lead, ROI); leads board view, bulk select, paste import, tags, lead score, WhatsApp templates, lost reason, auto-assign; Settings in tabs with lead, reminder, auto sign-out and message options; quick Admin / Super Admin login buttons; 7 more themes; no zoom or sideways scroll; luxury cards and new dashboard; Follow us handles on every PDF and image.'],
     ['3.5', 'Patient invoices (PDF and WhatsApp) with invoice numbers and GST; Marketing login role; Marketing Hub with lead sources, campaigns with cost per lead and ROI, content ideas with trending ideas, a 7-day posting plan and hashtag sets; Team Desk with tasks, attendance (fills paid days) and monthly targets; OPD clinic picker; product names in What you sell; a Settings card to choose what shows on each dashboard; step-by-step recipe PDFs; smoother lists and animations.'],
     ['3.4', 'Five themes with light / dark mode and a new card look; menu search and quick actions; your own product types (add or delete) and no starter injections, protein or diet plans; multiple OPD clinics; Customize on every summary screen to show or hide any card or box; WhatsApp today card; lead daily summary and follow-up reminders; social counts without API keys.'],
@@ -2053,7 +2141,7 @@
     const scopeTabs = `<div class="seg scope-seg">${[['', 'All expenses'], ['common', 'Common'], ['founder', 'Founder']].map(([k, l]) => `<button type="button" data-expscope="${k}" class="${expScope === k ? 'on' : ''}">${l}</button>`).join('')}</div>`;
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('expenses')}</div>
       <div class="toolbar">${scopeTabs}<span class="grow"></span><button class="btn primary" data-act="add-expense">+ Add expense</button></div>
-      <div class="kpis" style="margin-bottom:14px">${kpi('Revenue', inr(fin.revenue))}${kpi('Common expenses', inr(sm.common), 'Clinic running costs', 'teal')}${kpi('Founder expenses', inr(sm.founder), set().founder && set().founder.name ? esc(set().founder.name) : 'Founder', 'violet')}${kpi('Expenses counted', inr(fin.expenses), sm.notCounted ? `${inr(sm.notCounted)} not counted` : plural(sm.count, 'entry', 'entries'), 'gold')}${kpi('Profit', inr(fin.profit), 'Revenue − Expenses', fin.profit >= 0 ? 'good' : 'bad')}
+      <div class="kpis" style="margin-bottom:14px">${kpi('Revenue', inr(fin.revenue))}${kpi('Common expenses', inr(sm.common), 'Clinic running costs', 'teal')}${kpi('Founder expenses', inr(sm.founder), admin.founders().map((f) => f.name.split(' ')[0]).join(', ') || 'Founder', 'violet')}${kpi('Expenses counted', inr(fin.expenses), sm.notCounted ? `${inr(sm.notCounted)} not counted` : plural(sm.count, 'entry', 'entries'), 'gold')}${kpi('Profit', inr(fin.profit), 'Revenue − Expenses', fin.profit >= 0 ? 'good' : 'bad')}
         ${['Ads', 'Editing'].map((c) => { const x = sm.byCategory.find((y) => y.name === c); return kpi(`${c} expenses`, inr(x ? x.amount : 0), x ? plural(x.count, 'entry', 'entries') : '', 'gold'); }).join('')}</div>
       <div class="filters"><div class="row"><select data-filter="expense" aria-label="Category">${opt('', 'All categories', expenseCat)}${set().lists.expenseCategories.map((c) => opt(c, `${c}${fin.byCategory[c] ? ` · ${inr(fin.byCategory[c])}` : ''}`, expenseCat)).join('')}</select>
         <select data-filter="expensename" aria-label="Name">${opt('', 'All names', expenseName)}${names.map((c) => opt(c, c, expenseName)).join('')}</select>
@@ -2063,7 +2151,7 @@
       <p class="hint">Use the <b>Count</b> switches to leave a category or name (for example a marketing payment) out of the expense total and profit. The entries stay in the list.</p>
       <div class="cards">${mini('By category', sm.byCategory, 'cat')}${mini('By name (founder, ad platform, editor…)', sm.byName, 'name')}</div>
       ${sm.byBoth.length ? `<div class="cards">${mini('Category × name', sm.byBoth)}</div>` : ''}
-      <div class="card">${table(['Category', 'Name', '~Note', 'Date', '>Amount', ''], list.map((e) => `<tr><td>${scopeOf(e) === 'founder' ? '<span class="badge violet">Founder</span> ' : ''}${esc(e.category)} ${e.auto ? '<span class="badge info">Auto</span>' : ''}</td><td>${esc(e.name || '')}${admin.counted(e) ? '' : ' <span class="badge">Not counted</span>'}</td><td>${esc(e.note)}</td><td>${fdate(e.date)}</td><td class="r"><b>${inr(e.amount)}</b></td>
+      <div class="card">${table(['Category', 'Name', '~Note', 'Date', '>Amount', ''], list.map((e) => `<tr><td>${scopeOf(e) === 'founder' ? `<span class="badge violet">${esc(fName(e.founderId) || 'Founder')}</span> ` : ''}${esc(e.category)} ${e.auto ? '<span class="badge info">Auto</span>' : ''}</td><td>${esc(e.name || '')}${admin.counted(e) ? '' : ' <span class="badge">Not counted</span>'}</td><td>${esc(e.note)}</td><td>${fdate(e.date)}</td><td class="r"><b>${inr(e.amount)}</b></td>
         <td class="acts">${e.auto ? '' : `<button class="btn xs" data-act="edit-expense" data-id="${e.id}">Edit</button> `}<button class="btn xs danger" data-act="del-expense" data-id="${e.id}">Delete</button></td></tr>`),
         `<td colspan="4">Total · ${list.length} entries</td><td class="r">${inr(list.reduce((a, e) => a + e.amount, 0))}</td><td></td>`)}</div>`;
   };
@@ -2071,7 +2159,8 @@
     openForm({
       title: e ? 'Edit expense' : 'Add expense',
       fields: [
-        { name: 'scope', label: 'Expense type', type: 'select', value: e ? scopeOf(e) : expScope || 'common', options: [['common', 'Common (clinic) expense'], ['founder', `Founder expense${set().founder && set().founder.name ? ` · ${set().founder.name}` : ''}`]] },
+        { name: 'scope', label: 'Expense type', type: 'select', value: e ? scopeOf(e) : expScope || 'common', options: [['common', 'Common (clinic) expense'], ['founder', 'Founder expense']] },
+        ...(admin.founders().length ? [{ name: 'founderId', label: 'Founder (for founder expenses)', type: 'select', value: e ? e.founderId || '' : fdSel || admin.founders()[0].id, options: admin.founders().map((f) => [f.id, f.name]) }] : []),
         { name: 'category', label: 'Category', type: 'list', list: 'expenseCategories', value: e ? e.category : expenseCat || (expScope === 'founder' ? 'Founder' : 'Rent') },
         { name: 'name', label: 'Name (founder, ad platform, editor…)', type: 'list', list: 'expenseNames', value: e ? e.name || '' : expenseName, blank: 'No name' },
         { name: 'amount', label: 'Amount (₹)', type: 'number', required: true, value: e ? e.amount : '' },
@@ -2177,6 +2266,8 @@
       ['New leads', num(d.leads.total)], ['Leads converted', `${d.leads.won} (${d.leads.conversion}%)`], ['Order required', num(d.stock.order.length)]];
   };
   const stamp = () => admin.today();
+  const discussionSec = (list) => sec('Discussions', ['Date & Time', 'Mode', 'Type', 'Topic', 'What was discussed', 'With', 'Outcome / Decision', 'Next Step', 'Status'],
+    list.map((n) => [`${n.date ? fdate(n.date) : fdate(A.isoDate(new Date(n.at)))}${n.time ? ` ${time12(n.time)}` : ''}`, n.mode || '', NOTE_TAGS[n.tag] || '', n.title || '', n.text || '', (n.with || []).map((x) => fName(x) || x).join(', ') + (n.place ? `${(n.with || []).length ? ' · ' : ''}${n.place}` : ''), n.outcome || '', `${n.nextStep || ''}${n.due ? ` (by ${fdate(n.due)})` : ''}`, n.done ? 'Done' : 'Open']));
   const EXPORTS = {
     dashboard: () => { const t = admin.daySummary(stamp()); return { title: 'Dashboard', subtitle: periodLabel(), kpis: dashKpis(range()),
       sections: [{ ...R.daySales(t), title: `Today's Sales (${fdate(t.date)})` }, ...R.financial(range()), ...R.expenseGroups(admin.expenseSummary(range())).slice(1),
@@ -2212,16 +2303,21 @@
     leads: () => { const list = filteredLeads(); return { title: 'Leads', subtitle: role === 'desk' ? `${me.name} · ${fdate(stamp())}` : fdate(stamp()), sections: [R.leads(list), ...(role !== 'desk' ? [R.leadOwners(list)] : [])] }; },
     activity: () => ({ title: 'Activity Log', subtitle: periodLabel(), sections: [R.activity(filteredLog())] }),
     founder: () => {
-      const r = range(); const sm = admin.expenseSummary(r); const fin = admin.financialReport(r); const f = set().founder || {};
+      const r = range(); const sm = admin.expenseSummary(r); const fin = admin.financialReport(r); const f = (fdSel && admin.founder(fdSel)) || {};
       const fx = S().expenses.filter((e) => inR(e.date, r) && scopeOf(e) === 'founder');
       return { title: `Founder Hub${f.name ? ` · ${f.name}` : ''}`, subtitle: periodLabel(),
         kpis: [['Revenue', inr(fin.revenue)], ['Net profit', inr(fin.profit)], ['Common expenses', inr(sm.common)], ['Founder expenses', inr(sm.founderAll)]],
         sections: [
           sec('Founder Expenses', ['Date', 'Category', 'Name', 'Note', '>Amount'], fx.map((e) => [e.date, e.category, e.name || '', e.note || '', e.amount]), { money: [4], total: [4] }),
           sec('Alerts', ['Area', 'Alert'], myAlerts().map((a) => [a.area, a.text])),
-          sec('Discussions & Notes', ['Date', 'Type', 'Title', 'Details', 'Due', 'Status'], (S().notes || []).map((n) => [A.isoDate(new Date(n.at)), NOTE_TAGS[n.tag] || '', n.title || '', n.text || '', n.due || '', n.done ? 'Done' : 'Open'])),
+          sec('Founders', ['Founder', 'Title', '>Share %', '>Spent', '>Monthly Limit', '>Invested', '>Withdrawn', '>Net Capital', '>Profit Share'], admin.founderStats(r).map((x) => [x.name, x.title, x.share, x.spent, x.budget, x.invested, x.withdrawn, x.net, x.profitShare]), { money: [3, 4, 5, 6, 7, 8] }),
+          discussionSec(S().notes || []),
         ] };
     },
+    discussions: () => { const list = [...(S().notes || [])].filter((n) => !fdSel || !(n.with || []).length || (n.with || []).includes(fdSel)).sort((a, b) => `${b.date || ''}${b.time || ''}`.localeCompare(`${a.date || ''}${a.time || ''}`));
+      return { title: `Founder Discussions${fdSel ? ` · ${fName(fdSel)}` : ''}`, subtitle: `${plural(list.length, 'discussion')} · ${admin.founders().map((f) => f.name).join(', ') || set().clinic}`,
+        kpis: [['Discussions', num(list.length)], ['Decisions', num(list.filter((n) => n.tag === 'decision').length)], ['Open', num(list.filter((n) => !n.done).length)], ['Next steps due', num(list.filter((n) => !n.done && n.due).length)]],
+        sections: [discussionSec(list)] }; },
     marketing: () => {
       const r = range(); const ls = admin.leadStats(r);
       return { title: 'Marketing', subtitle: periodLabel(), kpis: [['Leads', num(ls.total)], ['Converted', `${ls.won || 0} (${ls.conversion}%)`], ['Campaigns', num((S().campaigns || []).length)], ['Ideas', num((S().ideas || []).length)]],
@@ -2363,7 +2459,7 @@
       <label class="check"><input type="checkbox" name="stockAlerts" ${st.stockAlerts !== false ? 'checked' : ''}> Low-stock alerts on (each item can also be switched off in Inventory)</label>
       <label class="check"><input type="checkbox" name="kitOn" ${st.kitOn !== false ? 'checked' : ''}> Take the injection kit out of stock with every injection sold <button type="button" class="link" data-act="kit">Edit kit</button></label>
       <div class="grid two" style="margin-top:8px">
-        <label class="f">Founder<span class="founder-mini">${esc((st.founder || {}).name || 'Not set')}${(st.founder || {}).budget ? ` · limit ${inr(st.founder.budget)}/month` : ''}</span><button type="button" class="btn sm" data-act="founder-edit">Edit founder profile</button></label>
+        <label class="f">Founders<span class="founder-mini">${esc(admin.founders().map((f) => `${f.name} (${f.share}%)`).join(', ') || 'Not set')}</span><button type="button" class="btn sm" data-go="founder">Manage founders</button></label>
         <label class="f">Sign out when idle (minutes, 0 = never)<input type="number" min="0" name="autoLockMins" value="${esc(st.autoLockMins || 0)}"></label>
       </div></div>
       <div data-stab="selling"><h2 style="margin-top:6px"><span class="ic gold">${svg('<path d="M4 8l8-4 8 4-8 4zM4 8v8l8 4 8-4V8M12 12v8"/>')}</span>What you sell</h2>
@@ -2969,6 +3065,24 @@
     'clinic-add': () => clinicForm(null),
     alerts: () => alertsModal(),
     'add-login-role': (d) => loginForm(null, null, { role: d.role }),
+    'lead-quick': () => {
+      const name = $('#ql-name').value.trim(); const mobile = $('#ql-mobile').value.trim();
+      const pr = $('#ql-prio button.on');
+      try {
+        const l = admin.saveLead({ name, mobile, source: $('#ql-source').value, priority: pr ? pr.dataset.qlprio : 'warm', assignedTo: role === 'desk' || role === 'marketing' ? me.id : '', followUp: shiftDay(admin.today(), Number(set().followUpDays) || 0) });
+        render(); toast(`${l.name} added`); const n = $('#ql-name'); if (n) n.focus();
+      } catch (err) { toast(err.message, true); }
+    },
+    'lead-next': (d) => { const l = admin.lead(d.id); const nx = l && nextStage(l); if (!nx) return; admin.setLeadStatus(d.id, nx); render(); toast(`${l.name} moved to ${nx}`); },
+    'call-out': (d) => {
+      const o = CALL_OUTCOMES.find((x) => x[0] === d.o); const l = admin.lead(d.id); if (!o || !l) return;
+      const note = ($('#co-note') || {}).value || ''; const next = ($('#co-date') || {}).value || '';
+      const text = [`Call: ${o[1].replace(/^\S+\s/, '')}`, note.trim()].filter(Boolean).join(' · ');
+      admin.addLeadActivity(l.id, { type: 'call', text, followUp: o[3] ? next : '', followTime: '' });
+      if (o[2] && l.status !== o[2]) admin.setLeadStatus(l.id, o[2]);
+      modal.close(); render(); toast(`Saved · ${l.name}`);
+      if (d.o === 'booked' && can('appointments') && !l.apptId) ACTIONS['lead-book']({ id: l.id });
+    },
     'lead-select': () => { leadSelMode = !leadSelMode; leadSel.clear(); render(); },
     'lead-pick': (d) => { if (leadSel.has(d.id)) leadSel.delete(d.id); else leadSel.add(d.id); render(); },
     'lead-pick-all': () => { filteredLeads().forEach((l) => leadSel.add(l.id)); render(); },
@@ -2986,7 +3100,12 @@
       onSubmit: (v) => { const r = admin.importLeads($('#imp-text').value, { ...(v.source ? { source: v.source } : {}), ...(v.assignedTo ? { assignedTo: v.assignedTo } : {}), followUp: admin.today() }); if (!r.added && r.skipped) throw new Error(`Nothing imported: ${r.skipped} line${r.skipped > 1 ? 's were' : ' was'} duplicate or missing a mobile`); return `${plural(r.added, 'lead')} imported${r.skipped ? `, ${r.skipped} skipped` : ''}`; },
     }),
     'ad-spend': () => adSpendForm(),
-    'founder-edit': () => founderForm(),
+    'founder-edit': (d) => founderForm(admin.founder(d.id || fdSel) || admin.founders()[0] || null),
+    'founder-add': () => founderForm(null),
+    'founder-del': async (d) => { const f = admin.founder(d.id); if (f && await confirmBox('Remove founder', `Remove ${f.name}? Their past expenses and capital stay in the records.`, 'Remove')) { admin.deleteFounder(d.id); if (fdSel === d.id) fdSel = ''; render(); toast('Founder removed'); } },
+    'capital-add': () => capitalForm(),
+    'capital-del': async (d) => { if (await confirmBox('Delete entry', 'Delete this capital entry?')) { admin.deleteCapital(d.id); render(); } },
+    'note-quick': () => { const t = $('#qn-text').value.trim(); if (!t) { toast('Write the discussion point first', true); return; } const now = new Date(); const [first, ...rest] = t.split('\n'); admin.saveNote({ title: first.slice(0, 70), text: first.length > 70 ? t : rest.join('\n').trim(), mode: $('#qn-mode').value, tag: $('#qn-tag').value, date: admin.today(), time: `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`, with: fdSel ? [fdSel] : [] }); render(); toast('Discussion saved'); },
     'add-expense-founder': () => { const k = expScope; expScope = 'founder'; expenseForm(null); expScope = k; },
     'exp-founder-all': () => { expScope = 'founder'; go('expenses'); },
     'note-add': () => noteForm(null),
@@ -3024,7 +3143,11 @@
     if (e.target.closest('.addnew')) return;
     const goEl = e.target.closest('[data-go]');
     if (goEl) { e.preventDefault(); if (modal.open) modal.close(); if (goEl.dataset.go === 'purchase-new' && !draft) draft = newDraft(); go(goEl.dataset.go); return; }
+    const co = e.target.closest('a[data-callout]');
+    if (co) { const id = co.dataset.callout; if (modal.open) modal.close(); setTimeout(() => callOutcome(id), 900); return; }
     const act = e.target.closest('[data-act]');
+    const innerLink = e.target.closest('a[href]');
+    if (innerLink && act && innerLink !== act && act.contains(innerLink)) return;
     if (act && readOnly() && ACTIONS[act.dataset.act] && !RO_ACTIONS.includes(act.dataset.act)) { e.preventDefault(); toast('View only: this login cannot change data', true); return; }
     if (act && ACTIONS[act.dataset.act] && !(act.tagName === 'A' && act.getAttribute('href'))) { e.preventDefault(); ACTIONS[act.dataset.act](act.dataset); return; }
     if (e.target.closest('a[href]')) return;
@@ -3044,8 +3167,12 @@
     if (att) { if (readOnly()) return; const cur = ((S().attendance || {})[deskDay || admin.today()] || {})[att.dataset.att]; admin.setAttendance(deskDay || admin.today(), att.dataset.att, cur === att.dataset.mark ? '' : att.dataset.mark); render(); return; }
     const sg = e.target.closest('[data-stabgo]');
     if (sg) { settingsTab = sg.dataset.stabgo; showSettingsTab(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    const qp = e.target.closest('[data-qlprio]');
+    if (qp) { $$('#ql-prio button').forEach((b) => b.classList.toggle('on', b === qp)); return; }
     const lv = e.target.closest('[data-leadview]');
     if (lv) { leadView = lv.dataset.leadview; render(); return; }
+    const fsl = e.target.closest('[data-fdsel]');
+    if (fsl) { fdSel = fsl.dataset.fdsel; render(); return; }
     const nf = e.target.closest('[data-notef]');
     if (nf) { noteF = nf.dataset.notef; render(); return; }
     const es = e.target.closest('[data-expscope]');
@@ -3068,7 +3195,7 @@
     if (dn) { const n = Number(dn.dataset.day); todayDate = n ? shiftDay(todayDate || admin.today(), n) : admin.today(); render(); }
   });
   // Links inside cards (Call / WhatsApp) must not open the card.
-  view.addEventListener('click', (e) => { if (e.target.closest('.lead a, .appt a')) e.stopPropagation(); }, true);
+  view.addEventListener('click', (e) => { const a = e.target.closest('.lead a, .appt a'); if (!a) return; e.stopPropagation(); if (a.dataset.callout) setTimeout(() => callOutcome(a.dataset.callout), 900); }, true);
   view.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
     if (e.target.matches('.appt')) apptDetail(e.target.dataset.id);
@@ -3105,7 +3232,8 @@
     if (t.dataset.afilter === 'q') { key = 'aq'; sel = '[data-afilter="q"]'; }
     if (t.dataset.lfilter === 'q') { key = 'lq'; sel = '[data-lfilter="q"]'; }
     if (t.dataset.actfilter === 'q') { key = 'xq'; sel = '[data-actfilter="q"]'; }
-    const setters = { q: (v) => { salesFilter.q = v; }, patient: (v) => { patientQ = v; }, purchase: (v) => { purchaseQ = v; }, aq: (v) => { apptF.q = v; }, lq: (v) => { leadF.q = v; }, xq: (v) => { actF.q = v; } };
+    if ('noteq' in t.dataset) { key = 'nq'; sel = '[data-noteq]'; }
+    const setters = { nq: (v) => { noteQ = v; }, q: (v) => { salesFilter.q = v; }, patient: (v) => { patientQ = v; }, purchase: (v) => { purchaseQ = v; }, aq: (v) => { apptF.q = v; }, lq: (v) => { leadF.q = v; }, xq: (v) => { actF.q = v; } };
     if (!setters[key]) return;
     setters[key](t.value);
     const pos = t.selectionStart;
@@ -3241,7 +3369,7 @@
       openForm({
         title: `Follow-up reminders · ${due.length}`, submitLabel: false,
         html: `<p class="hint" style="margin-top:0">${x.overdue.length ? `<b>${x.overdue.length} overdue</b> · ` : ''}${x.dueToday.length} due today. Tap a name to open the lead.</p>
-          <div class="fu-list">${due.slice(0, 12).map((l) => `<div class="fu-row"><span class="fu-when ${l.followUp < admin.today() ? 'bad' : 'warn'}">${l.followUp < admin.today() ? fdate(l.followUp) : 'Today'}${l.followTime ? `<small>${time12(l.followTime)}</small>` : ''}</span><button type="button" class="fu-name" data-act="lead" data-id="${l.id}"><b>${esc(l.name)}</b><small>${esc(l.status)}</small></button><span class="fu-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a></span></div>`).join('')}</div>
+          <div class="fu-list">${due.slice(0, 12).map((l) => `<div class="fu-row"><span class="fu-when ${l.followUp < admin.today() ? 'bad' : 'warn'}">${l.followUp < admin.today() ? fdate(l.followUp) : 'Today'}${l.followTime ? `<small>${time12(l.followTime)}</small>` : ''}</span><button type="button" class="fu-name" data-act="lead" data-id="${l.id}"><b>${esc(l.name)}</b><small>${esc(l.status)}</small></button><span class="fu-acts"><a class="btn xs" href="tel:${esc(l.mobile)}" data-callout="${l.id}">Call</a></span></div>`).join('')}</div>
           <div class="quick"><button type="button" class="btn primary" data-go="leads">Open leads</button></div>`,
       });
     }

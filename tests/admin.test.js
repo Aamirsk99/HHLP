@@ -262,7 +262,7 @@ test('attendance fills paid days; tasks and monthly targets track progress', () 
 
 test('expenses are common or founder; founder limit shows as an alert', () => {
   const admin = fresh();
-  admin.updateSettings({ founder: { name: 'Aamir', budget: 1000 } });
+  admin.saveFounder({ name: 'Aamir', budget: 1000 });
   admin.saveExpense({ category: 'Rent', amount: 5000 });
   admin.saveExpense({ category: 'Travel', amount: 1500, scope: 'founder' });
   admin.saveExpense({ category: 'Founder', amount: 200 });
@@ -306,4 +306,23 @@ test('notes, bulk lead changes, pasted leads, scores and auto-assign', () => {
   const l = admin.saveLead({ name: 'Auto', mobile: '9000000009' });
   assert.ok(['desk', d.id].includes(l.assignedTo));
   assert.strictEqual(admin.bulkLeads(ids, { remove: true }), 2);
+});
+
+test('several founders: own spending, limits, capital and profit share; discussions keep time and mode', () => {
+  const admin = fresh();
+  const a = admin.saveFounder({ name: 'Aamir', share: 60, budget: 5000 });
+  const b = admin.saveFounder({ name: 'Sara', share: 40 });
+  admin.saveExpense({ category: 'Travel', amount: 6000, scope: 'founder', founderId: a.id });
+  admin.saveExpense({ category: 'Meals', amount: 700, scope: 'founder', founderId: b.id });
+  admin.saveCapital({ founderId: a.id, amount: 100000, type: 'invest' });
+  admin.saveCapital({ founderId: a.id, amount: 20000, type: 'withdraw' });
+  const st = admin.founderStats(null);
+  const fa = st.find((x) => x.id === a.id); const fb = st.find((x) => x.id === b.id);
+  assert.deepStrictEqual([fa.spentAll, fa.net, fb.spentAll], [6000, 80000, 700]);
+  assert.ok(admin.alerts().some((x) => x.area === 'Founder' && x.text.startsWith('Aamir')));
+  admin.deleteFounder(b.id);
+  assert.strictEqual(admin.founders().length, 1);
+  const n = admin.saveNote({ title: 'Pricing', text: 'Raise 1M package', mode: 'Call', date: '2026-10-01', time: '18:30', with: [a.id], outcome: 'Agreed', mins: 20 });
+  assert.deepStrictEqual([n.mode, n.time, n.outcome, n.with[0], n.mins], ['Call', '18:30', 'Agreed', a.id, 20]);
+  assert.ok(admin.sheetsData().Founders.length > 2);
 });

@@ -13,7 +13,7 @@
  * 3. Deploy → New deployment → Web app: Execute as "Me", Who has access "Anyone".
  * 4. In the admin app: Settings → Google Sheet → paste the web app URL and the secret → Save.
  *
- * Edit data in the app, not in the sheets: each save rewrites the 25 sheets.
+ * Edit data in the app, not in the sheets: each save rewrites the 26 sheets.
  *
  * Social media counts (Content & Posts → "Fetch now" in the app):
  *   After pasting this file, run `testSocial` once (it asks to allow internet access), then
@@ -30,7 +30,7 @@
 // Leave empty when this script is opened from the sheet (Extensions → Apps Script); or paste a sheet ID.
 const SHEET_ID = '';
 const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Other Sales', 'Diet Support', 'Purchases',
-  'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Ads Report', 'Tasks', 'Attendance', 'Founder Notes', 'Activity Log'];
+  'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Ads Report', 'Tasks', 'Attendance', 'Founders', 'Founder Notes', 'Activity Log'];
 const DATA_SHEET = '_AppData';
 const CHUNK = 40000; // a cell holds up to 50,000 characters
 const NAVY = '#015b53'; // The Prime Fit teal (sheet headers)
@@ -112,7 +112,7 @@ function writeSheets(ss, sheets) {
 /** GET ?action=load&secret=… → the app data; GET without action → health check. */
 function doGet(e) {
   const p = (e && e.parameter) || {};
-  if (p.action !== 'load' && p.action !== 'social') return json({ ok: true, app: 'primefit-admin-sheets', version: 7, sheets: SHEETS });
+  if (p.action !== 'load' && p.action !== 'social') return json({ ok: true, app: 'primefit-admin-sheets', version: 8, sheets: SHEETS });
   if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
   if (p.action === 'social') return json(socialStats());
   const d = readData(book());

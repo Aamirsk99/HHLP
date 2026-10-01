@@ -26,7 +26,7 @@
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
     'Founder', 'Ads', 'Editing', 'Product Purchase', 'Miscellaneous'];
   const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Other Sales', 'Diet Support', 'Purchases',
-    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Ads Report', 'Tasks', 'Attendance', 'Founder Notes', 'Activity Log'];
+    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Ads Report', 'Tasks', 'Attendance', 'Founders', 'Founder Notes', 'Activity Log'];
 
   // Login roles. Every person can have their own login (name + PIN), shared through the Google Sheet.
   const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk', editor: 'Video Editor', marketing: 'Marketing', viewer: 'View only' };
@@ -109,7 +109,8 @@
         videoFee: 150, // default editor fee per video (₹)
         defaultGst: 12, // GST % filled on new purchase lines
         expenseOff: { categories: [], names: [] }, // expenses not counted in totals and profit
-        founder: { name: '', title: 'Founder', mobile: '', email: '', share: 100, budget: 0, about: '' }, // founder profile (Founder Hub)
+        founder: { name: '', title: 'Founder', mobile: '', email: '', share: 100, budget: 0, about: '' }, // first founder (older versions)
+        founders: [], // founder profiles: { id, name, title, mobile, email, share, budget, about }
         followUpDays: 2, // new leads get a follow-up this many days ahead
         remindMins: 10, // follow-up alert this many minutes before
         autoAssign: false, // new leads are shared in turn between the lead-handling logins
@@ -119,8 +120,8 @@
       },
       categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
-      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, campaigns: [], ideas: [], tasks: [], attendance: {}, targets: {}, notes: [], social: { youtube: {}, instagram: {}, fetchedAt: 0 },
-      seeded: { packages: true, cleared: true, r7: true, r8: true },
+      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, campaigns: [], ideas: [], tasks: [], attendance: {}, targets: {}, notes: [], capital: [], social: { youtube: {}, instagram: {}, fetchedAt: 0 },
+      seeded: { packages: true, cleared: true, r7: true, r8: true, r9: true },
       accounts: [
         { id: 'super', name: 'Super Admin', username: 'superadmin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
         { id: 'admin', name: 'Admin', username: 'admin', role: 'admin', hash: '', salt: '', len: 0, pin: '' },
@@ -282,6 +283,16 @@
         s.seeded.r8 = true;
       }
       if (!Array.isArray(s.notes)) s.notes = [];
+      if (!Array.isArray(s.capital)) s.capital = [];
+      // Version 1.7: several founders; the single founder profile becomes the first one.
+      if (!Array.isArray(s.settings.founders)) s.settings.founders = [];
+      if (!s.seeded.r9) {
+        const f = s.settings.founder || {};
+        if (f.name && !s.settings.founders.length) s.settings.founders.push({ id: 'f1', name: f.name, title: f.title || 'Founder', mobile: f.mobile || '', email: f.email || '', share: f.share != null ? f.share : 100, budget: f.budget || 0, about: f.about || '' });
+        const first = s.settings.founders[0];
+        if (first) (s.expenses || []).forEach((e) => { if (e.scope === 'founder' && !e.founderId) e.founderId = first.id; });
+        s.seeded.r9 = true;
+      }
       if (!hadKinds) {
         s.settings.kinds = JSON.parse(JSON.stringify(BASE_KINDS));
         [['injection', 'Injection'], ['protein', 'Protein']].forEach(([id, name]) => {
@@ -503,6 +514,52 @@
       return { month, revenue, revenueGoal: Number(t.revenue) || 0, revenuePct: pct(revenue, Number(t.revenue) || 0), leads, leadsGoal: Number(t.leads) || 0, leadsPct: pct(leads, Number(t.leads) || 0), patients: new Set(sales.filter((x) => x.patientType === 'new').map((x) => x.patientId)).size, patientsGoal: Number(t.patients) || 0, team };
     }
 
+    // Founders: several profiles, each with a profit share and a monthly spending limit.
+    const founders = () => (S.settings.founders || []).filter((f) => !f.removed);
+    const founder = (id) => (S.settings.founders || []).find((f) => f.id === id) || null;
+    function saveFounder(input) {
+      const name = String(input.name || '').trim();
+      if (!name) fail('Enter the founder name');
+      if (!Array.isArray(S.settings.founders)) S.settings.founders = [];
+      let f = input.id && founder(input.id);
+      if (!f) { f = { id: uid('f') }; S.settings.founders.push(f); }
+      Object.assign(f, { name, title: String(input.title || 'Founder').trim(), mobile: String(input.mobile || '').trim(), email: String(input.email || '').trim(),
+        share: Math.max(0, Math.min(100, Number(input.share) || 0)), budget: Math.max(0, Number(input.budget) || 0), about: String(input.about || '').trim(), removed: false });
+      if (!S.settings.lists.expenseNames.some((x) => low(x) === low(name))) S.settings.lists.expenseNames.push(name);
+      log('Founder saved', name); save();
+      return f;
+    }
+    function deleteFounder(id) {
+      const f = founder(id); if (!f) return;
+      const used = S.expenses.some((e) => e.founderId === id) || listFix('capital').some((c) => c.founderId === id);
+      if (used) f.removed = true; else S.settings.founders = S.settings.founders.filter((x) => x.id !== id);
+      log('Founder removed', f.name); save();
+    }
+    /** Money a founder puts in (invest) or takes out (withdraw / drawing). */
+    function saveCapital(input) {
+      if (!(Number(input.amount) > 0)) fail('Enter an amount');
+      if (!founder(input.founderId)) fail('Choose the founder');
+      let c = input.id && listFix('capital').find((x) => x.id === input.id);
+      if (!c) { c = { id: uid('k'), at: Date.now(), by: actor }; S.capital.push(c); }
+      Object.assign(c, { founderId: input.founderId, date: input.date || today(), amount: r2(input.amount), type: input.type === 'withdraw' ? 'withdraw' : 'invest', note: String(input.note || '').trim() });
+      log('Founder capital', `${founder(c.founderId).name} ${c.type === 'invest' ? 'invested' : 'withdrew'} ₹${c.amount}`); save();
+      return c;
+    }
+    function deleteCapital(id) { S.capital = listFix('capital').filter((x) => x.id !== id); save(); }
+    /** Per founder: spending in the range, this month vs limit, capital in/out and profit share. */
+    function founderStats(range) {
+      const fin = financialReport(range); const month = today().slice(0, 7);
+      const list = founders();
+      const out = list.map((f) => {
+        const mine = S.expenses.filter((e) => e.scope === 'founder' && (e.founderId === f.id || (!e.founderId && list[0] && list[0].id === f.id)));
+        const cap = listFix('capital').filter((c) => c.founderId === f.id);
+        const invested = r2(sum(cap.filter((c) => c.type === 'invest'), (c) => c.amount)); const withdrawn = r2(sum(cap.filter((c) => c.type === 'withdraw'), (c) => c.amount));
+        const monthSpent = r2(sum(mine.filter((e) => (e.date || '').startsWith(month)), (e) => e.amount));
+        return { ...f, spent: r2(sum(mine.filter((e) => inRange(e.date, range)), (e) => e.amount)), spentAll: r2(sum(mine, (e) => e.amount)), monthSpent,
+          limitPct: f.budget ? Math.round((monthSpent / f.budget) * 100) : 0, invested, withdrawn, net: r2(invested - withdrawn), profitShare: r2((fin.profit * (Number(f.share) || 0)) / 100), entries: mine.length };
+      });
+      return out;
+    }
     // Founder Hub: discussions, decisions and important notes.
     function saveNote(input) {
       const text = String(input.text || '').trim(); const title = String(input.title || '').trim();
@@ -511,7 +568,10 @@
       if (!n) { n = { id: uid('n'), at: Date.now(), by: actor, pinned: false, done: false, tag: 'discussion' }; S.notes.push(n); }
       if ('title' in input) n.title = title;
       if ('text' in input) n.text = text;
-      ['tag', 'due'].forEach((k) => { if (k in input) n[k] = String(input[k] || ''); });
+      ['tag', 'due', 'mode', 'date', 'time', 'outcome', 'nextStep', 'place'].forEach((k) => { if (k in input) n[k] = String(input[k] || '').trim(); });
+      if ('with' in input) n.with = Array.isArray(input.with) ? input.with : String(input.with || '').split(',').map((x) => x.trim()).filter(Boolean);
+      if ('mins' in input) n.mins = Math.max(0, Number(input.mins) || 0);
+      if (!n.date) { const d = new Date(n.at); n.date = today(); n.time = n.time || `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`; }
       ['pinned', 'done'].forEach((k) => { if (k in input) n[k] = !!input[k]; });
       n.updated = Date.now();
       save();
@@ -566,8 +626,8 @@
       const posts = S.content.filter((c) => c.status === 'scheduled' && c.scheduledDate && c.scheduledDate < d).length; if (posts) add('warn', 'Content', `${posts} scheduled post${posts > 1 ? 's' : ''} overdue`, 'content');
       const tasks = listFix('tasks').filter((t) => !t.done && t.due && t.due < d).length; if (tasks) add('warn', 'Tasks', `${tasks} task${tasks > 1 ? 's' : ''} overdue`, 'manage');
       listFix('campaigns').filter((c) => c.budget && c.spent > c.budget).forEach((c) => add('bad', 'Ads', `${c.name} is over budget (₹${Number(c.spent).toLocaleString('en-IN')} of ₹${Number(c.budget).toLocaleString('en-IN')})`, 'marketing'));
-      const f = S.settings.founder || {}; const month = d.slice(0, 7);
-      if (f.budget) { const spent = r2(sum(S.expenses.filter((e) => e.scope === 'founder' && (e.date || '').startsWith(month)), (e) => e.amount)); if (spent > f.budget) add('bad', 'Founder', `Founder expenses ₹${spent.toLocaleString('en-IN')} are over the monthly limit ₹${Number(f.budget).toLocaleString('en-IN')}`, 'founder'); }
+      const month = d.slice(0, 7);
+      founderStats(null).forEach((f) => { if (f.budget && f.monthSpent > f.budget) add('bad', 'Founder', `${f.name}: spending ₹${f.monthSpent.toLocaleString('en-IN')} is over the monthly limit ₹${Number(f.budget).toLocaleString('en-IN')}`, 'founder'); else if (f.budget && f.monthSpent > f.budget * 0.8) add('warn', 'Founder', `${f.name} has used ${f.limitPct}% of the monthly limit`, 'founder'); });
       const t = (S.targets || {})[month];
       if (t && t.revenue) { const tp = targetProgress(month); const dayPct = Math.round((Number(d.slice(8)) / 30) * 100); if (tp.revenuePct + 15 < dayPct) add('warn', 'Targets', `Revenue is at ${tp.revenuePct}% of target with ${dayPct}% of the month gone`, 'manage'); }
       listFix('notes').filter((n) => !n.done && n.due && n.due <= d).forEach((n) => add('info', 'Notes', `Due: ${n.title || n.text.slice(0, 40)}`, 'founder'));
@@ -968,6 +1028,7 @@
         name: String(input.name || '').trim(), payMethod: input.payMethod || '', noCount: !!input.noCount,
         scope: input.scope === 'founder' || (!input.scope && input.category === 'Founder') ? 'founder' : 'common',
         adLeads: input.adLeads === '' || input.adLeads == null ? null : Math.max(0, Math.round(Number(input.adLeads) || 0)) });
+      e.founderId = e.scope === 'founder' ? (input.founderId || e.founderId || ((S.settings.founders || [])[0] || {}).id || '') : '';
       if (!S.settings.lists.expenseCategories.includes(e.category)) S.settings.lists.expenseCategories.push(e.category);
       if (e.name && !S.settings.lists.expenseNames.some((x) => low(x) === low(e.name))) S.settings.lists.expenseNames.push(e.name);
       log(input.id ? 'Expense updated' : 'Expense added', `${e.category}${e.name ? ` (${e.name})` : ''} ₹${e.amount}${e.note ? ` · ${e.note}` : ''}`);
@@ -1744,8 +1805,8 @@
       out.Salary = [['Month', 'Name', 'Designation', 'Salary', 'Incentive', 'Total Pay', 'Booked as Expense']];
       const months = new Set([monthOf(d), ...S.sales.map((s) => monthOf(s.date))]);
       [...months].sort().forEach((mo) => salarySheet(mo).forEach((r) => out.Salary.push([mo, r.name, r.designation || '', r.salary, r.incentive, r.total, salaryPosted(mo) ? 'Yes' : 'No'])));
-      out.Expenses = [['Date', 'Type', 'Category', 'Name', 'Amount', 'Payment Method', 'Note', 'Counted', 'Ad Leads (manual)']];
-      [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.scope === 'founder' ? 'Founder' : 'Common', e.category, e.name || '', e.amount, e.payMethod || '', e.note || '', counted(e) ? 'Yes' : 'No', e.adLeads == null ? '' : e.adLeads]));
+      out.Expenses = [['Date', 'Type', 'Founder', 'Category', 'Name', 'Amount', 'Payment Method', 'Note', 'Counted', 'Ad Leads (manual)']];
+      [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.scope === 'founder' ? 'Founder' : 'Common', e.scope === 'founder' ? (founder(e.founderId) || {}).name || '' : '', e.category, e.name || '', e.amount, e.payMethod || '', e.note || '', counted(e) ? 'Yes' : 'No', e.adLeads == null ? '' : e.adLeads]));
       out.Renewals = [['Patient', 'Mobile', 'Product', 'Last Purchase Date', 'Days Since', 'Reminder', 'Reference Team', 'Contacted']];
       renewals(d).forEach((r) => out.Renewals.push([r.name, r.mobile, r.product, r.lastDate, r.days, r.stage ? `${r.stage} Day alert` : `Due in ${r.dueIn} days`, r.ref, r.done ? 'Yes' : 'No']));
       out.Doctors = [['Name', 'Speciality', 'Qualification', 'Mobile', 'Fee', 'Days', 'Timing', 'Appointments', 'Status']];
@@ -1765,8 +1826,12 @@
       out.Attendance = [['Date', 'Team Member', 'Mark']];
       const MARK = { P: 'Present', H: 'Half day', A: 'Absent', L: 'Leave', O: 'Week off' };
       Object.keys(S.attendance || {}).sort().reverse().slice(0, 400).forEach((d) => Object.entries(S.attendance[d]).forEach(([id, m]) => out.Attendance.push([d, memberName(id), MARK[m] || m])));
-      out['Founder Notes'] = [['Date', 'Type', 'Title', 'Note', 'Due', 'Pinned', 'Status', 'By']];
-      listFix('notes').forEach((n) => out['Founder Notes'].push([new Date(n.at).toISOString().slice(0, 10), n.tag || '', n.title || '', n.text || '', n.due || '', n.pinned ? 'Yes' : '', n.done ? 'Done' : 'Open', n.by || '']));
+      out.Founders = [['Founder', 'Title', 'Mobile', 'Profit Share %', 'Monthly Limit', 'Spent (all time)', 'Spent this month', 'Invested', 'Withdrawn', 'Net Capital', 'Status']];
+      founderStats(null).forEach((f) => out.Founders.push([f.name, f.title, f.mobile, f.share, f.budget, f.spentAll, f.monthSpent, f.invested, f.withdrawn, f.net, f.removed ? 'Removed' : 'Active']));
+      out.Founders.push([]); out.Founders.push(['Capital entries', 'Date', 'Type', 'Amount', 'Note']);
+      listFix('capital').forEach((c) => out.Founders.push([(founder(c.founderId) || {}).name || '', c.date, c.type === 'invest' ? 'Invested' : 'Withdrawn', c.amount, c.note]));
+      out['Founder Notes'] = [['Date', 'Time', 'Mode', 'Type', 'Title', 'Details', 'With', 'Minutes', 'Outcome / Decision', 'Next Step', 'Due', 'Pinned', 'Status', 'By']];
+      listFix('notes').forEach((n) => out['Founder Notes'].push([n.date || new Date(n.at).toISOString().slice(0, 10), n.time || '', n.mode || '', n.tag || '', n.title || '', n.text || '', (n.with || []).join(', '), n.mins || '', n.outcome || '', n.nextStep || '', n.due || '', n.pinned ? 'Yes' : '', n.done ? 'Done' : 'Open', n.by || '']));
       out['Activity Log'] = [['Date & Time', 'By', 'Action', 'Details']];
       S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.by, x.action, x.detail]));
       return out;
@@ -1857,7 +1922,7 @@
       account, saveAccount, setAccountPin, deleteAccount, setActor,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
       updatePatient, deletePatient, daySummary,
-      invoiceFor, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
+      invoiceFor, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, founders, founder, saveFounder, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, leadDay, kindName, kinds, saveKind, deleteKind, moveKind, clinic, saveClinic, deleteClinic, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,
