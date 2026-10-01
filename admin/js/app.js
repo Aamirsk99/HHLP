@@ -8,12 +8,12 @@
   const X = window.EXPORT;
   const APP_VERSION = '3.0';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
-  const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
+  const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
-  const SYNC_KEY = 'hindivine.admin.lastSync';
-  const BASE_KEY = 'hindivine.admin.sheetVersion'; // version of the Google Sheet data this device last had
-  const DIRTY_KEY = 'hindivine.admin.savedHash'; // fingerprint of the data last saved to / loaded from the sheet
-  const SHEET_LINK = 'https://docs.google.com/spreadsheets/d/1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y/edit';
+  const SYNC_KEY = 'primefit.admin.lastSync';
+  const BASE_KEY = 'primefit.admin.sheetVersion'; // version of the Google Sheet data this device last had
+  const DIRTY_KEY = 'primefit.admin.savedHash'; // fingerprint of the data last saved to / loaded from the sheet
+  const SHEET_LINK = ''; // link to the Google Sheet made from ThePrimeFit_Sheets.xlsx (optional)
   const IDLE_LOCK_MS = 15 * 60 * 1000;
 
   let storage;
@@ -1429,7 +1429,7 @@
       <label class="check"><input type="checkbox" name="stockAlerts" ${st.stockAlerts !== false ? 'checked' : ''}> Low-stock alerts on (each item can also be switched off in Inventory)</label>
       <label class="check"><input type="checkbox" name="kitOn" ${st.kitOn !== false ? 'checked' : ''}> Take the injection kit out of stock with every injection sold <button type="button" class="link" data-act="kit">Edit kit</button></label>
       <h2 style="margin-top:6px"><span class="ic teal">${svg('<path d="M4 4h16v16H4zM4 10h16M10 4v16"/>')}</span>Google Sheet (data storage)</h2>
-      <p class="hint" style="margin:0">All data is stored in <a href="${SHEET_LINK}" target="_blank" rel="noopener">The Prime Fit Google Sheet</a> and refreshes automatically on every device. Set-up once: open the sheet → Extensions → Apps Script → paste <a href="google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a> → run <b>setup</b> → Deploy → Web app (Execute as: Me, Who has access: Anyone) → paste the URL and the secret here.</p>
+      <p class="hint" style="margin:0">All data is stored in ${SHEET_LINK ? `<a href="${SHEET_LINK}" target="_blank" rel="noopener">The Prime Fit Google Sheet</a>` : 'The Prime Fit Google Sheet'} and refreshes automatically on every device. Set-up once: open the sheet → Extensions → Apps Script → paste <a href="google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a> → run <b>setup</b> → Deploy → Web app (Execute as: Me, Who has access: Anyone) → paste the URL and the secret here.</p>
       <div class="grid two">
         <label class="f">Web app URL<input name="sheetsUrl" value="${esc(st.sheetsUrl)}" placeholder="https://script.google.com/macros/s/…/exec"></label>
         <label class="f">Secret<input type="password" name="sheetsSecret" value="${esc(st.sheetsSecret)}"><span class="hint">Shown in the Apps Script log after running setup.</span></label>
@@ -2040,7 +2040,7 @@
     }
     const list = loginAccounts();
     if (!lockId || !list.some((a) => a.id === lockId)) {
-      let last = null; try { last = localStorage.getItem('hindivine.admin.lastLogin'); } catch (_) { last = null; }
+      let last = null; try { last = localStorage.getItem('primefit.admin.lastLogin'); } catch (_) { last = null; }
       lockId = (list.find((a) => a.id === last) || list[0] || {}).id;
     }
     const acc = admin.account(lockId) || {};
@@ -2085,7 +2085,7 @@
     if (!acc || acc.disabled) { showLock(); return; }
     me = acc; role = acc.role;
     admin.setActor(acc.name);
-    try { sessionStorage.setItem(ROLE_KEY, id); localStorage.setItem('hindivine.admin.lastLogin', id); } catch (_) { /* ignore */ }
+    try { sessionStorage.setItem(ROLE_KEY, id); localStorage.setItem('primefit.admin.lastLogin', id); } catch (_) { /* ignore */ }
     $('#lock').hidden = true; $('#shell').hidden = false;
     screen = home();
     changedScreen = true;

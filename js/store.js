@@ -4,8 +4,8 @@
  * back to make next week's chart. No DOM access: works in the browser and in Node.
  */
 (function (root) {
-  const KEYS = { patients: 'hindivine.patients.v1', charts: 'hindivine.charts.v1' };
-  const MARK = 'HDV5';
+  const KEYS = { patients: 'primefit.patients.v1', charts: 'primefit.charts.v1' };
+  const MARK = 'TPF1';
 
   function createStore(storage, P, DB) {
     const byName = {};

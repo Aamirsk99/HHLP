@@ -63,7 +63,7 @@ echo "• Compiling resources"
 echo "• Compiling Java"
 find "$AND/src" "$BUILD/gen" -name '*.java' > "$BUILD/sources.txt"
 javac -nowarn --release 8 -encoding UTF-8 -classpath "$TOOLS/android-all.jar" -d "$BUILD/classes" @"$BUILD/sources.txt" 2>&1 | grep -v "bootstrap classpath\|^1 warning\|^warning: \[options\]\|source value 8\|target value 8\|To suppress warnings" || true
-[ -f "$BUILD/classes/com/hindivine/diet/MainActivity.class" ] || { echo "javac failed" >&2; exit 1; }
+[ -f "$BUILD/classes/com/theprimefit/app/MainActivity.class" ] || { echo "javac failed" >&2; exit 1; }
 
 echo "• Converting to dex"
 java -cp "$TOOLS/dx.jar" com.android.dx.command.Main --dex --min-sdk-version="$MIN_SDK" --output="$BUILD/dex/classes.dex" "$BUILD/classes"

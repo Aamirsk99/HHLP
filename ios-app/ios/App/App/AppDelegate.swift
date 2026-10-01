@@ -55,13 +55,13 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
         let controller = webView?.configuration.userContentController
-        controller?.add(self, name: "hindivinePrint")
-        controller?.add(self, name: "hindivineSave")
+        controller?.add(self, name: "primefitPrint")
+        controller?.add(self, name: "primefitSave")
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         switch message.name {
-        case "hindivinePrint":
+        case "primefitPrint":
             guard let webView = webView else { return }
             let info = UIPrintInfo(dictionary: nil)
             info.jobName = (message.body as? String) ?? "ThePrimeFit-Diet-Chart"
@@ -70,7 +70,7 @@ class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
             printer.printInfo = info
             printer.printFormatter = webView.viewPrintFormatter()
             printer.present(animated: true, completionHandler: nil)
-        case "hindivineSave":
+        case "primefitSave":
             guard let body = message.body as? [String: Any],
                   let name = body["name"] as? String,
                   let content = body["content"] as? String else { return }

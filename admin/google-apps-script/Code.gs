@@ -7,22 +7,24 @@
  *   - the 15 readable sheets (Dashboard, Appointments, Leads, Patients, … Renewals, Activity Log), rebuilt from that data.
  *
  * Set-up (once):
- * 1. Open The Prime Fit Google Sheet → Extensions → Apps Script, paste this file, Save.
+ * 1. Upload ThePrimeFit_Sheets.xlsx to Google Drive and open it as a Google Sheet (File → Save as Google Sheets),
+ *    then Extensions → Apps Script, paste this file, Save.
  * 2. Run `setup` once and allow access. It creates the sheets and logs a secret (View → Logs).
  * 3. Deploy → New deployment → Web app: Execute as "Me", Who has access "Anyone".
  * 4. In the admin app: Settings → Google Sheet → paste the web app URL and the secret → Save.
  *
  * Edit data in the app, not in the sheets: each save rewrites the 15 sheets.
  */
-const SHEET_ID = '1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y';
+// Leave empty when this script is opened from the sheet (Extensions → Apps Script); or paste a sheet ID.
+const SHEET_ID = '';
 const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
   'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Activity Log'];
 const DATA_SHEET = '_AppData';
 const CHUNK = 40000; // a cell holds up to 50,000 characters
-const NAVY = '#0a2f55';
+const NAVY = '#015b53'; // The Prime Fit teal (sheet headers)
 
 function book() {
-  return SpreadsheetApp.openById(SHEET_ID);
+  return SHEET_ID ? SpreadsheetApp.openById(SHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
 }
 
 function setup() {
@@ -98,7 +100,7 @@ function writeSheets(ss, sheets) {
 /** GET ?action=load&secret=… → the app data; GET without action → health check. */
 function doGet(e) {
   const p = (e && e.parameter) || {};
-  if (p.action !== 'load') return json({ ok: true, app: 'hindivine-admin-sheets', sheets: SHEETS });
+  if (p.action !== 'load') return json({ ok: true, app: 'primefit-admin-sheets', sheets: SHEETS });
   if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
   const d = readData(book());
   return json({ ok: true, updated: d.updated, by: d.by, state: d.state });

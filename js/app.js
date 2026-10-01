@@ -7,9 +7,9 @@
   const ING = window.INGREDIENTS;
   const IC = window.ICONS;
   const BRAND = { company: 'The Prime Fit', website: 'www.theprimefit.com', logo: 'img/logo.jpg' };
-  const CURRENT_KEY = 'hindivine.chart.v5';
-  const LEGACY_KEY = 'hindivine.chart.v3';
-  const DIETITIAN_KEY = 'hindivine.dietitian';
+  const CURRENT_KEY = 'primefit.chart.v5';
+  const LEGACY_KEY = 'primefit.chart.v3';
+  const DIETITIAN_KEY = 'primefit.dietitian';
   const DIETITIAN_FIELDS = ['dietitian', 'qualification', 'dietitianPhone'];
   const ALLERGIES = { gluten: 'Gluten', dairy: 'Dairy / lactose', nuts: 'Nuts & peanuts', soy: 'Soy', egg: 'Egg', fish: 'Fish / seafood' };
   const KCAL_PRESETS = [1000, 1200, 1400, 1500, 1600, 1800, 2000, 2200, 2500];
@@ -1445,7 +1445,7 @@
 
   function doPrint(title) {
     if (window.AndroidBridge) return window.AndroidBridge.print(title);
-    if (iosHandler('hindivinePrint')) return iosHandler('hindivinePrint').postMessage(title);
+    if (iosHandler('primefitPrint')) return iosHandler('primefitPrint').postMessage(title);
     const prev = document.title;
     document.title = title; // default PDF file name
     window.addEventListener('afterprint', () => { document.title = prev; }, { once: true });
@@ -1468,7 +1468,7 @@
   }
 
   function saveFile(fileName, mime, content) {
-    if (iosHandler('hindivineSave')) return iosHandler('hindivineSave').postMessage({ name: fileName, content });
+    if (iosHandler('primefitSave')) return iosHandler('primefitSave').postMessage({ name: fileName, content });
     if (window.AndroidBridge) return window.AndroidBridge.saveFile(fileName, mime, content);
     const blob = new Blob([content], { type: mime + ';charset=utf-8' });
     const a = document.createElement('a');

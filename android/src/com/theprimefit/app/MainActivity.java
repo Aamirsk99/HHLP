@@ -1,4 +1,4 @@
-package com.hindivine.diet;
+package com.theprimefit.app;
 
 import android.app.Activity;
 import android.content.Context;

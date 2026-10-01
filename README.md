@@ -7,6 +7,10 @@ One app with two parts:
 - **Diet charts** (the home screen): patients, diet charts, recipes and food library.
 - **Clinic admin** (menu → *Clinic admin*, or the dashboard tile): OPD appointments, leads (CRM), sales, patients, renewals, products and inventory, purchases, team, incentives, salary, expenses, reports (PDF/Excel), activity log, logins with PINs and roles, and Google Sheet sync (`admin/google-apps-script/Code.gs`). *Diet charts* in the admin menu goes back.
 
+The Prime Fit is a **new app** (Android `com.theprimefit.app`, iOS `com.theprimefit.app`). It installs next to the old Hindivine apps and starts with empty data of its own.
+
+**Admin data sheet:** [`admin/ThePrimeFit_Sheets.xlsx`](admin/ThePrimeFit_Sheets.xlsx) is the Google Sheet template (Start Here + the 15 data sheets), and [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) is its script. Upload the xlsx to Google Drive, save it as a Google Sheet, paste Code.gs under Extensions → Apps Script, run `setup`, deploy as a web app, then enter the URL and secret in Clinic admin → Settings → Google Sheet.
+
 The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
 ## Features
@@ -39,7 +43,7 @@ The diet part builds personalised **1–7 day Indian and worldwide diet charts**
   - Any chart can be opened, edited, reprinted or deleted.
 - **Next week:** one tap makes next week's chart with the same patient and settings but **fully changed foods**. About 95–100% of the main foods change.
 - **Upload previous PDF:** choose last week's PDF to read it back.
-  - **Charts made with The Prime Fit** (or the earlier Hindivine Diet) carry hidden chart data, so they are read exactly (patient, targets, every meal). You can then edit the chart or generate next week.
+  - **Charts made with The Prime Fit** carry hidden chart data, so they are read exactly (patient, targets, every meal). You can then edit the chart or generate next week.
   - **Other PDFs:** the foods in them are found by name, in any of the 10 languages, and avoided in the new chart.
 - **A4 PDF:**
   - **Pages:** 1 page for short charts (1–3 days, when they fit), otherwise 2 pages. Text scales automatically to fit.
@@ -71,7 +75,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 ## Rebuilding the Android app
 
 ```sh
-VERSION_CODE=6 VERSION_NAME=6.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
+VERSION_CODE=1 VERSION_NAME=1.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.

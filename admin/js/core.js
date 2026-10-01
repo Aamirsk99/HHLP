@@ -5,7 +5,7 @@
  * No DOM access: works in the browser and in Node (tests).
  */
 (function (root) {
-  const KEY = 'hindivine.admin.v1';
+  const KEY = 'primefit.admin.v1';
   // Settings that stay on each device and never go to the shared Google Sheet.
   const LOCAL_SETTINGS = ['sheetsUrl', 'sheetsSecret', 'autoSync', 'lastSync'];
 
@@ -206,8 +206,6 @@
       }
       if (s.settings.pinHash && !s.accounts.find((a) => a.id === 'super').hash) Object.assign(s.accounts.find((a) => a.id === 'super'), { hash: s.settings.pinHash, salt: s.settings.pinSalt });
       ['pinHash', 'pinSalt', 'apiKey', 'aiModel', 'autoSaveScan'].forEach((k) => { delete s.settings[k]; });
-      // Rebrand: the old default clinic name becomes The Prime Fit (a custom name is kept).
-      if (!s.settings.clinic || s.settings.clinic === 'Hindivine Healthcare') s.settings.clinic = 'The Prime Fit';
       if (s.settings.renewalDays[0] === 60 && s.settings.renewalDays[1] === 90) s.settings.renewalDays = [75, 90];
       return s;
     }
@@ -1066,10 +1064,10 @@
       save();
       return p;
     }
-    const exportBackup = () => JSON.stringify({ app: 'hindivine-admin', exported: new Date().toISOString(), data: exportState() });
+    const exportBackup = () => JSON.stringify({ app: 'primefit-admin', exported: new Date().toISOString(), data: exportState() });
     function importBackup(text) {
       const obj = JSON.parse(text);
-      if (!obj || obj.app !== 'hindivine-admin' || !obj.data) fail('This is not a Prime Fit Admin backup');
+      if (!obj || obj.app !== 'primefit-admin' || !obj.data) fail('This is not a Prime Fit Admin backup');
       const keep = {};
       LOCAL_SETTINGS.forEach((k) => { keep[k] = S.settings[k]; });
       const accounts = S.accounts;
