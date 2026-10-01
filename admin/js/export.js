@@ -277,6 +277,7 @@
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
     doc.text(pdfText(d.clinic || 'The Prime Fit'), W - M, 16, { align: 'right' });
     doc.text(pdfText([d.phone, d.website].filter(Boolean).join('  |  ')), W - M, 20.5, { align: 'right' });
+    if (d.address) { doc.setFontSize(6.5); doc.text(doc.splitTextToSize(pdfText(d.address), 80)[0], W - M, 24.3, { align: 'right' }); }
     // Token / date strip
     let y = 33;
     doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 13, 2, 2, 'F');

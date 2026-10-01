@@ -4,7 +4,7 @@
  * Every save from the app writes:
  *   - the complete app data (JSON) into the hidden sheet "_AppData", which the app loads back
  *     on every device, so all admins share one set of data;
- *   - the 19 readable sheets (Dashboard, Appointments, Leads, Patients, … Renewals, Activity Log), rebuilt from that data.
+ *   - the 20 readable sheets (Dashboard, Appointments, Leads, Patients, … Renewals, Activity Log), rebuilt from that data.
  *
  * Set-up (once):
  * 1. Upload ThePrimeFit_Sheets.xlsx to Google Drive and open it as a Google Sheet (File → Save as Google Sheets),
@@ -13,9 +13,13 @@
  * 3. Deploy → New deployment → Web app: Execute as "Me", Who has access "Anyone".
  * 4. In the admin app: Settings → Google Sheet → paste the web app URL and the secret → Save.
  *
- * Edit data in the app, not in the sheets: each save rewrites the 19 sheets.
+ * Edit data in the app, not in the sheets: each save rewrites the 20 sheets.
  *
- * Social media counts (Content & Posts → "Fetch now" in the app), optional:
+ * Social media counts (Content & Posts → "Fetch now" in the app):
+ *   After pasting this file, run `testSocial` once (it asks to allow internet access), then
+ *   Deploy → Manage deployments → Edit → Version: New version → Deploy. The URL stays the same.
+ *   Without any keys the script reads the public YouTube channel page (total videos, subscribers) and
+ *   the public Instagram profile (posts, reels, followers). For exact counts add, under
  *   Project Settings → Script properties:
  *   - YT_API_KEY: a YouTube Data API v3 key (Google Cloud console → APIs & Services → Credentials).
  *     YT_HANDLE defaults to ThePrimeFit. Gives videos, Shorts, long videos, subscribers and views.
@@ -25,7 +29,7 @@
  */
 // Leave empty when this script is opened from the sheet (Extensions → Apps Script); or paste a sheet ID.
 const SHEET_ID = '';
-const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
+const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Other Sales', 'Diet Support', 'Purchases',
   'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Activity Log'];
 const DATA_SHEET = '_AppData';
 const CHUNK = 40000; // a cell holds up to 50,000 characters
@@ -108,7 +112,7 @@ function writeSheets(ss, sheets) {
 /** GET ?action=load&secret=… → the app data; GET without action → health check. */
 function doGet(e) {
   const p = (e && e.parameter) || {};
-  if (p.action !== 'load' && p.action !== 'social') return json({ ok: true, app: 'primefit-admin-sheets', sheets: SHEETS });
+  if (p.action !== 'load' && p.action !== 'social') return json({ ok: true, app: 'primefit-admin-sheets', version: 6, sheets: SHEETS });
   if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
   if (p.action === 'social') return json(socialStats());
   const d = readData(book());
@@ -148,6 +152,10 @@ function json(o) {
 }
 
 // ── Social media counts ─────────────────────────────────────────
+/** Run this once from the Apps Script editor (Run → testSocial) to allow internet access, then Deploy → Manage deployments → Edit → New version. */
+function testSocial() {
+  Logger.log(JSON.stringify(socialStats(), null, 2));
+}
 function socialStats() {
   const props = PropertiesService.getScriptProperties();
   const out = { ok: true, youtube: {}, instagram: {}, fetchedAt: Date.now() };
@@ -165,7 +173,7 @@ function getJson(url, headers) {
 function youtubeStats(props) {
   const key = props.getProperty('YT_API_KEY');
   const handle = (props.getProperty('YT_HANDLE') || 'ThePrimeFit').replace(/^@/, '');
-  if (!key) return { error: 'Add YT_API_KEY in Script properties to fetch YouTube counts' };
+  if (!key) return youtubePublic(handle);
   const base = 'https://www.googleapis.com/youtube/v3/';
   const ch = getJson(base + 'channels?part=statistics&forHandle=@' + encodeURIComponent(handle) + '&key=' + key);
   const c = (ch.items || [])[0];
@@ -178,6 +186,26 @@ function youtubeStats(props) {
     videos: Number(c.statistics.videoCount) || 0, shorts: count('UUSH'), long: count('UULF'),
     subscribers: Number(c.statistics.subscriberCount) || 0, views: Number(c.statistics.viewCount) || 0, handle: handle,
   };
+}
+
+// No API key: read the counts shown on the public channel page.
+function youtubePublic(handle) {
+  const res = UrlFetchApp.fetch('https://www.youtube.com/@' + encodeURIComponent(handle) + '/videos?hl=en&gl=IN',
+    { muteHttpExceptions: true, followRedirects: true, headers: { 'Accept-Language': 'en-US,en;q=0.9', 'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124 Safari/537.36' } });
+  if (res.getResponseCode() !== 200) return { error: 'YouTube page not reachable (' + res.getResponseCode() + '); add YT_API_KEY in Script properties', handle: handle };
+  const html = res.getContentText();
+  const pick = (re) => { const m = html.match(re); return m ? parseCount(m[1]) : null; };
+  const videos = pick(/"videosCountText":\{"runs":\[\{"text":"([\d.,]+[KMB]?)"/) || pick(/"content":"([\d.,]+[KMB]?) videos"/) || pick(/([\d.,]+[KMB]?) videos"/);
+  const subscribers = pick(/"subscriberCountText":\{[^}]*?"simpleText":"([\d.,]+[KMB]?) subscribers"/) || pick(/"content":"([\d.,]+[KMB]?) subscribers"/) || pick(/([\d.,]+[KMB]?) subscribers"/);
+  if (videos == null && subscribers == null) return { error: 'YouTube changed its page; add YT_API_KEY in Script properties for exact counts', handle: handle };
+  return { videos: videos, shorts: null, long: null, subscribers: subscribers, handle: handle, source: 'public page (add YT_API_KEY for Shorts / long videos)' };
+}
+
+// "1.2K" → 1200, "3,456" → 3456
+function parseCount(t) {
+  const m = String(t).replace(/,/g, '').match(/^([\d.]+)([KMB]?)$/i);
+  if (!m) return null;
+  return Math.round(Number(m[1]) * ({ '': 1, K: 1e3, M: 1e6, B: 1e9 })[m[2].toUpperCase()]);
 }
 
 function instagramStats(props) {

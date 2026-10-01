@@ -13,6 +13,10 @@
   <link rel="icon" type="image/png" href="../img/icon-192.png">
   <link rel="apple-touch-icon" href="../img/icon-192.png">
   <link rel="stylesheet" href="css/admin.css">
+  <script>
+    // Theme and light/dark mode, shared with the diet charts (Settings → Theme).
+    try { const d = document.documentElement; d.dataset.theme = localStorage.getItem('primefit.theme') || 'teal'; d.dataset.mode = localStorage.getItem('primefit.mode') || 'auto'; } catch (_) { /* default theme */ }
+  </script>
 </head>
 <body>
   <!-- Sign-in: each person has a user ID and password -->
@@ -30,6 +34,8 @@
         <img src="../img/icon-192.png" alt="" width="42" height="42">
         <div><b>The Prime Fit</b><small id="side-sub"></small></div>
       </div>
+      <div class="side-quick" id="side-quick"></div>
+      <label class="side-search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg><input type="search" id="nav-q" placeholder="Search menu" aria-label="Search menu" autocomplete="off"></label>
       <nav id="nav"></nav>
       <a class="side-lock side-diet" href="../index.html">
         <svg viewBox="0 0 24 24"><path d="M7 3v8a3 3 0 0 0 6 0V3M10 3v18M17 3c-2 2-2 6 0 8v10"/></svg>Diet charts</a>

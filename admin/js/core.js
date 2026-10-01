@@ -9,11 +9,23 @@
   // Settings that stay on each device and never go to the shared Google Sheet.
   const LOCAL_SETTINGS = ['sheetsUrl', 'sheetsSecret', 'autoSync', 'lastSync'];
 
-  const KINDS = { service: 'Service / Package', injection: 'Injection', protein: 'Protein', other: 'Other' };
-  const SALE_TYPES = { service: 'Service', injection: 'Injection', protein: 'Protein', diet: 'Diet Support' };
+  // Inventory / product types. Service and Other are built in; the clinic adds its own (Injection, Protein, …)
+  // in Products. KINDS and SALE_TYPES are refreshed from settings.kinds whenever data loads or a type changes.
+  const BASE_KINDS = [{ id: 'service', name: 'Service / Package', sell: true }, { id: 'other', name: 'Other inventory', sell: false }];
+  const KINDS = { service: 'Service / Package', other: 'Other inventory' };
+  const SALE_TYPES = { service: 'Service', diet: 'Diet Support' };
+  function syncKinds(s) {
+    Object.keys(KINDS).forEach((k) => { delete KINDS[k]; });
+    Object.keys(SALE_TYPES).forEach((k) => { delete SALE_TYPES[k]; });
+    (s.settings.kinds || BASE_KINDS).filter((k) => !k.removed).forEach((k) => {
+      KINDS[k.id] = k.name;
+      if (k.sell) SALE_TYPES[k.id] = k.id === 'service' ? 'Service' : k.name;
+    });
+    SALE_TYPES.diet = 'Diet Support';
+  }
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
-    'Founder', 'Ads', 'Editing', 'Protein Purchase', 'Injection Purchase', 'Miscellaneous'];
-  const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
+    'Founder', 'Ads', 'Editing', 'Product Purchase', 'Miscellaneous'];
+  const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Other Sales', 'Diet Support', 'Purchases',
     'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Activity Log'];
 
   // Login roles. Every person can have their own login (name + PIN), shared through the Google Sheet.
@@ -21,7 +33,7 @@
   // Choice lists that the admins can extend ("+ Add new") from any form.
   const DEFAULT_LISTS = {
     expenseCategories: EXPENSE_CATEGORIES,
-    services: ['Weight loss consultation', 'Mounjaro injection', 'Wegovy injection', 'Ozempic injection', 'Diet plan', 'Follow-up visit', 'Body composition analysis'],
+    services: ['Weight loss consultation', 'GLP-1 consultation', 'Diet plan', 'Follow-up visit', 'Body composition analysis'],
     leadSources: ['Instagram', 'Facebook', 'Google', 'Website', 'WhatsApp', 'Walk-in', 'Referral', 'Phone call', 'Other'],
     leadStatuses: ['New', 'Contacted', 'Interested', 'Follow-up', 'Appointment booked', 'Converted', 'Not interested', 'Lost'],
     payMethods: ['Cash', 'UPI', 'Card', 'Bank transfer'],
@@ -32,7 +44,7 @@
     specialities: ['Physician', 'Endocrinologist', 'Dietitian', 'Bariatric surgeon'],
   };
   // Built-in expense categories the app books by itself; they can't be removed.
-  const LOCKED_LIST_ITEMS = { expenseCategories: ['Salary', 'Incentive', 'Protein Purchase', 'Injection Purchase', 'Miscellaneous'], leadStatuses: ['New', 'Converted'] };
+  const LOCKED_LIST_ITEMS = { expenseCategories: ['Salary', 'Incentive', 'Miscellaneous'], leadStatuses: ['New', 'Converted'] };
   const LEAD_PRIORITIES = { hot: 'Hot', warm: 'Warm', cold: 'Cold' };
   // What each role can open. Super Admin always has everything; the others are editable in Settings.
   const DEFAULT_PERMS = {
@@ -61,38 +73,34 @@
   ];
   const OTHER_CATEGORIES = ['Needles', 'Alcohol Swabs', 'Insulin Syringes', 'Ice Gel Packs', 'Travel Bags'];
 
+  // A new clinic starts with the GLP-1 packages only; injections, protein, supplies and diet plans are added by the clinic.
   function defaultState() {
     const items = [];
     let n = 0;
     const add = (o) => items.push({
       id: 'i' + (++n), price: 0, incentive: null, opening: 0, lowAt: 5, unit: 'pcs', disabled: false, ...o,
     });
-    INJECTIONS.forEach(([brand, doses]) => doses.forEach((dose) => add({
-      kind: 'injection', category: 'Injection', brand, name: `${brand} ${dose}`, unit: 'pen', lowAt: 2,
-    })));
-    add({ kind: 'protein', category: 'Protein', brand: '', name: 'Protein Sachets', unit: 'sachet', lowAt: 20 });
     PACKAGES.forEach((pk) => add(packageItem(pk)));
-    OTHER_CATEGORIES.forEach((c) => add({ kind: 'other', category: c, brand: '', name: c, lowAt: 20 }));
     applyItemDefaults(items);
     return {
       version: 1,
       settings: {
         clinic: 'The Prime Fit',
-        incentive: { injection: 1000, protein: 500, service: 0 },
-        groups: { service: true, injection: true, protein: true, diet: true }, // what can be sold (switch off what the clinic does not offer)
+        incentive: { service: 0 },
+        groups: { service: true, diet: true }, // what can be sold (switch off what the clinic does not offer)
+        kinds: JSON.parse(JSON.stringify(BASE_KINDS)), // inventory / product types
+        clinics: [{ id: 'c1', name: 'The Prime Fit Clinic', address: '', phone: '' }], // OPD locations (offline visits)
+        dashShow: {}, // dashboard boxes switched off: { 'Box name': false }
         phone: '+91 92051 36303', instagram: 'https://www.instagram.com/theprimefit_', youtube: 'https://www.youtube.com/@ThePrimeFit', website: 'www.theprimefit.in',
         dashHide: [], // dashboard cards switched off
-        dietPlans: [
-          { id: 'd1', name: '1 Month', months: 1, price: 0, incentive: 1000, disabled: false },
-          { id: 'd3', name: '3 Month', months: 3, price: 0, incentive: 2000, disabled: false },
-        ],
+        dietPlans: [],
         renewalDays: [75, 90], // renewal alert at 75 days, overdue at 90
         consultFee: 1000, // OPD consultation fee (₹)
         activeDays: 90,
         purchaseExpense: true, // purchases also book an expense
         stockAlerts: true, // low-stock alerts (each item can also be switched off)
         kitOn: true, // every injection sold also takes its kit out of stock
-        kit: kitDefaults(items), // [{ itemId, qty }] per injection pen
+        kit: [], // [{ itemId, qty }] per injection pen
         lists: JSON.parse(JSON.stringify(DEFAULT_LISTS)),
         perms: JSON.parse(JSON.stringify(DEFAULT_PERMS)),
         sheetsUrl: '', sheetsSecret: '', autoSync: false, lastSync: 0,
@@ -100,11 +108,10 @@
         defaultGst: 12, // GST % filled on new purchase lines
         expenseOff: { categories: [], names: [] }, // expenses not counted in totals and profit
       },
-      categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }, { name: 'Injection', kind: 'injection' }, { name: 'Protein', kind: 'protein' },
-        ...OTHER_CATEGORIES.map((name) => ({ name, kind: 'other' }))],
+      categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
       leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, social: { youtube: {}, instagram: {}, fetchedAt: 0 },
-      seeded: { packages: true },
+      seeded: { packages: true, cleared: true },
       accounts: [
         { id: 'super', name: 'Super Admin', username: 'superadmin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
         { id: 'admin', name: 'Admin', username: 'admin', role: 'admin', hash: '', salt: '', len: 0, pin: '' },
@@ -219,9 +226,10 @@
       let s = null;
       try { s = JSON.parse(storage.getItem(KEY) || 'null'); } catch (_) { s = null; }
       const d = defaultState();
-      if (!s || typeof s !== 'object') return d;
+      if (!s || typeof s !== 'object') { syncKinds(d); return d; }
       Object.keys(d).forEach((k) => { if (s[k] == null) s[k] = d[k]; });
       const hadKit = s.settings && s.settings.kit;
+      const hadKinds = s.settings && Array.isArray(s.settings.kinds);
       s.settings = { ...d.settings, ...s.settings, incentive: { ...d.settings.incentive, ...(s.settings || {}).incentive } };
       s.settings.lists = { ...JSON.parse(JSON.stringify(DEFAULT_LISTS)), ...(s.settings.lists || {}) };
       s.settings.perms = { ...JSON.parse(JSON.stringify(DEFAULT_PERMS)), ...(s.settings.perms || {}) };
@@ -252,7 +260,27 @@
         s.seeded = { ...(s.seeded || {}), packages: true };
       }
       if (s.settings.renewalDays[0] === 60 && s.settings.renewalDays[1] === 90) s.settings.renewalDays = [75, 90];
+      // Version 1.4: the starter injections, protein, supplies and diet plans are removed when nothing uses them.
+      if (!s.seeded.cleared) { clearStarterData(s); s.seeded.cleared = true; }
+      if (!hadKinds) {
+        s.settings.kinds = JSON.parse(JSON.stringify(BASE_KINDS));
+        [['injection', 'Injection'], ['protein', 'Protein']].forEach(([id, name]) => {
+          if (s.items.some((i) => i.kind === id && !i.deleted) || s.sales.some((x) => x.type === id)) s.settings.kinds.splice(1, 0, { id, name, sell: true });
+        });
+      }
+      if (!Array.isArray(s.settings.clinics) || !s.settings.clinics.length) s.settings.clinics = JSON.parse(JSON.stringify(d.settings.clinics));
+      s.settings.dashShow = s.settings.dashShow || {};
+      syncKinds(s);
       return s;
+    }
+    function clearStarterData(s) {
+      const used = new Set([...s.sales.map((x) => x.itemId), ...s.purchases.flatMap((p) => p.lines.map((l) => l.itemId)), ...s.moves.map((m) => m.itemId)]);
+      const starter = new Set([...INJECTIONS.flatMap(([b, ds]) => ds.map((x) => `${b} ${x}`)), 'Protein Sachets', ...OTHER_CATEGORIES]);
+      s.items = s.items.filter((i) => !(starter.has(i.name) && !used.has(i.id) && !(Number(i.opening) > 0)));
+      const usedPlans = new Set(s.sales.filter((x) => x.type === 'diet').map((x) => x.planId));
+      s.settings.dietPlans = (s.settings.dietPlans || []).filter((p) => !(['d1', 'd3'].includes(p.id) && !p.price && !usedPlans.has(p.id)));
+      s.categories = s.categories.filter((c) => !(['Injection', 'Protein', ...OTHER_CATEGORIES].includes(c.name) && !s.items.some((i) => i.category === c.name)));
+      s.settings.kit = (s.settings.kit || []).filter((k) => s.items.some((i) => i.id === k.itemId));
     }
     function save(source) {
       try { storage.setItem(KEY, JSON.stringify(S)); } catch (_) { throw new Error('Storage is full: export a backup and remove old data.'); }
@@ -310,7 +338,76 @@
       const own = m && (type === 'injection' ? m.incInjection : type === 'protein' ? m.incProtein : type === 'service' ? m.incService : null);
       if (own != null) return own;
       if (it && it.incentive != null) return it.incentive;
-      return S.settings.incentive[type] || 0;
+      return (S.settings.incentive || {})[type] || 0;
+    }
+
+    // Inventory / product types
+    const kindName = (id) => (id === 'diet' ? 'Diet Support' : ((S.settings.kinds || []).find((k) => k.id === id) || {}).name || KINDS[id] || id || '');
+    const kinds = () => (S.settings.kinds || []).filter((k) => !k.removed);
+    function saveKind(input) {
+      const name = String(input.name || '').trim();
+      if (!name) fail('Enter the type name');
+      const list = S.settings.kinds;
+      let k = input.id && list.find((x) => x.id === input.id);
+      if (list.some((x) => !x.removed && x !== k && low(x.name) === low(name))) fail(`“${name}” already exists`);
+      if (!k) {
+        // Injection and protein types keep their special rules (per-pen incentive, kit, renewals, own sheets).
+        const known = /inject/i.test(name) ? 'injection' : /protein/i.test(name) ? 'protein' : '';
+        const old = known && list.find((x) => x.id === known);
+        if (old && old.removed) { k = old; delete k.removed; } else {
+          k = { id: known && !old ? known : uid('k'), name, sell: true };
+          list.splice(list.length - 1, 0, k);
+        }
+      }
+      k.name = name;
+      if ('sell' in input && k.id !== 'other') k.sell = !!input.sell;
+      if (k.id === 'other') k.sell = false;
+      if (S.settings.incentive[k.id] == null && k.sell) S.settings.incentive[k.id] = Number(input.incentive) || 0;
+      if (!S.categories.some((c) => c.kind === k.id) && k.id !== 'other') S.categories.push({ name, kind: k.id });
+      syncKinds(S);
+      log('Product type saved', name);
+      save();
+      return k;
+    }
+    function deleteKind(id) {
+      if (id === 'service') fail('Services stay; switch them off in Settings if you do not sell them');
+      const k = (S.settings.kinds || []).find((x) => x.id === id);
+      if (!k) return;
+      const n = liveItems().filter((i) => i.kind === id).length;
+      if (n) fail(`Delete or move its ${n} product${n > 1 ? 's' : ''} first`);
+      // Kept (hidden) so old sales still show their type name.
+      if (S.sales.some((x) => x.type === id)) k.removed = true; else S.settings.kinds = S.settings.kinds.filter((x) => x.id !== id);
+      S.categories = S.categories.filter((c) => c.kind !== id || S.items.some((i) => i.category === c.name && !i.deleted));
+      syncKinds(S);
+      log('Product type deleted', k.name);
+      save();
+    }
+    function moveKind(id, dir) {
+      const list = S.settings.kinds; const i = list.findIndex((x) => x.id === id); const j = i + dir;
+      if (i < 0 || j < 0 || j >= list.length) return;
+      [list[i], list[j]] = [list[j], list[i]];
+      syncKinds(S); save();
+    }
+
+    // OPD clinics (locations for clinic visits)
+    const clinic = (id) => (S.settings.clinics || []).find((c) => c.id === id) || null;
+    function saveClinic(input) {
+      const name = String(input.name || '').trim();
+      if (!name) fail('Enter the clinic name');
+      let c = input.id && clinic(input.id);
+      if (!c) { c = { id: uid('c') }; S.settings.clinics.push(c); }
+      Object.assign(c, { name, address: String(input.address || '').trim(), phone: String(input.phone || '').trim(), timings: String(input.timings || '').trim(), disabled: !!input.disabled });
+      log('Clinic saved', name);
+      save();
+      return c;
+    }
+    function deleteClinic(id) {
+      const c = clinic(id);
+      if (!c) return;
+      if (S.settings.clinics.length === 1) fail('Keep at least one clinic');
+      S.settings.clinics = S.settings.clinics.filter((x) => x.id !== id);
+      log('Clinic deleted', c.name);
+      save();
     }
 
     // Items, categories, stock
@@ -627,7 +724,8 @@
         const byCat = {};
         p.lines.forEach((l) => {
           const k = item(l.itemId).kind;
-          const cat = k === 'injection' ? 'Injection Purchase' : k === 'protein' ? 'Protein Purchase' : 'Miscellaneous';
+          const cat = k === 'other' || !KINDS[k] ? 'Miscellaneous' : `${k === 'service' ? 'Service' : KINDS[k]} Purchase`;
+          if (!S.settings.lists.expenseCategories.includes(cat)) S.settings.lists.expenseCategories.push(cat);
           byCat[cat] = (byCat[cat] || 0) + l.total;
         });
         Object.entries(byCat).forEach(([category, amount]) => S.expenses.push({
@@ -846,6 +944,10 @@
         mode: input.mode, fee, link: String(input.link || '').trim(), notes: String(input.notes || '').trim(),
         service: String(input.service || '').trim(), doctorId: input.doctorId || '',
       });
+      if (input.mode === 'clinic') {
+        const c = clinic(input.clinicId) || (S.settings.clinics.length === 1 ? S.settings.clinics[0] : null);
+        a.clinicId = c ? c.id : ''; a.clinicName = c ? c.name : '';
+      } else { a.clinicId = ''; a.clinicName = ''; }
       if (a.doctorId && doctor(a.doctorId)) a.doctorName = doctor(a.doctorId).name;
       ['status', 'paid', 'payMethod', 'by', 'leadId'].forEach((k) => { if (k in input) a[k] = input[k]; });
       if (!APPT_STATUS[a.status]) a.status = 'booked';
@@ -882,6 +984,7 @@
         cancelled: n((a) => a.status === 'cancelled'), noshow: n((a) => a.status === 'noshow'),
         clinic: n((a) => a.mode === 'clinic' && a.status !== 'cancelled'), online: n((a) => a.mode === 'online' && a.status !== 'cancelled'),
         fees: r2(sum(list, feeEarned)), unpaid: n((a) => !a.paid && a.status !== 'cancelled'),
+        byClinic: (S.settings.clinics || []).map((c) => ({ id: c.id, name: c.name, count: n((a) => a.clinicId === c.id && a.status !== 'cancelled'), fees: r2(sum(list.filter((a) => a.clinicId === c.id), feeEarned)) })),
       };
     }
 
@@ -1042,6 +1145,34 @@
         total: inR.length, open: open.length, won, conversion: inR.length ? Math.round((won / inR.length) * 100) : 0,
         dueToday: open.filter((l) => l.followUp === d).length, overdue: open.filter((l) => l.followUp && l.followUp < d).length,
         hot: open.filter((l) => l.priority === 'hot').length, newToday: all.filter((l) => l.date === d).length,
+      };
+    }
+
+    /** One day of lead work: new leads, responses (calls, WhatsApp, notes), status changes, follow-ups. */
+    function leadDay(date, filter) {
+      const d = date || today();
+      const all = S.leads.filter((l) => !filter || filter(l));
+      const dayOf = (at) => isoDate(new Date(at));
+      const acts = all.flatMap((l) => (l.history || []).filter((h) => dayOf(h.at) === d).map((h) => ({ ...h, lead: l })));
+      const open = all.filter((l) => !isClosedLead(l));
+      const week = isoDate(new Date(parseDate(d).getTime() + 7 * 86400000));
+      const byStatus = {};
+      S.settings.lists.leadStatuses.forEach((x) => { byStatus[x] = 0; });
+      all.forEach((l) => { byStatus[l.status] = (byStatus[l.status] || 0) + 1; });
+      const sortF = (a, b) => (a.followUp + (a.followTime || '')).localeCompare(b.followUp + (b.followTime || ''));
+      return {
+        date: d,
+        newLeads: all.filter((l) => l.date === d),
+        responses: acts.filter((h) => ['call', 'whatsapp', 'note'].includes(h.type)),
+        calls: acts.filter((h) => h.type === 'call').length, whatsapp: acts.filter((h) => h.type === 'whatsapp').length, notes: acts.filter((h) => h.type === 'note').length,
+        statusChanges: acts.filter((h) => h.type === 'status'),
+        contacted: new Set(acts.filter((h) => ['call', 'whatsapp', 'note', 'status'].includes(h.type)).map((h) => h.lead.id)).size,
+        converted: acts.filter((h) => h.type === 'status' && /→ (Converted|Appointment booked)$/.test(h.text)).length,
+        byStatus,
+        dueToday: open.filter((l) => l.followUp === d).sort(sortF),
+        overdue: open.filter((l) => l.followUp && l.followUp < d).sort(sortF),
+        upcoming: open.filter((l) => l.followUp > d && l.followUp <= week).sort(sortF),
+        noFollowUp: open.filter((l) => !l.followUp).length,
       };
     }
 
@@ -1249,6 +1380,9 @@
           services: liveItems().filter((i) => !i.disabled && i.track === false),
         },
         todaySales: S.sales.filter((s) => s.date === d),
+        byType: Object.keys(SALE_TYPES).map((t) => ({ type: t, label: SALE_TYPES[t], amount: r2(sum(byType(t), (s) => s.amount)), count: byType(t).length,
+          items: t === 'diet' ? (S.settings.dietPlans || []).length : liveItems().filter((i) => i.kind === t).length })),
+        stockByKind: kinds().filter((k) => k.id !== 'service').map((k) => ({ id: k.id, name: k.name, stock: stockSum((i) => i.kind === k.id), items: stockItems().filter((i) => i.kind === k.id).length })),
         content: contentStats(range, d),
         expenseSummary: expenseSummary(range),
         productExpenses: r2(sum(S.expenses.filter((e) => inRange(e.date, range) && counted(e) && /purchase/i.test(e.category)), (e) => e.amount)),
@@ -1307,8 +1441,8 @@
         ['Videos Remaining', db.content.remaining, all.content.remaining],
         ['Updated', new Date(clock ? clock() : Date.now()).toISOString(), ''],
       ];
-      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Doctor', 'Service', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
-      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], doctorName(a), a.service || '', a.fee,
+      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Clinic', 'Doctor', 'Service', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
+      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], a.clinicName || '', doctorName(a), a.service || '', a.fee,
         a.paid ? 'Paid' : 'Unpaid', a.payMethod || '', APPT_STATUS[a.status], a.link || '', a.notes || '']));
       const accName = (id) => (account(id) || {}).name || '';
       out.Leads = [['Date', 'Name', 'Mobile', 'Alt Mobile', 'Age', 'Gender', 'City', 'Source', 'Interested In', 'Priority', 'Status', 'Assigned To', 'Next Follow-up', 'Weight (kg)', 'Target (kg)', 'Height (cm)', 'Budget', 'Last Note', 'Added By']];
@@ -1328,11 +1462,13 @@
       out['Injection Sales'] = [['Date', 'Patient', 'Mobile', 'New/Renewal', 'Product', 'Qty', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Dietitian', 'Incentive', 'Notes']];
       out['Protein Sales'] = [['Date', 'Patient', 'Mobile', 'Protein Type', 'Qty', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Incentive', 'Notes']];
       out['Diet Support'] = [['Date', 'Patient', 'Mobile', 'Plan', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Incentive', 'Notes']];
+      out['Other Sales'] = [['Date', 'Type', 'Patient', 'Mobile', 'New/Renewal', 'Product', 'Qty', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Incentive', 'Notes']];
       out['Service Sales'] = [['Date', 'Patient', 'Mobile', 'New/Renewal', 'Service / Package', 'Qty', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Incentive', 'Notes']];
       byDate.forEach((s) => {
         const [ref, shared] = refNames(s);
         if (s.type === 'injection') out['Injection Sales'].push([s.date, s.patientName, s.mobile, s.patientType === 'new' ? 'New' : 'Renewal', s.product, s.qty, s.amount, ref, shared, split(s), s.dietitianId ? memberName(s.dietitianId) : '', s.incentive, s.notes]);
         else if (s.type === 'protein') out['Protein Sales'].push([s.date, s.patientName, s.mobile, s.product, s.qty, s.amount, ref, shared, split(s), s.incentive, s.notes]);
+        else if (s.type !== 'service' && s.type !== 'diet') out['Other Sales'].push([s.date, kindName(s.type), s.patientName, s.mobile, s.patientType === 'new' ? 'New' : 'Renewal', s.product, s.qty, s.amount, ref, shared, split(s), s.incentive, s.notes]);
         else if (s.type === 'service') out['Service Sales'].push([s.date, s.patientName, s.mobile, s.patientType === 'new' ? 'New' : 'Renewal', s.product, s.qty, s.amount, ref, shared, split(s), s.incentive, s.notes]);
         else out['Diet Support'].push([s.date, s.patientName, s.mobile, s.product.replace('Diet Support ', ''), s.amount, ref, shared, split(s), s.incentive, s.notes]);
       });
@@ -1347,7 +1483,7 @@
       S.team.forEach((m) => out.Team.push([m.name, m.designation || '', m.mobile || '', m.salary, m.incentiveOn === false ? 'Off' : 'On',
         rateFor(m, 'injection', null), rateFor(m, 'protein', null), PAY[m.payMode || 'both'], m.joiningDate || '', m.disabled ? 'Disabled' : 'Active']));
       out.Incentives = [['Date', 'Team Member', 'Sale Type', 'Patient', 'Product', 'Share %', 'Incentive']];
-      incentiveLedger(null).reverse().forEach((l) => out.Incentives.push([l.date, l.name, SALE_TYPES[l.type], l.patient, l.product, l.pct, l.amount]));
+      incentiveLedger(null).reverse().forEach((l) => out.Incentives.push([l.date, l.name, kindName(l.type), l.patient, l.product, l.pct, l.amount]));
       out.Salary = [['Month', 'Name', 'Designation', 'Salary', 'Incentive', 'Total Pay', 'Booked as Expense']];
       const months = new Set([monthOf(d), ...S.sales.map((s) => monthOf(s.date))]);
       [...months].sort().forEach((mo) => salarySheet(mo).forEach((r) => out.Salary.push([mo, r.name, r.designation || '', r.salary, r.incentive, r.total, salaryPosted(mo) ? 'Yes' : 'No'])));
@@ -1453,7 +1589,7 @@
       account, saveAccount, setAccountPin, deleteAccount, setActor,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
       updatePatient, deletePatient, daySummary,
-      lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,
+      lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, leadDay, kindName, kinds, saveKind, deleteKind, moveKind, clinic, saveClinic, deleteClinic, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,
     };

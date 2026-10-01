@@ -15,9 +15,20 @@ test('The Prime Fit keeps its own data, apart from the old Hindivine apps', () =
 });
 
 const fresh = () => A.createAdmin(A.memoryStorage());
+// A clinic that has added its own injection and protein types, products and diet plans.
+const stocked = () => {
+  const admin = fresh();
+  admin.saveKind({ name: 'Injection' });
+  admin.saveKind({ name: 'Protein' });
+  ['Mounjaro 2.5mg', 'Mounjaro 5mg'].forEach((name) => admin.saveItem({ name, category: 'Injection', kind: 'injection', price: 3500, unit: 'pen' }));
+  admin.saveItem({ name: 'Protein Sachets', category: 'Protein', kind: 'protein', price: 100, unit: 'sachet' });
+  admin.saveDietPlan({ name: '1 Month', months: 1, price: 2000, incentive: 500 });
+  admin.saveDietPlan({ name: '3 Month', months: 3, price: 5000, incentive: 1000 });
+  return admin;
+};
 
 test('a service with no stock limit sells without stock and stays off stock alerts', () => {
-  const admin = fresh();
+  const admin = stocked();
   const m = admin.saveMember({ name: 'Asha' });
   const it = admin.saveItem({ name: 'Body scan', category: 'Protein', kind: 'protein', price: 500, track: false });
   assert.strictEqual(admin.stockOf(it.id), Infinity);
@@ -27,7 +38,7 @@ test('a service with no stock limit sells without stock and stays off stock aler
 });
 
 test('items and categories move up and down; a deleted item leaves lists and the dashboard', () => {
-  const admin = fresh();
+  const admin = stocked();
   const list = admin.itemsOf('injection', true);
   const [a, b] = [list[0], list[1]];
   admin.moveItem(b.id, -1);
@@ -106,7 +117,7 @@ test('logins sign in by user ID and passwords are never kept in plain text', () 
 });
 
 test('purchases can switch GST off and diet plans move and delete', () => {
-  const admin = fresh();
+  const admin = stocked();
   const it = admin.itemsOf('protein', true)[0];
   const p = admin.savePurchase({ vendor: 'V', lines: [{ itemId: it.id, qty: 2, rate: 100, gst: 18 }], gstOff: true });
   assert.strictEqual(p.total, 200);
@@ -135,4 +146,52 @@ test('GLP-1 packages are services; percent incentives, daily salary and package 
   assert.strictEqual(s2.splits[0].amount, 0);
   assert.ok(admin.sheetsData()['Service Sales'].length === 3);
   assert.ok(A.DEFAULT_PERMS.viewer.view);
+});
+
+test('a new clinic starts with packages only; types, clinics and the lead day summary work', () => {
+  const admin = fresh();
+  assert.deepStrictEqual(Object.keys(A.KINDS), ['service', 'other']);
+  assert.strictEqual(admin.state.items.length, 4);
+  assert.strictEqual(admin.state.settings.dietPlans.length, 0);
+  const k = admin.saveKind({ name: 'Supplements' });
+  assert.strictEqual(A.SALE_TYPES[k.id], 'Supplements');
+  const it = admin.saveItem({ name: 'Omega 3', category: 'Supplements', kind: k.id, price: 600 });
+  assert.throws(() => admin.deleteKind(k.id), /first/);
+  const m = admin.saveMember({ name: 'Asha' });
+  admin.saveItem({ ...it, id: it.id, opening: 10 });
+  admin.saveSale({ type: k.id, itemId: it.id, qty: 1, amount: 600, refId: m.id, patientName: 'Ravi', mobile: '9876543210' });
+  assert.strictEqual(admin.sheetsData()['Other Sales'][1][1], 'Supplements');
+  assert.strictEqual(admin.dashboard(null).byType.find((x) => x.type === k.id).amount, 600);
+  const inj = admin.saveKind({ name: 'Injections' });
+  assert.strictEqual(inj.id, 'injection');
+  admin.deleteKind('injection');
+  assert.ok(!A.KINDS.injection);
+  const c2 = admin.saveClinic({ name: 'Andheri branch', address: 'Mumbai' });
+  const a = admin.saveAppointment({ date: admin.today(), mode: 'clinic', clinicId: c2.id, patientName: 'Ravi', mobile: '9876543210', fee: 500 });
+  assert.strictEqual(a.clinicName, 'Andheri branch');
+  assert.strictEqual(admin.appointmentStats(null).byClinic.find((x) => x.id === c2.id).count, 1);
+  admin.deleteClinic(c2.id);
+  assert.throws(() => admin.deleteClinic(admin.state.settings.clinics[0].id), /at least one/);
+  const l = admin.saveLead({ name: 'Neha', mobile: '9811111111', followUp: admin.today() });
+  admin.addLeadActivity(l.id, { type: 'call', text: 'Interested' });
+  const day = admin.leadDay();
+  assert.strictEqual(day.newLeads.length, 1);
+  assert.strictEqual(day.calls, 1);
+  assert.strictEqual(day.dueToday.length, 1);
+});
+
+test('older data loses the unused starter injections and diet plans but keeps used ones', () => {
+  const st = A.memoryStorage();
+  const old = fresh().state;
+  old.seeded = { packages: true };
+  delete old.settings.kinds;
+  old.items.push({ id: 'x1', kind: 'injection', category: 'Injection', name: 'Mounjaro 5mg', opening: 0 }, { id: 'x2', kind: 'injection', category: 'Injection', name: 'Mounjaro 10mg', opening: 0 });
+  old.moves.push({ id: 'v1', itemId: 'x2', qty: 3, type: 'purchase', date: '2026-09-01' });
+  old.settings.dietPlans = [{ id: 'd1', name: '1 Month', price: 0 }];
+  st.setItem(A.KEY, JSON.stringify(old));
+  const admin = A.createAdmin(st);
+  assert.ok(!admin.state.items.some((i) => i.id === 'x1'));
+  assert.ok(admin.state.items.some((i) => i.id === 'x2'));
+  assert.strictEqual(admin.state.settings.dietPlans.length, 0);
+  assert.ok(A.KINDS.injection);
 });
