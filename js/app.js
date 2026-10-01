@@ -46,6 +46,8 @@
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = (n) => Number(n).toLocaleString('en-IN');
+  /** Run fn once typing pauses (search boxes that re-render long lists). */
+  const debounce = (fn, ms) => { let t = null; return (...a) => { clearTimeout(t); t = setTimeout(() => fn(...a), ms || 140); }; };
   const svg = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
   // Line icons in the brand colors (replace emoji in menus, tiles and tabs).
   const UI = {
@@ -346,6 +348,7 @@
     $('#go-library').hidden = name === 'library';
     $('#step-back').textContent = stepIdx === 0 ? 'Home' : 'Back';
     document.body.dataset.screen = name;
+    animateIn(sec);
     renderTabs();
     if (name === 's1') { renderPatientPick(); liveBmi(readForm()); }
     if (name === 's2') liveTargets(readForm());
@@ -360,6 +363,14 @@
     if (name === 'recipe') renderRecipe();
     if (name === 'settings') renderSettings();
     window.scrollTo(0, 0);
+  }
+
+  /** Cards of a screen (or list) rise in one after another; CSS animates transform/opacity only. */
+  function animateIn(el) {
+    if (!el) return;
+    el.classList.add('entering');
+    clearTimeout(el.enterTimer);
+    el.enterTimer = setTimeout(() => el.classList.remove('entering'), 800);
   }
 
   function go(name) {
@@ -515,8 +526,21 @@
     }
   });
 
+  /** Profiles from old versions, backups or other PDFs may miss fields: fill them so nothing crashes. */
+  function fixProfile(p) {
+    const q = p || {};
+    ['conditions', 'regions', 'excludes', 'allergies', 'likes', 'dislikes', 'recipes', 'mix'].forEach((k) => { if (!Array.isArray(q[k])) q[k] = []; });
+    if (!q.times || typeof q.times !== 'object') q.times = {};
+    if (!P.PLANS[q.plan]) q.plan = 'balanced';
+    if (!I.LANGS[q.chartLang]) q.chartLang = 'en';
+    if (q.chartLang2 && !I.LANGS[q.chartLang2]) q.chartLang2 = '';
+    if (!P.DAY_NAMES.includes(q.startDay)) q.startDay = 'Monday';
+    if (!P.ACTIVITY[q.activity]) q.activity = 'light';
+    return q;
+  }
+
   function setCurrent(c) {
-    profile = c.profile;
+    profile = fixProfile(c.profile);
     plan = c.plan;
     meta = { id: c.id, week: c.week || 1, parent: c.parent || null };
     activeDay = 0;
@@ -567,7 +591,7 @@
         ${ICON.chev}
       </button>`).join('') : `<div class="empty">${q ? 'No patient matches your search.' : 'No patients yet. Patients are saved automatically when you create a chart with a patient name.'}</div>`;
   }
-  $('#pt-search').addEventListener('input', renderPatients);
+  $('#pt-search').addEventListener('input', debounce(() => renderPatients(), 140));
   $('#pt-list').addEventListener('click', (e) => {
     const b = e.target.closest('[data-patient]');
     if (b) { viewPatient = b.dataset.patient; go('patient'); }
@@ -616,7 +640,7 @@
     const list = store.listCharts().filter((c) => !q || [c.name || 'generic', P.PLANS[c.plan] ? P.PLANS[c.plan].label : ''].join(' ').toLowerCase().includes(q));
     $('#ch-list').innerHTML = list.length ? list.map((c) => chartRow(c)).join('') : `<div class="empty">${q ? 'No chart matches your search.' : 'No saved charts yet.'}</div>`;
   }
-  $('#ch-search').addEventListener('input', renderCharts);
+  $('#ch-search').addEventListener('input', debounce(() => renderCharts(), 140));
 
   // ── Chart helpers (chart language) ──────────────────────────────
   const L = () => (profile && profile.chartLang) || 'en';
@@ -751,7 +775,7 @@
     const b = e.target.closest('button');
     if (!b) return;
     const pair = (v) => v.split(':').map(Number);
-    if (b.dataset.day) { activeDay = Number(b.dataset.day); saveCurrent(); render(); }
+    if (b.dataset.day) { activeDay = Number(b.dataset.day); saveCurrent(); render(); animateIn($('.meal-list', result)); }
     else if (b.dataset.edit) openEditor(...pair(b.dataset.edit));
     else if (b.dataset.recipe) openRecipeDialog(b.dataset.recipe);
     else if (b.id === 'pick-recipes') openRecipePicker();
@@ -1003,7 +1027,7 @@
       render();
     }
   });
-  $('#editor-q').addEventListener('input', renderEditorResults);
+  $('#editor-q').addEventListener('input', debounce(() => renderEditorResults(), 140));
   $('#editor-category').addEventListener('change', renderEditorResults);
   $('#editor-sort').addEventListener('change', renderEditorResults);
   editor.addEventListener('cancel', () => { edit = null; });
@@ -1035,7 +1059,7 @@
         ${f.user ? `<div class="fc-acts"><button type="button" class="chip mini" data-edit-food="${esc(f.user)}">${ICON.edit} Edit</button><button type="button" class="icon-btn danger" data-del-food="${esc(f.user)}" aria-label="Delete ${esc(f.name)}">${ICON.trash}</button></div>` : ''}
       </div>`).join('');
   }
-  $('#lib-search').addEventListener('input', renderLibrary);
+  $('#lib-search').addEventListener('input', debounce(() => renderLibrary(), 140));
   ['#lib-category', '#lib-region', '#lib-diet', '#lib-kcal', '#lib-sort'].forEach((s) => $(s).addEventListener('change', renderLibrary));
   $('#lib-filters').addEventListener('click', (e) => {
     const c = e.target.closest('.chip');
@@ -1114,7 +1138,7 @@
           <span class="rcard-meta"><i class="diet-dot ${f.diet}"></i>${f.kcal} kcal · P ${f.p} g · ${ingCount(f)} ingredients</span></span>
       </button>`).join('') : `<div class="empty">${rcState.own || rcState.mine ? 'No recipes of your own yet. Tap <b>Add recipe</b> to write one step by step.' : 'No recipe matches your search.'}</div>`;
   }
-  $('#rc-search').addEventListener('input', renderRecipes);
+  $('#rc-search').addEventListener('input', debounce(() => renderRecipes(), 140));
   ['#rc-category', '#rc-diet'].forEach((s) => $(s).addEventListener('change', renderRecipes));
 
   function recipeBody(f, serves) {
@@ -1375,6 +1399,7 @@
     renderChooser();
     openDialog(fdialog);
   }
+  const renderChooserSoon = debounce(() => { if ($('#rch-q')) renderChooser(); }, 120);
   function renderChooser() {
     const q = $('#rch-q').value;
     const list = P.searchFoods(DB.FOODS, q, {}).filter((f) => !f.ingKey);
@@ -1453,7 +1478,7 @@
   }
 
   fdialog.addEventListener('input', (e) => {
-    if (e.target.id === 'rch-q') renderChooser();
+    if (e.target.id === 'rch-q') renderChooserSoon();
     else if (fdialog.dataset.kind === 'food' && /^ff-(kcal|p|c|f)$/.test(e.target.id)) foodCheck();
   });
   fdialog.addEventListener('click', (e) => {
@@ -1631,7 +1656,13 @@
     $('#set-dietitian').value = dt.dietitian || '';
     $('#set-qualification').value = dt.qualification || '';
     $('#set-phone').value = dt.dietitianPhone || '';
-    const combos = P.countCombinations(DB, { plan: 'balanced', diet: 'nonveg', cuisine: 'mix', meals: 6, earlyDrink: true });
+    // Counting every combination is slow-ish: only redo it when the food list changes.
+    const sig = DB.FOODS.length + ':' + (storage.getItem(store.KEYS.foods) || '');
+    if (!renderSettings.combos || renderSettings.n !== sig) {
+      renderSettings.combos = P.countCombinations(DB, { plan: 'balanced', diet: 'nonveg', cuisine: 'mix', meals: 6, earlyDrink: true });
+      renderSettings.n = sig;
+    }
+    const combos = renderSettings.combos;
     $('#about').innerHTML = `<div class="review-grid">
       <div><span>Dishes with recipes</span><b>${num(DISHES.length)}</b></div>
       <div><span>Ingredients (searchable)</span><b>${num(DB.FOODS.length - DISHES.length)}</b></div>
@@ -1819,7 +1850,12 @@
     return `<div class="ps-promo"><span class="ps-promo-ico">🌐</span><div><b>${esc(a)}</b>${b && b !== a ? `<small>${esc(b)}</small>` : ''}${en ? `<small>${esc(en)}</small>` : ''}</div><a class="ps-stores ps-web" href="https://www.theprimefit.in" target="_blank" rel="noopener"><i>www.theprimefit.in</i><i>${esc(BRAND.phone)}</i></a></div>`;
   }
 
-  function recipeCard(name, serves, big) {
+  /**
+   * A printed recipe: ingredients as a list, the method as numbered step boxes, then tips.
+   * `part` prints a slice of a long method: { from, to } (step indexes); parts after the
+   * first repeat only the title and continue the numbering.
+   */
+  function recipeCard(name, serves, big, part) {
     const f = dishByName[name];
     if (!f) return '';
     const lang = L() || 'en';
@@ -1828,15 +1864,35 @@
     const k = serves || 1;
     const nm = (l) => (l === 'en' ? f.name : I.foodName(l, f.name));
     const alt = [lang !== 'en' ? f.name : '', lang2 ? nm(lang2) : ''].filter((x) => x && x !== nm(lang));
-    const extra = [r.prep ? `${I.t(lang, 'prepTime')} ${r.prep}` : '', r.cook ? `${I.t(lang, 'cookTime')} ${r.cook}` : '', r.own && r.serves > 1 ? `${I.t(lang, 'serves')} ${r.serves * k}` : ''].filter(Boolean);
-    return `<article class="rcp${big ? ' big' : ''}">
+    const from = part ? part.from : 0;
+    const to = part ? part.to : r.steps.length;
+    const first = from === 0;
+    const last = to >= r.steps.length;
+    const steps = `<ol class="rcp-steps">${r.steps.slice(from, to).map((st, i) => `<li><b class="rcp-n">${from + i + 1}</b><span>${esc(st)}</span></li>`).join('')}</ol>`;
+    const tips = last && r.tips ? `<div class="rcp-tip"><b>${esc(I.t(lang, 'tips'))}</b><span>${esc(r.tips)}</span></div>` : '';
+    const method = `<h3>${esc(I.t(lang, 'method'))}${first ? ` <small>${r.steps.length} ${esc(I.t(lang, 'steps'))}</small>` : ` <small>${esc(I.t(lang, 'continued'))}</small>`}</h3>${steps}${tips}`;
+    if (!first) {
+      return `<article class="rcp cont${big ? ' big' : ''}"><h2><span class="ps-ico">${IC.foodIcon(f)}</span>${esc(nm(lang))}</h2><div class="rcp-method">${method}</div></article>`;
+    }
+    const facts = [
+      `<span>${esc(P.formatQty(f.qty * k))} ${esc(f.unit)}${k > 1 ? ` (${k} × 1)` : ''}</span>`,
+      `<span><b>${Math.round(f.kcal * k)}</b> kcal</span>`,
+      `<span>${esc(I.t(lang, 'protein'))} <b>${Math.round(f.p * k * 10) / 10} g</b></span>`,
+      `<span>${esc(I.t(lang, 'carbs'))} ${Math.round(f.c * k)} g</span>`,
+      `<span>${esc(I.t(lang, 'fat'))} ${Math.round(f.f * k * 10) / 10} g</span>`,
+      r.prep ? `<span>⏱ ${esc(I.t(lang, 'prepTime'))} <b>${esc(r.prep)}</b></span>` : '',
+      r.cook ? `<span>🔥 ${esc(I.t(lang, 'cookTime'))} <b>${esc(r.cook)}</b></span>` : '',
+      r.own && r.serves > 1 ? `<span>🍽 ${esc(I.t(lang, 'serves'))} <b>${r.serves * k}</b></span>` : '',
+    ].filter(Boolean).join('');
+    const ing = r.ing.length ? `<ul>${r.ing.map((x) => (x.x
+      ? `<li><span>${esc(ingName(lang, x.x))}${lang !== 'en' ? ` <i class="l2">${esc(x.x.name)}</i>` : ''}</span><b>${esc(x.qty)}</b></li>`
+      : `<li><span>${esc(x.name)}</span><b>${esc(x.qty)}</b></li>`)).join('')}</ul>` : '<p class="rcp-none">—</p>';
+    return `<article class="rcp${big ? ' big' : ''}${last ? '' : ' split'}">
       <h2><span class="ps-ico">${IC.foodIcon(f)}</span>${esc(nm(lang))}${alt.length ? `<small>${esc(alt.join(' · '))}</small>` : ''}</h2>
-      <div class="rcp-meta"><span>${esc(P.formatQty(f.qty * k))} ${esc(f.unit)}${k > 1 ? ` (${k} × 1 serving)` : ''}</span><span><b>${Math.round(f.kcal * k)}</b> kcal</span><span>${esc(I.t(lang, 'protein'))} <b>${Math.round(f.p * k * 10) / 10} g</b></span><span>${esc(I.t(lang, 'carbs'))} ${Math.round(f.c * k)} g</span><span>${esc(I.t(lang, 'fat'))} ${Math.round(f.f * k * 10) / 10} g</span>${extra.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
+      <div class="rcp-meta">${facts}</div>
       <div class="rcp-body">
-        <div><h3>${esc(I.t(lang, 'ingredients'))}</h3><ul>${r.ing.map((x) => (x.x
-          ? `<li><span>${esc(ingName(lang, x.x))}${lang !== 'en' ? ` <i class="l2">${esc(x.x.name)}</i>` : ''}</span><b>${esc(x.qty)}</b></li>`
-          : `<li><span>${esc(x.name)}</span><b>${esc(x.qty)}</b></li>`)).join('')}</ul></div>
-        <div><h3>${esc(I.t(lang, 'method'))}</h3><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${r.tips ? `<p class="rcp-tip"><b>${esc(I.t(lang, 'tips'))}:</b> ${esc(r.tips)}</p>` : ''}</div>
+        <div class="rcp-ing"><h3>${esc(I.t(lang, 'ingredients'))} <small>${r.ing.length}</small></h3>${ing}</div>
+        <div class="rcp-method">${method}</div>
       </div>
     </article>`;
   }
@@ -1860,21 +1916,67 @@
     return ok;
   }
 
-  /** Recipe pages: as many recipe cards per A4 page as fit. */
+  /**
+   * Recipe pages: as many recipe cards per A4 page as fit. Heights are measured in one
+   * pass (fast even for 50+ recipes); a recipe taller than a page continues its method
+   * on the next page, split between steps, never inside one.
+   */
   function layoutRecipes(names, serves, big) {
     const lang = L();
+    const list = names.filter((n) => dishByName[n]);
+    if (!list.length) return [];
+    const head = recipeHead(lang);
+    const tail = promo(lang, L2());
+    const measure = (blocks) => {
+      sheet.innerHTML = pageHtml(head + blocks.join('') + tail, 'rp');
+      const page = $('.ps-page', sheet);
+      page.style.setProperty('--s', 1);
+      const inner = $('.ps-inner', page);
+      const kids = Array.from(inner.children);
+      const tops = kids.map((el) => el.offsetTop);
+      const hs = kids.map((el, i) => (i < kids.length - 1 ? tops[i + 1] - tops[i] : inner.scrollHeight - tops[i]));
+      const pad = parseFloat(getComputedStyle(inner).paddingBottom) || 0;
+      return { cap: page.clientHeight - pad - 2, head: hs[0], cards: hs.slice(1, -1), tail: hs[hs.length - 1] };
+    };
+    let blocks = list.map((n) => ({ html: recipeCard(n, serves, big) }));
+    let m = measure(blocks.map((b) => b.html));
+    // Split recipes that do not fit on a page by themselves.
+    const room = m.cap - m.head;
+    if (m.cards.some((h) => h > room)) {
+      const out = [];
+      blocks.forEach((b, i) => {
+        if (m.cards[i] <= room) { out.push(b); return; }
+        const name = list[i];
+        const total = recipeData(dishByName[name], serves).steps.length;
+        let from = 0;
+        while (from < total) {
+          let to = total;
+          // Largest slice of steps that fits (at least one step per part).
+          while (to > from + 1) {
+            const h = measure([recipeCard(name, serves, big, { from, to })]).cards[0];
+            if (h <= room) break;
+            to--;
+          }
+          out.push({ html: recipeCard(name, serves, big, { from, to }) });
+          from = to;
+        }
+      });
+      blocks = out;
+      m = measure(blocks.map((b) => b.html));
+    }
+    // Greedy packing by measured height.
     const pages = [];
     let cur = [];
-    const fits = (list) => {
-      sheet.innerHTML = pageHtml(recipeHead(lang) + list.map((n) => recipeCard(n, serves, big)).join(''), 'rp');
-      return fitPages(0.97);
-    };
-    names.filter((n) => dishByName[n]).forEach((n) => {
-      if (fits([...cur, n])) cur.push(n);
-      else { if (cur.length) pages.push(cur); cur = [n]; }
+    let used = m.head;
+    blocks.forEach((b, i) => {
+      if (cur.length && used + m.cards[i] > m.cap) { pages.push(cur); cur = []; used = m.head; }
+      cur.push(b.html);
+      used += m.cards[i];
     });
     if (cur.length) pages.push(cur);
-    return pages.map((list, i) => recipeHead(lang) + list.map((n) => recipeCard(n, serves, big)).join('') + (i === pages.length - 1 ? promo(lang, L2()) : ''));
+    // The promo goes on the last page when it fits, otherwise on a page of its own is wasteful: drop it.
+    const lastFits = used + m.tail <= m.cap;
+    return pages.map((p, i) => head + p.join('') + (i === pages.length - 1 && lastFits ? tail : ''));
   }
 
   function setPageStyle(total) {
@@ -1908,7 +2010,7 @@
     }
     if (!pages) pages = best.list;
     const recipes = (profile.recipes || []).filter((r) => dishByName[r]);
-    const rpages = recipes.length ? layoutRecipes(recipes, 1, false) : [];
+    const rpages = layoutRecipes(recipes, 1, false);
     sheet.innerHTML = pages.map((h) => pageHtml(h)).join('') + rpages.map((h) => pageHtml(h, 'rp')).join('');
     fitPages(minScale);
     sheet.classList.remove('measuring');
@@ -2016,7 +2118,7 @@
   const saved = load(CURRENT_KEY);
   try {
     if (saved && saved.profile && saved.data && P.PLANS[saved.profile.plan]) {
-      profile = saved.profile;
+      profile = fixProfile(saved.profile);
       plan = store.unpackPlan(saved.data, profile);
       meta = saved.meta || meta;
       activeDay = Math.min(saved.activeDay || 0, plan.days.length - 1);

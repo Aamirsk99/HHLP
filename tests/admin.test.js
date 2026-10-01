@@ -195,3 +195,67 @@ test('older data loses the unused starter injections and diet plans but keeps us
   assert.strictEqual(admin.state.settings.dietPlans.length, 0);
   assert.ok(A.KINDS.injection);
 });
+
+test('sales get invoice numbers in order and the invoice carries GST and the line', () => {
+  const admin = stocked();
+  admin.updateSettings({ invoicePrefix: 'TPF', invoiceGst: 18 });
+  const pen = admin.itemsOf('injection')[0];
+  const m = admin.saveMember({ name: 'Asha' });
+  const a = admin.saveSale({ type: 'injection', itemId: pen.id, qty: 1, amount: 3540, refId: m.id, allowNegative: true, patientName: 'Ravi', mobile: '9876543210', payMethod: 'UPI' });
+  const b = admin.saveSale({ type: 'injection', itemId: pen.id, qty: 1, amount: 3540, refId: m.id, allowNegative: true, patientName: 'Meena', mobile: '9876500000' });
+  const yr = admin.today().slice(0, 4);
+  assert.strictEqual(a.invoiceNo, `TPF-${yr}-0001`);
+  assert.strictEqual(b.invoiceNo, `TPF-${yr}-0002`);
+  admin.saveSale({ id: a.id, type: 'injection', itemId: pen.id, qty: 1, amount: 3540, refId: m.id, allowNegative: true, patientName: 'Ravi K', mobile: '9876543210' });
+  const inv = admin.invoiceFor(a.id);
+  assert.strictEqual(inv.no, `TPF-${yr}-0001`);
+  assert.strictEqual(inv.taxable, 3000);
+  assert.strictEqual(inv.tax, 540);
+  assert.strictEqual(inv.lines[0].name, pen.name);
+});
+
+test('marketing role, campaigns with cost per lead, and ideas whose status changes alone', () => {
+  const admin = fresh();
+  assert.ok(A.ROLES.marketing);
+  const acc = admin.saveAccount({ name: 'Riya', role: 'marketing' });
+  assert.strictEqual(acc.role, 'marketing');
+  const d = admin.today();
+  admin.saveLead({ name: 'L1', mobile: '9000000001', source: 'Instagram' });
+  admin.saveLead({ name: 'L2', mobile: '9000000002', source: 'Instagram', status: 'Converted' });
+  admin.saveLead({ name: 'L3', mobile: '9000000003', source: 'Google' });
+  const c = admin.saveCampaign({ name: 'Oct offer', platform: 'Instagram', start: d, budget: 5000, spent: 1000 });
+  const st = admin.campaignStats(c);
+  assert.strictEqual(st.leads, 2);
+  assert.strictEqual(st.won, 1);
+  assert.strictEqual(st.cpl, 500);
+  const src = admin.leadSources(null);
+  assert.strictEqual(src[0].source, 'Instagram');
+  assert.strictEqual(src[0].conversion, 50);
+  const idea = admin.saveIdea({ title: 'What I eat in a day', format: 'Reel' });
+  admin.saveIdea({ id: idea.id, status: 'posted' });
+  assert.strictEqual(admin.state.ideas[0].status, 'posted');
+  assert.strictEqual(admin.state.ideas[0].title, 'What I eat in a day');
+  assert.throws(() => admin.saveIdea({ title: ' ' }));
+});
+
+test('attendance fills paid days; tasks and monthly targets track progress', () => {
+  const admin = fresh();
+  const m = admin.saveMember({ name: 'Asha' });
+  const month = admin.today().slice(0, 7);
+  admin.setAttendance(`${month}-01`, m.id, 'P');
+  admin.setAttendance(`${month}-02`, m.id, 'H');
+  admin.setAttendance(`${month}-03`, m.id, 'A');
+  assert.strictEqual(admin.state.workDays[month][m.id], 1.5);
+  const row = admin.attendanceMonth(month).find((x) => x.memberId === m.id);
+  assert.deepStrictEqual([row.present, row.half, row.absent, row.days], [1, 1, 1, 1.5]);
+  admin.setAttendance(`${month}-02`, m.id, '');
+  assert.strictEqual(admin.state.workDays[month][m.id], 1);
+  const t = admin.saveTask({ title: 'Call overdue leads', priority: 'high' });
+  admin.setTaskDone(t.id, true);
+  assert.ok(admin.state.tasks[0].done);
+  admin.setTarget(month, { revenue: 10000, leads: 4 });
+  admin.saveLead({ name: 'L1', mobile: '9000000001' });
+  const tp = admin.targetProgress(month);
+  assert.strictEqual(tp.leadsGoal, 4);
+  assert.strictEqual(tp.leadsPct, 25);
+});

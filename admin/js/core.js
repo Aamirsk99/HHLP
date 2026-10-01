@@ -26,10 +26,10 @@
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
     'Founder', 'Ads', 'Editing', 'Product Purchase', 'Miscellaneous'];
   const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Other Sales', 'Diet Support', 'Purchases',
-    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Activity Log'];
+    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Tasks', 'Attendance', 'Activity Log'];
 
   // Login roles. Every person can have their own login (name + PIN), shared through the Google Sheet.
-  const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk', editor: 'Video Editor', viewer: 'View only' };
+  const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk', editor: 'Video Editor', marketing: 'Marketing', viewer: 'View only' };
   // Choice lists that the admins can extend ("+ Add new") from any form.
   const DEFAULT_LISTS = {
     expenseCategories: EXPENSE_CATEGORIES,
@@ -48,10 +48,11 @@
   const LEAD_PRIORITIES = { hot: 'Hot', warm: 'Warm', cold: 'Cold' };
   // What each role can open. Super Admin always has everything; the others are editable in Settings.
   const DEFAULT_PERMS = {
-    admin: { screens: ['diet', 'dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'team', 'incentives', 'salary', 'expenses', 'content', 'reports', 'activity'], del: true },
-    manager: { screens: ['diet', 'dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'expenses', 'content', 'reports', 'activity'], del: false },
+    admin: { screens: ['diet', 'dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'team', 'incentives', 'salary', 'expenses', 'content', 'marketing', 'manage', 'reports', 'activity'], del: true },
+    manager: { screens: ['diet', 'dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'expenses', 'content', 'marketing', 'manage', 'reports', 'activity'], del: false },
     desk: { screens: ['diet', 'appointments', 'leads'], del: false },
     editor: { screens: ['content'], del: false },
+    marketing: { screens: ['dashboard', 'leads', 'content', 'marketing'], del: false },
     viewer: { screens: ['diet', 'dashboard', 'today', 'appointments', 'sales', 'patients', 'renewals', 'products', 'inventory', 'expenses', 'content', 'reports'], del: false, view: true },
   };
   // GLP-1 Success Support packages (from the clinic's offer posters): price, regular price, days.
@@ -91,6 +92,7 @@
         kinds: JSON.parse(JSON.stringify(BASE_KINDS)), // inventory / product types
         clinics: [{ id: 'c1', name: 'The Prime Fit Clinic', address: '', phone: '' }], // OPD locations (offline visits)
         dashShow: {}, // dashboard boxes switched off: { 'Box name': false }
+        invoicePrefix: 'TPF', invoiceSeq: 0, gstin: '', invoiceGst: 0, invoiceNote: 'Thank you for choosing The Prime Fit.', // patient sale invoices
         phone: '+91 92051 36303', instagram: 'https://www.instagram.com/theprimefit_', youtube: 'https://www.youtube.com/@ThePrimeFit', website: 'www.theprimefit.in',
         dashHide: [], // dashboard cards switched off
         dietPlans: [],
@@ -110,8 +112,8 @@
       },
       categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
-      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, social: { youtube: {}, instagram: {}, fetchedAt: 0 },
-      seeded: { packages: true, cleared: true },
+      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, campaigns: [], ideas: [], tasks: [], attendance: {}, targets: {}, social: { youtube: {}, instagram: {}, fetchedAt: 0 },
+      seeded: { packages: true, cleared: true, r7: true },
       accounts: [
         { id: 'super', name: 'Super Admin', username: 'superadmin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
         { id: 'admin', name: 'Admin', username: 'admin', role: 'admin', hash: '', salt: '', len: 0, pin: '' },
@@ -262,6 +264,11 @@
       if (s.settings.renewalDays[0] === 60 && s.settings.renewalDays[1] === 90) s.settings.renewalDays = [75, 90];
       // Version 1.4: the starter injections, protein, supplies and diet plans are removed when nothing uses them.
       if (!s.seeded.cleared) { clearStarterData(s); s.seeded.cleared = true; }
+      // Version 1.5: Marketing and Team desk screens for Admin and Manager.
+      if (!s.seeded.r7) {
+        ['admin', 'manager'].forEach((r) => { const p = s.settings.perms[r]; if (p && p.screens) ['marketing', 'manage'].forEach((x) => { if (!p.screens.includes(x)) p.screens.push(x); }); });
+        s.seeded.r7 = true;
+      }
       if (!hadKinds) {
         s.settings.kinds = JSON.parse(JSON.stringify(BASE_KINDS));
         [['injection', 'Injection'], ['protein', 'Protein']].forEach(([id, name]) => {
@@ -387,6 +394,100 @@
       if (i < 0 || j < 0 || j >= list.length) return;
       [list[i], list[j]] = [list[j], list[i]];
       syncKinds(S); save();
+    }
+
+    // Marketing: ad campaigns (spend → leads → patients) and a bank of content ideas.
+    const listFix = (k) => { if (!Array.isArray(S[k])) S[k] = []; return S[k]; };
+    function saveCampaign(input) {
+      const name = String(input.name || '').trim();
+      if (!name) fail('Enter the campaign name');
+      let c = input.id && listFix('campaigns').find((x) => x.id === input.id);
+      if (!c) { c = { id: uid('cp'), created: Date.now() }; S.campaigns.push(c); }
+      Object.assign(c, { name, platform: String(input.platform || '').trim(), start: input.start || today(), end: input.end || '', budget: Number(input.budget) || 0, spent: Number(input.spent) || 0, goal: String(input.goal || '').trim(), notes: String(input.notes || '').trim() });
+      log('Campaign saved', name); save();
+      return c;
+    }
+    function deleteCampaign(id) { const c = listFix('campaigns').find((x) => x.id === id); S.campaigns = S.campaigns.filter((x) => x.id !== id); if (c) log('Campaign deleted', c.name); save(); }
+    /** Each campaign's leads are the leads from its platform (lead source) within its dates. */
+    function campaignStats(c) {
+      const end = c.end || today();
+      const leads = S.leads.filter((l) => low(l.source) === low(c.platform) && l.date >= c.start && l.date <= end);
+      const won = leads.filter((l) => l.patientId || l.apptId || ['Converted', 'Appointment booked'].includes(l.status));
+      const pids = new Set(won.map((l) => l.patientId).filter(Boolean));
+      const revenue = r2(sum(S.sales.filter((x) => pids.has(x.patientId) && x.date >= c.start), (x) => x.amount));
+      return { leads: leads.length, won: won.length, revenue, cpl: leads.length ? r2(c.spent / leads.length) : 0, roi: c.spent ? r2(((revenue - c.spent) / c.spent) * 100) : 0 };
+    }
+    function leadSources(range) {
+      const list = S.leads.filter((l) => inRange(l.date, range));
+      const by = {};
+      list.forEach((l) => {
+        const k = l.source || 'Not set';
+        by[k] = by[k] || { source: k, leads: 0, won: 0 };
+        by[k].leads += 1;
+        if (l.patientId || l.apptId || ['Converted', 'Appointment booked'].includes(l.status)) by[k].won += 1;
+      });
+      return Object.values(by).map((x) => ({ ...x, conversion: x.leads ? Math.round((x.won / x.leads) * 100) : 0 })).sort((a, b) => b.leads - a.leads);
+    }
+    function saveIdea(input) {
+      let x = input.id && listFix('ideas').find((i) => i.id === input.id);
+      if ((!x || 'title' in input) && !String(input.title || '').trim()) fail('Write the idea');
+      if (!x) { x = { id: uid('id'), created: Date.now(), status: 'idea' }; S.ideas.push(x); }
+      ['title', 'format', 'hook', 'tags', 'status', 'platform'].forEach((k) => { if (k in input) x[k] = String(input[k] || '').trim(); });
+      save();
+      return x;
+    }
+    function deleteIdea(id) { S.ideas = listFix('ideas').filter((x) => x.id !== id); save(); }
+
+    // Management: tasks, attendance and monthly targets.
+    function saveTask(input) {
+      const title = String(input.title || '').trim();
+      if (!title) fail('Write the task');
+      let t = input.id && listFix('tasks').find((x) => x.id === input.id);
+      if (!t) { t = { id: uid('t'), created: Date.now(), by: actor, done: false }; S.tasks.push(t); }
+      Object.assign(t, { title, assignedTo: input.assignedTo || '', due: input.due || '', priority: input.priority || 'normal', notes: String(input.notes || '').trim() });
+      log('Task saved', title); save();
+      return t;
+    }
+    function setTaskDone(id, done) { const t = listFix('tasks').find((x) => x.id === id); if (t) { t.done = !!done; t.doneAt = done ? Date.now() : 0; t.doneBy = done ? actor : ''; log(done ? 'Task done' : 'Task reopened', t.title); save(); } }
+    function deleteTask(id) { S.tasks = listFix('tasks').filter((x) => x.id !== id); save(); }
+    const ATT = { P: 1, H: 0.5, A: 0, L: 0, O: 0 };
+    /** Mark one person on one day: P present, H half day, A absent, L leave, O week off. Daily-wage days follow. */
+    function setAttendance(date, memberId, mark) {
+      if (!S.attendance || typeof S.attendance !== 'object') S.attendance = {};
+      S.attendance[date] = { ...(S.attendance[date] || {}) };
+      if (mark) S.attendance[date][memberId] = mark; else delete S.attendance[date][memberId];
+      const month = date.slice(0, 7);
+      const days = sum(Object.keys(S.attendance).filter((d) => d.startsWith(month)), (d) => ATT[(S.attendance[d] || {})[memberId]] || 0);
+      S.workDays = S.workDays || {};
+      S.workDays[month] = { ...(S.workDays[month] || {}), [memberId]: days };
+      save();
+    }
+    function attendanceMonth(month) {
+      return S.team.filter((m) => !m.disabled).map((m) => {
+        const marks = Object.keys(S.attendance || {}).filter((d) => d.startsWith(month)).map((d) => S.attendance[d][m.id]).filter(Boolean);
+        const n = (k) => marks.filter((x) => x === k).length;
+        return { memberId: m.id, name: m.name, present: n('P'), half: n('H'), absent: n('A'), leave: n('L'), off: n('O'), days: sum(marks, (x) => ATT[x] || 0) };
+      });
+    }
+    function setTarget(month, patch) {
+      if (!S.targets || typeof S.targets !== 'object') S.targets = {};
+      S.targets[month] = { members: {}, ...(S.targets[month] || {}), ...patch };
+      save();
+    }
+    function targetProgress(month) {
+      const t = (S.targets || {})[month] || { members: {} };
+      const r = { from: `${month}-01`, to: `${month}-31` };
+      const sales = S.sales.filter((x) => inRange(x.date, r));
+      const fees = sum(S.appointments.filter((a) => inRange(a.date, r)), feeEarned);
+      const revenue = r2(sum(sales, (x) => x.amount) + fees);
+      const leads = S.leads.filter((l) => inRange(l.date, r)).length;
+      const team = S.team.filter((m) => !m.disabled).map((m) => {
+        const mine = r2(sum(sales.filter((x) => x.splits.some((y) => y.memberId === m.id)), (x) => x.amount * ((x.splits.find((y) => y.memberId === m.id).pct || 0) / 100)));
+        const goal = Number((t.members || {})[m.id]) || 0;
+        return { memberId: m.id, name: m.name, sales: mine, goal, pct: goal ? Math.round((mine / goal) * 100) : 0 };
+      });
+      const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
+      return { month, revenue, revenueGoal: Number(t.revenue) || 0, revenuePct: pct(revenue, Number(t.revenue) || 0), leads, leadsGoal: Number(t.leads) || 0, leadsPct: pct(leads, Number(t.leads) || 0), patients: new Set(sales.filter((x) => x.patientType === 'new').map((x) => x.patientId)).size, patientsGoal: Number(t.patients) || 0, team };
     }
 
     // OPD clinics (locations for clinic visits)
@@ -657,7 +758,7 @@
         itemId: type === 'diet' ? null : input.itemId, planId: type === 'diet' ? input.planId : null,
         product, qty, amount,
         refId: input.refId, sharedId: refs[1] ? refs[1].memberId : '', sharePct: refs[1] ? refs[1].pct : 0,
-        dietitianId: input.dietitianId || '', notes: String(input.notes || '').trim(),
+        dietitianId: input.dietitianId || '', notes: String(input.notes || '').trim(), payMethod: input.payMethod || '',
         incentive: sum(splits, (x) => x.amount), splits, created: Date.now(),
       };
     }
@@ -675,13 +776,33 @@
       }
       if (existing) {
         S.moves = S.moves.filter((m) => m.ref !== existing.id);
-        Object.assign(existing, sale, { created: existing.created });
-      } else S.sales.push(sale);
+        Object.assign(existing, sale, { created: existing.created, invoiceNo: existing.invoiceNo });
+      } else { sale.invoiceNo = nextInvoiceNo(); S.sales.push(sale); }
       if (sale.itemId) S.moves.push({ id: uid('v'), itemId: sale.itemId, qty: -sale.qty, type: 'sale', ref: sale.id, date: sale.date });
       kitFor(sale).forEach((k) => S.moves.push({ id: uid('v'), itemId: k.itemId, qty: -k.qty, type: 'kit', ref: sale.id, date: sale.date }));
       log(existing ? 'Sale updated' : 'Sale added', `${sale.product} × ${sale.qty} · ${sale.patientName} · ₹${sale.amount}`);
       save();
       return existing || sale;
+    }
+    // Patient invoices: TPF-2026-0001, numbered in order of saving.
+    function nextInvoiceNo() {
+      S.settings.invoiceSeq = (Number(S.settings.invoiceSeq) || 0) + 1;
+      return `${S.settings.invoicePrefix || 'INV'}-${today().slice(0, 4)}-${String(S.settings.invoiceSeq).padStart(4, '0')}`;
+    }
+    /** Everything the invoice PDF needs; older sales get their number the first time. */
+    function invoiceFor(id) {
+      const x = S.sales.find((s) => s.id === id);
+      if (!x) fail('Sale not found');
+      if (!x.invoiceNo) { x.invoiceNo = nextInvoiceNo(); save(); }
+      const it = x.itemId ? item(x.itemId) : null;
+      const gst = Number(S.settings.invoiceGst) || 0; // GST % included in the amount
+      const taxable = r2(x.amount / (1 + gst / 100));
+      const rate = x.qty ? r2(x.amount / x.qty) : x.amount;
+      return {
+        no: x.invoiceNo, date: x.date, patient: x.patientName, mobile: x.mobile, patientId: x.patientId,
+        lines: [{ name: x.product, detail: it && it.days ? `${it.days} days${it.includes ? ` · ${it.includes}` : ''}` : (it && it.includes) || '', qty: x.qty, rate, mrp: it && it.mrp ? it.mrp : null, amount: x.amount }],
+        total: x.amount, gst, taxable, tax: r2(x.amount - taxable), payMethod: x.payMethod || '', by: memberName(x.refId), notes: x.notes,
+      };
     }
     function deleteSale(id) {
       const x = S.sales.find((s) => s.id === id);
@@ -1300,6 +1421,7 @@
           newPatients: new Set(mine.filter((s) => s.patientType === 'new').map((s) => s.patientId)).size,
           renewals: mine.filter((s) => s.patientType === 'renewal').length,
           injectionSales: byType('injection'), proteinSales: byType('protein'), dietSales: byType('diet'),
+          typeSales: Object.fromEntries(Object.keys(SALE_TYPES).map((t) => [t, byType(t)])),
           incentive: sum(mine, (s) => s.splits.find((x) => x.memberId === id).amount),
         };
       }).sort((a, b) => b.totalSales - a.totalSales);
@@ -1499,6 +1621,13 @@
         c.scheduledDate ? `${c.scheduledDate} ${c.scheduledTime || ''}`.trim() : '', c.postedDate || '', c.cost || 0, c.link || '', c.notes || '']));
       out.Editors = [['Name', 'Mobile', 'Fee per Video', 'Videos Received', 'Videos Posted', 'Total Fees', 'Status']];
       S.editors.forEach((x) => { const mine = S.content.filter((c) => c.editorId === x.id); out.Editors.push([x.name, x.mobile || '', videoFee(x), mine.filter((c) => c.status !== 'idea').length, mine.filter((c) => c.status === 'posted').length, sum(mine, (c) => Number(c.cost) || 0), x.disabled ? 'Disabled' : 'Active']); });
+      out.Campaigns = [['Campaign', 'Platform', 'Start', 'End', 'Budget', 'Spent', 'Leads', 'Converted', 'Cost per Lead', 'Revenue', 'ROI %', 'Goal', 'Notes']];
+      (S.campaigns || []).forEach((c) => { const x = campaignStats(c); out.Campaigns.push([c.name, c.platform, c.start, c.end, c.budget, c.spent, x.leads, x.won, x.cpl, x.revenue, x.roi, c.goal, c.notes]); });
+      out.Tasks = [['Task', 'Assigned To', 'Due', 'Priority', 'Status', 'Created By', 'Done By', 'Notes']];
+      (S.tasks || []).forEach((t) => out.Tasks.push([t.title, (account(t.assignedTo) || {}).name || '', t.due, t.priority, t.done ? 'Done' : 'Open', t.by || '', t.doneBy || '', t.notes]));
+      out.Attendance = [['Date', 'Team Member', 'Mark']];
+      const MARK = { P: 'Present', H: 'Half day', A: 'Absent', L: 'Leave', O: 'Week off' };
+      Object.keys(S.attendance || {}).sort().reverse().slice(0, 400).forEach((d) => Object.entries(S.attendance[d]).forEach(([id, m]) => out.Attendance.push([d, memberName(id), MARK[m] || m])));
       out['Activity Log'] = [['Date & Time', 'By', 'Action', 'Details']];
       S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.by, x.action, x.detail]));
       return out;
@@ -1589,6 +1718,7 @@
       account, saveAccount, setAccountPin, deleteAccount, setActor,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
       updatePatient, deletePatient, daySummary,
+      invoiceFor, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, leadDay, kindName, kinds, saveKind, deleteKind, moveKind, clinic, saveClinic, deleteClinic, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,

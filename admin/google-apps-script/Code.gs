@@ -4,7 +4,7 @@
  * Every save from the app writes:
  *   - the complete app data (JSON) into the hidden sheet "_AppData", which the app loads back
  *     on every device, so all admins share one set of data;
- *   - the 20 readable sheets (Dashboard, Appointments, Leads, Patients, … Renewals, Activity Log), rebuilt from that data.
+ *   - the 23 readable sheets (Dashboard, Appointments, Leads, Patients, … Renewals, Activity Log), rebuilt from that data.
  *
  * Set-up (once):
  * 1. Upload ThePrimeFit_Sheets.xlsx to Google Drive and open it as a Google Sheet (File → Save as Google Sheets),
@@ -13,7 +13,7 @@
  * 3. Deploy → New deployment → Web app: Execute as "Me", Who has access "Anyone".
  * 4. In the admin app: Settings → Google Sheet → paste the web app URL and the secret → Save.
  *
- * Edit data in the app, not in the sheets: each save rewrites the 20 sheets.
+ * Edit data in the app, not in the sheets: each save rewrites the 23 sheets.
  *
  * Social media counts (Content & Posts → "Fetch now" in the app):
  *   After pasting this file, run `testSocial` once (it asks to allow internet access), then
@@ -30,7 +30,7 @@
 // Leave empty when this script is opened from the sheet (Extensions → Apps Script); or paste a sheet ID.
 const SHEET_ID = '';
 const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Other Sales', 'Diet Support', 'Purchases',
-  'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Activity Log'];
+  'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Tasks', 'Attendance', 'Activity Log'];
 const DATA_SHEET = '_AppData';
 const CHUNK = 40000; // a cell holds up to 50,000 characters
 const NAVY = '#015b53'; // The Prime Fit teal (sheet headers)

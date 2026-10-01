@@ -331,5 +331,66 @@
     return name;
   }
 
-  root.EXPORT = { pdf, xlsx, jpeg, pdfText, opdSlip };
+  /** Patient invoice: A5 portrait, clinic header, bill-to, item table, totals with GST included, footer. */
+  function invoice(d) {
+    const { jsPDF } = root.jspdf;
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a5' });
+    const W = doc.internal.pageSize.getWidth();
+    const H = doc.internal.pageSize.getHeight();
+    const M = 9;
+    const money = (n) => pdfText(`Rs ${Number(n || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`);
+    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 28, 'F');
+    doc.setFillColor(...BRAND); doc.rect(0, 28, W, 1.2, 'F');
+    doc.setFillColor(255, 255, 255); doc.roundedRect(M, 5.5, 46, 15.5, 2, 2, 'F');
+    try { doc.addImage(LOGO, 'JPEG', M + 1.5, 6.4, 43, 14.7); } catch (_) { /* logo optional */ }
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(15);
+    doc.text('INVOICE', W - M, 12, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
+    doc.text(pdfText(d.clinic || 'The Prime Fit'), W - M, 17, { align: 'right' });
+    doc.text(pdfText([d.phone, d.website].filter(Boolean).join('  |  ')), W - M, 21, { align: 'right' });
+    if (d.gstin) doc.text(pdfText(`GSTIN ${d.gstin}`), W - M, 25, { align: 'right' });
+    let y = 36;
+    // Bill to / invoice details
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 24, 2, 2, 'F');
+    const lab = (t, x, yy) => { doc.setFontSize(6.5); doc.setTextColor(...MUTED); doc.setFont('helvetica', 'normal'); doc.text(pdfText(t).toUpperCase(), x, yy); };
+    const val = (t, x, yy, size) => { doc.setFontSize(size || 9.5); doc.setTextColor(...INK); doc.setFont('helvetica', 'bold'); doc.text(pdfText(t || '-'), x, yy); };
+    lab('Bill to', M + 4, y + 6); val(d.patient, M + 4, y + 11.5, 11); doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.text(pdfText(d.mobile || ''), M + 4, y + 17);
+    if (d.address) { doc.setFontSize(6.5); doc.setTextColor(...MUTED); doc.text(doc.splitTextToSize(pdfText(d.address), 60)[0], M + 4, y + 21.5); }
+    lab('Invoice no.', W / 2 + 6, y + 6); val(d.no, W / 2 + 6, y + 11);
+    lab('Date', W / 2 + 6, y + 16.5); val(d.dateText || d.date, W / 2 + 6, y + 21.5);
+    y += 30;
+    doc.autoTable({
+      startY: y, margin: { left: M, right: M }, theme: 'plain',
+      head: [['Item', 'Qty', 'Rate', 'Amount']],
+      body: d.lines.map((l) => [{ content: pdfText(l.name) + (l.detail ? `\n${pdfText(l.detail)}` : ''), styles: { fontStyle: 'normal' } }, String(l.qty), money(l.rate) + (l.mrp && l.mrp > l.rate ? `\nMRP ${money(l.mrp)}` : ''), money(l.amount)]),
+      headStyles: { fillColor: BRAND, textColor: 255, fontStyle: 'bold', fontSize: 8.5 },
+      bodyStyles: { fontSize: 8.5, textColor: INK, cellPadding: 2.5, valign: 'top' },
+      alternateRowStyles: { fillColor: ZEBRA },
+      columnStyles: { 0: { cellWidth: 'auto' }, 1: { halign: 'center', cellWidth: 12 }, 2: { halign: 'right', cellWidth: 28 }, 3: { halign: 'right', cellWidth: 28, fontStyle: 'bold' } },
+    });
+    y = doc.lastAutoTable.finalY + 6;
+    const row = (k, v, bold) => { doc.setFontSize(bold ? 11 : 8.5); doc.setFont('helvetica', bold ? 'bold' : 'normal'); doc.setTextColor(...(bold ? INK : MUTED)); doc.text(pdfText(k), W - M - 50, y); doc.setTextColor(...INK); doc.text(v, W - M, y, { align: 'right' }); y += bold ? 7 : 5.5; };
+    if (d.gst) { row('Taxable value', money(d.taxable)); row(`GST ${d.gst}% (included)`, money(d.tax)); }
+    doc.setDrawColor(219, 228, 226); doc.line(W - M - 52, y - 2.5, W - M, y - 2.5); y += 2;
+    row('Total', money(d.total), true);
+    doc.setFontSize(8.5); doc.setFont('helvetica', 'bold');
+    doc.setFillColor(...(d.payMethod ? [225, 244, 236] : [253, 236, 220]));
+    doc.roundedRect(W - M - 52, y - 4, 52, 8, 2, 2, 'F');
+    doc.setTextColor(...(d.payMethod ? [20, 138, 94] : [192, 105, 15]));
+    doc.text(d.payMethod ? pdfText(`PAID · ${d.payMethod}`) : 'PAYMENT DUE', W - M - 26, y + 1.3, { align: 'center' });
+    y += 12;
+    doc.setTextColor(...MUTED); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5);
+    if (d.by) { doc.text(pdfText(`Attended by ${d.by}`), M, y); y += 5; }
+    if (d.note) doc.text(doc.splitTextToSize(pdfText(d.note), W - 2 * M), M, y);
+    doc.setDrawColor(219, 228, 226); doc.line(W - M - 45, H - 24, W - M, H - 24);
+    doc.text('Authorised signatory', W - M, H - 20, { align: 'right' });
+    doc.setFillColor(...NAVY); doc.rect(0, H - 10, W, 10, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(7);
+    doc.text(pdfText([d.clinic || 'The Prime Fit', d.phone, d.website].filter(Boolean).join('  |  ')), W / 2, H - 4, { align: 'center' });
+    const name = `${d.filename || 'Invoice'}.pdf`;
+    save(name, 'application/pdf', doc.output('datauristring').split(',')[1], doc.output('blob'));
+    return name;
+  }
+
+  root.EXPORT = { pdf, xlsx, jpeg, pdfText, opdSlip, invoice };
 })(window);
