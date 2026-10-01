@@ -1106,9 +1106,12 @@
     return {
       f, own: false, n,
       ing: f.recipe.ing.map(([key, g]) => ({ x: ING[key], name: ING[key].name, hi: ING[key].hi, qty: gText(ING[key], Math.round(g * k)) })),
-      steps: RC.steps(f.recipe, ING),
+      // Full how-to: measure → wash & chop → method → finish → serve.
+      steps: RC.fullSteps(f.recipe, ING, { text: `${P.formatQty(f.qty)} ${f.unit}`, kcal: Math.round(f.kcal), p: f.p }, k),
     };
   }
+  /** "First", "Then", …, "Finally" for step i of n, in the chart language. */
+  const connective = (lang, i, n) => I.t(lang, i === 0 ? 'first' : i === n - 1 && n > 1 ? 'finally' : 'then');
   const ingCount = (f) => (ownRecipes[f.name] ? ownRecipes[f.name].ing.length : f.recipe ? f.recipe.ing.length : 0);
 
   const rcState = {};
@@ -1151,12 +1154,7 @@
       ...(r.own && r.serves > 1 ? [['Recipe makes', `${r.serves * k} servings`]] : []),
       ['Food type', P.DIETS[f.diet] || f.diet],
     ];
-    // Built-in methods get a "get ready" and a "serve" step so the whole process reads start to finish.
-    const steps = r.own ? r.steps : [
-      `Get ready: wash your hands and measure the ${r.ing.length} ingredients listed above${k > 1 ? ` (for ${k} servings)` : ''}.`,
-      ...r.steps,
-      `Serve ${P.formatQty(f.qty)} ${f.unit} per person — about ${Math.round(f.kcal)} kcal and ${f.p} g protein per serving.`,
-    ];
+    const steps = r.steps;
     return `
       <div class="rd-nutri">
         <div><b>${Math.round(r.n.kcal * k)}</b><small>kcal</small></div>
@@ -1168,7 +1166,7 @@
       <h3 class="rd-h">Ingredients <small>${r.ing.length}</small></h3>
       ${r.ing.length ? `<ul class="ing-list">${r.ing.map((x) => `<li><span>${x.x ? IC.foodIcon({ name: x.x.name, cat: x.x.cat, roles: [] }) + ' ' : '• '}${esc(x.name)}${x.hi ? ` <small>${esc(x.hi)}</small>` : ''}</span><b>${esc(x.qty)}</b></li>`).join('')}</ul>` : '<p class="muted">No ingredients listed.</p>'}
       <h3 class="rd-h">Method — step by step <small>${steps.length} steps</small></h3>
-      <ol class="steps">${steps.map((s, i) => `<li><span class="step-no" aria-hidden="true">${i + 1}</span><div><small>Step ${i + 1}</small><p>${esc(s)}</p></div></li>`).join('')}</ol>
+      <ol class="steps">${steps.map((s, i) => `<li><span class="step-no" aria-hidden="true">${i + 1}</span><div><small>${esc(I.t('en', 'step'))} ${i + 1} · ${esc(connective('en', i, steps.length))}</small><p>${esc(s)}</p></div></li>`).join('')}</ol>
       ${r.tips ? `<div class="rd-tip"><b>Tips</b><p>${esc(r.tips)}</p></div>` : ''}`;
   }
 
@@ -1682,6 +1680,13 @@
     royal: ['Royal', '#5B21B6', '#C9A227'],
     emerald: ['Emerald', '#047857', '#10B981'],
     charcoal: ['Charcoal', '#2C2E2F', '#C9A227'],
+    onyx: ['Onyx & gold', '#0B0B0C', '#D4AF37'],
+    rose: ['Rose gold', '#9F1239', '#E8A598'],
+    ocean: ['Ocean', '#0E7490', '#22D3EE'],
+    sunset: ['Sunset', '#C2410C', '#F59E0B'],
+    plum: ['Plum', '#6B2147', '#D18FB5'],
+    sapphire: ['Sapphire', '#0F2A5F', '#60A5FA'],
+    forest: ['Forest', '#14532D', '#84CC16'],
   };
   const root = document.documentElement;
   $('#theme-swatches').innerHTML = Object.entries(THEMES).map(([k, [label, a, b]]) => `<button type="button" class="swatch" data-theme-pick="${k}" role="radio" aria-label="${esc(label)}"><span class="sw" style="background:linear-gradient(135deg, ${a} 0 55%, ${b} 55% 100%)"></span><small>${esc(label)}</small></button>`).join('');
@@ -1843,11 +1848,37 @@
     ];
   }
 
+  /**
+   * Social handles for every PDF: live values from the clinic admin's settings
+   * (localStorage 'primefit.admin.v1' → settings.instagram / youtube are full URLs), else the defaults.
+   */
+  function social() {
+    let st = {};
+    try { st = (JSON.parse(storage.getItem('primefit.admin.v1') || '{}') || {}).settings || {}; } catch (_) { st = {}; }
+    const handle = (url, def) => {
+      const h = String(url || '').trim().replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop().replace(/^@/, '');
+      return h && !/\.(com|in)$/i.test(h) ? '@' + h : def;
+    };
+    const web = String(st.website || BRAND.website).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '') || BRAND.website;
+    return { ig: handle(st.instagram, '@theprimefit_'), yt: handle(st.youtube, '@ThePrimeFit'), web, phone: String(st.phone || '').trim() || BRAND.phone };
+  }
+  const SOC_ICON = {
+    ig: '<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="psig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9a23b"/><stop offset=".5" stop-color="#e1306c"/><stop offset="1" stop-color="#833ab4"/></linearGradient></defs><rect x="2" y="2" width="20" height="20" rx="6" fill="url(#psig)"/><circle cx="12" cy="12" r="4.3" fill="none" stroke="#fff" stroke-width="2"/><circle cx="17.3" cy="6.7" r="1.3" fill="#fff"/></svg>',
+    yt: '<svg viewBox="0 0 24 24" aria-hidden="true"><rect x="1.5" y="4.5" width="21" height="15" rx="4.5" fill="#ff0000"/><path d="M10 8.8v6.4l5.6-3.2z" fill="#fff"/></svg>',
+    web: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#015b53"/><path d="M2.5 12h19M12 2.2c2.8 2.7 4.2 6 4.2 9.8s-1.4 7.1-4.2 9.8M12 2.2C9.2 4.9 7.8 8.2 7.8 12s1.4 7.1 4.2 9.8" fill="none" stroke="#fff" stroke-width="1.4"/></svg>',
+    ph: '<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" fill="#1fa38c"/><path d="M8.6 6.8l1.6-.4 1.2 2.7-1.1 1c.6 1.4 1.6 2.4 3 3l1-1.1 2.7 1.2-.4 1.6c-.2.6-.8 1-1.4.9-4-.5-7.1-3.6-7.6-7.6-.1-.6.3-1.2 1-1.3z" fill="#fff"/></svg>',
+  };
+  /** The "Follow us" strip at the end of every printed chart and recipe set. */
   function promo(lang, lang2) {
+    const so = social();
+    const f1 = I.t(lang, 'followUs');
+    const f2 = lang2 ? I.t(lang2, 'followUs') : '';
     const a = I.t(lang, 'appPromo');
-    const b = lang2 ? I.t(lang2, 'appPromo') : '';
-    const en = lang !== 'en' && lang2 !== 'en' ? I.t('en', 'appPromo') : '';
-    return `<div class="ps-promo"><span class="ps-promo-ico">🌐</span><div><b>${esc(a)}</b>${b && b !== a ? `<small>${esc(b)}</small>` : ''}${en ? `<small>${esc(en)}</small>` : ''}</div><a class="ps-stores ps-web" href="https://www.theprimefit.in" target="_blank" rel="noopener"><i>www.theprimefit.in</i><i>${esc(BRAND.phone)}</i></a></div>`;
+    const item = (k, text) => `<span class="ps-soc ps-soc-${k}">${SOC_ICON[k]}<b>${esc(text)}</b></span>`;
+    return `<div class="ps-promo">
+      <div class="ps-follow"><b>${esc(f1)}</b>${f2 && f2 !== f1 ? `<small>${esc(f2)}</small>` : ''}<small>${esc(a)}</small></div>
+      <div class="ps-socials">${item('ig', so.ig)}${item('yt', so.yt)}${item('web', so.web)}${item('ph', so.phone)}</div>
+    </div>`;
   }
 
   /**
@@ -1868,7 +1899,7 @@
     const to = part ? part.to : r.steps.length;
     const first = from === 0;
     const last = to >= r.steps.length;
-    const steps = `<ol class="rcp-steps">${r.steps.slice(from, to).map((st, i) => `<li><b class="rcp-n">${from + i + 1}</b><span>${esc(st)}</span></li>`).join('')}</ol>`;
+    const steps = `<ol class="rcp-steps">${r.steps.slice(from, to).map((st, i) => `<li><b class="rcp-n">${from + i + 1}</b><span><em class="rcp-c">${esc(connective(lang, from + i, r.steps.length))}</em>${esc(st)}</span></li>`).join('')}</ol>`;
     const tips = last && r.tips ? `<div class="rcp-tip"><b>${esc(I.t(lang, 'tips'))}</b><span>${esc(r.tips)}</span></div>` : '';
     const method = `<h3>${esc(I.t(lang, 'method'))}${first ? ` <small>${r.steps.length} ${esc(I.t(lang, 'steps'))}</small>` : ` <small>${esc(I.t(lang, 'continued'))}</small>`}</h3>${steps}${tips}`;
     if (!first) {
@@ -1980,7 +2011,8 @@
   }
 
   function setPageStyle(total) {
-    const footer = [BRAND.company, BRAND.website, profile && profile.dietitianPhone].filter(Boolean).join('  ·  ');
+    const so = social();
+    const footer = [BRAND.company, `Instagram ${so.ig}`, `YouTube ${so.yt}`, so.web, (profile && profile.dietitianPhone) || so.phone].filter(Boolean).join('  ·  ');
     let st = document.getElementById('ps-page-style');
     if (!st) { st = document.createElement('style'); st.id = 'ps-page-style'; document.head.appendChild(st); }
     st.textContent = `@page { @bottom-left { content: ${JSON.stringify(footer)}; font: 7pt system-ui, sans-serif; color: #2c2e2f; }
@@ -2085,6 +2117,8 @@
         m ? m.items.map((i) => `${itemName(i, lang)} (${itemQty(i, lang)})`).join('; ') : '',
         m ? m.kcal : '', m ? m.p : '', m ? m.c : '', m ? m.f : '']);
     }));
+    const so = social();
+    rows.push([], ['Follow us', `Instagram ${so.ig}`, `YouTube ${so.yt}`, so.web, so.phone]);
     const csv = '﻿' + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
     saveFile(fileTitle('named') + '.csv', 'text/csv', csv);
   }

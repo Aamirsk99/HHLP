@@ -816,6 +816,48 @@
     return (STEPS[recipe.tpl] || STEPS.plate).map((s) => s.replace('{main}', join(main)).replace('{aro}', aro.length ? join(aro) : 'the spices'));
   }
 
+  // Extra finishing step for methods that are short, by template.
+  const FINISH = {
+    water: 'Let it cool to sipping warmth; drink it slowly over 5–10 minutes.',
+    raw: 'Arrange on a clean plate or bowl; add a squeeze of lemon or a pinch of chaat masala if you like.',
+    soak: 'Rinse once more and keep the rest covered in the fridge for up to 2 days.',
+    roast: 'Let it cool fully before storing so it stays crisp.',
+    ready: 'Portion out one serving into a bowl instead of eating from the pack.',
+    tea: 'Taste and add a few drops of lemon or a mint leaf instead of sugar.',
+    milk: 'Pour into a cup and let it cool for a minute before drinking.',
+    blend: 'Pour into a glass and drink fresh — do not strain away the fibre.',
+    mixdrink: 'Stir again just before drinking, as it settles.',
+    salad: 'Toss once more just before serving so the dressing coats everything.',
+    raita: 'Taste and adjust salt; serve cold.',
+    chutney: 'Taste, adjust salt and lemon, and keep refrigerated (2–3 days).',
+    chaat: 'Taste, adjust lemon and salt, and eat straight away so it stays crunchy.',
+    wrap: 'Cut in half on a slant and serve.',
+    sandwich: 'Cut diagonally and serve warm.',
+    plate: 'Eat slowly: salad and protein first, then the grains.',
+  };
+  const DEFAULT_FINISH = 'Taste and adjust salt, lemon or spices; keep oil and sugar to what is listed.';
+
+  /**
+   * The full "how to" for a dish, start to finish: measure everything, wash and chop,
+   * the method itself, a finishing step when the method is short, and how much to serve.
+   * `serve` (optional) = { text: '1 bowl', kcal, p } for the last step; `serves` scales quantities.
+   */
+  function fullSteps(recipe, ingredients, serve, serves) {
+    const db = ingredients || ING;
+    const k = serves || 1;
+    const items = recipe.ing.map(([key, g]) => ({ x: db[key], g: Math.round(g * k * 10) / 10 }));
+    const unit = (x) => (x.cat === 'drink' || /milk|water|juice/i.test(x.name) ? 'ml' : 'g');
+    const join = (l) => (l.length > 1 ? l.slice(0, -1).join(', ') + ' and ' + l[l.length - 1] : l[0] || '');
+    const out = [`Measure everything first${k > 1 ? ` (for ${k} servings)` : ''}: ${join(items.map(({ x, g }) => `${titleCase(x.name)} ${g} ${unit(x)}`))}.`];
+    const fresh = items.filter(({ x }) => ['veg', 'leafy', 'fruit'].includes(x.cat)).map(({ x }) => titleCase(x.name));
+    if (fresh.length && recipe.tpl !== 'raw' && recipe.tpl !== 'salad' && recipe.tpl !== 'sabzi') out.push(`Wash ${join(fresh)} under running water, then peel and chop as the dish needs.`);
+    const method = steps(recipe, db);
+    out.push(...method);
+    if (method.length < 3 || out.length < 4) out.push(FINISH[recipe.tpl] || DEFAULT_FINISH);
+    if (serve) out.push(`Serve ${serve.text} per person — about ${serve.kcal} kcal and ${serve.p} g protein in each serving.`);
+    return out;
+  }
+
   /**
    * Attach recipes to foods and recalculate their nutrition from ingredients.
    * The recipe's diet and allergens are merged in (never loosened).
@@ -841,7 +883,7 @@
     return missing;
   }
 
-  const api = { RECIPES: R, STEPS, parse, analyse, steps, applyRecipes };
+  const api = { RECIPES: R, STEPS, FINISH, parse, analyse, steps, fullSteps, applyRecipes };
   if (typeof module !== 'undefined' && module.exports) {
     ING = require('./ingredients.js');
     module.exports = api;

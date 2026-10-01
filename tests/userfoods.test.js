@@ -55,3 +55,17 @@ test('custom foods are planned, packed, backed up and read back from the PDF', (
   other.deleteCustomFood(other.listCustomFoods()[0].id);
   assert.equal(DB.FOODS.length, builtin);
 });
+
+test('every built-in recipe has a full step-by-step method (at least 4 steps)', () => {
+  const RC = require('../js/recipes.js');
+  const ING = require('../js/ingredients.js');
+  for (const f of DB.FOODS.filter((x) => x.recipe)) {
+    const steps = RC.fullSteps(f.recipe, ING, { text: '1 serving', kcal: f.kcal, p: f.p });
+    assert.ok(steps.length >= 4, `${f.name}: ${steps.length} steps`);
+    assert.ok(steps.every((s) => s && !/undefined|\{\w+\}/.test(s)), f.name);
+    assert.match(steps[0], /^Measure everything first/);
+    assert.match(steps[steps.length - 1], /^Serve 1 serving per person/);
+  }
+  const two = RC.fullSteps(DB.FOODS.find((x) => x.recipe).recipe, ING, null, 2);
+  assert.match(two[0], /for 2 servings/);
+});

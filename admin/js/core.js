@@ -26,7 +26,7 @@
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
     'Founder', 'Ads', 'Editing', 'Product Purchase', 'Miscellaneous'];
   const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Other Sales', 'Diet Support', 'Purchases',
-    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Tasks', 'Attendance', 'Activity Log'];
+    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Ads Report', 'Tasks', 'Attendance', 'Founder Notes', 'Activity Log'];
 
   // Login roles. Every person can have their own login (name + PIN), shared through the Google Sheet.
   const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk', editor: 'Video Editor', marketing: 'Marketing', viewer: 'View only' };
@@ -109,11 +109,18 @@
         videoFee: 150, // default editor fee per video (₹)
         defaultGst: 12, // GST % filled on new purchase lines
         expenseOff: { categories: [], names: [] }, // expenses not counted in totals and profit
+        founder: { name: '', title: 'Founder', mobile: '', email: '', share: 100, budget: 0, about: '' }, // founder profile (Founder Hub)
+        followUpDays: 2, // new leads get a follow-up this many days ahead
+        remindMins: 10, // follow-up alert this many minutes before
+        autoAssign: false, // new leads are shared in turn between the lead-handling logins
+        autoLockMins: 0, // sign out after this many idle minutes (0 = never)
+        leadTags: ['GLP-1', 'Diet', 'Price asked', 'Callback', 'VIP'],
+        waTemplates: {},
       },
       categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
-      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, campaigns: [], ideas: [], tasks: [], attendance: {}, targets: {}, social: { youtube: {}, instagram: {}, fetchedAt: 0 },
-      seeded: { packages: true, cleared: true, r7: true },
+      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, campaigns: [], ideas: [], tasks: [], attendance: {}, targets: {}, notes: [], social: { youtube: {}, instagram: {}, fetchedAt: 0 },
+      seeded: { packages: true, cleared: true, r7: true, r8: true },
       accounts: [
         { id: 'super', name: 'Super Admin', username: 'superadmin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
         { id: 'admin', name: 'Admin', username: 'admin', role: 'admin', hash: '', salt: '', len: 0, pin: '' },
@@ -269,6 +276,12 @@
         ['admin', 'manager'].forEach((r) => { const p = s.settings.perms[r]; if (p && p.screens) ['marketing', 'manage'].forEach((x) => { if (!p.screens.includes(x)) p.screens.push(x); }); });
         s.seeded.r7 = true;
       }
+      // Version 1.6: expenses are Common or Founder; the old Founder category becomes Founder expenses.
+      if (!s.seeded.r8) {
+        (s.expenses || []).forEach((e) => { if (!e.scope) e.scope = e.category === 'Founder' ? 'founder' : 'common'; });
+        s.seeded.r8 = true;
+      }
+      if (!Array.isArray(s.notes)) s.notes = [];
       if (!hadKinds) {
         s.settings.kinds = JSON.parse(JSON.stringify(BASE_KINDS));
         [['injection', 'Injection'], ['protein', 'Protein']].forEach(([id, name]) => {
@@ -488,6 +501,85 @@
       });
       const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
       return { month, revenue, revenueGoal: Number(t.revenue) || 0, revenuePct: pct(revenue, Number(t.revenue) || 0), leads, leadsGoal: Number(t.leads) || 0, leadsPct: pct(leads, Number(t.leads) || 0), patients: new Set(sales.filter((x) => x.patientType === 'new').map((x) => x.patientId)).size, patientsGoal: Number(t.patients) || 0, team };
+    }
+
+    // Founder Hub: discussions, decisions and important notes.
+    function saveNote(input) {
+      const text = String(input.text || '').trim(); const title = String(input.title || '').trim();
+      let n = input.id && listFix('notes').find((x) => x.id === input.id);
+      if ((!n || 'title' in input || 'text' in input) && !title && !text) fail('Write the note');
+      if (!n) { n = { id: uid('n'), at: Date.now(), by: actor, pinned: false, done: false, tag: 'discussion' }; S.notes.push(n); }
+      if ('title' in input) n.title = title;
+      if ('text' in input) n.text = text;
+      ['tag', 'due'].forEach((k) => { if (k in input) n[k] = String(input[k] || ''); });
+      ['pinned', 'done'].forEach((k) => { if (k in input) n[k] = !!input[k]; });
+      n.updated = Date.now();
+      save();
+      return n;
+    }
+    function deleteNote(id) { S.notes = listFix('notes').filter((x) => x.id !== id); save(); }
+    /** Ads report: spend from Ads expenses (name = platform) and campaigns, leads from the lead source, revenue from converted patients. */
+    function adReport(range) {
+      const by = {};
+      const row = (k) => { const key = k || 'Ads'; by[low(key)] = by[low(key)] || { platform: key, spend: 0, entries: 0, manualLeads: 0, hasManual: false, leads: 0, won: 0, revenue: 0 }; return by[low(key)]; };
+      S.expenses.filter((e) => inRange(e.date, range) && /^ads?$|advert|marketing/i.test(e.category || '')).forEach((e) => {
+        const r = row(e.name || 'Ads'); r.spend = r2(r.spend + e.amount); r.entries += 1;
+        if (e.adLeads != null) { r.manualLeads += e.adLeads; r.hasManual = true; }
+      });
+      const leads = S.leads.filter((l) => inRange(l.date, range));
+      Object.values(by).forEach((r) => {
+        const mine = leads.filter((l) => low(l.source) === low(r.platform));
+        r.leads = mine.length;
+        const won = mine.filter((l) => l.patientId || l.apptId || ['Converted', 'Appointment booked'].includes(l.status));
+        r.won = won.length;
+        const pids = new Set(won.map((l) => l.patientId).filter(Boolean));
+        r.revenue = r2(sum(S.sales.filter((x) => pids.has(x.patientId) && inRange(x.date, range)), (x) => x.amount));
+        const n = r.leads || r.manualLeads;
+        r.cpl = n ? r2(r.spend / n) : 0;
+        r.roi = r.spend ? r2(((r.revenue - r.spend) / r.spend) * 100) : 0;
+      });
+      // Lead sources with leads but no spend still show (organic).
+      leads.forEach((l) => { if (l.source && !by[low(l.source)]) { const r = row(l.source); r.organic = true; } });
+      Object.values(by).filter((r) => r.organic).forEach((r) => {
+        const mine = leads.filter((l) => low(l.source) === low(r.platform));
+        r.leads = mine.length; r.won = mine.filter((l) => l.patientId || l.apptId || ['Converted', 'Appointment booked'].includes(l.status)).length;
+      });
+      const rows = Object.values(by).sort((a, b) => b.spend - a.spend || b.leads - a.leads);
+      const spend = r2(sum(rows, (r) => r.spend)); const paidLeads = sum(rows.filter((r) => r.spend), (r) => r.leads || r.manualLeads);
+      return { rows, spend, leads: leads.length, paidLeads, cpl: paidLeads ? r2(spend / paidLeads) : 0, won: sum(rows, (r) => r.won), revenue: r2(sum(rows.filter((r) => r.spend), (r) => r.revenue)) };
+    }
+    /** Every alert in the app in one list (Founder Hub, bell). level: bad | warn | info */
+    function alerts() {
+      const d = today(); const out = [];
+      const add = (level, area, text, go) => out.push({ level, area, text, go });
+      stockItems().forEach((i) => {
+        const st = stockOf(i.id);
+        if (i.orderAt != null && st < i.orderAt) add('bad', 'Stock', `Order required: ${i.name} (${st} left)`, 'inventory');
+        else if (S.settings.stockAlerts !== false && !i.alertOff && st <= (i.lowAt || 0)) add('warn', 'Stock', `Low stock: ${i.name} (${st} left)`, 'inventory');
+      });
+      const open = S.leads.filter((l) => !isClosedLead(l));
+      const over = open.filter((l) => l.followUp && l.followUp < d).length; if (over) add('bad', 'Leads', `${over} lead follow-up${over > 1 ? 's' : ''} overdue`, 'leads');
+      const due = open.filter((l) => l.followUp === d).length; if (due) add('info', 'Leads', `${due} follow-up${due > 1 ? 's' : ''} due today`, 'leads');
+      const noOwner = open.filter((l) => !l.assignedTo).length; if (noOwner) add('warn', 'Leads', `${noOwner} open lead${noOwner > 1 ? 's' : ''} not assigned`, 'leads');
+      const ren = renewals().filter((r) => r.stage && !r.done).length; if (ren) add('warn', 'Renewals', `${ren} patient${ren > 1 ? 's' : ''} due for renewal`, 'renewals');
+      const unpaid = S.appointments.filter((a) => a.status !== 'cancelled' && !a.paid && a.date <= d && Number(a.fee) > 0).length; if (unpaid) add('warn', 'OPD', `${unpaid} OPD fee${unpaid > 1 ? 's' : ''} unpaid`, 'appointments');
+      const posts = S.content.filter((c) => c.status === 'scheduled' && c.scheduledDate && c.scheduledDate < d).length; if (posts) add('warn', 'Content', `${posts} scheduled post${posts > 1 ? 's' : ''} overdue`, 'content');
+      const tasks = listFix('tasks').filter((t) => !t.done && t.due && t.due < d).length; if (tasks) add('warn', 'Tasks', `${tasks} task${tasks > 1 ? 's' : ''} overdue`, 'manage');
+      listFix('campaigns').filter((c) => c.budget && c.spent > c.budget).forEach((c) => add('bad', 'Ads', `${c.name} is over budget (₹${Number(c.spent).toLocaleString('en-IN')} of ₹${Number(c.budget).toLocaleString('en-IN')})`, 'marketing'));
+      const f = S.settings.founder || {}; const month = d.slice(0, 7);
+      if (f.budget) { const spent = r2(sum(S.expenses.filter((e) => e.scope === 'founder' && (e.date || '').startsWith(month)), (e) => e.amount)); if (spent > f.budget) add('bad', 'Founder', `Founder expenses ₹${spent.toLocaleString('en-IN')} are over the monthly limit ₹${Number(f.budget).toLocaleString('en-IN')}`, 'founder'); }
+      const t = (S.targets || {})[month];
+      if (t && t.revenue) { const tp = targetProgress(month); const dayPct = Math.round((Number(d.slice(8)) / 30) * 100); if (tp.revenuePct + 15 < dayPct) add('warn', 'Targets', `Revenue is at ${tp.revenuePct}% of target with ${dayPct}% of the month gone`, 'manage'); }
+      listFix('notes').filter((n) => !n.done && n.due && n.due <= d).forEach((n) => add('info', 'Notes', `Due: ${n.title || n.text.slice(0, 40)}`, 'founder'));
+      const order = { bad: 0, warn: 1, info: 2 };
+      return out.sort((a, b) => order[a.level] - order[b.level]);
+    }
+    /** Next login to get a new lead when auto-assign is on (fewest open leads first). */
+    function nextAssignee() {
+      const pool = S.accounts.filter((a) => !a.disabled && ['desk', 'marketing'].includes(a.role));
+      if (!pool.length) return '';
+      const load = (id) => S.leads.filter((l) => l.assignedTo === id && !isClosedLead(l)).length;
+      return pool.sort((a, b) => load(a.id) - load(b.id))[0].id;
     }
 
     // OPD clinics (locations for clinic visits)
@@ -873,7 +965,9 @@
       let e = input.id && S.expenses.find((x) => x.id === input.id);
       if (!e) { e = { id: uid('e') }; S.expenses.push(e); }
       Object.assign(e, { date: input.date || today(), category: input.category, amount: r2(input.amount), note: String(input.note || '').trim(),
-        name: String(input.name || '').trim(), payMethod: input.payMethod || '', noCount: !!input.noCount });
+        name: String(input.name || '').trim(), payMethod: input.payMethod || '', noCount: !!input.noCount,
+        scope: input.scope === 'founder' || (!input.scope && input.category === 'Founder') ? 'founder' : 'common',
+        adLeads: input.adLeads === '' || input.adLeads == null ? null : Math.max(0, Math.round(Number(input.adLeads) || 0)) });
       if (!S.settings.lists.expenseCategories.includes(e.category)) S.settings.lists.expenseCategories.push(e.category);
       if (e.name && !S.settings.lists.expenseNames.some((x) => low(x) === low(e.name))) S.settings.lists.expenseNames.push(e.name);
       log(input.id ? 'Expense updated' : 'Expense added', `${e.category}${e.name ? ` (${e.name})` : ''} ₹${e.amount}${e.note ? ` · ${e.note}` : ''}`);
@@ -915,6 +1009,9 @@
         total: r2(sum(all.filter(counted), (e) => e.amount)), all: r2(sum(all, (e) => e.amount)), notCounted: r2(sum(all.filter((e) => !counted(e)), (e) => e.amount)), count: list.length,
         byCategory: mark(group((e) => e.category), 'categories'), byName: mark(group((e) => e.name), 'names'),
         byBoth: group((e) => (e.name ? `${e.category} · ${e.name}` : '')),
+        common: r2(sum(all.filter((e) => counted(e) && e.scope !== 'founder'), (e) => e.amount)),
+        founder: r2(sum(all.filter((e) => counted(e) && e.scope === 'founder'), (e) => e.amount)),
+        founderAll: r2(sum(all.filter((e) => e.scope === 'founder'), (e) => e.amount)),
       };
     }
 
@@ -1180,7 +1277,7 @@
 
     // Lead management (CRM)
     const lead = (id) => S.leads.find((l) => l.id === id) || null;
-    const LEAD_FIELDS = ['name', 'mobile', 'altMobile', 'age', 'gender', 'city', 'source', 'interest', 'priority', 'assignedTo', 'followUp', 'followTime', 'weight', 'targetWeight', 'height', 'budget', 'notes', 'email'];
+    const LEAD_FIELDS = ['name', 'mobile', 'altMobile', 'age', 'gender', 'city', 'source', 'interest', 'priority', 'assignedTo', 'followUp', 'followTime', 'weight', 'targetWeight', 'height', 'budget', 'notes', 'email', 'tags', 'lostReason'];
     function findLeadByMobile(mobile, exceptId) {
       const ph = digits(mobile);
       return ph ? S.leads.find((l) => l.id !== exceptId && digits(l.mobile) === ph) || null : null;
@@ -1197,6 +1294,7 @@
       LEAD_FIELDS.forEach((k) => { if (k in input) l[k] = typeof input[k] === 'string' ? input[k].trim() : input[k]; });
       l.name = name;
       if (!LEAD_PRIORITIES[l.priority]) l.priority = 'warm';
+      if (isNew && !l.assignedTo && S.settings.autoAssign) l.assignedTo = nextAssignee();
       if (input.status && input.status !== l.status) setLeadStatusRaw(l, input.status);
       if (l.source && !S.settings.lists.leadSources.includes(l.source)) S.settings.lists.leadSources.push(l.source);
       if (l.interest && !S.settings.lists.services.includes(l.interest)) S.settings.lists.services.push(l.interest);
@@ -1204,6 +1302,43 @@
       log(isNew ? 'Lead added' : 'Lead updated', `${l.name} · ${l.mobile}`);
       save();
       return l;
+    }
+    /** Many leads at once: { status, assignedTo, followUp, tag } or remove. */
+    function bulkLeads(ids, patch) {
+      const set = new Set(ids || []);
+      const list = S.leads.filter((l) => set.has(l.id));
+      if (!list.length) fail('Select leads first');
+      if (patch.remove) { S.leads = S.leads.filter((l) => !set.has(l.id)); log('Leads deleted', `${list.length} leads`); save(); return list.length; }
+      list.forEach((l) => {
+        if (patch.status && patch.status !== l.status) setLeadStatusRaw(l, patch.status);
+        if ('assignedTo' in patch) l.assignedTo = patch.assignedTo;
+        if (patch.followUp) l.followUp = patch.followUp;
+        if (patch.tag) { const t = (l.tags || '').split(',').map((x) => x.trim()).filter(Boolean); if (!t.includes(patch.tag)) t.push(patch.tag); l.tags = t.join(', '); }
+      });
+      log('Leads updated', `${list.length} leads`); save();
+      return list.length;
+    }
+    /** Paste leads: one per line, "name, mobile, source, interest" (tabs or commas). Duplicates are skipped. */
+    function importLeads(text, defaults) {
+      let added = 0; let skipped = 0;
+      String(text || '').split(/\r?\n/).map((x) => x.trim()).filter(Boolean).forEach((line) => {
+        const [name, mobile, source, interest] = line.split(/\t|,|;/).map((x) => x.trim());
+        if (!name || !digits(mobile) || findLeadByMobile(mobile)) { skipped += 1; return; }
+        saveLead({ ...(defaults || {}), name, mobile, ...(source ? { source } : {}), ...(interest ? { interest } : {}) });
+        added += 1;
+      });
+      return { added, skipped };
+    }
+    /** 0–100: how likely a lead is to convert (priority, recent contact, follow-up kept, budget, visits). */
+    function leadScore(l) {
+      let s = { hot: 40, warm: 25, cold: 10 }[l.priority] || 20;
+      const touches = (l.history || []).filter((h) => ['call', 'whatsapp', 'visit', 'note'].includes(h.type)).length;
+      s += Math.min(25, touches * 6);
+      if (l.followUp && l.followUp >= today()) s += 10;
+      if (l.budget) s += 10;
+      if (l.apptId) s += 15;
+      if (isClosedLead(l) && !['Converted', 'Appointment booked'].includes(l.status)) s = 5;
+      return Math.max(0, Math.min(100, s));
     }
     function setLeadStatusRaw(l, status) {
       if (!S.settings.lists.leadStatuses.includes(status)) S.settings.lists.leadStatuses.push(status);
@@ -1508,7 +1643,7 @@
         content: contentStats(range, d),
         expenseSummary: expenseSummary(range),
         productExpenses: r2(sum(S.expenses.filter((e) => inRange(e.date, range) && counted(e) && /purchase/i.test(e.category)), (e) => e.amount)),
-        founderExpenses: r2(sum(S.expenses.filter((e) => inRange(e.date, range) && e.category === 'Founder'), (e) => e.amount)),
+        founderExpenses: r2(sum(S.expenses.filter((e) => inRange(e.date, range) && (e.scope === 'founder' || (!e.scope && e.category === 'Founder'))), (e) => e.amount)),
         leads: leadStats(range),
         renewalsDue: renewals(d).filter((r) => r.stage && !r.done).length,
         appointments: appointmentStats(range),
@@ -1609,8 +1744,8 @@
       out.Salary = [['Month', 'Name', 'Designation', 'Salary', 'Incentive', 'Total Pay', 'Booked as Expense']];
       const months = new Set([monthOf(d), ...S.sales.map((s) => monthOf(s.date))]);
       [...months].sort().forEach((mo) => salarySheet(mo).forEach((r) => out.Salary.push([mo, r.name, r.designation || '', r.salary, r.incentive, r.total, salaryPosted(mo) ? 'Yes' : 'No'])));
-      out.Expenses = [['Date', 'Category', 'Name', 'Amount', 'Payment Method', 'Note', 'Counted']];
-      [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.category, e.name || '', e.amount, e.payMethod || '', e.note || '', counted(e) ? 'Yes' : 'No']));
+      out.Expenses = [['Date', 'Type', 'Category', 'Name', 'Amount', 'Payment Method', 'Note', 'Counted', 'Ad Leads (manual)']];
+      [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.scope === 'founder' ? 'Founder' : 'Common', e.category, e.name || '', e.amount, e.payMethod || '', e.note || '', counted(e) ? 'Yes' : 'No', e.adLeads == null ? '' : e.adLeads]));
       out.Renewals = [['Patient', 'Mobile', 'Product', 'Last Purchase Date', 'Days Since', 'Reminder', 'Reference Team', 'Contacted']];
       renewals(d).forEach((r) => out.Renewals.push([r.name, r.mobile, r.product, r.lastDate, r.days, r.stage ? `${r.stage} Day alert` : `Due in ${r.dueIn} days`, r.ref, r.done ? 'Yes' : 'No']));
       out.Doctors = [['Name', 'Speciality', 'Qualification', 'Mobile', 'Fee', 'Days', 'Timing', 'Appointments', 'Status']];
@@ -1623,11 +1758,15 @@
       S.editors.forEach((x) => { const mine = S.content.filter((c) => c.editorId === x.id); out.Editors.push([x.name, x.mobile || '', videoFee(x), mine.filter((c) => c.status !== 'idea').length, mine.filter((c) => c.status === 'posted').length, sum(mine, (c) => Number(c.cost) || 0), x.disabled ? 'Disabled' : 'Active']); });
       out.Campaigns = [['Campaign', 'Platform', 'Start', 'End', 'Budget', 'Spent', 'Leads', 'Converted', 'Cost per Lead', 'Revenue', 'ROI %', 'Goal', 'Notes']];
       (S.campaigns || []).forEach((c) => { const x = campaignStats(c); out.Campaigns.push([c.name, c.platform, c.start, c.end, c.budget, c.spent, x.leads, x.won, x.cpl, x.revenue, x.roi, c.goal, c.notes]); });
+      out['Ads Report'] = [['Platform', 'Ad Spend', 'Leads (app)', 'Leads (manual)', 'Cost per Lead', 'Converted', 'Revenue', 'ROI %']];
+      adReport(null).rows.forEach((r) => out['Ads Report'].push([r.platform, r.spend, r.leads, r.hasManual ? r.manualLeads : '', r.cpl, r.won, r.revenue, r.spend ? r.roi : '']));
       out.Tasks = [['Task', 'Assigned To', 'Due', 'Priority', 'Status', 'Created By', 'Done By', 'Notes']];
       (S.tasks || []).forEach((t) => out.Tasks.push([t.title, (account(t.assignedTo) || {}).name || '', t.due, t.priority, t.done ? 'Done' : 'Open', t.by || '', t.doneBy || '', t.notes]));
       out.Attendance = [['Date', 'Team Member', 'Mark']];
       const MARK = { P: 'Present', H: 'Half day', A: 'Absent', L: 'Leave', O: 'Week off' };
       Object.keys(S.attendance || {}).sort().reverse().slice(0, 400).forEach((d) => Object.entries(S.attendance[d]).forEach(([id, m]) => out.Attendance.push([d, memberName(id), MARK[m] || m])));
+      out['Founder Notes'] = [['Date', 'Type', 'Title', 'Note', 'Due', 'Pinned', 'Status', 'By']];
+      listFix('notes').forEach((n) => out['Founder Notes'].push([new Date(n.at).toISOString().slice(0, 10), n.tag || '', n.title || '', n.text || '', n.due || '', n.pinned ? 'Yes' : '', n.done ? 'Done' : 'Open', n.by || '']));
       out['Activity Log'] = [['Date & Time', 'By', 'Action', 'Details']];
       S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.by, x.action, x.detail]));
       return out;
@@ -1718,7 +1857,7 @@
       account, saveAccount, setAccountPin, deleteAccount, setActor,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
       updatePatient, deletePatient, daySummary,
-      invoiceFor, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress,
+      invoiceFor, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, leadDay, kindName, kinds, saveKind, deleteKind, moveKind, clinic, saveClinic, deleteClinic, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,

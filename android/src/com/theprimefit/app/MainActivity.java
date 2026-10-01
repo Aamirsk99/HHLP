@@ -42,6 +42,13 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
         s.setTextZoom(100);
+        // Always 100%: no pinch zoom and no zoomed-out overview of wide pages.
+        s.setSupportZoom(false);
+        s.setBuiltInZoomControls(false);
+        s.setDisplayZoomControls(false);
+        s.setUseWideViewPort(true);
+        s.setLoadWithOverviewMode(false);
+        webView.setInitialScale(0);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override

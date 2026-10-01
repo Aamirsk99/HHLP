@@ -259,3 +259,51 @@ test('attendance fills paid days; tasks and monthly targets track progress', () 
   assert.strictEqual(tp.leadsGoal, 4);
   assert.strictEqual(tp.leadsPct, 25);
 });
+
+test('expenses are common or founder; founder limit shows as an alert', () => {
+  const admin = fresh();
+  admin.updateSettings({ founder: { name: 'Aamir', budget: 1000 } });
+  admin.saveExpense({ category: 'Rent', amount: 5000 });
+  admin.saveExpense({ category: 'Travel', amount: 1500, scope: 'founder' });
+  admin.saveExpense({ category: 'Founder', amount: 200 });
+  const sm = admin.expenseSummary(null);
+  assert.strictEqual(sm.common, 5000);
+  assert.strictEqual(sm.founder, 1700);
+  assert.ok(admin.alerts().some((a) => a.area === 'Founder' && a.level === 'bad'));
+});
+
+test('ads report: spend by platform from Ads expenses, leads from sources or typed in', () => {
+  const admin = fresh();
+  admin.saveExpense({ category: 'Ads', name: 'Instagram', amount: 2000 });
+  admin.saveExpense({ category: 'Ads', name: 'Facebook', amount: 1000, adLeads: 5 });
+  admin.saveLead({ name: 'A', mobile: '9000000001', source: 'Instagram' });
+  admin.saveLead({ name: 'B', mobile: '9000000002', source: 'Instagram', status: 'Converted' });
+  admin.saveLead({ name: 'C', mobile: '9000000003', source: 'Referral' });
+  const r = admin.adReport(null);
+  const ig = r.rows.find((x) => x.platform === 'Instagram');
+  const fb = r.rows.find((x) => x.platform === 'Facebook');
+  assert.deepStrictEqual([ig.spend, ig.leads, ig.won, ig.cpl], [2000, 2, 1, 1000]);
+  assert.deepStrictEqual([fb.manualLeads, fb.cpl], [5, 200]);
+  assert.ok(r.rows.find((x) => x.platform === 'Referral').organic);
+  assert.strictEqual(r.spend, 3000);
+});
+
+test('notes, bulk lead changes, pasted leads, scores and auto-assign', () => {
+  const admin = fresh();
+  const n = admin.saveNote({ title: 'Second clinic?', text: 'Discuss rent', tag: 'decision' });
+  admin.saveNote({ id: n.id, pinned: true });
+  assert.ok(admin.state.notes[0].pinned);
+  assert.strictEqual(admin.state.notes[0].title, 'Second clinic?');
+  const r = admin.importLeads('Priya, 9876543210, Instagram, GLP-1\nBad line\nRavi\t9811111111\nPriya again, 9876543210');
+  assert.deepStrictEqual(r, { added: 2, skipped: 2 });
+  const ids = admin.state.leads.map((l) => l.id);
+  admin.bulkLeads(ids, { status: 'Contacted', tag: 'VIP' });
+  assert.ok(admin.state.leads.every((l) => l.status === 'Contacted' && l.tags === 'VIP'));
+  const sc = admin.leadScore(admin.state.leads[0]);
+  assert.ok(sc >= 0 && sc <= 100);
+  const d = admin.saveAccount({ name: 'Desk 2', role: 'desk' });
+  admin.updateSettings({ autoAssign: true });
+  const l = admin.saveLead({ name: 'Auto', mobile: '9000000009' });
+  assert.ok(['desk', d.id].includes(l.assignedTo));
+  assert.strictEqual(admin.bulkLeads(ids, { remove: true }), 2);
+});

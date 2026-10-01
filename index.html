@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
   <title>The Prime Fit</title>
   <script>
     // In the Android / iPhone app everything starts at the sign-in; diet charts open after signing in.
@@ -10,11 +10,11 @@
   </script>
   <script>
     // Theme shared with the clinic admin (set before the page draws, so there is no flash):
-    // primefit.theme = teal | midnight | royal | emerald | charcoal, primefit.mode = auto | light | dark.
+    // primefit.theme = teal | midnight | royal | emerald | charcoal | rose | ocean | sunset | onyx | plum | sapphire | forest, primefit.mode = auto | light | dark.
     (function () {
       var d = document.documentElement, t = 'teal', m = 'auto';
       try { t = localStorage.getItem('primefit.theme') || t; m = localStorage.getItem('primefit.mode') || m; } catch (_) { /* private mode */ }
-      d.dataset.theme = /^(teal|midnight|royal|emerald|charcoal)$/.test(t) ? t : 'teal';
+      d.dataset.theme = /^(teal|midnight|royal|emerald|charcoal|rose|ocean|sunset|onyx|plum|sapphire|forest)$/.test(t) ? t : 'teal';
       d.dataset.mode = /^(auto|light|dark)$/.test(m) ? m : 'auto';
       var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
       function apply() {
