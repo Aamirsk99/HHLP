@@ -1,5 +1,5 @@
 /*
- * Chart languages for Hindivine Diet.
+ * Chart languages for The Prime Fit.
  *
  * Every printed label, day, meal, unit, guideline and "avoid" line is translated.
  * Food names come from the Hindi list (foodnames.js): Hindi and Marathi use it
@@ -68,7 +68,7 @@
     male: ['Male', 'पुरुष', 'पुरुष', 'પુરુષ', 'পুরুষ', 'ਪੁਰਸ਼', 'ஆண்', 'పురుషుడు', 'ಪುರುಷ', 'പുരുഷൻ'],
     female: ['Female', 'महिला', 'स्त्री', 'સ્ત્રી', 'মহিলা', 'ਔਰਤ', 'பெண்', 'స్త్రీ', 'ಮಹಿಳೆ', 'സ്ത്രീ'],
     years: ['y', 'वर्ष', 'वर्षे', 'વર્ષ', 'বছর', 'ਸਾਲ', 'வயது', 'సం.', 'ವರ್ಷ', 'വയസ്സ്'],
-    appPromo: ['Download the Hindivine Patient App from Play Store or App Store', 'Hindivine Patient App को Play Store या App Store से डाउनलोड करें', 'Hindivine Patient App Play Store किंवा App Store वरून डाउनलोड करा', 'Hindivine Patient App ને Play Store અથવા App Store પરથી ડાઉનલોડ કરો', 'Play Store বা App Store থেকে Hindivine Patient App ডাউনলোড করুন', 'Hindivine Patient App ਨੂੰ Play Store ਜਾਂ App Store ਤੋਂ ਡਾਊਨਲੋਡ ਕਰੋ', 'Hindivine Patient App-ஐ Play Store அல்லது App Store-இல் பதிவிறக்கவும்', 'Hindivine Patient App ను Play Store లేదా App Store నుండి డౌన్‌లోడ్ చేసుకోండి', 'Hindivine Patient App ಅನ್ನು Play Store ಅಥವಾ App Store ನಿಂದ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ', 'Hindivine Patient App, Play Store-ൽ നിന്നോ App Store-ൽ നിന്നോ ഡൗൺലോഡ് ചെയ്യുക'],
+    appPromo: ['Download The Prime Fit App from Play Store or App Store', 'The Prime Fit App को Play Store या App Store से डाउनलोड करें', 'The Prime Fit App Play Store किंवा App Store वरून डाउनलोड करा', 'The Prime Fit App ને Play Store અથવા App Store પરથી ડાઉનલોડ કરો', 'Play Store বা App Store থেকে The Prime Fit App ডাউনলোড করুন', 'The Prime Fit App ਨੂੰ Play Store ਜਾਂ App Store ਤੋਂ ਡਾਊਨਲੋਡ ਕਰੋ', 'The Prime Fit App-ஐ Play Store அல்லது App Store-இல் பதிவிறக்கவும்', 'The Prime Fit App ను Play Store లేదా App Store నుండి డౌన్‌లోడ్ చేసుకోండి', 'The Prime Fit App ಅನ್ನು Play Store ಅಥವಾ App Store ನಿಂದ ಡೌನ್‌ಲೋಡ್ ಮಾಡಿ', 'The Prime Fit App, Play Store-ൽ നിന്നോ App Store-ൽ നിന്നോ ഡൗൺലോഡ് ചെയ്യുക'],
     recipes: ['Recipes', 'रेसिपी', 'पाककृती', 'રેસીપી', 'রেসিপি', 'ਰੈਸਿਪੀ', 'சமையல் குறிப்புகள்', 'వంటకాలు', 'ಪಾಕವಿಧಾನಗಳು', 'പാചകക്കുറിപ്പുകൾ'],
     ingredients: ['Ingredients', 'सामग्री', 'साहित्य', 'સામગ્રી', 'উপকরণ', 'ਸਮੱਗਰੀ', 'தேவையான பொருட்கள்', 'కావలసిన పదార్థాలు', 'ಬೇಕಾಗುವ ಸಾಮಗ್ರಿಗಳು', 'ചേരുവകൾ'],
     method: ['Method', 'विधि', 'कृती', 'રીત', 'প্রণালী', 'ਵਿਧੀ', 'செய்முறை', 'తయారీ విధానం', 'ಮಾಡುವ ವಿಧಾನ', 'പാചകരീതി'],

@@ -1,4 +1,4 @@
-/* Hindivine Diet — dashboard, step-by-step chart wizard, patients, saved charts, recipes. */
+/* The Prime Fit — dashboard, step-by-step chart wizard, patients, saved charts, recipes. */
 (function () {
   const P = window.Planner;
   const DB = window.FOODDB;
@@ -6,7 +6,7 @@
   const RC = window.RECIPES;
   const ING = window.INGREDIENTS;
   const IC = window.ICONS;
-  const BRAND = { company: 'Hindivine Healthcare Private Limited', website: 'www.hindivine.com', logo: 'img/logo.jpg' };
+  const BRAND = { company: 'The Prime Fit', website: 'www.theprimefit.com', logo: 'img/logo.jpg' };
   const CURRENT_KEY = 'hindivine.chart.v5';
   const LEGACY_KEY = 'hindivine.chart.v3';
   const DIETITIAN_KEY = 'hindivine.dietitian';
@@ -38,7 +38,7 @@
   let activeDay = 0;
   let edit = null;
   let current = 'home';
-  let pendingAvoid = null; // food names from an uploaded (non-Hindivine) chart
+  let pendingAvoid = null; // food names from an uploaded (non-Prime Fit) chart
   let viewPatient = null;
   let viewRecipe = null;
   let servings = 1;
@@ -412,7 +412,7 @@
     const dt = load(DIETITIAN_KEY) || {};
     const h = new Date().getHours();
     $('#dash-greet').textContent = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-    $('#dash-name').textContent = dt.dietitian || 'Hindivine Diet';
+    $('#dash-name').textContent = dt.dietitian || 'The Prime Fit';
     const patients = store.listPatients();
     const charts = store.listCharts();
     $('#kpis').innerHTML = [
@@ -1136,7 +1136,7 @@
       const kcal = u.plan.targets.calories;
       out.innerHTML = `
         <div class="card ok-card">
-          <div class="ok-head"><span>✅</span><div><b>Hindivine chart read exactly</b><small>${esc(fileName)}</small></div></div>
+          <div class="ok-head"><span>✅</span><div><b>The Prime Fit chart read exactly</b><small>${esc(fileName)}</small></div></div>
           <div class="review-grid">
             <div><span>Patient</span><b>${esc(p.name || 'Generic chart')}</b></div>
             <div><span>Diet</span><b>${esc(P.PLANS[p.plan] ? P.PLANS[p.plan].label : p.plan)} · ${esc(dietText(p))}</b></div>
@@ -1160,7 +1160,7 @@
     } else if (u.foods.length) {
       out.innerHTML = `
         <div class="card">
-          <div class="ok-head"><span>🔎</span><div><b>${u.foods.length} foods found in this chart</b><small>${esc(fileName)} — not made with Hindivine Diet, so patient details are not included.</small></div></div>
+          <div class="ok-head"><span>🔎</span><div><b>${u.foods.length} foods found in this chart</b><small>${esc(fileName)} — not made with The Prime Fit, so patient details are not included.</small></div></div>
           <div class="tags light">${u.foods.map((n) => `<span>${IC.foodIcon(dishByName[n])} ${esc(n)}</span>`).join('')}</div>
         </div>
         <button type="button" class="btn primary wide" id="up-wizard">🗓️ Create next week's chart without these foods</button>`;
@@ -1196,7 +1196,7 @@
     writeForm(dt);
     toast('Dietitian details saved.');
   });
-  $('#backup-export').addEventListener('click', () => saveFile(`Hindivine-Diet-Backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json', store.exportAll()));
+  $('#backup-export').addEventListener('click', () => saveFile(`ThePrimeFit-Backup-${new Date().toISOString().slice(0, 10)}.json`, 'application/json', store.exportAll()));
   $('#backup-import').addEventListener('change', async (e) => {
     const file = e.target.files[0];
     e.target.value = '';
@@ -1385,8 +1385,8 @@
     const footer = [BRAND.company, BRAND.website, profile && profile.dietitianPhone].filter(Boolean).join('  ·  ');
     let st = document.getElementById('ps-page-style');
     if (!st) { st = document.createElement('style'); st.id = 'ps-page-style'; document.head.appendChild(st); }
-    st.textContent = `@page { @bottom-left { content: ${JSON.stringify(footer)}; font: 7pt system-ui, sans-serif; color: #7d6f66; }
-      @bottom-right { content: ${JSON.stringify(I.t(L(), 'page') + ' ')} counter(page) " / ${total}"; font: 7pt system-ui, sans-serif; color: #7d6f66; } }`;
+    st.textContent = `@page { @bottom-left { content: ${JSON.stringify(footer)}; font: 7pt system-ui, sans-serif; color: #2c2e2f; }
+      @bottom-right { content: ${JSON.stringify(I.t(L(), 'page') + ' ')} counter(page) " / ${total}"; font: 7pt system-ui, sans-serif; color: #2c2e2f; } }`;
   }
 
   function renderPrint(mode) {
@@ -1432,7 +1432,7 @@
   function fileTitle(mode) {
     const slug = (s) => s.replace(/[^A-Za-z0-9]+/g, '-').replace(/^-|-$/g, '');
     const who = mode === 'named' && profile.name ? slug(profile.name) : 'Generic';
-    return ['Hindivine', profile.travel ? 'Travel-Diet-Chart' : 'Diet-Chart', who, `Week${meta.week || 1}`, L().toUpperCase()].join('_');
+    return ['ThePrimeFit', profile.travel ? 'Travel-Diet-Chart' : 'Diet-Chart', who, `Week${meta.week || 1}`, L().toUpperCase()].join('_');
   }
 
   function iosHandler(name) {
@@ -1461,7 +1461,7 @@
     renderRecipePrint(names, serves || 1);
     const slug = names.length === 1 ? names[0].replace(/[^A-Za-z0-9]+/g, '-') : `${names.length}-Recipes`;
     profile = saved;
-    doPrint(`Hindivine_Recipe_${slug}`);
+    doPrint(`ThePrimeFit_Recipe_${slug}`);
   }
 
   function saveFile(fileName, mime, content) {

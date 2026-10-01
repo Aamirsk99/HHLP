@@ -20,7 +20,7 @@ import android.widget.Toast;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
-/** Hosts the Hindivine Diet web app (bundled in assets/www) in a full-screen WebView. */
+/** Hosts The Prime Fit web app (bundled in assets/www) in a full-screen WebView. */
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE = 1;
     private static final int REQUEST_OPEN = 2;
@@ -109,7 +109,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
-                    String job = title == null || title.isEmpty() ? "Hindivine-Diet-Chart" : title;
+                    String job = title == null || title.isEmpty() ? "ThePrimeFit-Diet-Chart" : title;
                     pm.print(job, webView.createPrintDocumentAdapter(job), new PrintAttributes.Builder()
                             .setMediaSize(PrintAttributes.MediaSize.ISO_A4).build());
                 }

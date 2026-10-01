@@ -1,5 +1,5 @@
 /*
- * Diet planning logic for Hindivine Diet: energy targets, food filtering,
+ * Diet planning logic for The Prime Fit: energy targets, food filtering,
  * meal composition from the food database, weekly plans and manual edits.
  * Pure functions with no DOM access, so they run in the browser and under Node tests.
  */

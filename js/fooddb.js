@@ -1,5 +1,5 @@
 /*
- * Hindivine Diet food database.
+ * The Prime Fit food database.
  *
  * Every entry is one food with its own nutrition per serving, so meals can be
  * generated, scaled and edited item by item. The planner combines items by role

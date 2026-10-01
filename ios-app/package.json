@@ -1,7 +1,7 @@
 {
-  "name": "hindivine-diet-ios",
+  "name": "theprimefit-ios",
   "private": true,
-  "description": "iOS wrapper for Hindivine Diet (Capacitor). Build on a Mac with Xcode.",
+  "description": "iOS wrapper for The Prime Fit (Capacitor). Build on a Mac with Xcode.",
   "scripts": {
     "sync": "node copy-web.js && npx cap sync ios",
     "open": "npx cap open ios"

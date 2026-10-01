@@ -115,13 +115,13 @@
 
     // ── Backup ───────────────────────────────────────────────────
     function exportAll() {
-      return JSON.stringify({ app: 'Hindivine Diet', v: 5, exported: new Date().toISOString(), patients: read(KEYS.patients), charts: read(KEYS.charts) });
+      return JSON.stringify({ app: 'The Prime Fit', v: 5, exported: new Date().toISOString(), patients: read(KEYS.patients), charts: read(KEYS.charts) });
     }
 
     /** Merge a backup into the saved data; returns counts added. */
     function importAll(json) {
       const data = typeof json === 'string' ? JSON.parse(json) : json;
-      if (!data || !Array.isArray(data.patients) || !Array.isArray(data.charts)) throw new Error('Not a Hindivine Diet backup file.');
+      if (!data || !Array.isArray(data.patients) || !Array.isArray(data.charts)) throw new Error('Not a Prime Fit backup file.');
       const merge = (key, list) => {
         const all = read(key);
         const ids = new Set(all.map((x) => x.id));

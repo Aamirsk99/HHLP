@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 AND="$ROOT/android"
 TOOLS="${TOOLS_DIR:-$AND/.tools}"
 BUILD="$AND/build"
-OUT="$ROOT/dist/HindivineDiet.apk"
+OUT="$ROOT/dist/ThePrimeFit.apk"
 KEYSTORE="${KEYSTORE:-$AND/release.p12}"
 STOREPASS="${STOREPASS:-dietchart}"
 ALIAS="${KEY_ALIAS:-dietchart}"
@@ -69,7 +69,7 @@ echo "• Signing"
 if [ ! -f "$KEYSTORE" ]; then
   echo "  (creating new signing key at $KEYSTORE — keep it safe; updates must use the same key)"
   keytool -genkeypair -storetype PKCS12 -keystore "$KEYSTORE" -storepass "$STOREPASS" -keypass "$STOREPASS" \
-    -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Hindivine Diet, O=Hindivine Healthcare Private Limited, C=IN" 2>/dev/null
+    -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=The Prime Fit, O=The Prime Fit, C=IN" 2>/dev/null
 fi
 javac -nowarn -d "$BUILD/signer" -classpath "$TOOLS/apksig.jar" "$AND/tools/SignApk.java"
 java --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.pkcs=ALL-UNNAMED --add-exports java.base/sun.security.util=ALL-UNNAMED \
