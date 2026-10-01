@@ -8,6 +8,24 @@
     // In the Android / iPhone app everything starts at the sign-in; diet charts open after signing in.
     try { if ((window.AndroidBridge || window.Capacitor) && !sessionStorage.getItem('primefit.diet')) location.replace('admin/index.html'); } catch (_) { /* ignore */ }
   </script>
+  <script>
+    // Theme shared with the clinic admin (set before the page draws, so there is no flash):
+    // primefit.theme = teal | midnight | royal | emerald | charcoal, primefit.mode = auto | light | dark.
+    (function () {
+      var d = document.documentElement, t = 'teal', m = 'auto';
+      try { t = localStorage.getItem('primefit.theme') || t; m = localStorage.getItem('primefit.mode') || m; } catch (_) { /* private mode */ }
+      d.dataset.theme = /^(teal|midnight|royal|emerald|charcoal)$/.test(t) ? t : 'teal';
+      d.dataset.mode = /^(auto|light|dark)$/.test(m) ? m : 'auto';
+      var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+      function apply() {
+        var mode = d.dataset.mode;
+        d.dataset.scheme = mode === 'dark' || (mode === 'auto' && mq && mq.matches) ? 'dark' : 'light';
+      }
+      apply();
+      if (mq) { if (mq.addEventListener) mq.addEventListener('change', apply); else if (mq.addListener) mq.addListener(apply); }
+      window.primefitApplyTheme = apply;
+    })();
+  </script>
   <meta name="description" content="The Prime Fit — premium 1–7 day Indian and worldwide diet charts with recipes in 10 languages: weight loss, diabetes, PCOS, thyroid, travel and more, as a 2-page A4 PDF.">
   <meta name="theme-color" content="#015B53">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -50,7 +68,9 @@
       <div class="drawer-head">
         <img src="img/icon-192.png" alt="" width="52" height="52">
         <div><b>The Prime Fit</b><small id="drawer-sub">Diet charts · Recipes · Patients</small></div>
+        <button type="button" class="icon-btn drawer-close" id="drawer-close" aria-label="Close menu">✕</button>
       </div>
+      <div class="drawer-quick" id="drawer-quick"></div>
       <nav class="drawer-nav" id="drawer-nav"></nav>
       <div class="drawer-foot">The Prime Fit<br>www.theprimefit.in</div>
     </aside>
@@ -324,6 +344,10 @@
           </div>
           <div class="chips" id="lib-filters"></div>
         </div>
+        <div class="lib-actions">
+          <button type="button" class="btn primary" id="lib-add-food"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add food</button>
+          <button type="button" class="btn" id="lib-my-foods">My foods <span class="count-pill" id="my-foods-count">0</span></button>
+        </div>
         <p class="lib-count" id="lib-count"></p>
         <div class="food-grid" id="lib-list"></div>
       </section>
@@ -352,6 +376,11 @@
           <label>Category<select id="rc-category"></select></label>
           <label>Food type<select id="rc-diet"></select></label>
         </div>
+        <div class="chips" id="rc-filters"></div>
+      </div>
+      <div class="lib-actions">
+        <button type="button" class="btn primary" id="rc-add"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add recipe</button>
+        <button type="button" class="btn" id="rc-add-food">New food + recipe</button>
       </div>
       <p class="lib-count" id="rc-count"></p>
       <div class="recipe-grid" id="rc-list"></div>
@@ -373,6 +402,17 @@
 
     <!-- ── Settings ─────────────────────────────────── -->
     <section class="screen" data-screen="settings" data-title="Settings & backup" hidden>
+      <div class="card theme-card">
+        <h3>Theme</h3>
+        <p class="muted">Colours for this app and the clinic admin. Printed diet charts keep The Prime Fit colours.</p>
+        <div class="swatches" id="theme-swatches" role="radiogroup" aria-label="Theme colour"></div>
+        <span class="field-label">Appearance</span>
+        <div class="seg" id="mode-seg" role="radiogroup" aria-label="Appearance">
+          <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+          <button type="button" data-mode="light" aria-pressed="false">Light</button>
+          <button type="button" data-mode="dark" aria-pressed="false">Dark</button>
+        </div>
+      </div>
       <div class="card">
         <h3>Dietitian (printed on every chart)</h3>
         <label>Dietitian name<input type="text" id="set-dietitian" placeholder="e.g. Ms. Priya Verma"></label>
@@ -433,6 +473,18 @@
     </div>
   </dialog>
 
+  <!-- My food / step-by-step recipe forms -->
+  <dialog id="fdialog" class="editor no-print">
+    <div class="editor-inner">
+      <header class="editor-head">
+        <div><h2 id="fd-title"></h2><p id="fd-sub"></p></div>
+        <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+      </header>
+      <div class="editor-body" id="fd-body"></div>
+      <footer class="editor-foot" id="fd-foot"></footer>
+    </div>
+  </dialog>
+
   <!-- Meal editor -->
   <dialog id="editor" class="editor no-print">
     <div class="editor-inner">
@@ -459,11 +511,17 @@
             <div class="row three">
               <input id="cf-name" type="text" placeholder="Food name">
               <input id="cf-qty" type="text" placeholder="Qty, e.g. 1 bowl">
-              <input id="cf-kcal" type="number" placeholder="kcal">
+              <input id="cf-kcal" type="number" placeholder="kcal" inputmode="decimal">
             </div>
+            <div class="row three">
+              <input id="cf-protein" type="number" placeholder="Protein g" inputmode="decimal">
+              <input id="cf-carbs" type="number" placeholder="Carbs g" inputmode="decimal">
+              <input id="cf-fat" type="number" placeholder="Fat g" inputmode="decimal">
+            </div>
+            <label class="switch"><input type="checkbox" id="cf-keep"> <span>Also save to my food library (usable in every chart)</span></label>
             <div class="row">
-              <input id="cf-protein" type="number" placeholder="Protein g (optional)">
-              <button type="button" class="btn" id="cf-add">Add food</button>
+              <span></span>
+              <button type="button" class="btn primary" id="cf-add">Add to this meal</button>
             </div>
           </details>
         </div>

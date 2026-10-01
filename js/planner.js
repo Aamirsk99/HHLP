@@ -623,6 +623,8 @@
       if (opts.preferWl) score -= (foods.filter((f) => f.flags.includes('wl')).length / foods.length) * 0.15;
       if (opts.likes.length) score -= foods.filter((f) => likedFood(f, opts.likes)).length * opts.likeWeight;
       if (opts.mix) score -= foods.filter((f) => f.diet === 'egg' || f.diet === 'nonveg').length * 0.12;
+      // The dietitian's own foods (added in the food library) are slightly preferred.
+      score -= foods.filter((f) => f.user).length * 0.1;
       score += rand() * 0.05;
       if (!best || score < best.score) best = { score, meal, foods };
     }
@@ -738,7 +740,7 @@
   }
 
   /**
-   * Search the food database. Filters: profile (fits the patient), wl, hp, travel,
+   * Search the food database. Filters: profile (fits the patient), own (the dietitian's foods), wl, hp, travel,
    * indian, world, diet, category (see CATEGORIES), region, maxKcal, sort
    * ('name' | 'kcal' | 'protein').
    */
@@ -750,6 +752,7 @@
     const catRoles = fl.category && CATEGORIES[fl.category] ? CATEGORIES[fl.category].roles : null;
     const list = foods.filter((f) => {
       if (allowed && !allowed(f)) return false;
+      if (fl.own && !f.user) return false;
       if (fl.wl && !f.flags.includes('wl')) return false;
       if (fl.hp && !isHighProtein(f)) return false;
       if (fl.travel && !f.flags.includes('tr')) return false;

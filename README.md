@@ -13,6 +13,8 @@ The Prime Fit is a **new app** (Android `com.theprimefit.app`, iOS `com.theprime
 
 **Round 5 (APK 1.3):** services and the GLP-1 Success Support packages (1 week ₹1,499, 1 month ₹2,999, 2 months ₹4,500, 3 months ₹5,999) come first, and injections, protein and diet support can be switched off under Settings → What you sell. Other additions are a View only role, an OPD slip PDF on every appointment, YouTube and Instagram counts in Content & Posts (set `YT_API_KEY` and `IG_TOKEN` + `IG_USER_ID` in the script properties of Code.gs), a profit card with founder, product and all-time figures, hideable dashboard cards, and salary per month or per working day with incentives as fixed ₹ or % of the sale.
 
+**Round 6 (APK 1.4):** the clinic creates its own product types (no starter injections, protein or diet plans), several OPD clinics, Customize on every summary screen to show or hide any card or box, a WhatsApp today card, a lead daily summary with follow-up reminders, social counts read from the public YouTube and Instagram pages, five themes with light / dark mode and a new card look in both apps, and in the diet charts your own foods, items and step-by-step recipes.
+
 The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
 ## Features

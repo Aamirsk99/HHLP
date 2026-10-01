@@ -22,6 +22,7 @@
   let storage;
   try { storage = window.localStorage; storage.getItem('x'); } catch (_) { storage = window.STORE.memoryStorage(); }
   const store = window.STORE.createStore(storage, P, DB);
+  store.syncFoods(); // the dietitian's own foods join the food database
 
   const $ = (sel, el) => (el || document).querySelector(sel);
   const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
@@ -82,9 +83,24 @@
     .map(([k, v]) => `<option value="${esc(k)}"${k === selected ? ' selected' : ''}>${esc(typeof v === 'string' ? v : v.label || v.name)}</option>`).join('');
   const dateText = (ms) => new Date(ms).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
   const foodById = (id) => (id == null ? null : DB.FOODS[id]);
-  const dishByName = {};
-  DB.FOODS.forEach((f) => { if (f.recipe) dishByName[f.name] = f; });
-  const DISHES = DB.FOODS.filter((f) => f.recipe);
+  // Dishes with a recipe: built-in recipes plus the dietitian's own (refreshed when foods or recipes change).
+  let dishByName = {};
+  let DISHES = [];
+  let ownRecipes = {};
+  function refreshFoods() {
+    ownRecipes = store.listRecipes();
+    dishByName = {};
+    DB.FOODS.forEach((f) => { if (!f.ingKey && (f.recipe || ownRecipes[f.name])) dishByName[f.name] = f; });
+    DISHES = DB.FOODS.filter((f) => dishByName[f.name] === f);
+    // Local names typed for the dietitian's foods are used on non-English charts.
+    if (window.FOOD_HI) DB.FOODS.slice(DB.BUILTIN).forEach((f) => { if (f.hi && !window.FOOD_HI[f.name]) window.FOOD_HI[f.name] = f.hi; });
+    const sug = $('#food-suggest');
+    if (sug) sug.innerHTML = DB.FOODS.filter((f) => !f.ingKey).map((f) => `<option value="${esc(f.name)}">${esc(f.hi)}</option>`).join('');
+    const mine = DB.FOODS.length - DB.BUILTIN;
+    $$('.my-foods-count').forEach((el) => { el.textContent = mine; el.hidden = !mine; });
+    if ($('#my-foods-count')) $('#my-foods-count').textContent = mine;
+  }
+  const myFoods = () => DB.FOODS.slice(DB.BUILTIN);
   const iconOf = (item) => IC.foodIcon(foodById(item.fid) || { name: item.name, roles: [] });
 
   // ── Build controls ───────────────────────────────────────────────
@@ -105,7 +121,7 @@
   $('#exclude-chips').innerHTML = Object.entries(P.EXCLUDES).map(([k, v]) => chip(k, `No ${v.label.toLowerCase()}`)).join('');
   $('#allergy-chips').innerHTML = Object.entries(ALLERGIES).map(([k, v]) => chip(k, v)).join('');
   $('#times').innerHTML = Object.entries(P.SLOTS).map(([k, s]) => `<label>${IC.slotIcon(k)} ${esc(s.label)}<input type="time" name="time_${k}" value="${s.time}"></label>`).join('');
-  $('#food-suggest').innerHTML = DB.FOODS.filter((f) => !f.ingKey).map((f) => `<option value="${esc(f.name)}">${esc(f.hi)}</option>`).join('');
+  refreshFoods();
 
   const REGION_LABEL = { IN: 'Pan-Indian', ...Object.fromEntries(Object.entries(P.REGIONS).map(([k, v]) => [k, v.label])) };
   const CAT_OPTIONS = '<option value="">All categories</option>' + Object.entries(P.CATEGORIES).map(([k, v]) => `<option value="${k}">${esc(v.label)}</option>`).join('');
@@ -378,21 +394,48 @@
   }
 
   // ── Menu ─────────────────────────────────────────────────────────
-  const NAV = [
-    ['home', 'home', 'Dashboard'], ['s1', 'plus', 'New diet chart'], ['patients', 'users', 'Patients'], ['charts', 'charts', 'Saved charts'],
-    ['upload', 'upload', 'Upload previous chart'], ['recipes', 'recipes', 'Recipes'], ['library', 'foods', 'Food library'], ['settings', 'settings', 'Settings & backup'],
-    ['admin', 'clinic', 'Clinic admin'],
+  const NAV_GROUPS = [
+    ['Diet charts', [['home', 'home', 'Dashboard'], ['s1', 'plus', 'New diet chart'], ['charts', 'charts', 'Saved charts'], ['upload', 'upload', 'Upload previous chart']]],
+    ['Patients', [['patients', 'users', 'Patients']]],
+    ['Kitchen', [['recipes', 'recipes', 'Recipes'], ['library', 'foods', 'Food library']]],
+    ['App', [['settings', 'settings', 'Settings & theme'], ['admin', 'clinic', 'Clinic admin']]],
   ];
-  $('#drawer-nav').innerHTML = NAV.map(([k, icon, label]) => `<button type="button" data-go="${k}" data-nav="${k}"><span class="nav-ico">${ui(icon)}</span>${esc(label)}</button>`).join('');
+  // Which menu entry is highlighted for screens that are not in the menu.
+  const NAV_OF = { s1: 's1', s2: 's1', s3: 's1', s4: 's1', s5: 's1', chart: 'charts', patient: 'patients', recipe: 'recipes' };
+  $('#drawer-quick').innerHTML = [['s1', 'plus', 'New chart'], ['act:addfood', 'foods', 'Add food'], ['act:addrecipe', 'recipes', 'Add recipe']]
+    .map(([k, icon, label]) => `<button type="button" ${k.startsWith('act:') ? `data-act="${k.slice(4)}"` : `data-go="${k}"`}><span>${ui(icon)}</span><b>${esc(label)}</b></button>`).join('');
+  $('#drawer-nav').innerHTML = NAV_GROUPS.map(([title, items]) => `<div class="nav-group"><small class="nav-title">${esc(title)}</small>${items.map(([k, icon, label]) => `<button type="button" data-go="${k}" data-nav="${k}"><span class="nav-ico">${ui(icon)}</span><span class="nav-label">${esc(label)}</span>${k === 'library' ? `<i class="nav-count my-foods-count" title="My foods"${myFoods().length ? '' : ' hidden'}>${myFoods().length}</i>` : ''}${k === 'admin' ? `<span class="nav-ext">${ICON.chev}</span>` : ''}</button>`).join('')}</div>`).join('');
   const TABS = [['home', 'home', 'Home'], ['patients', 'users', 'Patients'], ['s1', 'plus', 'New'], ['charts', 'charts', 'Charts'], ['recipes', 'recipes', 'Recipes']];
   function renderTabs() {
-    $('#tab-bar').innerHTML = TABS.map(([k, icon, label]) => `<button type="button" class="tab${k === 's1' ? ' tab-new' : ''}" data-go="${k}" aria-current="${k === current}"><span>${ui(icon)}</span><small>${label}</small></button>`).join('');
-    $$('#drawer-nav button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.nav === current)));
+    const nav = NAV_OF[current] || current;
+    $('#tab-bar').innerHTML = TABS.map(([k, icon, label]) => `<button type="button" class="tab${k === 's1' ? ' tab-new' : ''}" data-go="${k}" aria-current="${k === nav}"><span>${ui(icon)}</span><small>${label}</small></button>`).join('');
+    $$('#drawer-nav button').forEach((b) => b.setAttribute('aria-current', String(b.dataset.nav === nav)));
   }
-  function openDrawer() { $('#drawer').hidden = false; $('#scrim').hidden = false; requestAnimationFrame(() => document.body.classList.add('drawer-open')); }
-  function closeDrawer() { document.body.classList.remove('drawer-open'); $('#drawer').hidden = true; $('#scrim').hidden = true; }
+  let drawerTimer = null;
+  function openDrawer() {
+    clearTimeout(drawerTimer);
+    $('#drawer').hidden = false; $('#scrim').hidden = false;
+    requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('drawer-open')));
+  }
+  function closeDrawer() {
+    if (!document.body.classList.contains('drawer-open')) { $('#drawer').hidden = true; $('#scrim').hidden = true; return; }
+    document.body.classList.remove('drawer-open');
+    clearTimeout(drawerTimer);
+    drawerTimer = setTimeout(() => { $('#drawer').hidden = true; $('#scrim').hidden = true; }, 240);
+  }
   $('#menu').addEventListener('click', openDrawer);
   $('#scrim').addEventListener('click', closeDrawer);
+  $('#drawer-close').addEventListener('click', closeDrawer);
+  document.addEventListener('keydown', (e) => { if (e.key === 'Escape' && document.body.classList.contains('drawer-open')) closeDrawer(); });
+  // Actions that open a form instead of a screen (menu, dashboard, library, recipes).
+  document.addEventListener('click', (e) => {
+    const b = e.target.closest('[data-act]');
+    if (!b) return;
+    closeDrawer();
+    if (b.dataset.act === 'addfood') openFoodForm(null);
+    else if (b.dataset.act === 'addrecipe') openRecipeChooser();
+    else if (b.dataset.act === 'myfoods') { libState.own = true; go('library'); }
+  });
 
   // ── Dashboard ────────────────────────────────────────────────────
   const QUICK = [
@@ -403,10 +446,13 @@
     ['charts', 'charts', 'Saved charts', 'Edit or reprint', 'q-teal'],
     ['recipes', 'recipes', 'Recipes', `${DISHES.length} dishes`, 'q-red'],
     ['library', 'foods', 'Food library', `${num(DB.FOODS.length)} foods`, 'q-lime'],
-    ['settings', 'settings', 'Settings', 'Dietitian & backup', 'q-grey'],
+    ['act:addfood', 'plus', 'Add food', 'Your own foods', 'q-green'],
+    ['act:addrecipe', 'book', 'Add recipe', 'Step by step', 'q-orange'],
+    ['act:myfoods', 'foods', 'My foods', 'Edit or delete', 'q-teal'],
+    ['settings', 'settings', 'Settings', 'Theme & backup', 'q-grey'],
     ['admin', 'clinic', 'Clinic admin', 'Sales · OPD · Leads', 'q-brand'],
   ];
-  $('#quick-grid').innerHTML = QUICK.map(([k, icon, label, sub, cls]) => `<button type="button" class="quick ${cls}" ${k === 'nextweek' ? 'id="quick-next"' : `data-go="${k}"`}><span class="q-ico">${ui(icon)}</span><b>${esc(label)}</b><small>${esc(sub)}</small></button>`).join('');
+  $('#quick-grid').innerHTML = QUICK.map(([k, icon, label, sub, cls]) => `<button type="button" class="quick ${cls}" ${k === 'nextweek' ? 'id="quick-next"' : k.startsWith('act:') ? `data-act="${k.slice(4)}"` : `data-go="${k}"`}><span class="q-ico">${ui(icon)}</span><b>${esc(label)}</b><small>${esc(sub)}</small></button>`).join('');
   $('#quick-next').addEventListener('click', () => {
     if (plan) return nextWeek();
     toast('Open a saved chart (or upload last week\'s PDF) to make next week\'s chart.');
@@ -874,7 +920,7 @@
     $('#editor-totals').innerHTML = `<b>${m.kcal} kcal</b> <span class="pill ${Math.abs(diff) > entry.target * 0.2 ? 'warn' : ''}">${diff >= 0 ? '+' : ''}${diff}</span> · Protein ${m.p} g · Carbs ${m.c} g · Fat ${m.f} g`;
   }
   function badges(f) {
-    return `${f.flags.includes('wl') ? ' <i class="badge wl">WL</i>' : ''}${P.isHighProtein(f) ? ' <i class="badge hp">HP</i>' : ''}${f.ingKey ? ' <i class="badge ing">Ingredient</i>' : ''}`;
+    return `${f.user ? ' <i class="badge mine">Mine</i>' : ''}${f.flags.includes('wl') ? ' <i class="badge wl">WL</i>' : ''}${P.isHighProtein(f) ? ' <i class="badge hp">HP</i>' : ''}${f.ingKey ? ' <i class="badge ing">Ingredient</i>' : ''}`;
   }
   function renderEditorResults() {
     const list = P.searchFoods(DB.FOODS, $('#editor-q').value, {
@@ -922,8 +968,25 @@
       if (!name) return $('#cf-name').focus();
       const qtyText = $('#cf-qty').value.trim() || '1 serving';
       const m = qtyText.match(/^([\d.]+)\s*(.*)$/);
-      items.push(P.customItem(name, m ? m[1] : 1, m ? m[2] || 'serving' : qtyText, $('#cf-kcal').value, $('#cf-protein').value));
-      ['#cf-name', '#cf-qty', '#cf-kcal', '#cf-protein'].forEach((s) => { $(s).value = ''; });
+      const qty = m ? Number(m[1]) || 1 : 1;
+      const unit = m ? m[2] || 'serving' : qtyText;
+      const val = (sel) => Number($(sel).value) || 0;
+      if ($('#cf-keep').checked) {
+        // Saved as one of the dietitian's foods: usable in every chart, the planner and search.
+        const entry = plan.days[edit.di].meals[edit.mi];
+        try {
+          const rec = store.saveCustomFood({ name, roles: SLOT_ROLES[entry.slot] || ['snack'], diet: dietOf(profile), region: 'IN', qty, unit, kcal: val('#cf-kcal'), p: val('#cf-protein'), c: val('#cf-carbs'), f: val('#cf-fat') });
+          foodsChanged(true);
+          items.push(P.makeItem(DB.FOODS.find((f) => f.user === rec.id)));
+          toast(`${rec.name} saved to your food library.`);
+        } catch (err) { return toast(err.message); }
+      } else {
+        const it = P.customItem(name, qty, unit, val('#cf-kcal'), val('#cf-protein'));
+        it.per.c = val('#cf-carbs'); it.per.f = val('#cf-fat');
+        items.push(P.setItemQty(it, it.qty));
+      }
+      ['#cf-name', '#cf-qty', '#cf-kcal', '#cf-protein', '#cf-carbs', '#cf-fat'].forEach((s) => { $(s).value = ''; });
+      $('#cf-keep').checked = false;
       return renderEditor();
     }
     if (b.id === 'editor-save') {
@@ -946,23 +1009,30 @@
   editor.addEventListener('cancel', () => { edit = null; });
 
   // ── Food library ─────────────────────────────────────────────────
-  const libFilters = { wl: 'Weight loss', hp: 'High protein', travel: 'Travel' };
+  const libFilters = { own: 'My foods', wl: 'Weight loss', hp: 'High protein', travel: 'Travel' };
   const libState = {};
   $('#lib-filters').innerHTML = Object.entries(libFilters).map(([k, v]) => chip(k, v)).join('');
   function renderLibrary() {
+    $$('#lib-filters .chip').forEach((c) => c.setAttribute('aria-pressed', String(!!libState[c.dataset.value])));
+    $('#lib-my-foods').setAttribute('aria-pressed', String(!!libState.own));
     const list = P.searchFoods(DB.FOODS, $('#lib-search').value, {
-      wl: libState.wl, hp: libState.hp, travel: libState.travel,
+      own: libState.own, wl: libState.wl, hp: libState.hp, travel: libState.travel,
       category: $('#lib-category').value, region: $('#lib-region').value, dietExact: $('#lib-diet').value,
       maxKcal: Number($('#lib-kcal').value) || 0, sort: $('#lib-sort').value,
     });
+    // The dietitian's own foods first (unless sorted).
+    if (!$('#lib-sort').value) list.sort((a, b) => (b.user ? 1 : 0) - (a.user ? 1 : 0));
     const shown = list.slice(0, 240);
-    $('#lib-count').textContent = `${num(list.length)} of ${num(DB.FOODS.length)} foods (${DISHES.length} dishes with recipes + ${DB.FOODS.length - DISHES.length} ingredients)${list.length > shown.length ? ` · showing first ${shown.length}` : ''}`;
-    $('#lib-list').innerHTML = shown.map((f) => `
-      <div class="food-card">
+    const mine = myFoods().length;
+    const ings = DB.FOODS.filter((f) => f.ingKey).length;
+    $('#lib-count').textContent = `${num(list.length)} of ${num(DB.FOODS.length)} foods (${num(DISHES.length)} dishes with recipes · ${num(ings)} ingredients${mine ? ` · ${mine} of your own` : ''})${list.length > shown.length ? ` · showing first ${shown.length}` : ''}`;
+    $('#lib-list').innerHTML = (libState.own && !mine ? `<div class="empty">You have not added any foods yet. Tap <b>Add food</b> to add your own dish, drink or item — it can then be used in every chart.</div>` : '') + shown.map((f) => `
+      <div class="food-card${f.user ? ' mine' : ''}">
         <div class="fc-top"><span class="fc-ico">${IC.foodIcon(f)}</span><div><b>${esc(f.name)}</b><small class="hi">${esc(f.hi)}</small></div><i class="diet-dot ${f.diet}" title="${esc(P.DIETS[f.diet] || f.diet)}"></i></div>
-        <small>${f.ingKey ? 'Ingredient · per ' : esc(REGION_LABEL[f.region] || f.region) + ' · '}${esc(P.formatQty(f.qty))} ${esc(f.unit)}</small>
+        <small>${f.ingKey ? 'Ingredient · per ' : esc(REGION_LABEL[f.region] || f.region) + ' · '}${esc(P.formatQty(f.qty))} ${esc(f.unit)}${f.user ? ' · ' + esc(rolesText(f.roles)) : ''}</small>
         <div class="fc-nutri"><span><b>${f.kcal}</b> kcal</span><span>P ${f.p}</span><span>C ${f.c}</span><span>F ${f.f}</span></div>
-        <div class="fc-badges">${f.flags.includes('wl') ? '<i class="badge wl">Weight loss</i>' : ''}${P.isHighProtein(f) ? '<i class="badge hp">High protein</i>' : ''}${f.flags.includes('tr') ? '<i class="badge tr">Travel</i>' : ''}${f.flags.includes('hgi') ? '<i class="badge warn">High GI</i>' : ''}${f.recipe ? `<button type="button" class="badge rcp" data-open-recipe="${esc(f.name)}">📖 Recipe</button>` : ''}</div>
+        <div class="fc-badges">${f.user ? '<i class="badge mine">My food</i>' : ''}${f.flags.includes('wl') ? '<i class="badge wl">Weight loss</i>' : ''}${P.isHighProtein(f) ? '<i class="badge hp">High protein</i>' : ''}${f.flags.includes('tr') ? '<i class="badge tr">Travel</i>' : ''}${f.flags.includes('hgi') ? '<i class="badge warn">High GI</i>' : ''}${dishByName[f.name] === f ? `<button type="button" class="badge rcp" data-open-recipe="${esc(f.name)}">📖 Recipe</button>` : f.ingKey ? '' : `<button type="button" class="badge rcp add" data-edit-recipe="${esc(f.name)}">+ Add recipe</button>`}</div>
+        ${f.user ? `<div class="fc-acts"><button type="button" class="chip mini" data-edit-food="${esc(f.user)}">${ICON.edit} Edit</button><button type="button" class="icon-btn danger" data-del-food="${esc(f.user)}" aria-label="Delete ${esc(f.name)}">${ICON.trash}</button></div>` : ''}
       </div>`).join('');
   }
   $('#lib-search').addEventListener('input', renderLibrary);
@@ -971,37 +1041,78 @@
     const c = e.target.closest('.chip');
     if (!c) return;
     libState[c.dataset.value] = !libState[c.dataset.value];
-    c.setAttribute('aria-pressed', String(libState[c.dataset.value]));
     renderLibrary();
+  });
+  $('#lib-add-food').addEventListener('click', () => openFoodForm(null));
+  $('#lib-my-foods').addEventListener('click', () => { libState.own = !libState.own; renderLibrary(); });
+  $('#lib-list').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-edit-food],[data-del-food]');
+    if (!b) return;
+    if (b.dataset.editFood) return openFoodForm(store.getCustomFood(b.dataset.editFood));
+    deleteFood(b.dataset.delFood);
   });
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-open-recipe]');
-    if (b) { viewRecipe = b.dataset.openRecipe; servings = 1; go('recipe'); }
+    if (b) { viewRecipe = b.dataset.openRecipe; servings = 1; go('recipe'); return; }
+    const r = e.target.closest('[data-edit-recipe]');
+    if (r) openRecipeForm(r.dataset.editRecipe);
   });
 
   // ── Recipes ──────────────────────────────────────────────────────
   const ingName = (lang, x) => (lang === 'en' ? x.name : I.translit(x.hi, I.LANGS[lang].script));
+  const gText = (x, g) => `${g} ${x.cat === 'drink' || /milk|water|juice/i.test(x.name) ? 'ml' : 'g'}`;
+  /** "40 g" × 2 → "80 g" (only a leading number is scaled). */
+  const scaleText = (q, k) => (k === 1 ? q : String(q).replace(/^(\d+(?:\.\d+)?)/, (n) => String(Math.round(Number(n) * k * 100) / 100)));
+
+  /**
+   * One recipe for display and print: the dietitian's own recipe when there is one,
+   * otherwise the built-in recipe (ingredients in grams + method steps).
+   */
   function recipeData(f, serves) {
     const k = serves || 1;
+    const own = ownRecipes[f.name];
+    const n = { kcal: f.kcal, p: f.p, c: f.c, f: f.f };
+    if (own) {
+      return {
+        f, own: true, n, prep: own.prep, cook: own.cook, serves: own.serves || 1, tips: own.tips,
+        ing: own.ing.map((x) => ({ name: x.name, qty: scaleText(x.qty, k) })), steps: own.steps.slice(),
+      };
+    }
+    if (!f.recipe) return { f, own: false, n, ing: [], steps: [] };
     return {
-      f,
-      ing: f.recipe.ing.map(([key, g]) => ({ x: ING[key], g: Math.round(g * k) })),
+      f, own: false, n,
+      ing: f.recipe.ing.map(([key, g]) => ({ x: ING[key], name: ING[key].name, hi: ING[key].hi, qty: gText(ING[key], Math.round(g * k)) })),
       steps: RC.steps(f.recipe, ING),
-      n: { kcal: f.kcal, p: f.p, c: f.c, f: f.f },
     };
   }
-  const gText = (x, g) => `${g} ${x.cat === 'drink' || /milk|water|juice/i.test(x.name) ? 'ml' : 'g'}`;
+  const ingCount = (f) => (ownRecipes[f.name] ? ownRecipes[f.name].ing.length : f.recipe ? f.recipe.ing.length : 0);
+
+  const rcState = {};
+  $('#rc-filters').innerHTML = chip('own', 'My recipes') + chip('mine', 'My foods');
+  $('#rc-filters').addEventListener('click', (e) => {
+    const c = e.target.closest('.chip');
+    if (!c) return;
+    rcState[c.dataset.value] = !rcState[c.dataset.value];
+    c.setAttribute('aria-pressed', String(rcState[c.dataset.value]));
+    renderRecipes();
+  });
+  $('#rc-add').addEventListener('click', () => openRecipeChooser());
+  $('#rc-add-food').addEventListener('click', () => openFoodForm(null, { thenRecipe: true }));
 
   function renderRecipes() {
-    const list = P.searchFoods(DISHES, $('#rc-search').value, { category: $('#rc-category').value, dietExact: $('#rc-diet').value });
+    let list = P.searchFoods(DISHES, $('#rc-search').value, { category: $('#rc-category').value, dietExact: $('#rc-diet').value });
+    if (rcState.own) list = list.filter((f) => ownRecipes[f.name]);
+    if (rcState.mine) list = list.filter((f) => f.user);
+    if (!$('#rc-search').value.trim()) list.sort((a, b) => (ownRecipes[b.name] ? 1 : 0) - (ownRecipes[a.name] ? 1 : 0));
     const shown = list.slice(0, 200);
-    $('#rc-count').textContent = `${num(list.length)} of ${num(DISHES.length)} recipes${list.length > shown.length ? ` · showing first ${shown.length}` : ''} · nutrition calculated from ingredients`;
-    $('#rc-list').innerHTML = shown.map((f) => `
-      <button type="button" class="recipe-card" data-open-recipe="${esc(f.name)}">
+    const nOwn = Object.keys(ownRecipes).length;
+    $('#rc-count').textContent = `${num(list.length)} of ${num(DISHES.length)} recipes${nOwn ? ` · ${nOwn} written by you` : ''}${list.length > shown.length ? ` · showing first ${shown.length}` : ''}`;
+    $('#rc-list').innerHTML = shown.length ? shown.map((f) => `
+      <button type="button" class="recipe-card${ownRecipes[f.name] ? ' mine' : ''}" data-open-recipe="${esc(f.name)}">
         <span class="rcard-ico">${IC.foodIcon(f)}</span>
-        <span class="rcard-text"><b>${esc(f.name)}</b><small>${esc(f.hi)}</small>
-          <span class="rcard-meta"><i class="diet-dot ${f.diet}"></i>${f.kcal} kcal · P ${f.p} g · ${f.recipe.ing.length} ingredients</span></span>
-      </button>`).join('');
+        <span class="rcard-text"><b>${esc(f.name)}</b><small>${esc(f.hi)}${ownRecipes[f.name] ? `${f.hi ? ' · ' : ''}<i class="badge mine">Your recipe</i>` : ''}</small>
+          <span class="rcard-meta"><i class="diet-dot ${f.diet}"></i>${f.kcal} kcal · P ${f.p} g · ${ingCount(f)} ingredients</span></span>
+      </button>`).join('') : `<div class="empty">${rcState.own || rcState.mine ? 'No recipes of your own yet. Tap <b>Add recipe</b> to write one step by step.' : 'No recipe matches your search.'}</div>`;
   }
   $('#rc-search').addEventListener('input', renderRecipes);
   ['#rc-category', '#rc-diet'].forEach((s) => $(s).addEventListener('change', renderRecipes));
@@ -1009,6 +1120,19 @@
   function recipeBody(f, serves) {
     const r = recipeData(f, serves);
     const k = serves || 1;
+    const facts = [
+      ['Serving', `${P.formatQty(f.qty * k)} ${f.unit}${k > 1 ? ` · ${k} servings` : ''}`],
+      ...(r.prep ? [['Prep', r.prep]] : []),
+      ...(r.cook ? [['Cook', r.cook]] : []),
+      ...(r.own && r.serves > 1 ? [['Recipe makes', `${r.serves * k} servings`]] : []),
+      ['Food type', P.DIETS[f.diet] || f.diet],
+    ];
+    // Built-in methods get a "get ready" and a "serve" step so the whole process reads start to finish.
+    const steps = r.own ? r.steps : [
+      `Get ready: wash your hands and measure the ${r.ing.length} ingredients listed above${k > 1 ? ` (for ${k} servings)` : ''}.`,
+      ...r.steps,
+      `Serve ${P.formatQty(f.qty)} ${f.unit} per person — about ${Math.round(f.kcal)} kcal and ${f.p} g protein per serving.`,
+    ];
     return `
       <div class="rd-nutri">
         <div><b>${Math.round(r.n.kcal * k)}</b><small>kcal</small></div>
@@ -1016,11 +1140,12 @@
         <div><b>${Math.round(r.n.c * k)} g</b><small>carbs</small></div>
         <div><b>${Math.round(r.n.f * k * 10) / 10} g</b><small>fat</small></div>
       </div>
-      <p class="muted">Serving: ${esc(P.formatQty(f.qty * k))} ${esc(f.unit)} · ${k > 1 ? `${k} servings` : '1 serving'} · ${esc(P.DIETS[f.diet])}</p>
-      <h3>Ingredients</h3>
-      <ul class="ing-list">${r.ing.map(({ x, g }) => `<li><span>${IC.foodIcon({ name: x.name, cat: x.cat, roles: [] })} ${esc(x.name)} <small>${esc(x.hi)}</small></span><b>${gText(x, g)}</b></li>`).join('')}</ul>
-      <h3>Method</h3>
-      <ol class="steps">${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>`;
+      <div class="rd-facts">${facts.map(([a, b]) => `<span><small>${esc(a)}</small><b>${esc(b)}</b></span>`).join('')}</div>
+      <h3 class="rd-h">Ingredients <small>${r.ing.length}</small></h3>
+      ${r.ing.length ? `<ul class="ing-list">${r.ing.map((x) => `<li><span>${x.x ? IC.foodIcon({ name: x.x.name, cat: x.x.cat, roles: [] }) + ' ' : '• '}${esc(x.name)}${x.hi ? ` <small>${esc(x.hi)}</small>` : ''}</span><b>${esc(x.qty)}</b></li>`).join('')}</ul>` : '<p class="muted">No ingredients listed.</p>'}
+      <h3 class="rd-h">Method — step by step <small>${steps.length} steps</small></h3>
+      <ol class="steps">${steps.map((s, i) => `<li><span class="step-no" aria-hidden="true">${i + 1}</span><div><small>Step ${i + 1}</small><p>${esc(s)}</p></div></li>`).join('')}</ol>
+      ${r.tips ? `<div class="rd-tip"><b>Tips</b><p>${esc(r.tips)}</p></div>` : ''}`;
   }
 
   function renderRecipe() {
@@ -1028,8 +1153,9 @@
     if (!f) { $('#rc-detail').innerHTML = '<div class="empty">Recipe not found.</div>'; return; }
     $('#screen-title').textContent = f.name;
     const inChart = plan && (profile.recipes || []).includes(f.name);
+    const own = !!ownRecipes[f.name];
     $('#rc-detail').innerHTML = `
-      <div class="rd-hero"><span class="rd-ico">${IC.foodIcon(f)}</span><div><h2>${esc(f.name)}</h2><p>${esc(f.hi)} · ${esc(REGION_LABEL[f.region] || '')}</p></div></div>
+      <div class="rd-hero"><span class="rd-ico">${IC.foodIcon(f)}</span><div><h2>${esc(f.name)}</h2><p>${esc([f.hi, REGION_LABEL[f.region] || ''].filter(Boolean).join(' · '))}</p>${own ? '<i class="badge mine">Your recipe</i>' : ''}${f.user ? ' <i class="badge mine">My food</i>' : ''}</div></div>
       <div class="card">
         <div class="serv"><span>Servings</span>
           <div class="stepper"><button type="button" class="icon-btn" id="sv-dec" aria-label="Fewer servings">${ICON.minus}</button><span>${servings}</span><button type="button" class="icon-btn" id="sv-inc" aria-label="More servings">${ICON.plus}</button></div>
@@ -1039,11 +1165,20 @@
       <div class="btn-row">
         <button type="button" class="btn primary" id="rd-print">${ICON.print} Print A4</button>
         ${plan ? `<button type="button" class="btn" id="rd-add">${inChart ? '✓ In chart PDF' : '📖 Add to chart PDF'}</button>` : ''}
+        <button type="button" class="btn" data-edit-recipe="${esc(f.name)}">${ICON.edit} ${own ? 'Edit recipe' : 'Write my own version'}</button>
+        ${own ? `<button type="button" class="btn ghost" id="rd-reset">${f.recipe ? 'Use original recipe' : 'Delete recipe'}</button>` : ''}
       </div>`;
     $('#sv-dec').addEventListener('click', () => { servings = Math.max(1, servings - 1); renderRecipe(); });
     $('#sv-inc').addEventListener('click', () => { servings = Math.min(12, servings + 1); renderRecipe(); });
     $('#rd-print').addEventListener('click', () => printRecipes([f.name], servings));
     if ($('#rd-add')) $('#rd-add').addEventListener('click', () => { toggleChartRecipe(f.name); renderRecipe(); });
+    if ($('#rd-reset')) $('#rd-reset').addEventListener('click', () => {
+      if (!confirm(f.recipe ? `Go back to the original recipe of ${f.name}?` : `Delete your recipe of ${f.name}?`)) return;
+      store.deleteRecipe(f.name);
+      foodsChanged();
+      toast(f.recipe ? 'Original recipe restored.' : 'Recipe deleted.');
+      if (!dishByName[f.name]) go('recipes');
+    });
   }
 
   function toggleChartRecipe(name, on) {
@@ -1060,10 +1195,10 @@
     const f = dishByName[name];
     if (!f) return;
     $('#rd-title').textContent = `${IC.foodIcon(f)} ${f.name}`;
-    $('#rd-sub').textContent = `${f.hi} · recipe for 1 serving`;
+    $('#rd-sub').textContent = `${f.hi ? f.hi + ' · ' : ''}recipe for 1 serving${ownRecipes[name] ? ' · your recipe' : ''}`;
     $('#rd-body').innerHTML = recipeBody(f, 1);
     const inChart = (profile.recipes || []).includes(name);
-    $('#rd-foot').innerHTML = `<button type="button" class="btn ghost" data-close>Close</button><button type="button" class="btn" data-rd-print="${esc(name)}">${ICON.print} Print A4</button><button type="button" class="btn primary" data-rd-toggle="${esc(name)}">${inChart ? 'Remove from PDF' : 'Add to chart PDF'}</button>`;
+    $('#rd-foot').innerHTML = `<button type="button" class="btn ghost" data-close>Close</button><button type="button" class="btn" data-rd-edit="${esc(name)}">${ICON.edit} Edit</button><button type="button" class="btn" data-rd-print="${esc(name)}">${ICON.print} Print A4</button><button type="button" class="btn primary" data-rd-toggle="${esc(name)}">${inChart ? 'Remove from PDF' : 'Add to chart PDF'}</button>`;
     if (rdialog.showModal) rdialog.showModal(); else rdialog.setAttribute('open', '');
   }
 
@@ -1087,6 +1222,7 @@
     if (!b) return;
     if (b.hasAttribute('data-close')) return closeDialog(rdialog);
     if (b.dataset.rdPrint) { closeDialog(rdialog); return printRecipes([b.dataset.rdPrint], 1); }
+    if (b.dataset.rdEdit) { closeDialog(rdialog); return openRecipeForm(b.dataset.rdEdit); }
     if (b.dataset.rdToggle) { toggleChartRecipe(b.dataset.rdToggle); closeDialog(rdialog); return render(); }
     if (b.hasAttribute('data-pick-all') || b.hasAttribute('data-pick-none')) {
       $$('#rd-body input[type=checkbox]').forEach((c) => { c.checked = b.hasAttribute('data-pick-all'); });
@@ -1100,6 +1236,299 @@
       toast(profile.recipes.length ? `${profile.recipes.length} recipes will print after the chart.` : 'No recipes in the PDF.');
     }
   });
+
+  // ── My foods & step-by-step recipes (forms) ─────────────────────
+  const fdialog = $('#fdialog');
+  // Planner roles, shown as the meals a food can be used in.
+  const ROLE_GROUPS = [
+    ['Early morning', [['early', 'Morning drink'], ['earlyadd', 'Nuts / seeds add-on']]],
+    ['Breakfast', [['bf', 'Breakfast dish'], ['bfside', 'Breakfast side'], ['wbf', 'World breakfast']]],
+    ['Mid-morning & evening snack', [['snack', 'Snack'], ['fruit', 'Fruit'], ['drink', 'Drink'], ['soup', 'Soup']]],
+    ['Lunch & dinner', [['grain', 'Roti / rice'], ['dal', 'Dal / curry'], ['protein', 'Protein dish'], ['sabzi', 'Sabzi'], ['side', 'Salad / raita / curd'], ['wmain', 'Complete meal']]],
+    ['Worldwide bowl (lunch & dinner)', [['wprotein', 'Bowl protein'], ['wcarb', 'Bowl carb'], ['wveg', 'Bowl vegetables']]],
+    ['Bedtime & travel', [['bed', 'Bedtime drink'], ['tmain', 'Travel meal']]],
+  ];
+  const ROLE_LABEL = Object.fromEntries(ROLE_GROUPS.flatMap(([, list]) => list));
+  const rolesText = (roles) => roles.map((r) => ROLE_LABEL[r] || r).join(', ');
+  // Meal slot → role for a food typed into a meal and kept in the library.
+  const SLOT_ROLES = { early: ['early'], breakfast: ['bf'], midmorning: ['snack'], lunch: ['wmain'], evening: ['snack'], dinner: ['wmain'], bedtime: ['bed'] };
+  const dietOf = (p) => { const d = p ? P.dietOf(p).diet : 'veg'; return d === 'jain' ? 'veg' : d; };
+  const FOOD_FLAGS = {
+    wl: 'Weight-loss friendly', tr: 'Travel friendly', fx: 'Fixed portion (not scaled)', op: 'One-pot meal (with a side only)',
+    hgi: 'High glycaemic', sweet: 'Sweet', fried: 'Fried', hsf: 'High saturated fat', hna: 'High salt', hk: 'High potassium', caf: 'Has caffeine',
+  };
+  const UNITS = ['serving', 'pc', 'bowl', 'katori', 'cup', 'glass', 'plate', 'slice', 'tbsp', 'tsp', 'scoop', 'g', 'ml'];
+  const DIET_SHORT = { vegan: 'Vegan', veg: 'Veg', egg: 'Egg', nonveg: 'Non-veg' };
+
+  function openDialog(d) { if (!d.open) { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); } d.querySelector('.editor-body').scrollTop = 0; }
+
+  function foodsChanged() {
+    refreshFoods();
+    if (plan) {
+      try { plan = store.unpackPlan(store.packPlan(plan), profile); } catch (_) { /* keep the plan as it is */ }
+      saveCurrent();
+    }
+    if (current === 'library') renderLibrary();
+    else if (current === 'recipes') renderRecipes();
+    else if (current === 'recipe') renderRecipe();
+    else if (current === 'chart') render();
+    else if (current === 'home') renderHome();
+    else if (current === 'settings') renderSettings();
+  }
+
+  function deleteFood(id) {
+    const f = store.getCustomFood(id);
+    if (!f || !confirm(`Delete ${f.name} from your foods? Saved charts keep it as a typed item.`)) return false;
+    store.deleteCustomFood(id);
+    foodsChanged();
+    toast(`${f.name} deleted.`);
+    return true;
+  }
+
+  /** Add (rec = null) or edit one of the dietitian's foods. */
+  function openFoodForm(rec, opts) {
+    const o = opts || {};
+    const r = rec || { roles: [], diet: 'veg', region: 'IN', qty: 1, unit: 'serving', allergens: [], flags: [] };
+    const pressed = (list, k) => (list || []).includes(k);
+    fdialog.dataset.kind = 'food';
+    fdialog.dataset.id = rec ? rec.id : '';
+    fdialog.dataset.then = o.thenRecipe ? '1' : '';
+    $('#fd-title').textContent = rec ? `Edit ${rec.name}` : 'Add a food';
+    $('#fd-sub').textContent = 'Your own dish, drink or item — the planner, search and every chart can use it.';
+    $('#fd-body').innerHTML = `
+      <div class="form-plate">
+        <label>Food name<input id="ff-name" type="text" value="${esc(r.name || '')}" placeholder="e.g. Ragi dosa with peanut chutney" autocomplete="off"></label>
+        <label>Local name <small>(Hindi or any language, optional — printed on non-English charts)</small><input id="ff-hi" type="text" value="${esc(r.hi || '')}" placeholder="e.g. रागी डोसा" autocomplete="off"></label>
+      </div>
+      <div class="form-plate">
+        <span class="field-label">Use it for <small>— the meals the planner may put it in</small></span>
+        ${ROLE_GROUPS.map(([title, list]) => `<div class="role-group"><small>${esc(title)}</small><div class="chips small" data-ff="roles">${list.map(([k, l]) => chip(k, l, pressed(r.roles, k))).join('')}</div></div>`).join('')}
+      </div>
+      <div class="form-plate">
+        <span class="field-label">Food type</span>
+        <div class="seg" id="ff-diet">${Object.entries(DIET_SHORT).map(([k, l]) => `<button type="button" data-value="${k}" aria-pressed="${r.diet === k}"><i class="diet-dot ${k}"></i> ${l}</button>`).join('')}</div>
+        <label class="mt">Cuisine<select id="ff-region">${Object.entries(REGION_LABEL).map(([k, v]) => `<option value="${k}"${k === r.region ? ' selected' : ''}>${esc(v)}</option>`).join('')}</select></label>
+      </div>
+      <div class="form-plate">
+        <span class="field-label">One serving</span>
+        <div class="row">
+          <label>Quantity<input id="ff-qty" type="number" min="0.25" step="0.25" value="${esc(r.qty)}" inputmode="decimal"></label>
+          <label>Unit<select id="ff-unit">${[...new Set([...UNITS, r.unit])].map((u) => `<option${u === r.unit ? ' selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
+        </div>
+        <div class="row four">
+          <label>kcal<input id="ff-kcal" type="number" min="0" value="${r.kcal != null ? esc(r.kcal) : ''}" inputmode="decimal"></label>
+          <label>Protein g<input id="ff-p" type="number" min="0" step="0.1" value="${r.p != null ? esc(r.p) : ''}" inputmode="decimal"></label>
+          <label>Carbs g<input id="ff-c" type="number" min="0" step="0.1" value="${r.c != null ? esc(r.c) : ''}" inputmode="decimal"></label>
+          <label>Fat g<input id="ff-f" type="number" min="0" step="0.1" value="${r.f != null ? esc(r.f) : ''}" inputmode="decimal"></label>
+        </div>
+        <div class="ff-check" id="ff-check"></div>
+      </div>
+      <div class="form-plate">
+        <span class="field-label">Allergens</span>
+        <div class="chips small" data-ff="allergens">${Object.entries(ALLERGIES).map(([k, v]) => chip(k, v, pressed(r.allergens, k))).join('')}</div>
+        <span class="field-label mt">Flags</span>
+        <div class="chips small" data-ff="flags">${Object.entries(FOOD_FLAGS).map(([k, v]) => chip(k, v, pressed(r.flags, k))).join('')}</div>
+      </div>
+      <p class="error" id="ff-error" hidden></p>`;
+    $('#fd-foot').innerHTML = `${rec ? `<button type="button" class="btn ghost danger-text" data-ff-delete>${ICON.trash} Delete</button>` : ''}<span class="foot-gap"></span>
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="button" class="btn${o.thenRecipe ? ' primary' : ''}" data-ff-save="recipe">Save &amp; write recipe</button>
+      ${o.thenRecipe ? '' : '<button type="button" class="btn primary" data-ff-save="food">Save food</button>'}`;
+    foodCheck();
+    openDialog(fdialog);
+    setTimeout(() => { if (!rec) $('#ff-name').focus(); }, 60);
+  }
+
+  function readFoodForm() {
+    const on = (k) => $$(`#fd-body [data-ff="${k}"] .chip[aria-pressed="true"]`).map((c) => c.dataset.value);
+    const dietBtn = $('#ff-diet button[aria-pressed="true"]');
+    return {
+      id: fdialog.dataset.id || undefined,
+      name: $('#ff-name').value, hi: $('#ff-hi').value, roles: on('roles'), diet: dietBtn ? dietBtn.dataset.value : 'veg',
+      region: $('#ff-region').value, qty: $('#ff-qty').value, unit: $('#ff-unit').value,
+      kcal: $('#ff-kcal').value, p: $('#ff-p').value, c: $('#ff-c').value, f: $('#ff-f').value,
+      allergens: on('allergens'), flags: on('flags'),
+    };
+  }
+  /** Live check: kcal against protein, carbs and fat (4/4/9). */
+  function foodCheck() {
+    const box = $('#ff-check');
+    if (!box) return;
+    const v = (id) => Number($(id).value) || 0;
+    const fromMacros = Math.round(v('#ff-p') * 4 + v('#ff-c') * 4 + v('#ff-f') * 9);
+    const kcal = v('#ff-kcal');
+    if (!fromMacros && !kcal) { box.innerHTML = '<span class="muted">Enter kcal and the macros of one serving (from a label or a nutrition table).</span>'; return; }
+    const off = kcal && fromMacros && Math.abs(fromMacros - kcal) > Math.max(25, kcal * 0.2);
+    box.innerHTML = `Protein, carbs &amp; fat give <b>${fromMacros} kcal</b>${kcal ? ` · you entered <b>${kcal} kcal</b>` : ''}${off ? ' — <span class="warn-text">please check the numbers</span>' : ''}${!kcal && fromMacros ? ` <button type="button" class="link-btn" data-ff-use="${fromMacros}">Use ${fromMacros} kcal</button>` : ''}`;
+  }
+
+  /** "Add recipe": pick any food (or make a new one), then write its recipe. */
+  function openRecipeChooser() {
+    fdialog.dataset.kind = 'chooser';
+    $('#fd-title').textContent = 'Add a recipe';
+    $('#fd-sub').textContent = 'Choose the food, then write the ingredients and method step by step.';
+    $('#fd-body').innerHTML = `
+      <button type="button" class="new-food-btn" data-rch-new><span>${ui('plus')}</span><span><b>New food + recipe</b><small>A dish that is not in the library yet</small></span>${ICON.chev}</button>
+      <input type="search" id="rch-q" placeholder="Search foods — e.g. poha, dal, paneer" aria-label="Search foods" autocomplete="off">
+      <div class="editor-results tall" id="rch-list"></div>`;
+    $('#fd-foot').innerHTML = '<button type="button" class="btn ghost" data-close>Cancel</button>';
+    renderChooser();
+    openDialog(fdialog);
+  }
+  function renderChooser() {
+    const q = $('#rch-q').value;
+    const list = P.searchFoods(DB.FOODS, q, {}).filter((f) => !f.ingKey);
+    if (!q.trim()) list.sort((a, b) => (b.user ? 1 : 0) - (a.user ? 1 : 0));
+    $('#rch-list').innerHTML = list.slice(0, 50).map((f) => `
+      <button type="button" class="res" data-rch="${esc(f.name)}">
+        <span class="res-ico">${IC.foodIcon(f)}</span>
+        <span class="res-text"><b>${esc(f.name)}</b><small>${esc(f.hi)}${f.hi ? ' · ' : ''}${f.kcal} kcal${ownRecipes[f.name] ? ' <i class="badge mine">Your recipe</i>' : f.recipe ? ' <i class="badge hp">Has recipe</i>' : ' <i class="badge warn">No recipe yet</i>'}${f.user ? ' <i class="badge mine">My food</i>' : ''}</small></span>
+        <span class="add">${ICON.edit}</span>
+      </button>`).join('') || '<p class="muted">No food matches — create it as a new food.</p>';
+  }
+
+  // Recipe being written: { name, ing: [{name, qty}], steps: [text], prep, cook, serves, tips }
+  let rform = null;
+  function openRecipeForm(name) {
+    const f = DB.FOODS.find((x) => x.name === name && !x.ingKey);
+    if (!f) return toast('Food not found.');
+    const own = store.getRecipe(name);
+    if (own) rform = { name, ing: own.ing.map((x) => ({ ...x })), steps: own.steps.slice(), prep: own.prep, cook: own.cook, serves: own.serves, tips: own.tips };
+    else if (f.recipe) { // start from the built-in recipe
+      const d = recipeData(f, 1);
+      rform = { name, ing: d.ing.map((x) => ({ name: x.name, qty: x.qty })), steps: d.steps.slice(), prep: '', cook: '', serves: 1, tips: '' };
+    } else rform = { name, ing: [{ name: '', qty: '' }, { name: '', qty: '' }], steps: ['', '', ''], prep: '', cook: '', serves: 1, tips: '' };
+    fdialog.dataset.kind = 'recipe';
+    $('#fd-title').textContent = `${IC.foodIcon(f)} ${own ? 'Edit recipe' : 'Write recipe'} · ${f.name}`;
+    $('#fd-sub').textContent = f.recipe && !own ? 'Starts from the built-in recipe — change anything; your version is used on screen and in the PDF.' : `${P.formatQty(f.qty)} ${f.unit} per serving · ${f.kcal} kcal`;
+    $('#fd-foot').innerHTML = `${own ? `<button type="button" class="btn ghost danger-text" data-rf-reset>${f.recipe ? 'Use original' : `${ICON.trash} Delete`}</button>` : ''}<span class="foot-gap"></span>
+      <button type="button" class="btn ghost" data-close>Cancel</button>
+      <button type="button" class="btn primary" data-rf-save>Save recipe</button>`;
+    renderRecipeForm();
+    openDialog(fdialog);
+  }
+  function renderRecipeForm() {
+    const r = rform;
+    $('#fd-body').innerHTML = `
+      <div class="form-plate">
+        <div class="row three">
+          <label>Prep time<input id="rf-prep" type="text" value="${esc(r.prep)}" placeholder="e.g. 10 min"></label>
+          <label>Cook time<input id="rf-cook" type="text" value="${esc(r.cook)}" placeholder="e.g. 20 min"></label>
+          <label>Servings<input id="rf-serves" type="number" min="1" max="50" value="${esc(r.serves || 1)}" inputmode="numeric"></label>
+        </div>
+      </div>
+      <div class="form-plate">
+        <div class="sec-row"><span class="field-label">Ingredients <small>${r.ing.length}</small></span><button type="button" class="link-btn" data-rf-add-ing>+ Add ingredient</button></div>
+        <div class="ing-edit">${r.ing.map((x, i) => `
+          <div class="ing-row">
+            <input type="text" data-ing-name="${i}" value="${esc(x.name)}" placeholder="Ingredient, e.g. Ragi flour" aria-label="Ingredient ${i + 1}">
+            <input type="text" data-ing-qty="${i}" value="${esc(x.qty)}" placeholder="Qty, e.g. 40 g" aria-label="Quantity ${i + 1}">
+            <button type="button" class="icon-btn danger" data-rm-ing="${i}" aria-label="Remove ingredient ${i + 1}">${ICON.trash}</button>
+          </div>`).join('')}</div>
+      </div>
+      <div class="form-plate">
+        <div class="sec-row"><span class="field-label">Method — step by step <small>${r.steps.length} steps</small></span><button type="button" class="link-btn" data-rf-add-step>+ Add step</button></div>
+        <ol class="step-edit">${r.steps.map((s, i) => `
+          <li class="step-row">
+            <span class="step-no" aria-hidden="true">${i + 1}</span>
+            <textarea data-rstep="${i}" rows="2" placeholder="Step ${i + 1}: what to do, how long, how you know it is ready" aria-label="Step ${i + 1}">${esc(s)}</textarea>
+            <div class="step-acts">
+              <button type="button" class="icon-btn" data-step-up="${i}" aria-label="Move step ${i + 1} up"${i === 0 ? ' disabled' : ''}>${svg('<path d="M12 19V5M6 11l6-6 6 6"/>')}</button>
+              <button type="button" class="icon-btn" data-step-down="${i}" aria-label="Move step ${i + 1} down"${i === r.steps.length - 1 ? ' disabled' : ''}>${svg('<path d="M12 5v14M6 13l6 6 6-6"/>')}</button>
+              <button type="button" class="icon-btn danger" data-rm-step="${i}" aria-label="Remove step ${i + 1}">${ICON.trash}</button>
+            </div>
+          </li>`).join('')}</ol>
+        <button type="button" class="btn ghost wide dashed" data-rf-add-step>${ICON.plus} Add step ${r.steps.length + 1}</button>
+      </div>
+      <div class="form-plate">
+        <label>Tips <small>(optional — swaps, storage, what to serve with)</small><textarea id="rf-tips" rows="2" placeholder="e.g. Use a non-stick tawa so it needs less oil.">${esc(r.tips)}</textarea></label>
+      </div>
+      <p class="error" id="rf-error" hidden></p>`;
+  }
+  function readRecipeForm() {
+    if (!rform || !$('#rf-prep')) return;
+    rform.prep = $('#rf-prep').value; rform.cook = $('#rf-cook').value; rform.serves = Number($('#rf-serves').value) || 1; rform.tips = $('#rf-tips').value;
+    rform.ing = rform.ing.map((x, i) => ({ name: $(`[data-ing-name="${i}"]`).value, qty: $(`[data-ing-qty="${i}"]`).value }));
+    rform.steps = rform.steps.map((s, i) => $(`[data-rstep="${i}"]`).value);
+  }
+
+  fdialog.addEventListener('input', (e) => {
+    if (e.target.id === 'rch-q') renderChooser();
+    else if (fdialog.dataset.kind === 'food' && /^ff-(kcal|p|c|f)$/.test(e.target.id)) foodCheck();
+  });
+  fdialog.addEventListener('click', (e) => {
+    if (e.target === fdialog) return closeDialog(fdialog);
+    const b = e.target.closest('button');
+    if (!b) return;
+    if (b.hasAttribute('data-close')) return closeDialog(fdialog);
+    const kind = fdialog.dataset.kind;
+    if (kind === 'chooser') {
+      if (b.hasAttribute('data-rch-new')) return openFoodForm(null, { thenRecipe: true });
+      if (b.dataset.rch) return openRecipeForm(b.dataset.rch);
+      return;
+    }
+    if (kind === 'food') {
+      if (b.closest('[data-ff]') && b.classList.contains('chip')) { b.setAttribute('aria-pressed', String(b.getAttribute('aria-pressed') !== 'true')); return; }
+      if (b.closest('#ff-diet')) { $$('#ff-diet button').forEach((x) => x.setAttribute('aria-pressed', String(x === b))); return; }
+      if (b.dataset.ffUse) { $('#ff-kcal').value = b.dataset.ffUse; return foodCheck(); }
+      if (b.hasAttribute('data-ff-delete')) { if (deleteFood(fdialog.dataset.id)) closeDialog(fdialog); return; }
+      if (b.dataset.ffSave) {
+        try {
+          const rec = store.saveCustomFood(readFoodForm());
+          foodsChanged();
+          if (b.dataset.ffSave === 'recipe') return openRecipeForm(rec.name);
+          closeDialog(fdialog);
+          toast(`${rec.name} saved — it can now be used in every chart.`);
+        } catch (err) {
+          $('#ff-error').hidden = false;
+          $('#ff-error').textContent = err.message;
+          $('#ff-error').scrollIntoView({ block: 'nearest' });
+        }
+      }
+      return;
+    }
+    if (kind === 'recipe' && rform) {
+      readRecipeForm();
+      const at = (k) => Number(b.dataset[k]);
+      if (b.hasAttribute('data-rf-add-ing')) { rform.ing.push({ name: '', qty: '' }); renderRecipeForm(); return $(`[data-ing-name="${rform.ing.length - 1}"]`).focus(); }
+      if (b.dataset.rmIng) { rform.ing.splice(at('rmIng'), 1); return renderRecipeForm(); }
+      if (b.hasAttribute('data-rf-add-step')) { rform.steps.push(''); renderRecipeForm(); return $(`[data-rstep="${rform.steps.length - 1}"]`).focus(); }
+      if (b.dataset.rmStep) { rform.steps.splice(at('rmStep'), 1); return renderRecipeForm(); }
+      if (b.dataset.stepUp || b.dataset.stepDown) {
+        const i = b.dataset.stepUp ? at('stepUp') : at('stepDown');
+        const j = b.dataset.stepUp ? i - 1 : i + 1;
+        if (j < 0 || j >= rform.steps.length) return;
+        [rform.steps[i], rform.steps[j]] = [rform.steps[j], rform.steps[i]];
+        renderRecipeForm();
+        const moved = $(`[data-rstep="${j}"]`);
+        moved.closest('.step-row').classList.add('moved');
+        return moved.focus();
+      }
+      if (b.hasAttribute('data-rf-reset')) {
+        const f = dishByName[rform.name];
+        if (!confirm(f && f.recipe ? 'Go back to the original recipe?' : 'Delete this recipe?')) return;
+        store.deleteRecipe(rform.name);
+        closeDialog(fdialog);
+        foodsChanged();
+        return toast(f && f.recipe ? 'Original recipe restored.' : 'Recipe deleted.');
+      }
+      if (b.hasAttribute('data-rf-save')) {
+        try {
+          store.saveRecipe(rform.name, rform);
+          const name = rform.name;
+          closeDialog(fdialog);
+          foodsChanged();
+          toast(`Recipe saved: ${name}.`);
+          if (current !== 'chart') { viewRecipe = name; servings = 1; if (current === 'recipe') renderRecipe(); else go('recipe'); }
+        } catch (err) {
+          $('#rf-error').hidden = false;
+          $('#rf-error').textContent = err.message;
+          $('#rf-error').scrollIntoView({ block: 'nearest' });
+        }
+      }
+    }
+  });
+  fdialog.addEventListener('close', () => { if (fdialog.dataset.kind === 'recipe') rform = null; });
 
   // ── Upload previous chart (PDF) ─────────────────────────────────
   function loadScript(src) {
@@ -1209,9 +1638,50 @@
       <div><span>Meal combinations</span><b>${num(combos.total)}</b></div>
       <div><span>Chart languages</span><b>${I.CODES.length}</b></div>
       <div><span>Saved patients · charts</span><b>${store.listPatients().length} · ${store.listCharts().length}</b></div>
-      <div><span>Version</span><b>5.0</b></div>
+      <div><span>My foods · my recipes</span><b>${myFoods().length} · ${Object.keys(ownRecipes).length}</b></div>
+      <div><span>Version</span><b>6.0</b></div>
     </div>`;
+    renderTheme();
   }
+
+  // ── Theme (shared with the clinic admin through localStorage) ────
+  const THEMES = {
+    teal: ['Prime teal', '#015B53', '#1FA38C'],
+    midnight: ['Midnight', '#1E3A8A', '#3B82F6'],
+    royal: ['Royal', '#5B21B6', '#C9A227'],
+    emerald: ['Emerald', '#047857', '#10B981'],
+    charcoal: ['Charcoal', '#2C2E2F', '#C9A227'],
+  };
+  const root = document.documentElement;
+  $('#theme-swatches').innerHTML = Object.entries(THEMES).map(([k, [label, a, b]]) => `<button type="button" class="swatch" data-theme-pick="${k}" role="radio" aria-label="${esc(label)}"><span class="sw" style="background:linear-gradient(135deg, ${a} 0 55%, ${b} 55% 100%)"></span><small>${esc(label)}</small></button>`).join('');
+  function themeColor() {
+    const meta = document.querySelector('meta[name="theme-color"]');
+    if (meta) meta.setAttribute('content', root.dataset.scheme === 'dark' ? '#0b1213' : (THEMES[root.dataset.theme] || THEMES.teal)[1]);
+  }
+  function renderTheme() {
+    $$('#theme-swatches .swatch').forEach((b) => b.setAttribute('aria-checked', String(b.dataset.themePick === (root.dataset.theme || 'teal'))));
+    $$('#mode-seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mode === (root.dataset.mode || 'auto'))));
+  }
+  function setTheme(key, value) {
+    try { storage.setItem(key === 'theme' ? 'primefit.theme' : 'primefit.mode', value); } catch (_) { /* not saved */ }
+    root.classList.add('theme-anim');
+    root.dataset[key] = value;
+    if (window.primefitApplyTheme) window.primefitApplyTheme();
+    themeColor();
+    renderTheme();
+    clearTimeout(setTheme.timer);
+    setTheme.timer = setTimeout(() => root.classList.remove('theme-anim'), 450);
+  }
+  $('#theme-swatches').addEventListener('click', (e) => { const b = e.target.closest('[data-theme-pick]'); if (b) setTheme('theme', b.dataset.themePick); });
+  $('#mode-seg').addEventListener('click', (e) => { const b = e.target.closest('[data-mode]'); if (b) setTheme('mode', b.dataset.mode); });
+  // Another tab (e.g. the clinic admin) changed the theme.
+  window.addEventListener('storage', (e) => {
+    if (e.key === 'primefit.theme' && e.newValue && THEMES[e.newValue]) root.dataset.theme = e.newValue;
+    else if (e.key === 'primefit.mode' && /^(auto|light|dark)$/.test(e.newValue || '')) { root.dataset.mode = e.newValue; if (window.primefitApplyTheme) window.primefitApplyTheme(); } else return;
+    themeColor();
+    renderTheme();
+  });
+  themeColor();
   $('#set-save').addEventListener('click', () => {
     const dt = { dietitian: $('#set-dietitian').value.trim(), qualification: $('#set-qualification').value.trim(), dietitianPhone: $('#set-phone').value.trim() };
     save(DIETITIAN_KEY, dt);
@@ -1225,7 +1695,8 @@
     if (!file) return;
     try {
       const r = store.importAll(await file.text());
-      toast(`Imported ${r.patients} patients and ${r.charts} charts.`);
+      if (r.foods || r.recipes) foodsChanged();
+      toast(`Imported ${r.patients} patients and ${r.charts} charts${r.foods ? `, ${r.foods} foods` : ''}${r.recipes ? `, ${r.recipes} recipes` : ''}.`);
       renderSettings();
     } catch (err) {
       toast(err.message || 'Not a valid backup file.');
@@ -1357,12 +1828,15 @@
     const k = serves || 1;
     const nm = (l) => (l === 'en' ? f.name : I.foodName(l, f.name));
     const alt = [lang !== 'en' ? f.name : '', lang2 ? nm(lang2) : ''].filter((x) => x && x !== nm(lang));
+    const extra = [r.prep ? `${I.t(lang, 'prepTime')} ${r.prep}` : '', r.cook ? `${I.t(lang, 'cookTime')} ${r.cook}` : '', r.own && r.serves > 1 ? `${I.t(lang, 'serves')} ${r.serves * k}` : ''].filter(Boolean);
     return `<article class="rcp${big ? ' big' : ''}">
       <h2><span class="ps-ico">${IC.foodIcon(f)}</span>${esc(nm(lang))}${alt.length ? `<small>${esc(alt.join(' · '))}</small>` : ''}</h2>
-      <div class="rcp-meta"><span>${esc(P.formatQty(f.qty * k))} ${esc(f.unit)}${k > 1 ? ` (${k} × 1 serving)` : ''}</span><span><b>${Math.round(f.kcal * k)}</b> kcal</span><span>${esc(I.t(lang, 'protein'))} <b>${Math.round(f.p * k * 10) / 10} g</b></span><span>${esc(I.t(lang, 'carbs'))} ${Math.round(f.c * k)} g</span><span>${esc(I.t(lang, 'fat'))} ${Math.round(f.f * k * 10) / 10} g</span></div>
+      <div class="rcp-meta"><span>${esc(P.formatQty(f.qty * k))} ${esc(f.unit)}${k > 1 ? ` (${k} × 1 serving)` : ''}</span><span><b>${Math.round(f.kcal * k)}</b> kcal</span><span>${esc(I.t(lang, 'protein'))} <b>${Math.round(f.p * k * 10) / 10} g</b></span><span>${esc(I.t(lang, 'carbs'))} ${Math.round(f.c * k)} g</span><span>${esc(I.t(lang, 'fat'))} ${Math.round(f.f * k * 10) / 10} g</span>${extra.map((x) => `<span>${esc(x)}</span>`).join('')}</div>
       <div class="rcp-body">
-        <div><h3>${esc(I.t(lang, 'ingredients'))}</h3><ul>${r.ing.map(({ x, g }) => `<li><span>${esc(ingName(lang, x))}${lang !== 'en' ? ` <i class="l2">${esc(x.name)}</i>` : ''}</span><b>${gText(x, g)}</b></li>`).join('')}</ul></div>
-        <div><h3>${esc(I.t(lang, 'method'))}</h3><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol></div>
+        <div><h3>${esc(I.t(lang, 'ingredients'))}</h3><ul>${r.ing.map((x) => (x.x
+          ? `<li><span>${esc(ingName(lang, x.x))}${lang !== 'en' ? ` <i class="l2">${esc(x.x.name)}</i>` : ''}</span><b>${esc(x.qty)}</b></li>`
+          : `<li><span>${esc(x.name)}</span><b>${esc(x.qty)}</b></li>`)).join('')}</ul></div>
+        <div><h3>${esc(I.t(lang, 'method'))}</h3><ol>${r.steps.map((s) => `<li>${esc(s)}</li>`).join('')}</ol>${r.tips ? `<p class="rcp-tip"><b>${esc(I.t(lang, 'tips'))}:</b> ${esc(r.tips)}</p>` : ''}</div>
       </div>
     </article>`;
   }
