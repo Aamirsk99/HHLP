@@ -328,6 +328,7 @@
   }
 
   function go(name) {
+    if (name === 'admin') { location.href = 'admin/index.html'; return; } // clinic admin: its own page with its own login
     if (location.hash.slice(1) === name) show(name);
     else location.hash = name;
   }
@@ -361,6 +362,7 @@
   const NAV = [
     ['home', '🏠', 'Dashboard'], ['s1', '➕', 'New diet chart'], ['patients', '👥', 'Patients'], ['charts', '📋', 'Saved charts'],
     ['upload', '📤', 'Upload previous chart'], ['recipes', '🍲', 'Recipes'], ['library', '🥗', 'Food library'], ['settings', '⚙️', 'Settings & backup'],
+    ['admin', '🏥', 'Clinic admin'],
   ];
   $('#drawer-nav').innerHTML = NAV.map(([k, icon, label]) => `<button type="button" data-go="${k}" data-nav="${k}"><span class="nav-ico">${icon}</span>${esc(label)}</button>`).join('');
   const TABS = [['home', '🏠', 'Home'], ['patients', '👥', 'Patients'], ['s1', '➕', 'New'], ['charts', '📋', 'Charts'], ['recipes', '🍲', 'Recipes']];
@@ -383,6 +385,7 @@
     ['recipes', '🍲', 'Recipes', `${DISHES.length} dishes`, 'q-red'],
     ['library', '🥗', 'Food library', `${num(DB.FOODS.length)} foods`, 'q-lime'],
     ['settings', '⚙️', 'Settings', 'Dietitian & backup', 'q-grey'],
+    ['admin', '🏥', 'Clinic admin', 'Sales · OPD · Leads', 'q-brand'],
   ];
   $('#quick-grid').innerHTML = QUICK.map(([k, icon, label, sub, cls]) => `<button type="button" class="quick ${cls}" ${k === 'nextweek' ? 'id="quick-next"' : `data-go="${k}"`}><span class="q-ico">${icon}</span><b>${esc(label)}</b><small>${esc(sub)}</small></button>`).join('');
   $('#quick-next').addEventListener('click', () => {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds dist/DietChart.apk from the web app without the Android SDK or Gradle.
+# Builds dist/ThePrimeFit.apk (diet charts + clinic admin) from the web app without the Android SDK or Gradle.
 # Needs: Java 11+, curl, zip/unzip, python3. Build tools are fetched from Maven Central.
 set -euo pipefail
 
@@ -44,6 +44,10 @@ mkdir -p "$BUILD"/{res,gen,classes,assets/www,dex} "$(dirname "$OUT")"
 echo "• Copying web app into assets"
 cp "$ROOT/index.html" "$BUILD/assets/www/"
 cp -r "$ROOT/css" "$ROOT/js" "$ROOT/img" "$ROOT/vendor" "$BUILD/assets/www/"
+# Clinic admin lives in www/admin and shares the logo and icons in www/img.
+mkdir -p "$BUILD/assets/www/admin"
+cp "$ROOT/admin/index.html" "$ROOT/admin/manifest.webmanifest" "$BUILD/assets/www/admin/"
+cp -r "$ROOT/admin/css" "$ROOT/admin/js" "$ROOT/admin/vendor" "$ROOT/admin/google-apps-script" "$BUILD/assets/www/admin/"
 
 echo "• Compiling resources"
 "$AAPT2" compile --dir "$AND/res" -o "$BUILD/res/res.zip"

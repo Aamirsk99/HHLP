@@ -1,8 +1,13 @@
-# Hindivine Diet
+# The Prime Fit
 
-**Hindivine Healthcare Private Limited** · www.hindivine.com
+**The Prime Fit** · www.theprimefit.com · *Transform today, thrive tomorrow*
 
-Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
+One app with two parts:
+
+- **Diet charts** (the home screen): patients, diet charts, recipes and food library.
+- **Clinic admin** (menu → *Clinic admin*, or the dashboard tile): OPD appointments, leads (CRM), sales, patients, renewals, products and inventory, purchases, team, incentives, salary, expenses, reports (PDF/Excel), activity log, logins with PINs and roles, and Google Sheet sync (`admin/google-apps-script/Code.gs`). *Diet charts* in the admin menu goes back.
+
+The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
 ## Features
 
@@ -34,12 +39,12 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
   - Any chart can be opened, edited, reprinted or deleted.
 - **Next week:** one tap makes next week's chart with the same patient and settings but **fully changed foods**. About 95–100% of the main foods change.
 - **Upload previous PDF:** choose last week's PDF to read it back.
-  - **Charts made with Hindivine Diet** carry hidden chart data, so they are read exactly (patient, targets, every meal). You can then edit the chart or generate next week.
+  - **Charts made with The Prime Fit** (or the earlier Hindivine Diet) carry hidden chart data, so they are read exactly (patient, targets, every meal). You can then edit the chart or generate next week.
   - **Other PDFs:** the foods in them are found by name, in any of the 10 languages, and avoided in the new chart.
 - **A4 PDF:**
   - **Pages:** 1 page for short charts (1–3 days, when they fit), otherwise 2 pages. Text scales automatically to fit.
   - **Versions:** with or without the patient name.
-  - **Extras:** meal icons, optional recipe pages, and a "Download the Hindivine Patient App from Play Store or App Store" band on the last page.
+  - **Extras:** meal icons, optional recipe pages, and a "Download The Prime Fit App from Play Store or App Store" band on the last page.
   - **Signature:** none needed.
 - **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
 - **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
@@ -48,8 +53,8 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 
 | Platform | How |
 | --- | --- |
-| **Android** | Install [`dist/HindivineDiet.apk`](dist/HindivineDiet.apk) (Android 7.0+). |
-| **iPhone / iPad** | **Now:** host this folder on HTTPS (e.g. hindivine.com/diet) and open it in Safari, then *Share → Add to Home Screen*. It installs as an offline app (`manifest.webmanifest`, `sw.js`). **App Store:** the Xcode project is in `ios-app/`, see below. |
+| **Android** | Install [`dist/ThePrimeFit.apk`](dist/ThePrimeFit.apk) (Android 7.0+). It contains both diet charts and clinic admin. |
+| **iPhone / iPad** | **Now:** host this folder on HTTPS (e.g. theprimefit.com/app) and open it in Safari, then *Share → Add to Home Screen*. It installs as an offline app (`manifest.webmanifest`, `sw.js`). **App Store:** the Xcode project is in `ios-app/`, see below. |
 | **Web** | Open `index.html`, or run `npm start`. |
 
 ### Building the iOS app (needs a Mac)
@@ -66,7 +71,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 ## Rebuilding the Android app
 
 ```sh
-VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
+VERSION_CODE=6 VERSION_NAME=6.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.
@@ -97,9 +102,10 @@ npm test             # Node 18+, no dependencies
 | `js/app.js` | Dashboard, wizard, chart view, meal editor, patients, recipes, upload, A4 PDF and CSV export |
 | `manifest.webmanifest`, `sw.js` | Installable offline web app (iPhone / Android) |
 | `ios-app/` | Capacitor iOS project (Xcode) |
-| `img/` | Hindivine logo and icons |
+| `admin/` | Clinic admin (OPD, leads, sales, stock, team, expenses, reports, Google Sheet sync) |
+| `img/` | The Prime Fit logo and icons (shared by both parts) |
 | `android/` | Android WebView wrapper and build script |
-| `dist/HindivineDiet.apk` | Built Android app |
+| `dist/ThePrimeFit.apk` | Built Android app (diet charts + clinic admin) |
 | `tests/` | Unit tests (planner, recipes, storage, PDF read-back) |
 
 ## Disclaimer

@@ -5,6 +5,9 @@ const ASSETS = [
   'js/foodnames.js', 'js/ingredients.js', 'js/recipes.js', 'js/fooddb.js', 'js/i18n.js', 'js/icons.js',
   'js/planner.js', 'js/store.js', 'js/app.js', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js',
   'img/logo.jpg', 'img/icon-192.png', 'img/icon-512.png',
+  // Clinic admin (admin/), part of the same app.
+  'admin/', 'admin/index.html', 'admin/manifest.webmanifest', 'admin/css/admin.css', 'admin/js/core.js', 'admin/js/export.js', 'admin/js/app.js',
+  'admin/vendor/jspdf.umd.min.js', 'admin/vendor/jspdf.plugin.autotable.min.js', 'admin/vendor/xlsx.mini.min.js',
 ];
 
 self.addEventListener('install', (e) => {
