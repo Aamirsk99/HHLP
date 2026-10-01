@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">The Prime Fit</string>
-    <string name="start_page" translatable="false">www/index.html</string>
+    <string name="start_page" translatable="false">www/admin/index.html</string>
 </resources>

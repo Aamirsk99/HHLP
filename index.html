@@ -4,6 +4,10 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>The Prime Fit</title>
+  <script>
+    // In the iPhone app the admin sign-in is the home page; diet charts open from its menu.
+    try { if (window.Capacitor && !sessionStorage.getItem('primefit.started')) { sessionStorage.setItem('primefit.started', '1'); location.replace('admin/index.html'); } } catch (_) { /* ignore */ }
+  </script>
   <meta name="description" content="The Prime Fit — premium 1–7 day Indian and worldwide diet charts with recipes in 10 languages: weight loss, diabetes, PCOS, thyroid, travel and more, as a 2-page A4 PDF.">
   <meta name="theme-color" content="#015B53">
   <meta name="apple-mobile-web-app-capable" content="yes">
@@ -48,7 +52,7 @@
         <div><b>The Prime Fit</b><small id="drawer-sub">Diet charts · Recipes · Patients</small></div>
       </div>
       <nav class="drawer-nav" id="drawer-nav"></nav>
-      <div class="drawer-foot">The Prime Fit<br>www.theprimefit.com</div>
+      <div class="drawer-foot">The Prime Fit<br>www.theprimefit.in</div>
     </aside>
 
     <form id="profile-form" novalidate>

@@ -1,15 +1,15 @@
 # The Prime Fit
 
-**The Prime Fit** · www.theprimefit.com · *Transform today, thrive tomorrow*
+**The Prime Fit** · www.theprimefit.in · *Transform today, thrive tomorrow*
 
 One app with two parts:
 
 - **Diet charts** (the home screen): patients, diet charts, recipes and food library.
-- **Clinic admin** (menu → *Clinic admin*, or the dashboard tile): OPD appointments, leads (CRM), sales, patients, renewals, products and inventory, purchases, team, incentives, salary, expenses, reports (PDF/Excel), activity log, logins with PINs and roles, and Google Sheet sync (`admin/google-apps-script/Code.gs`). *Diet charts* in the admin menu goes back.
+- **Clinic admin** (the app opens on the admin sign-in; *Diet charts* is in its menu): OPD appointments with doctor profiles, leads (CRM), sales, patients, renewals, products and inventory (reorder items and categories, unlimited services, per-product kits), purchases, team, incentives, salary, expenses (founder, ads, editing, custom names), content & posts (videos edited/posted/remaining, scheduled-post reminders), reports (PDF/Excel/Image), activity log, logins with PINs and roles, and Google Sheet sync (`admin/google-apps-script/Code.gs`). *Diet charts* in the admin menu goes back.
 
 The Prime Fit is a **new app** (Android `com.theprimefit.app`, iOS `com.theprimefit.app`). It installs next to the old Hindivine apps and starts with empty data of its own.
 
-**Admin data sheet:** [`admin/ThePrimeFit_Sheets.xlsx`](admin/ThePrimeFit_Sheets.xlsx) is the Google Sheet template (Start Here + the 15 data sheets), and [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) is its script. Upload the xlsx to Google Drive, save it as a Google Sheet, paste Code.gs under Extensions → Apps Script, run `setup`, deploy as a web app, then enter the URL and secret in Clinic admin → Settings → Google Sheet.
+**Admin data sheet:** [`admin/ThePrimeFit_Sheets.xlsx`](admin/ThePrimeFit_Sheets.xlsx) is the Google Sheet template (Start Here + the 17 data sheets, including Doctors and Content), and [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) is its script. Upload the xlsx to Google Drive, save it as a Google Sheet, paste Code.gs under Extensions → Apps Script, run `setup`, deploy as a web app, then enter the URL and secret in Clinic admin → Settings → Google Sheet. You can keep your current sheet (paste the new Code.gs into it and deploy a new version) or use a new one; *Load from Google Sheet* and *Send this device's data* force a reload or upload.
 
 The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
@@ -58,7 +58,7 @@ The diet part builds personalised **1–7 day Indian and worldwide diet charts**
 | Platform | How |
 | --- | --- |
 | **Android** | Install [`dist/ThePrimeFit.apk`](dist/ThePrimeFit.apk) (Android 7.0+). It contains both diet charts and clinic admin. |
-| **iPhone / iPad** | **Now:** host this folder on HTTPS (e.g. theprimefit.com/app) and open it in Safari, then *Share → Add to Home Screen*. It installs as an offline app (`manifest.webmanifest`, `sw.js`). **App Store:** the Xcode project is in `ios-app/`, see below. |
+| **iPhone / iPad** | **Now:** host this folder on HTTPS (e.g. theprimefit.in/app) and open it in Safari, then *Share → Add to Home Screen*. It installs as an offline app (`manifest.webmanifest`, `sw.js`). **App Store:** the Xcode project is in `ios-app/`, see below. |
 | **Web** | Open `index.html`, or run `npm start`. |
 
 ### Building the iOS app (needs a Mac)

@@ -446,3 +446,48 @@ code.pin { font-size: 14px; font-weight: 800; letter-spacing: .12em; background:
   table.perm td[data-label]::before { content: none !important; }
   .lead-list { grid-template-columns: 1fr; }
 }
+
+/* ── Round 3: doctors, content reminders, inventory tools, app feel ── */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+
+/* Menu: staggered slide-in, sliding highlight and icon nudge. */
+#nav button { position: relative; overflow: hidden; transition: background .2s, color .2s, padding-left .2s, transform .12s; }
+#nav button svg { transition: transform .25s cubic-bezier(.3, 1.6, .5, 1); }
+#nav button:hover svg { transform: translateX(2px) scale(1.12); }
+#nav button:hover { padding-left: 15px; }
+#nav button.on::before { content: ''; position: absolute; left: 0; top: 18%; bottom: 18%; width: 3px; border-radius: 0 3px 3px 0; background: #9ff0dd; animation: nav-bar .35s ease both; }
+#nav button.on::after { content: ''; position: absolute; inset: 0; background: linear-gradient(100deg, transparent 30%, rgba(255, 255, 255, .22) 50%, transparent 70%); animation: shine 1.1s ease .1s 1 both; pointer-events: none; }
+@keyframes nav-bar { from { transform: scaleY(0); } to { transform: none; } }
+#nav > *:nth-child(1) { animation-delay: .02s !important; } #nav > *:nth-child(2) { animation-delay: .04s !important; } #nav > *:nth-child(3) { animation-delay: .06s !important; }
+#nav > *:nth-child(4) { animation-delay: .08s !important; } #nav > *:nth-child(5) { animation-delay: .1s !important; } #nav > *:nth-child(6) { animation-delay: .12s !important; }
+#nav > *:nth-child(7) { animation-delay: .14s !important; } #nav > *:nth-child(8) { animation-delay: .16s !important; } #nav > *:nth-child(9) { animation-delay: .18s !important; }
+#nav > *:nth-child(10) { animation-delay: .2s !important; } #nav > *:nth-child(n+11) { animation-delay: .22s !important; }
+#nav .nav-group { animation: nav-in .3s ease both; }
+@media (prefers-reduced-motion: reduce) { #nav button, #nav button svg, #nav .nav-group { animation: none !important; transition: none; } #nav button.on::after { display: none; } }
+
+/* Post reminders use the order banner layout in brand violet. */
+.order-banner.remind { background: linear-gradient(135deg, #4b3aa8, #7c5cd6); box-shadow: 0 14px 30px -16px rgba(75, 58, 168, .9); animation: float 3s ease-in-out infinite; }
+
+/* Doctors */
+.doc-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 14px; margin-bottom: 14px; }
+.doc-card { display: flex; gap: 14px; align-items: center; background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); padding: 16px; animation: rise .35s ease both; transition: transform .15s, box-shadow .2s; }
+.doc-card:hover { transform: translateY(-2px); }
+.doc-card.off { opacity: .55; }
+.doc-av { width: 52px; height: 52px; flex: none; border-radius: 16px; display: grid; place-items: center; font-size: 22px; font-weight: 800; color: #fff; background: linear-gradient(135deg, #015b53, #1fa38c); box-shadow: 0 10px 20px -12px rgba(1, 91, 83, .9); }
+.doc-main { flex: 1; min-width: 0; }
+.doc-main b { display: block; font-size: 15.5px; }
+.doc-main small { color: var(--muted); font-size: 12.5px; }
+.doc-main .meta { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 6px; }
+.doc-side { text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.doc-side > b { font-size: 22px; color: var(--accent); }
+.doc-side small { color: var(--muted); font-size: 11.5px; white-space: nowrap; }
+.doc-side .acts { margin-top: 6px; white-space: nowrap; }
+
+/* Inventory category tools and item reorder */
+tr.group td { position: relative; }
+.cat-name { font-weight: 800; }
+.cat-tools { float: right; display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.move { display: inline-flex; gap: 2px; margin-right: 4px; vertical-align: middle; }
+.move .btn.xs, .cat-tools .btn.xs { min-width: 28px; padding-left: 6px; padding-right: 6px; }
+@media (max-width: 640px) { .cat-tools { float: none; display: flex; margin-top: 6px; } }

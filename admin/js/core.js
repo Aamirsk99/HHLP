@@ -12,9 +12,9 @@
   const KINDS = { injection: 'Injection', protein: 'Protein', other: 'Other' };
   const SALE_TYPES = { injection: 'Injection', protein: 'Protein', diet: 'Diet Support' };
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
-    'Protein Purchase', 'Injection Purchase', 'Miscellaneous'];
+    'Founder', 'Ads', 'Editing', 'Protein Purchase', 'Injection Purchase', 'Miscellaneous'];
   const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
-    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Activity Log'];
+    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Content', 'Activity Log'];
 
   // Login roles. Every person can have their own login (name + PIN), shared through the Google Sheet.
   const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk' };
@@ -26,20 +26,26 @@
     leadStatuses: ['New', 'Contacted', 'Interested', 'Follow-up', 'Appointment booked', 'Converted', 'Not interested', 'Lost'],
     payMethods: ['Cash', 'UPI', 'Card', 'Bank transfer'],
     designations: ['Doctor', 'Dietitian', 'Counsellor', 'Front Desk', 'Manager', 'Nurse', 'Pharmacist'],
+    // "Paid for / by" names on expenses (each founder, ad platform, editor…), totalled separately.
+    expenseNames: ['Founder 1', 'Founder 2', 'Meta Ads', 'Google Ads'],
+    platforms: ['Instagram', 'YouTube', 'Facebook', 'WhatsApp'],
+    specialities: ['Physician', 'Endocrinologist', 'Dietitian', 'Bariatric surgeon'],
   };
   // Built-in expense categories the app books by itself; they can't be removed.
   const LOCKED_LIST_ITEMS = { expenseCategories: ['Salary', 'Incentive', 'Protein Purchase', 'Injection Purchase', 'Miscellaneous'], leadStatuses: ['New', 'Converted'] };
   const LEAD_PRIORITIES = { hot: 'Hot', warm: 'Warm', cold: 'Cold' };
   // What each role can open. Super Admin always has everything; the others are editable in Settings.
   const DEFAULT_PERMS = {
-    admin: { screens: ['dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'products', 'inventory', 'purchases', 'team', 'incentives', 'salary', 'expenses', 'reports', 'activity'], del: true },
-    manager: { screens: ['dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'products', 'inventory', 'purchases', 'expenses', 'reports', 'activity'], del: false },
+    admin: { screens: ['dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'team', 'incentives', 'salary', 'expenses', 'content', 'reports', 'activity'], del: true },
+    manager: { screens: ['dashboard', 'today', 'appointments', 'leads', 'sell', 'sales', 'patients', 'renewals', 'doctors', 'products', 'inventory', 'purchases', 'expenses', 'content', 'reports', 'activity'], del: false },
     desk: { screens: ['appointments', 'leads'], del: false },
   };
   const KIT_DEFAULTS = [['Travel Bags', 1], ['Ice Gel Packs', 1], ['Alcohol Swabs', 16], ['Needles', 2]];
   const LOG_MAX = 3000;
   const APPT_MODES = { clinic: 'Clinic visit', online: 'Online' };
   const APPT_STATUS = { booked: 'Booked', completed: 'Completed', cancelled: 'Cancelled', noshow: 'No-show' };
+  // Content (videos): shot → edited → scheduled → posted.
+  const CONTENT_STATUS = { idea: 'To edit', edited: 'Edited', scheduled: 'Scheduled', posted: 'Posted' };
   const PAY_METHODS = ['Cash', 'UPI', 'Card', 'Bank transfer'];
 
   const INJECTIONS = [
@@ -84,7 +90,7 @@
       categories: [{ name: 'Injection', kind: 'injection' }, { name: 'Protein', kind: 'protein' },
         ...OTHER_CATEGORIES.map((name) => ({ name, kind: 'other' }))],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
-      leads: [], log: [],
+      leads: [], log: [], doctors: [], content: [],
       accounts: [
         { id: 'super', name: 'Super Admin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
         { id: 'admin', name: 'Admin', role: 'admin', hash: '', salt: '', len: 0, pin: '' },
@@ -98,6 +104,7 @@
     items.forEach((it) => {
       if (it.orderAt === undefined) it.orderAt = it.kind === 'protein' || /^mounjaro (10|15)\s*mg$/i.test(it.name) ? 2 : null;
       if (it.alertOff === undefined) it.alertOff = false;
+      if (it.track === undefined) it.track = true; // false = service / unlimited: no stock count or alerts
     });
   }
   function kitDefaults(items) {
@@ -262,7 +269,11 @@
 
     // Items, categories, stock
     const item = (id) => S.items.find((i) => i.id === id) || null;
-    const itemsOf = (kind, all) => S.items.filter((i) => i.kind === kind && (all || !i.disabled));
+    // Deleted items keep their history (sales, purchases) but appear nowhere else.
+    const liveItems = () => S.items.filter((i) => !i.deleted);
+    // Items whose stock is counted (not deleted, not disabled, not unlimited services).
+    const stockItems = () => liveItems().filter((i) => !i.disabled && i.track !== false);
+    const itemsOf = (kind, all) => liveItems().filter((i) => i.kind === kind && (all || !i.disabled));
     function saveItem(input) {
       if (!low(input.name)) fail('Name is required');
       let it = input.id && item(input.id);
@@ -271,10 +282,11 @@
         S.items.push(it);
       }
       const isNew = !input.id;
-      ['name', 'brand', 'category', 'kind', 'price', 'incentive', 'opening', 'lowAt', 'unit', 'disabled', 'alertOff', 'orderAt'].forEach((k) => {
+      ['name', 'brand', 'category', 'kind', 'price', 'incentive', 'opening', 'lowAt', 'unit', 'disabled', 'alertOff', 'orderAt', 'track'].forEach((k) => {
         if (k in input) it[k] = input[k];
       });
       it.alertOff = !!it.alertOff;
+      it.track = it.track !== false;
       it.orderAt = it.orderAt === '' || it.orderAt == null ? null : Number(it.orderAt);
       const cat = S.categories.find((c) => c.name === it.category);
       if (!cat) S.categories.push({ name: it.category || 'Other', kind: it.kind || 'other' });
@@ -286,11 +298,40 @@
       return it;
     }
     function deleteItem(id) {
-      if (S.moves.some((mv) => mv.itemId === id)) fail('This item has stock history. Disable it instead.');
       const it = item(id);
-      S.items = S.items.filter((i) => i.id !== id);
+      if (!it) return;
+      // With stock history the item is hidden (sales and purchases keep its name); otherwise removed.
+      if (S.moves.some((mv) => mv.itemId === id)) Object.assign(it, { deleted: true, disabled: true });
+      else S.items = S.items.filter((i) => i.id !== id);
       S.settings.kit = S.settings.kit.filter((k) => k.itemId !== id);
-      log('Item deleted', it ? it.name : id);
+      S.items.forEach((i) => { if (i.kit) i.kit = i.kit.filter((k) => k.itemId !== id); });
+      log('Item deleted', it.name);
+      save();
+    }
+    /** Move an item up (-1) or down (+1) within its category; lists and reports follow this order. */
+    function moveItem(id, dir) {
+      const it = item(id);
+      if (!it) return;
+      const peers = liveItems().filter((i) => i.category === it.category);
+      const other = peers[peers.indexOf(it) + (dir < 0 ? -1 : 1)];
+      if (!other) return;
+      const a = S.items.indexOf(it); const b = S.items.indexOf(other);
+      S.items[a] = other; S.items[b] = it;
+      save();
+    }
+    function moveCategory(name, dir) {
+      const i = S.categories.findIndex((c) => c.name === name);
+      const j = i + (dir < 0 ? -1 : 1);
+      if (i < 0 || j < 0 || j >= S.categories.length) return;
+      [S.categories[i], S.categories[j]] = [S.categories[j], S.categories[i]];
+      save();
+    }
+    /** Items taken out of stock with each unit of one product (its own kit); null/[] = none. */
+    function setItemKit(id, kit) {
+      const it = item(id);
+      if (!it) fail('Unknown item');
+      it.kit = (kit || []).filter((k) => k.itemId && k.itemId !== id && item(k.itemId) && Number(k.qty) > 0).map((k) => ({ itemId: k.itemId, qty: Number(k.qty) }));
+      log('Product kit updated', `${it.name}: ${it.kit.map((k) => `${item(k.itemId).name} ${k.qty}`).join(', ') || 'none'}`);
       save();
     }
     function addCategory(name, kind) {
@@ -312,7 +353,7 @@
       save();
     }
     function deleteCategory(name) {
-      if (S.items.some((i) => i.category === name)) fail('Move or delete the items in this category first');
+      if (liveItems().some((i) => i.category === name)) fail('Move or delete the items in this category first');
       S.categories = S.categories.filter((c) => c.name !== name);
       log('Category deleted', name);
       save();
@@ -326,6 +367,7 @@
     function stockOf(itemId, until) {
       const it = item(itemId);
       if (!it) return 0;
+      if (it.track === false) return Infinity; // unlimited service
       return it.opening + sum(S.moves.filter((m) => m.itemId === itemId && (!until || m.date <= until)), (m) => m.qty);
     }
     function adjustStock(itemId, qty, note, date) {
@@ -336,9 +378,9 @@
       save();
     }
     // Low-stock alerts can be switched off for the whole clinic or per item.
-    const lowStock = () => (S.settings.stockAlerts === false ? [] : S.items.filter((i) => !i.disabled && !i.alertOff && stockOf(i.id) <= i.lowAt)
+    const lowStock = () => (S.settings.stockAlerts === false ? [] : stockItems().filter((i) => !i.alertOff && stockOf(i.id) <= i.lowAt)
       .map((i) => ({ item: i, stock: stockOf(i.id) })));
-    const orderRequired = () => S.items.filter((i) => !i.disabled && i.orderAt != null && stockOf(i.id) < i.orderAt)
+    const orderRequired = () => stockItems().filter((i) => i.orderAt != null && stockOf(i.id) < i.orderAt)
       .map((i) => ({ item: i, stock: stockOf(i.id) }));
 
     // Patients
@@ -421,7 +463,10 @@
       return splitsFor(input, refs);
     }
     /** Kit moves for an injection sale (per pen), when switched on. */
-    const kitFor = (sale) => (sale.type === 'injection' && S.settings.kitOn !== false ? S.settings.kit.filter((k) => item(k.itemId)).map((k) => ({ itemId: k.itemId, qty: k.qty * sale.qty })) : []);
+    // A product's own kit wins; injections without one use the clinic injection kit.
+    const kitOf = (it) => (it && it.kit && it.kit.length ? it.kit : it && it.kind === 'injection' ? S.settings.kit : []);
+    const kitFor = (sale) => (sale.itemId && S.settings.kitOn !== false
+      ? kitOf(item(sale.itemId)).filter((k) => item(k.itemId) && !item(k.itemId).deleted).map((k) => ({ itemId: k.itemId, qty: k.qty * sale.qty })) : []);
 
     function buildSale(input, id) {
       const type = input.type;
@@ -469,7 +514,7 @@
       if (sale.itemId) {
         const other = existing && existing.itemId === sale.itemId ? existing.qty : 0;
         const available = stockOf(sale.itemId) + other;
-        if (available < sale.qty && !input.allowNegative) {
+        if (item(sale.itemId).track !== false && available < sale.qty && !input.allowNegative) {
           fail(`Only ${available} ${item(sale.itemId).unit} of ${sale.product} in stock`);
         }
       }
@@ -550,9 +595,11 @@
       if (!input.category) fail('Choose a category');
       let e = input.id && S.expenses.find((x) => x.id === input.id);
       if (!e) { e = { id: uid('e') }; S.expenses.push(e); }
-      Object.assign(e, { date: input.date || today(), category: input.category, amount: r2(input.amount), note: String(input.note || '').trim() });
+      Object.assign(e, { date: input.date || today(), category: input.category, amount: r2(input.amount), note: String(input.note || '').trim(),
+        name: String(input.name || '').trim(), payMethod: input.payMethod || '' });
       if (!S.settings.lists.expenseCategories.includes(e.category)) S.settings.lists.expenseCategories.push(e.category);
-      log(input.id ? 'Expense updated' : 'Expense added', `${e.category} ₹${e.amount}${e.note ? ` · ${e.note}` : ''}`);
+      if (e.name && !S.settings.lists.expenseNames.some((x) => low(x) === low(e.name))) S.settings.lists.expenseNames.push(e.name);
+      log(input.id ? 'Expense updated' : 'Expense added', `${e.category}${e.name ? ` (${e.name})` : ''} ₹${e.amount}${e.note ? ` · ${e.note}` : ''}`);
       save();
       return e;
     }
@@ -561,6 +608,104 @@
       S.expenses = S.expenses.filter((e) => e.id !== id);
       if (x) log('Expense deleted', `${x.category} ₹${x.amount}`);
       save();
+    }
+
+    /** Expense totals by category, by name and by category + name, with counts. */
+    function expenseSummary(range) {
+      const list = S.expenses.filter((e) => inRange(e.date, range));
+      const group = (key) => {
+        const m = {};
+        list.forEach((e) => { const k = key(e); if (!k) return; m[k] = m[k] || { name: k, amount: 0, count: 0 }; m[k].amount = r2(m[k].amount + e.amount); m[k].count += 1; });
+        return Object.values(m).sort((a, b) => b.amount - a.amount);
+      };
+      return {
+        total: r2(sum(list, (e) => e.amount)), count: list.length,
+        byCategory: group((e) => e.category), byName: group((e) => e.name),
+        byBoth: group((e) => (e.name ? `${e.category} · ${e.name}` : '')),
+      };
+    }
+
+    // Doctors (profiles picked on appointments)
+    const doctor = (id) => S.doctors.find((d) => d.id === id) || null;
+    function saveDoctor(input) {
+      const name = String(input.name || '').trim();
+      if (!name) fail('Enter the doctor name');
+      let d = input.id && doctor(input.id);
+      const isNew = !d;
+      if (!d) { d = { id: uid('dr'), disabled: false, created: Date.now() }; S.doctors.push(d); }
+      ['speciality', 'qualification', 'mobile', 'days', 'timing', 'notes'].forEach((k) => { if (k in input) d[k] = String(input[k] || '').trim(); });
+      d.name = name;
+      d.fee = input.fee === '' || input.fee == null ? null : Number(input.fee) || 0;
+      if ('disabled' in input) d.disabled = !!input.disabled;
+      if (d.speciality && !S.settings.lists.specialities.some((x) => low(x) === low(d.speciality))) S.settings.lists.specialities.push(d.speciality);
+      log(isNew ? 'Doctor added' : 'Doctor updated', d.name);
+      save();
+      return d;
+    }
+    function deleteDoctor(id) {
+      const d = doctor(id);
+      if (!d) return;
+      // Appointments keep the doctor's name.
+      S.appointments.forEach((a) => { if (a.doctorId === id) { a.doctorName = d.name; a.doctorId = ''; } });
+      S.doctors = S.doctors.filter((x) => x.id !== id);
+      log('Doctor deleted', d.name);
+      save();
+    }
+    const doctorName = (a) => (a.doctorId && doctor(a.doctorId) ? doctor(a.doctorId).name : a.doctorName || '');
+
+    // Content (videos): edit, schedule and post tracking with reminders.
+    const contentItem = (id) => S.content.find((c) => c.id === id) || null;
+    function saveContent(input) {
+      const title = String(input.title || '').trim();
+      if (!title) fail('Enter a title for the video');
+      let c = input.id && contentItem(input.id);
+      const isNew = !c;
+      if (!c) { c = { id: uid('c'), created: Date.now(), date: today() }; S.content.push(c); }
+      ['title', 'platform', 'editor', 'scheduledDate', 'scheduledTime', 'postedDate', 'link', 'notes', 'date'].forEach((k) => { if (k in input) c[k] = String(input[k] || '').trim(); });
+      c.title = title;
+      c.status = CONTENT_STATUS[input.status] ? input.status : c.status || 'idea';
+      if (c.status === 'posted' && !c.postedDate) c.postedDate = today();
+      if (c.status !== 'posted') c.postedDate = '';
+      if (c.platform && !S.settings.lists.platforms.some((x) => low(x) === low(c.platform))) S.settings.lists.platforms.push(c.platform);
+      // Editing cost books an "Editing" expense, named after the editor.
+      const cost = Number(input.cost) || 0;
+      c.cost = cost;
+      const ex = S.expenses.find((e) => e.ref === `content:${c.id}`);
+      if (cost > 0) {
+        const e = ex || { id: uid('e'), ref: `content:${c.id}` };
+        if (!ex) S.expenses.push(e);
+        Object.assign(e, { date: c.date || today(), category: 'Editing', name: c.editor || '', amount: r2(cost), note: `Video: ${c.title}` });
+      } else if (ex) S.expenses = S.expenses.filter((e) => e !== ex);
+      log(isNew ? 'Video added' : 'Video updated', `${c.title} · ${CONTENT_STATUS[c.status]}`);
+      save();
+      return c;
+    }
+    function deleteContent(id) {
+      const c = contentItem(id);
+      S.content = S.content.filter((x) => x.id !== id);
+      S.expenses = S.expenses.filter((e) => e.ref !== `content:${id}`);
+      if (c) log('Video deleted', c.title);
+      save();
+    }
+    /** Totals: videos, edited, posted, remaining (edited or scheduled, not posted yet), and post reminders. */
+    function contentStats(range, onDate) {
+      const d = onDate || today();
+      const list = S.content.filter((c) => !range || inRange(c.date || '', range) || inRange(c.postedDate || '', range));
+      const n = (f) => list.filter(f).length;
+      const scheduled = S.content.filter((c) => c.status === 'scheduled' && c.scheduledDate)
+        .sort((a, b) => (`${a.scheduledDate} ${a.scheduledTime}` < `${b.scheduledDate} ${b.scheduledTime}` ? -1 : 1));
+      return {
+        total: list.length,
+        toEdit: n((c) => c.status === 'idea'),
+        edited: n((c) => c.status !== 'idea'),
+        posted: n((c) => c.status === 'posted'),
+        remaining: n((c) => c.status === 'edited' || c.status === 'scheduled'),
+        scheduled: n((c) => c.status === 'scheduled'),
+        dueToday: scheduled.filter((c) => c.scheduledDate === d),
+        overdue: scheduled.filter((c) => c.scheduledDate < d),
+        upcoming: scheduled.filter((c) => c.scheduledDate > d).slice(0, 10),
+        byEditor: Object.values(list.reduce((m, c) => { const k = c.editor || '—'; m[k] = m[k] || { name: k, edited: 0, posted: 0, cost: 0 }; if (c.status !== 'idea') m[k].edited += 1; if (c.status === 'posted') m[k].posted += 1; m[k].cost += Number(c.cost) || 0; return m; }, {})),
+      };
     }
 
     // OPD appointments
@@ -576,13 +721,14 @@
       Object.assign(a, {
         date: input.date, time: input.time || '', patientId: patient.id, patientName: patient.name, mobile: patient.mobile,
         mode: input.mode, fee, link: String(input.link || '').trim(), notes: String(input.notes || '').trim(),
-        service: String(input.service || '').trim(),
+        service: String(input.service || '').trim(), doctorId: input.doctorId || '',
       });
+      if (a.doctorId && doctor(a.doctorId)) a.doctorName = doctor(a.doctorId).name;
       ['status', 'paid', 'payMethod', 'by', 'leadId'].forEach((k) => { if (k in input) a[k] = input[k]; });
       if (!APPT_STATUS[a.status]) a.status = 'booked';
       a.paid = !!a.paid;
       if (a.service && !S.settings.lists.services.includes(a.service)) S.settings.lists.services.push(a.service);
-      log(input.id ? 'Appointment updated' : 'Appointment booked', `${a.patientName} · ${a.date} ${a.time}${a.service ? ` · ${a.service}` : ''}`);
+      log(input.id ? 'Appointment updated' : 'Appointment booked', `${a.patientName} · ${a.date} ${a.time}${a.service ? ` · ${a.service}` : ''}${a.doctorName ? ` · ${a.doctorName}` : ''}`);
       save();
       return a;
     }
@@ -778,7 +924,7 @@
       const r = { from: d, to: d };
       const sales = S.sales.filter((x) => x.date === d);
       const purchases = S.purchases.filter((x) => x.date === d);
-      const stock = S.items.filter((i) => !i.disabled).map((i) => ({ item: i, stock: stockOf(i.id, d) }));
+      const stock = stockItems().map((i) => ({ item: i, stock: stockOf(i.id, d) }));
       return {
         date: d, sales, purchases, appointments: appointmentsIn(r), appt: appointmentStats(r),
         salesTotal: r2(sum(sales, (x) => x.amount)), purchaseTotal: r2(sum(purchases, (x) => x.total)),
@@ -786,6 +932,12 @@
         available: stock.filter((x) => x.stock > 0), notAvailable: stock.filter((x) => x.stock <= 0),
         order: stock.filter((x) => x.item.orderAt != null && x.stock < x.item.orderAt),
         leads: S.leads.filter((l) => l.date === d).length,
+        leadList: S.leads.filter((l) => l.date === d),
+        followUps: S.leads.filter((l) => l.followUp === d && !['Converted', 'Lost', 'Not interested'].includes(l.status)),
+        renewals: renewals(d).filter((x) => x.stage && !x.done),
+        content: contentStats(null, d),
+        posted: S.content.filter((c) => c.postedDate === d),
+        services: liveItems().filter((i) => !i.disabled && i.track === false),
       };
     }
 
@@ -895,7 +1047,7 @@
     }
     function stockReport(range) {
       const from = range && range.from; const to = range && range.to;
-      return S.items.map((it) => {
+      return liveItems().map((it) => {
         const mv = S.moves.filter((m) => m.itemId === it.id);
         const before = from ? sum(mv.filter((m) => m.date < from), (m) => m.qty) : 0;
         const within = mv.filter((m) => inRange(m.date, range));
@@ -903,7 +1055,7 @@
         const opening = it.opening + before;
         const purchased = q('purchase'); const sold = -q('sale'); const used = -q('kit'); const adjusted = q('adjust');
         return {
-          itemId: it.id, category: it.category, kind: it.kind, name: it.name, unit: it.unit, disabled: it.disabled, alertOff: it.alertOff, orderAt: it.orderAt,
+          itemId: it.id, category: it.category, kind: it.kind, name: it.name, unit: it.unit, disabled: it.disabled, alertOff: it.alertOff, orderAt: it.orderAt, track: it.track !== false,
           opening, purchased, sold, used, adjusted, current: opening + purchased - sold - used + adjusted, closingToday: stockOf(it.id, to), lowAt: it.lowAt,
         };
       });
@@ -918,7 +1070,7 @@
       const activeFrom = isoDate(new Date(parseDate(d) - S.settings.activeDays * 86400000));
       const team = teamReport(range);
       const top = team.find((t) => t.totalSales > 0) || null;
-      const stockSum = (f) => sum(S.items.filter((i) => !i.disabled && f(i)), (i) => stockOf(i.id));
+      const stockSum = (f) => sum(stockItems().filter(f), (i) => stockOf(i.id));
       const cat = (re) => (i) => re.test(i.category) || re.test(i.name);
       return {
         sales: {
@@ -944,8 +1096,12 @@
           needles: stockSum(cat(/needle/i)), swabs: stockSum(cat(/swab/i)), syringes: stockSum(cat(/syringe/i)),
           low: lowStock(),
           order: orderRequired(),
-          available: S.items.filter((i) => !i.disabled && stockOf(i.id) > 0).map((i) => ({ item: i, stock: stockOf(i.id) })),
+          available: stockItems().filter((i) => stockOf(i.id) > 0).map((i) => ({ item: i, stock: stockOf(i.id) })),
+          services: liveItems().filter((i) => !i.disabled && i.track === false),
         },
+        todaySales: S.sales.filter((s) => s.date === d),
+        content: contentStats(range, d),
+        expenseSummary: expenseSummary(range),
         leads: leadStats(range),
         renewalsDue: renewals(d).filter((r) => r.stage && !r.done).length,
         appointments: appointmentStats(range),
@@ -995,10 +1151,13 @@
         ['Swabs Stock', db.stock.swabs, ''],
         ['Syringe Stock', db.stock.syringes, ''],
         ['Low Stock Alerts', db.stock.low.map((l) => `${l.item.name} (${l.stock})`).join(', '), ''],
+        ['Videos Edited', db.content.edited, all.content.edited],
+        ['Videos Posted', db.content.posted, all.content.posted],
+        ['Videos Remaining', db.content.remaining, all.content.remaining],
         ['Updated', new Date(clock ? clock() : Date.now()).toISOString(), ''],
       ];
-      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Service', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
-      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], a.service || '', a.fee,
+      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Doctor', 'Service', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
+      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], doctorName(a), a.service || '', a.fee,
         a.paid ? 'Paid' : 'Unpaid', a.payMethod || '', APPT_STATUS[a.status], a.link || '', a.notes || '']));
       const accName = (id) => (account(id) || {}).name || '';
       out.Leads = [['Date', 'Name', 'Mobile', 'Alt Mobile', 'Age', 'Gender', 'City', 'Source', 'Interested In', 'Priority', 'Status', 'Assigned To', 'Next Follow-up', 'Weight (kg)', 'Target (kg)', 'Height (cm)', 'Budget', 'Last Note', 'Added By']];
@@ -1027,9 +1186,9 @@
       out.Purchases = [['Date', 'Vendor', 'Invoice No', 'Product', 'Invoice Product Name', 'Qty', 'Batch', 'Expiry', 'Rate', 'GST %', 'Line Total']];
       [...S.purchases].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((p) => p.lines.forEach((l) => out.Purchases.push(
         [p.date, p.vendor, p.invoiceNo, l.name, l.invoiceName, l.qty, l.batch, l.expiry, l.rate, l.gst, l.total])));
-      out.Inventory = [['Category', 'Item', 'Opening Stock', 'Purchased Stock', 'Sold Stock', 'Used (injection kit)', 'Adjusted', 'Available Stock', 'Low Stock At', 'Status', 'Order Required']];
-      stockReport(null).forEach((r) => out.Inventory.push([r.category, r.name, r.opening, r.purchased, r.sold, r.used, r.adjusted, r.current, r.lowAt,
-        r.disabled ? 'Disabled' : r.alertOff || S.settings.stockAlerts === false ? 'Alert off' : r.current <= r.lowAt ? 'LOW' : 'OK', r.orderAt != null && r.current < r.orderAt ? 'ORDER REQUIRED' : '']));
+      out.Inventory = [['Category', 'Item', 'Opening Stock', 'Purchased Stock', 'Sold Stock', 'Used (kit)', 'Adjusted', 'Available Stock', 'Low Stock At', 'Status', 'Order Required']];
+      stockReport(null).forEach((r) => out.Inventory.push([r.category, r.name, r.track ? r.opening : 'Unlimited', r.purchased, r.sold, r.used, r.adjusted, r.track ? r.current : 'Unlimited', r.track ? r.lowAt : '',
+        r.disabled ? 'Disabled' : !r.track ? 'Service' : r.alertOff || S.settings.stockAlerts === false ? 'Alert off' : r.current <= r.lowAt ? 'LOW' : 'OK', r.orderAt != null && r.current < r.orderAt ? 'ORDER REQUIRED' : '']));
       out.Team = [['Name', 'Designation', 'Mobile', 'Salary', 'Incentive Status', 'Injection Incentive', 'Protein Incentive', 'Pay Counts', 'Joining Date', 'Status']];
       const PAY = { both: 'Salary + Incentive', salary: 'Salary only', incentive: 'Incentive only' };
       S.team.forEach((m) => out.Team.push([m.name, m.designation || '', m.mobile || '', m.salary, m.incentiveOn === false ? 'Off' : 'On',
@@ -1039,10 +1198,16 @@
       out.Salary = [['Month', 'Name', 'Designation', 'Salary', 'Incentive', 'Total Pay', 'Booked as Expense']];
       const months = new Set([monthOf(d), ...S.sales.map((s) => monthOf(s.date))]);
       [...months].sort().forEach((mo) => salarySheet(mo).forEach((r) => out.Salary.push([mo, r.name, r.designation || '', r.salary, r.incentive, r.total, salaryPosted(mo) ? 'Yes' : 'No'])));
-      out.Expenses = [['Date', 'Category', 'Amount', 'Note']];
-      [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.category, e.amount, e.note || '']));
+      out.Expenses = [['Date', 'Category', 'Name', 'Amount', 'Payment Method', 'Note']];
+      [...S.expenses].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((e) => out.Expenses.push([e.date, e.category, e.name || '', e.amount, e.payMethod || '', e.note || '']));
       out.Renewals = [['Patient', 'Mobile', 'Product', 'Last Purchase Date', 'Days Since', 'Reminder', 'Reference Team', 'Contacted']];
       renewals(d).forEach((r) => out.Renewals.push([r.name, r.mobile, r.product, r.lastDate, r.days, r.stage ? `${r.stage} Day alert` : `Due in ${r.dueIn} days`, r.ref, r.done ? 'Yes' : 'No']));
+      out.Doctors = [['Name', 'Speciality', 'Qualification', 'Mobile', 'Fee', 'Days', 'Timing', 'Appointments', 'Status']];
+      S.doctors.forEach((x) => out.Doctors.push([x.name, x.speciality || '', x.qualification || '', x.mobile || '', x.fee == null ? '' : x.fee, x.days || '', x.timing || '',
+        S.appointments.filter((a) => a.doctorId === x.id).length, x.disabled ? 'Disabled' : 'Active']));
+      out.Content = [['Added', 'Title', 'Platform', 'Editor', 'Status', 'Scheduled', 'Posted', 'Editing Cost', 'Link', 'Notes']];
+      [...S.content].sort((a, b) => (a.date < b.date ? -1 : 1)).forEach((c) => out.Content.push([c.date || '', c.title, c.platform || '', c.editor || '', CONTENT_STATUS[c.status],
+        c.scheduledDate ? `${c.scheduledDate} ${c.scheduledTime || ''}`.trim() : '', c.postedDate || '', c.cost || 0, c.link || '', c.notes || '']));
       out['Activity Log'] = [['Date & Time', 'By', 'Action', 'Details']];
       S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.by, x.action, x.detail]));
       return out;
@@ -1108,8 +1273,9 @@
       get state() { return S; },
       today, onChange: (f) => listeners.push(f),
       member, memberName, saveMember, setMemberDisabled, deleteMember,
-      item, itemsOf, saveItem, deleteItem, addCategory, stockOf, adjustStock, lowStock,
-      matchItem: (name, kind) => matchItem(S.items.filter((i) => !i.disabled && (!kind || i.kind === kind)), name),
+      item, itemsOf, liveItems, saveItem, deleteItem, moveItem, moveCategory, setItemKit, kitOf, addCategory, stockOf, adjustStock, lowStock,
+      expenseSummary, doctor, saveDoctor, deleteDoctor, doctorName, contentItem, saveContent, deleteContent, contentStats,
+      matchItem: (name, kind) => matchItem(liveItems().filter((i) => !i.disabled && (!kind || i.kind === kind)), name),
       findOrCreatePatient, patientSales, saveSale, deleteSale, incentiveFor,
       savePurchase, deletePurchase, findDuplicatePurchase, lineTotal,
       saveExpense, deleteExpense,
@@ -1132,7 +1298,7 @@
 
   const api = {
     createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
-    KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
+    KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, CONTENT_STATUS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ADMIN = api;

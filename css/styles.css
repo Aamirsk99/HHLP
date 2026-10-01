@@ -591,3 +591,10 @@ body.drawer-open .scrim { opacity: 1; }
 .rcp ol li { margin: .15em 0; }
 .rcp.big { font-size: 1.25em; padding: 1em 1.2em; }
 .rcp.big .rcp-body { grid-template-columns: 1fr; }
+
+.ps-web { color: #fff; text-decoration: none; }
+.ps-web i { font-size: .95em; }
+
+/* App feel: screen text can't be selected (like a native app); form fields still can. */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent; }
+input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }

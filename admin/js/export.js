@@ -68,7 +68,8 @@
         const col = i % per; const row = Math.floor(i / per);
         const x = M + col * (bw + gap); const by = y + row * 17;
         doc.setFillColor(...ZEBRA); doc.roundedRect(x, by, bw, 14.5, 1.8, 1.8, 'F');
-        doc.setFillColor(...BRAND); doc.rect(x, by + 2, 0.9, 10.5, 'F');
+        if ((report.alertKpis || []).includes(i)) doc.setFillColor(204, 59, 47); else doc.setFillColor(...BRAND);
+        doc.rect(x, by + 2, 0.9, 10.5, 'F');
         doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(...MUTED);
         doc.text(pdfText(label).toUpperCase(), x + 3.5, by + 5.2, { maxWidth: bw - 5 });
         doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...INK);
@@ -78,14 +79,18 @@
     }
 
     report.sections.forEach((s) => {
-      if (y > H - 60) { doc.addPage(); header(); y = 32; }
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY);
-      doc.text(pdfText(s.title), M, y + 4);
-      if (s.note) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text(pdfText(s.note), W - M, y + 4, { align: 'right' }); }
+      if (y > H - 40) { doc.addPage(); header(); y = 32; }
+      // Section heading: tinted band, brand edge, record count on the right.
+      doc.setFillColor(230, 242, 240); doc.roundedRect(M, y, W - 2 * M, 8.5, 1.5, 1.5, 'F');
+      doc.setFillColor(...BRAND); doc.rect(M, y, 1.4, 8.5, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...NAVY);
+      doc.text(pdfText(s.title), M + 4, y + 5.8);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); doc.setTextColor(...MUTED);
+      doc.text(pdfText(s.note || `${s.rows.length} ${s.rows.length === 1 ? 'record' : 'records'}`), W - M - 3, y + 5.6, { align: 'right' });
       const right = {};
-      (s.right || []).forEach((i) => { right[i] = { halign: 'right' }; });
+      (s.right || []).forEach((i) => { right[i] = { halign: 'right', cellWidth: 'wrap' }; });
       doc.autoTable({
-        startY: y + 6.5,
+        startY: y + 10,
         head: [s.head.map(pdfText)],
         body: s.rows.length ? s.rows.map((r) => r.map(pdfText)) : [[{ content: 'No records for this selection', colSpan: s.head.length, styles: { halign: 'center', textColor: MUTED } }]],
         foot: s.foot ? [s.foot.map(pdfText)] : undefined,
@@ -101,11 +106,12 @@
         columnStyles: right,
         didParseCell: (d) => {
           if ((d.section === 'head' || d.section === 'foot') && right[d.column.index]) d.cell.styles.halign = 'right';
-          if (d.section === 'body' && /ORDER REQUIRED/.test(String(d.cell.raw))) { d.cell.styles.textColor = [204, 59, 47]; d.cell.styles.fontStyle = 'bold'; }
+          if (d.section === 'body' && /ORDER REQUIRED|OVERDUE/.test(String(d.cell.raw))) { d.cell.styles.textColor = [204, 59, 47]; d.cell.styles.fontStyle = 'bold'; }
         },
         didDrawPage: () => { header(); },
+        tableLineColor: [217, 228, 226], tableLineWidth: 0.2,
       });
-      y = doc.lastAutoTable.finalY + 9;
+      y = doc.lastAutoTable.finalY + 8;
     });
 
     const total = doc.getNumberOfPages();
@@ -140,60 +146,70 @@
   }
 
   /**
-   * A4 image (JPEG, 1240 × 1754 px ≈ 150 dpi) drawn on a canvas in the same layout as the PDF.
-   * Long reports continue on extra images (…-page-2.jpg).
+   * One continuous JPEG of the whole report (same layout as the PDF), so a phone saves a single
+   * picture that is easy to share on WhatsApp. Wide reports get a wider canvas instead of
+   * squeezed columns; very long reports stop at the canvas limit and say so.
    */
   function jpeg(report, clinic) {
-    const W = 1240; const H = 1754; const M = 60;
+    const M = 56; const rowH = 46; const MAX_H = 30000;
+    const FONT = 'Helvetica, Arial, sans-serif';
     const rgb = (a) => `rgb(${a.join(',')})`;
-    const pages = [];
-    let c; let g; let y;
-    const logo = LOGO_IMG;
-    const start = () => {
-      c = document.createElement('canvas'); c.width = W; c.height = H; g = c.getContext('2d');
-      g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
-      g.fillStyle = rgb(NAVY); g.fillRect(0, 0, W, 130);
-      g.fillStyle = rgb(BRAND); g.fillRect(0, 130, W, 6);
-      g.fillStyle = '#fff'; roundRect(M, 22, 250, 86, 12); g.fill();
-      try { g.drawImage(logo, M + 8, 26, 234, 80); } catch (_) { /* logo optional */ }
-      g.textAlign = 'right'; g.fillStyle = '#fff';
-      g.font = 'bold 44px Helvetica, Arial, sans-serif'; g.fillText(report.title, W - M, 72);
-      g.font = '24px Helvetica, Arial, sans-serif'; g.fillText(clinic || 'The Prime Fit', W - M, 108);
-      g.textAlign = 'left';
-      y = 180;
-      pages.push(c);
-    };
+    const probe = document.createElement('canvas').getContext('2d');
+    probe.font = `22px ${FONT}`;
+    const tw = (t, bold) => { probe.font = `${bold ? 'bold ' : ''}22px ${FONT}`; return probe.measureText(String(t == null ? '' : t)).width; };
+    // Natural column widths per section (capped so one long note can't take the whole row).
+    const layouts = report.sections.map((s) => {
+      const rows = s.rows.length ? s.rows : [['No records for this selection']];
+      const widths = s.head.map((h, i) => Math.min(420, Math.max(tw(h, true), ...rows.map((r) => tw(r[i])), ...(s.foot ? [tw(s.foot[i], true)] : [])) + 30));
+      return { s, rows, widths, total: widths.reduce((x, y) => x + y, 0) };
+    });
+    const W = Math.round(Math.min(2600, Math.max(1240, ...layouts.map((l) => l.total + 2 * M))));
+    const kpis = report.kpis || [];
+    const per = W >= 1800 ? 6 : 4;
+    let need = 190 + (report.subtitle ? 40 : 0) + (kpis.length ? Math.ceil(kpis.length / per) * 112 + 20 : 0) + 110;
+    layouts.forEach((l) => { need += 70 + rowH * (l.rows.length + 1 + (l.s.foot ? 1 : 0)) + 34; });
+    const H = Math.min(MAX_H, Math.ceil(need));
+    const c = document.createElement('canvas'); c.width = W; c.height = H;
+    const g = c.getContext('2d');
     function roundRect(x, yy, w, h, r) { g.beginPath(); g.moveTo(x + r, yy); g.arcTo(x + w, yy, x + w, yy + h, r); g.arcTo(x + w, yy + h, x, yy + h, r); g.arcTo(x, yy + h, x, yy, r); g.arcTo(x, yy, x + w, yy, r); g.closePath(); }
     const fit = (text, max) => { let t = String(text == null ? '' : text); while (t.length > 1 && g.measureText(t).width > max) t = t.slice(0, -2) + '…'; return t; };
-    const ensure = (need) => { if (y + need > H - 90) start(); };
-    start();
-    if (report.subtitle) { g.font = 'bold 28px Helvetica, Arial, sans-serif'; g.fillStyle = rgb(INK); g.fillText(report.subtitle, M, y); y += 34; }
-    const kpis = report.kpis || [];
+    g.fillStyle = '#fff'; g.fillRect(0, 0, W, H);
+    g.fillStyle = rgb(NAVY); g.fillRect(0, 0, W, 134);
+    g.fillStyle = rgb(BRAND); g.fillRect(0, 134, W, 6);
+    g.fillStyle = '#fff'; roundRect(M, 24, 256, 88, 12); g.fill();
+    try { if (LOGO_IMG && LOGO_IMG.complete) g.drawImage(LOGO_IMG, M + 10, 28, 236, 80); } catch (_) { /* logo optional */ }
+    g.textAlign = 'right'; g.fillStyle = '#fff';
+    g.font = `bold 46px ${FONT}`; g.fillText(report.title, W - M, 74);
+    g.font = `24px ${FONT}`; g.fillText(clinic || 'The Prime Fit', W - M, 110);
+    g.textAlign = 'left';
+    let y = 186; let cut = false;
+    if (report.subtitle) { g.font = `bold 28px ${FONT}`; g.fillStyle = rgb(INK); g.fillText(report.subtitle, M, y); y += 40; }
     if (kpis.length) {
-      const per = 4; const gap = 16; const bw = (W - 2 * M - gap * (per - 1)) / per;
+      const gap = 16; const bw = (W - 2 * M - gap * (per - 1)) / per;
       kpis.forEach(([label, value], i) => {
-        const col = i % per; const row = Math.floor(i / per);
-        const x = M + col * (bw + gap); const by = y + row * 110;
-        g.fillStyle = rgb(ZEBRA); roundRect(x, by, bw, 92, 12); g.fill();
-        g.fillStyle = (report.alertKpis || []).includes(i) ? '#cc3b2f' : rgb(BRAND); g.fillRect(x, by + 12, 6, 68);
-        g.fillStyle = rgb(MUTED); g.font = '19px Helvetica, Arial, sans-serif'; g.fillText(fit(String(label).toUpperCase(), bw - 30), x + 22, by + 34);
-        g.fillStyle = rgb(INK); g.font = 'bold 34px Helvetica, Arial, sans-serif'; g.fillText(fit(value, bw - 30), x + 22, by + 76);
+        const x = M + (i % per) * (bw + gap); const by = y + Math.floor(i / per) * 112;
+        g.fillStyle = rgb(ZEBRA); roundRect(x, by, bw, 94, 12); g.fill();
+        g.fillStyle = (report.alertKpis || []).includes(i) ? '#cc3b2f' : rgb(BRAND); g.fillRect(x, by + 12, 6, 70);
+        g.fillStyle = rgb(MUTED); g.font = `19px ${FONT}`; g.fillText(fit(String(label).toUpperCase(), bw - 30), x + 22, by + 35);
+        g.fillStyle = rgb(INK); g.font = `bold 34px ${FONT}`; g.fillText(fit(value, bw - 30), x + 22, by + 78);
       });
-      y += Math.ceil(kpis.length / per) * 110 + 16;
+      y += Math.ceil(kpis.length / per) * 112 + 20;
     }
-    report.sections.forEach((s) => {
+    const limit = H - 110;
+    layouts.forEach(({ s, rows, widths, total }) => {
+      if (cut) return;
+      if (y + 70 + rowH * 2 > limit) { cut = true; return; }
       const cols = s.head.length;
-      const rows = s.rows.length ? s.rows : [['No records']];
-      g.font = '22px Helvetica, Arial, sans-serif';
-      const widths = s.head.map((h, i) => Math.max(g.measureText(String(h)).width, ...rows.map((r) => g.measureText(String(r[i] == null ? '' : r[i])).width)) + 28);
-      const total = widths.reduce((a, b) => a + b, 0);
-      const scale = (W - 2 * M) / total;
-      const cw = widths.map((w) => w * scale);
-      ensure(140);
-      g.fillStyle = rgb(NAVY); g.font = 'bold 30px Helvetica, Arial, sans-serif'; g.fillText(s.title, M, y + 26); y += 46;
-      const rowH = 44;
+      const cw = widths.map((w) => (w * (W - 2 * M)) / total);
+      // Section heading: tinted band with the record count.
+      g.fillStyle = 'rgb(230,242,240)'; roundRect(M, y, W - 2 * M, 50, 10); g.fill();
+      g.fillStyle = rgb(BRAND); g.fillRect(M, y, 8, 50);
+      g.fillStyle = rgb(NAVY); g.font = `bold 28px ${FONT}`; g.fillText(s.title, M + 24, y + 34);
+      g.textAlign = 'right'; g.font = `20px ${FONT}`; g.fillStyle = rgb(MUTED);
+      g.fillText(`${s.rows.length} ${s.rows.length === 1 ? 'record' : 'records'}`, W - M - 18, y + 33); g.textAlign = 'left';
+      y += 62;
       const drawRow = (cells, style) => {
-        ensure(rowH);
+        if (y + rowH > limit) { cut = true; return false; }
         let x = M;
         g.fillStyle = style === 'head' ? rgb(NAVY) : style === 'foot' ? 'rgb(224,236,234)' : style === 'alt' ? rgb(ZEBRA) : '#fff';
         g.fillRect(M, y, W - 2 * M, rowH);
@@ -201,41 +217,40 @@
         cells.forEach((v, i) => {
           if (i >= cols) return;
           const right = (s.right || []).includes(i);
-          const hot = (style === 'body' || style === 'alt') && /ORDER REQUIRED/.test(String(v));
+          const hot = (style === 'body' || style === 'alt') && /ORDER REQUIRED|OVERDUE/.test(String(v));
           g.fillStyle = style === 'head' ? '#fff' : hot ? '#cc3b2f' : rgb(INK);
-          g.font = `${style === 'head' || style === 'foot' || hot ? 'bold ' : ''}21px Helvetica, Arial, sans-serif`;
-          const t = fit(v, cw[i] - 20);
+          g.font = `${style === 'head' || style === 'foot' || hot ? 'bold ' : ''}22px ${FONT}`;
+          const t = fit(v, cw[i] - 22);
           g.textAlign = right ? 'right' : 'left';
-          g.fillText(t, right ? x + cw[i] - 12 : x + 12, y + 29);
+          g.fillText(t, right ? x + cw[i] - 12 : x + 12, y + 30);
           g.textAlign = 'left';
           x += cw[i];
         });
         y += rowH;
+        return true;
       };
       drawRow(s.head, 'head');
-      rows.forEach((r, i) => drawRow(r, i % 2 ? 'alt' : 'body'));
-      if (s.foot) drawRow(s.foot, 'foot');
-      y += 30;
+      rows.every((r, i) => drawRow(r, i % 2 ? 'alt' : 'body'));
+      if (s.foot && !cut) drawRow(s.foot, 'foot');
+      y += 34;
     });
     const when = new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
-    pages.forEach((pg, i) => {
-      const gg = pg.getContext('2d');
-      gg.fillStyle = 'rgb(217,228,226)'; gg.fillRect(M, H - 70, W - 2 * M, 2);
-      gg.fillStyle = rgb(MUTED); gg.font = '19px Helvetica, Arial, sans-serif';
-      gg.fillText(`${clinic || 'The Prime Fit'} · Generated ${when}`, M, H - 38);
-      gg.textAlign = 'right'; gg.fillText(`Page ${i + 1} of ${pages.length}`, W - M, H - 38); gg.textAlign = 'left';
-    });
-    const names = [];
-    pages.forEach((pg, i) => {
-      const name = `${report.filename}${pages.length > 1 ? `-page-${i + 1}` : ''}.jpg`;
-      const url = pg.toDataURL('image/jpeg', 0.92);
-      const b64 = url.split(',')[1];
-      const bin = atob(b64); const bytes = new Uint8Array(bin.length);
-      for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
-      save(name, 'image/jpeg', b64, new Blob([bytes], { type: 'image/jpeg' }));
-      names.push(name);
-    });
-    return names.join(', ');
+    const fy = Math.min(H - 40, y + 50);
+    g.fillStyle = 'rgb(217,228,226)'; g.fillRect(M, fy - 34, W - 2 * M, 2);
+    g.fillStyle = rgb(MUTED); g.font = `19px ${FONT}`;
+    g.fillText(`${clinic || 'The Prime Fit'} · Generated ${when}`, M, fy);
+    if (cut) { g.textAlign = 'right'; g.fillStyle = '#cc3b2f'; g.fillText('More rows in the PDF / Excel export', W - M, fy); g.textAlign = 'left'; }
+    // Crop the unused space at the bottom.
+    const outH = Math.min(H, fy + 30);
+    let out = c;
+    if (outH < H) { out = document.createElement('canvas'); out.width = W; out.height = outH; out.getContext('2d').drawImage(c, 0, 0); }
+    const name = `${report.filename}.jpg`;
+    const url = out.toDataURL('image/jpeg', 0.9);
+    const b64 = url.split(',')[1];
+    const bin = atob(b64); const bytes = new Uint8Array(bin.length);
+    for (let k = 0; k < bin.length; k++) bytes[k] = bin.charCodeAt(k);
+    save(name, 'image/jpeg', b64, new Blob([bytes], { type: 'image/jpeg' }));
+    return name;
   }
 
   root.EXPORT = { pdf, xlsx, jpeg, pdfText };

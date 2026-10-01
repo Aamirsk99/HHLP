@@ -6,7 +6,7 @@
   const RC = window.RECIPES;
   const ING = window.INGREDIENTS;
   const IC = window.ICONS;
-  const BRAND = { company: 'The Prime Fit', website: 'www.theprimefit.com', logo: 'img/logo.jpg' };
+  const BRAND = { company: 'The Prime Fit', website: 'www.theprimefit.in', logo: 'img/logo.jpg' };
   const CURRENT_KEY = 'primefit.chart.v5';
   const LEGACY_KEY = 'primefit.chart.v3';
   const DIETITIAN_KEY = 'primefit.dietitian';
@@ -1326,7 +1326,7 @@
     const a = I.t(lang, 'appPromo');
     const b = lang2 ? I.t(lang2, 'appPromo') : '';
     const en = lang !== 'en' && lang2 !== 'en' ? I.t('en', 'appPromo') : '';
-    return `<div class="ps-promo"><span class="ps-promo-ico">📱</span><div><b>${esc(a)}</b>${b && b !== a ? `<small>${esc(b)}</small>` : ''}${en ? `<small>${esc(en)}</small>` : ''}</div><span class="ps-stores"><i>▶ Google Play</i><i> App Store</i></span></div>`;
+    return `<div class="ps-promo"><span class="ps-promo-ico">🌐</span><div><b>${esc(a)}</b>${b && b !== a ? `<small>${esc(b)}</small>` : ''}${en ? `<small>${esc(en)}</small>` : ''}</div><a class="ps-stores ps-web" href="https://www.theprimefit.in" target="_blank" rel="noopener"><i>www.theprimefit.in</i></a></div>`;
   }
 
   function recipeCard(name, serves, big) {
