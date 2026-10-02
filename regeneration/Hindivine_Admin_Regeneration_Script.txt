@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.2)
+ HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.3)
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
  Hindivine Healthcare Pvt. Ltd. · www.hindivine.com
 ================================================================================
@@ -14,7 +14,7 @@ from scratch by a developer or by an AI coding assistant. It has three parts:
           rule, every screen, exports, Google Sheet storage, Android build.
   PART C  Step-by-step rebuild and release checklist.
 
-The exact source code of version 3.2 is in the companion file
+The exact source code of version 3.3 is in the companion file
 "Hindivine_Admin_Full_Source.txt" (every file, with an unpack script). If you
 want an identical app, use that file. If you want to regenerate or extend the
 app, use this file.
@@ -330,7 +330,7 @@ Reports, Admin.
     Roles & permissions matrix (Super Admin only); Choice lists (chips with
     rename/remove + add) incl. inventory categories; Backup (export/import
     JSON), All reports, Erase all data (Super Admin).
-20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2) and credits.
+20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3) and credits.
 Every drop-down backed by a list ends with "+ Add new…" which shows an
 inline input and saves the new option for everyone.
 Period options everywhere: Today, This month (auto), Choose month, Last
@@ -457,6 +457,26 @@ B16. VERSION 3.2 ADDITIONS
   sheet -> SHEET_ID; useNewSpreadsheet() copies the data into a new
   spreadsheet, useCurrentSheet() goes back; load returns sheetName/sheetUrl
   and Settings shows it. Requests time out after 25 s (save 45 s).
+
+B17. VERSION 3.3 ADDITIONS
+--------------------------
+* Sales take patient age, gender and city; findOrCreatePatient(name, mobile,
+  extra) stores non-empty age / gender / city / weight / height on the
+  patient. Known patients fill these in automatically in the sale and OPD
+  forms. Patients sheet gains Age, Gender, City, Weight, Height, BMI.
+* OPD appointment: "Patient details & vitals" (age, gender, weight, height,
+  BP, pulse, sugar) saved as appointment.vitals; live BMI; A.bmi(kg, cm)
+  and A.bmiLabel (Asian cut-offs: <18.5 under, <23 normal, <25 overweight,
+  <30 obese I, else obese II). The OPD slip prints all vitals and the BMI.
+* Today export can add Mobile, Age / Sex and City columns.
+* PDF / image reports: header with clinic name, address and phone, gold
+  line, info strip (report, records, prepared by, generated), outlined
+  tiles, "End of report", footer with clinic details and a page badge; no
+  developer line on any export.
+* Dashboard: greeting, revenue with margin, icon plates, quick actions; KPI
+  plates show an icon for well-known figures.
+* Settings in sections chosen from tiles: Clinic & doctors, Fees & rules,
+  Google Sheet, Logins, Permissions, Choice lists, Backup & data.
 
 B14. TESTS (node --test tests/*.test.js)
 ----------------------------------------

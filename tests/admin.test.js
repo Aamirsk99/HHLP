@@ -413,3 +413,25 @@ test('appointments keep doctor and clinic; lists grow and rename', () => {
   const rows = a.sheetsData().Appointments;
   assert.equal(rows[0][6], 'Doctor'); assert.equal(rows[1][6], 'Dr. R. Mehta');
 });
+
+test('patient age with sales, vitals and BMI with appointments', () => {
+  const a = setup();
+  assert.equal(A.bmi(82, 160), '32.0');
+  assert.equal(A.bmi('', 160), '');
+  assert.equal(A.bmiLabel(22), 'Normal');
+  assert.equal(A.bmiLabel(32), 'Obese II');
+  const m = a.saveMember({ name: 'Riya' });
+  const pen = byName(a, 'Mounjaro 15mg');
+  a.adjustStock(pen.id, 2, 'count');
+  a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9876543210', itemId: pen.id, amount: 17000, refId: m.id, age: '42', gender: 'Female', city: 'Salt Lake' });
+  const p = a.state.patients[0];
+  assert.deepEqual([p.age, p.gender, p.city], ['42', 'Female', 'Salt Lake']);
+  // A later sale without details keeps them.
+  a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9876543210', itemId: pen.id, amount: 17000, refId: m.id, age: '' });
+  assert.equal(a.state.patients[0].age, '42');
+  const ap = a.saveAppointment({ patientName: 'Asha', mobile: '9876543210', date: '2026-09-15', mode: 'clinic', weight: '82', height: '160', vitals: { weight: '82', height: '160', bp: '130/85', pulse: '' } });
+  assert.deepEqual(ap.vitals, { weight: '82', height: '160', bp: '130/85' });
+  assert.equal(a.state.patients[0].weight, '82');
+  const row = a.sheetsData().Patients[1];
+  assert.deepEqual(row.slice(-6), ['42', 'Female', 'Salt Lake', '82', '160', '32.0']);
+});

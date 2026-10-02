@@ -367,7 +367,9 @@
       .map((i) => ({ item: i, stock: stockOf(i.id) }));
 
     // Patients
-    function findOrCreatePatient(name, mobile) {
+    // Patient details given with a sale or appointment (age, gender, city, weight, height) update the patient record.
+    const PATIENT_EXTRA = ['age', 'gender', 'city', 'weight', 'height'];
+    function findOrCreatePatient(name, mobile, extra) {
       const nm = String(name || '').trim();
       if (!nm) fail('Patient name is required');
       const ph = digits(mobile);
@@ -375,6 +377,7 @@
         || (ph && S.patients.find((x) => digits(x.mobile) === ph))
         || (!ph && S.patients.find((x) => low(x.name) === low(nm) && !digits(x.mobile)));
       if (!p) { p = { id: uid('p'), name: nm, mobile: String(mobile || '').trim(), created: today() }; S.patients.push(p); }
+      if (extra) PATIENT_EXTRA.forEach((k) => { const v = extra[k]; if (v != null && String(v).trim() !== '') p[k] = String(v).trim(); });
       return p;
     }
     const patientSales = (pid) => S.sales.filter((s) => s.patientId === pid).sort((a, b) => (a.date < b.date ? -1 : 1));
@@ -384,7 +387,7 @@
       const nm = String(input.name || '').trim();
       if (!nm) fail('Patient name is required');
       p.name = nm; p.mobile = String(input.mobile || '').trim();
-      ['age', 'gender', 'city', 'notes'].forEach((k) => { if (k in input) p[k] = input[k]; });
+      ['age', 'gender', 'city', 'notes', 'weight', 'height'].forEach((k) => { if (k in input) p[k] = input[k]; });
       S.sales.forEach((x) => { if (x.patientId === id) { x.patientName = p.name; x.mobile = p.mobile; } });
       S.appointments.forEach((x) => { if (x.patientId === id) { x.patientName = p.name; x.mobile = p.mobile; } });
       log('Patient updated', p.name);
@@ -475,7 +478,7 @@
         refs.push({ memberId: input.sharedId, pct });
       }
       const splits = splitsFor({ ...input, type, qty }, refs);
-      const patient = findOrCreatePatient(input.patientName, input.mobile);
+      const patient = findOrCreatePatient(input.patientName, input.mobile, input);
       const earlier = S.sales.some((s) => s.patientId === patient.id && s.id !== id && s.date <= date);
       return {
         id, type, date, patientId: patient.id, patientName: patient.name, mobile: patient.mobile,
@@ -591,10 +594,11 @@
 
     // OPD appointments
     const appointment = (id) => S.appointments.find((a) => a.id === id) || null;
+    const VITALS = ['weight', 'height', 'bp', 'pulse', 'sugar'];
     function saveAppointment(input) {
       if (!input.date) fail('Choose the appointment date');
       if (!APPT_MODES[input.mode]) fail('Choose clinic visit or online');
-      const patient = findOrCreatePatient(input.patientName, input.mobile);
+      const patient = findOrCreatePatient(input.patientName, input.mobile, input);
       let a = input.id && appointment(input.id);
       if (!a) { a = { id: uid('a'), created: Date.now(), status: 'booked', paid: false }; S.appointments.push(a); }
       const fee = input.fee === '' || input.fee == null ? S.settings.consultFee : Number(input.fee);
@@ -604,6 +608,7 @@
         mode: input.mode, fee, link: String(input.link || '').trim(), notes: String(input.notes || '').trim(),
         service: String(input.service || '').trim(),
         doctor: String(input.doctor || '').trim(), branch: String(input.branch || '').trim(),
+        vitals: VITALS.reduce((o, k) => { const v = String((input.vitals || {})[k] == null ? '' : input.vitals[k]).trim(); if (v) o[k] = v; return o; }, {}),
       });
       ['status', 'paid', 'payMethod', 'by', 'leadId'].forEach((k) => { if (k in input) a[k] = input[k]; });
       if (!APPT_STATUS[a.status]) a.status = 'booked';
@@ -777,7 +782,7 @@
     function convertLead(id, appt) {
       const l = lead(id);
       if (!l) fail('Lead not found');
-      const p = findOrCreatePatient(l.name, l.mobile);
+      const p = findOrCreatePatient(l.name, l.mobile, l);
       l.patientId = p.id;
       let a = null;
       if (appt) {
@@ -1038,13 +1043,14 @@
         out.Leads.push([l.date, l.name, l.mobile, l.altMobile || '', l.age || '', l.gender || '', l.city || '', l.source || '', l.interest || '', LEAD_PRIORITIES[l.priority] || '',
           l.status, accName(l.assignedTo), l.followUp ? `${l.followUp} ${l.followTime || ''}`.trim() : '', l.weight || '', l.targetWeight || '', l.height || '', l.budget || '', note ? note.text : '', l.createdBy || '']);
       });
-      out.Patients = [['Name', 'Mobile', 'First Purchase', 'Last Purchase', 'Orders', 'Total Spent', 'Last Product', 'Reference Team', 'Status']];
+      out.Patients = [['Name', 'Mobile', 'First Purchase', 'Last Purchase', 'Orders', 'Total Spent', 'Last Product', 'Reference Team', 'Status', 'Age', 'Gender', 'City', 'Weight (kg)', 'Height (cm)', 'BMI']];
       const activeFrom = isoDate(new Date(parseDate(d) - S.settings.activeDays * 86400000));
       S.patients.forEach((p) => {
         const ps = patientSales(p.id);
         const last = ps[ps.length - 1];
         out.Patients.push([p.name, p.mobile, ps[0] ? ps[0].date : '', last ? last.date : '', ps.length, sum(ps, (s) => s.amount),
-          last ? last.product : '', last ? refNames(last)[0] : '', last && last.date >= activeFrom ? 'Active' : 'Inactive']);
+          last ? last.product : '', last ? refNames(last)[0] : '', last && last.date >= activeFrom ? 'Active' : 'Inactive',
+          p.age || '', p.gender || '', p.city || '', p.weight || '', p.height || '', bmi(p.weight, p.height)]);
       });
       out['Injection Sales'] = [['Date', 'Patient', 'Mobile', 'New/Renewal', 'Product', 'Qty', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Dietitian', 'Incentive', 'Notes']];
       out['Protein Sales'] = [['Date', 'Patient', 'Mobile', 'Protein Type', 'Qty', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Incentive', 'Notes']];
@@ -1162,8 +1168,15 @@
     return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
   }
 
+  /** Body-mass index from kg and cm, one decimal; '' when either is missing. */
+  function bmi(weight, height) {
+    const w = Number(weight); const h = Number(height) / 100;
+    if (!(w > 0) || !(h > 0.5)) return '';
+    return (w / (h * h)).toFixed(1);
+  }
+  const bmiLabel = (b) => (!b ? '' : b < 18.5 ? 'Underweight' : b < 23 ? 'Normal' : b < 25 ? 'Overweight' : b < 30 ? 'Obese I' : 'Obese II');
   const api = {
-    createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
+    bmi, bmiLabel, createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
     KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

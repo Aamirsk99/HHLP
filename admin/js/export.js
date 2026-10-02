@@ -33,6 +33,9 @@
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
     return new Blob([bytes], { type: mime });
   };
+  const GOLD = [217, 154, 30];
+  // Clinic for headers and footers: a name, or { name, address, phone }.
+  const clinicOf = (c) => (c && typeof c === 'object' ? { name: c.name || 'Hindivine Healthcare', address: c.address || '', phone: c.phone || '' } : { name: c || 'Hindivine Healthcare', address: '', phone: '' });
   const nowText = () => new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   /**
@@ -48,19 +51,22 @@
     const H = doc.internal.pageSize.getHeight();
     const M = 12;
     const when = nowText();
-    const name = clinic || 'Hindivine Healthcare';
+    const ci = clinicOf(clinic);
+    const name = ci.name;
+    const contact = [ci.address, ci.phone ? `Phone ${ci.phone}` : ''].filter(Boolean).join('  |  ');
 
     const header = (first) => {
-      doc.setFillColor(...NAVY); doc.rect(0, 0, W, first ? 30 : 18, 'F');
-      doc.setFillColor(...BRAND); doc.rect(0, first ? 30 : 18, W, 1.4, 'F');
-      doc.setFillColor(41, 168, 224); doc.rect(W * 0.62, first ? 30 : 18, W * 0.38, 1.4, 'F');
+      const hh = first ? 32 : 18;
+      doc.setFillColor(...NAVY); doc.rect(0, 0, W, hh, 'F');
+      doc.setFillColor(...BRAND); doc.rect(0, hh, W, 1.2, 'F');
+      doc.setFillColor(...GOLD); doc.rect(0, hh + 1.2, W, 0.5, 'F');
       if (first) {
-        doc.setFillColor(255, 255, 255); doc.roundedRect(M, 6, 50, 17.5, 2.5, 2.5, 'F');
-        try { doc.addImage(LOGO, 'JPEG', M + 1.8, 7, 46.4, 15.8); } catch (_) { /* logo optional */ }
+        doc.setFillColor(255, 255, 255); doc.roundedRect(M, 6.5, 52, 19, 2.5, 2.5, 'F');
+        try { doc.addImage(LOGO, 'JPEG', M + 1.8, 7.6, 48.4, 16.5); } catch (_) { /* logo optional */ }
         doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(17);
-        doc.text(pdfText(report.title), W - M, 15, { align: 'right' });
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-        doc.text(pdfText(name), W - M, 21.5, { align: 'right' });
+        doc.text(pdfText(report.title), W - M, 13.5, { align: 'right' });
+        doc.setFontSize(9.5); doc.text(pdfText(name), W - M, 20, { align: 'right' });
+        if (contact) { doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(200, 216, 234); doc.text(pdfText(contact), W - M, 25.5, { align: 'right', maxWidth: W - 2 * M - 60 }); }
       } else {
         doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
         doc.text(pdfText(name), M, 11.5);
@@ -69,24 +75,30 @@
       }
     };
     const footer = (n, total) => {
-      doc.setFillColor(242, 246, 250); doc.rect(0, H - 14, W, 14, 'F');
-      doc.setFillColor(...BRAND); doc.rect(0, H - 14, W, 0.6, 'F');
-      doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.setFont('helvetica', 'normal');
-      doc.text(pdfText(`${name} · Generated ${when}${report.preparedBy ? ` by ${report.preparedBy}` : ''}`), M, H - 8);
-      doc.setFontSize(6.8); doc.text(pdfText('Hindivine Admin · Developed by Aamir Sk · Hindivine Digital Marketing Team'), M, H - 4);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY); doc.text(`Page ${n} of ${total}`, W - M, H - 6, { align: 'right' });
+      doc.setFillColor(...GOLD); doc.rect(M, H - 13, W - 2 * M, 0.35, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); doc.setTextColor(...NAVY);
+      doc.text(pdfText(name), M, H - 8.2);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.2); doc.setTextColor(...MUTED);
+      doc.text(pdfText([contact, `${report.title} · generated ${when}${report.preparedBy ? ` by ${report.preparedBy}` : ''}`].filter(Boolean).join('  |  ')), M, H - 4.4, { maxWidth: W - 2 * M - 30 });
+      doc.setFillColor(...NAVY); doc.roundedRect(W - M - 24, H - 11.2, 24, 6.4, 3.2, 3.2, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4); doc.setTextColor(255, 255, 255); doc.text(`Page ${n} / ${total}`, W - M - 12, H - 7, { align: 'center' });
     };
 
     header(true);
-    let y = 38;
-    // Meta strip: period / date and record summary
-    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y - 4.5, W - 2 * M, 9, 2, 2, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.setTextColor(...NAVY);
-    doc.text(pdfText(report.subtitle || ''), M + 4, y + 1.6);
-    doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED); doc.setFontSize(8.5);
+    let y = 41;
+    // Info strip: period, records, prepared by, generated
     const recs = report.sections.reduce((a, s) => a + s.rows.length, 0);
-    doc.text(pdfText(`${report.sections.length} section${report.sections.length === 1 ? '' : 's'} · ${recs} record${recs === 1 ? '' : 's'}`), W - M - 4, y + 1.6, { align: 'right' });
-    y += 10;
+    const info = [['REPORT', report.subtitle || report.title], ['RECORDS', `${recs} in ${report.sections.length} section${report.sections.length === 1 ? '' : 's'}`],
+      ['PREPARED BY', report.preparedBy || '-'], ['GENERATED', when]];
+    const iw = (W - 2 * M) / info.length;
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 13, 2.5, 2.5, 'F');
+    info.forEach(([l, v], i) => {
+      const x = M + i * iw;
+      if (i) { doc.setDrawColor(222, 230, 240); doc.setLineWidth(0.3); doc.line(x, y + 2.5, x, y + 10.5); }
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(6.4); doc.setTextColor(...MUTED); doc.text(l, x + 4, y + 4.8);
+      doc.setFontSize(i ? 8.6 : 9.2); doc.setTextColor(...NAVY); doc.text(pdfText(v), x + 4, y + 10, { maxWidth: iw - 6 });
+    });
+    y += 19;
 
     const kpis = report.kpis || [];
     if (kpis.length) {
@@ -97,7 +109,8 @@
         const col = i % per; const row = Math.floor(i / per);
         const x = M + col * (bw + gap); const by = y + row * 18.5;
         const ac = (report.alertKpis || []).includes(i) ? RED : ACCENTS[i % ACCENTS.length];
-        doc.setFillColor(...ac.map((c) => Math.round(c + (255 - c) * 0.9))); doc.roundedRect(x, by, bw, 15.5, 2.2, 2.2, 'F');
+        doc.setFillColor(...ac.map((c) => Math.round(c + (255 - c) * 0.93))); doc.roundedRect(x, by, bw, 15.5, 2.2, 2.2, 'F');
+        doc.setDrawColor(...ac.map((c) => Math.round(c + (255 - c) * 0.7))); doc.setLineWidth(0.25); doc.roundedRect(x, by, bw, 15.5, 2.2, 2.2, 'S');
         doc.setFillColor(...ac); doc.roundedRect(x, by, 1.6, 15.5, 0.8, 0.8, 'F');
         doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8); doc.setTextColor(...MUTED);
         doc.text(pdfText(label).toUpperCase(), x + 4.2, by + 5.4, { maxWidth: bw - 6 });
@@ -128,7 +141,7 @@
         showHead: 'everyPage',
         showFoot: 'lastPage',
         rowPageBreak: 'avoid',
-        margin: { left: M, right: M, top: 24, bottom: 18 },
+        margin: { left: M, right: M, top: 24, bottom: 20 },
         styles: { font: 'helvetica', fontSize: s.head.length > 9 ? 7 : 8.3, cellPadding: { top: 2.1, bottom: 2.1, left: 2.2, right: 2.2 }, textColor: INK, overflow: 'linebreak', lineColor: [226, 233, 241], lineWidth: { bottom: 0.2 } },
         headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', halign: 'left', fontSize: s.head.length > 9 ? 7 : 8.2 },
         footStyles: { fillColor: ac.map((c) => Math.round(c + (255 - c) * 0.85)), textColor: NAVY, fontStyle: 'bold' },
@@ -144,6 +157,7 @@
       y = doc.lastAutoTable.finalY + 10;
     });
 
+    if (y < H - 24) { doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text('- End of report -', W / 2, y - 2, { align: 'center' }); }
     const total = doc.getNumberOfPages();
     for (let i = 1; i <= total; i++) { doc.setPage(i); footer(i, total); }
     const fname = `${report.filename}.pdf`;
@@ -235,9 +249,17 @@
     doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 6.5, 1, 1, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text('Vitals', M + 5, y + 5);
     y += 9;
-    const vit = ['Weight (kg)', 'Height (cm)', 'BMI', 'BP', 'Pulse', 'Sugar'];
+    const vv = info.vitals || {};
+    const vit = [['Weight (kg)', vv.weight], ['Height (cm)', vv.height], ['BMI', vv.bmi ? `${vv.bmi}` : ''], ['BP', vv.bp], ['Pulse', vv.pulse], ['Sugar', vv.sugar]];
     const vw = (W - 2 * M) / vit.length;
-    vit.forEach((v, i) => { doc.setDrawColor(210, 220, 232); doc.roundedRect(M + i * vw + (i ? 1 : 0), y, vw - 1, 13, 2, 2); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(...MUTED); doc.text(v, M + i * vw + 3.5, y + 4.5); });
+    vit.forEach(([l, v], i) => {
+      const x = M + i * vw + (i ? 1 : 0);
+      if (l === 'BMI' && v) { doc.setFillColor(232, 242, 251); doc.roundedRect(x, y, vw - 1, 13, 2, 2, 'F'); }
+      doc.setDrawColor(210, 220, 232); doc.roundedRect(x, y, vw - 1, 13, 2, 2);
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(...MUTED); doc.text(l, x + 2.5, y + 4.5);
+      if (v) { doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...(l === 'BMI' ? BRAND : INK)); doc.text(pdfText(v), x + 2.5, y + 10.5); }
+      if (l === 'BMI' && v && vv.bmiLabel) { doc.setFont('helvetica', 'normal'); doc.setFontSize(6.6); doc.setTextColor(...MUTED); doc.text(pdfText(vv.bmiLabel), x + vw - 3.5, y + 10.5, { align: 'right' }); }
+    });
     y += 19;
     // Rx
     doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...BRAND); doc.text('Rx', M, y + 5);
@@ -304,6 +326,8 @@
     let H = 210 + (report.subtitle ? 50 : 0) + (kpis.length ? Math.ceil(kpis.length / 4) * 112 + 16 : 0) + 100;
     sections.forEach((s) => { H += 60 + (s.rows.length + 1 + (s.foot ? 1 : 0)) * ROW + 30; });
     H = Math.min(Math.max(H, 600), MAX_H);
+    const ci = clinicOf(clinic);
+    const contact = [ci.address, ci.phone ? `Phone ${ci.phone}` : ''].filter(Boolean).join('  |  ');
     const c = document.createElement('canvas'); c.width = W; c.height = H;
     const g = c.getContext('2d');
     const font = (w, px) => { g.font = `${w} ${px}px Helvetica, Arial, sans-serif`; };
@@ -313,18 +337,19 @@
     // Header
     const grd = g.createLinearGradient(0, 0, W, 0); grd.addColorStop(0, rgb(NAVY)); grd.addColorStop(1, '#0e5a9b');
     g.fillStyle = grd; g.fillRect(0, 0, W, 150);
-    g.fillStyle = rgb(BRAND); g.fillRect(0, 150, W, 7); g.fillStyle = '#29a8e0'; g.fillRect(W * 0.62, 150, W * 0.38, 7);
+    g.fillStyle = rgb(BRAND); g.fillRect(0, 150, W, 6); g.fillStyle = rgb(GOLD); g.fillRect(0, 156, W, 3);
     g.fillStyle = '#fff'; rr(M, 28, 270, 94, 14); g.fill();
     try { if (LOGO_IMG && LOGO_IMG.complete) g.drawImage(LOGO_IMG, M + 9, 33, 252, 85); } catch (_) { /* logo optional */ }
-    g.textAlign = 'right'; g.fillStyle = '#fff'; font('bold', 46); g.fillText(fit(report.title, 600), W - M, 82);
-    font('normal', 24); g.fillText(fit(clinic || 'Hindivine Healthcare', 600), W - M, 118);
+    g.textAlign = 'right'; g.fillStyle = '#fff'; font('bold', 46); g.fillText(fit(report.title, 600), W - M, 72);
+    font('bold', 24); g.fillText(fit(ci.name, 600), W - M, 106);
+    if (contact) { font('normal', 18); g.fillStyle = 'rgb(200,216,234)'; g.fillText(fit(contact, 760), W - M, 134); }
     g.textAlign = 'left';
     let y = 196;
     if (report.subtitle) {
       g.fillStyle = rgb(ZEBRA); rr(M, y - 34, W - 2 * M, 48, 12); g.fill();
-      font('bold', 26); g.fillStyle = rgb(NAVY); g.fillText(fit(report.subtitle, 700), M + 18, y - 2);
-      font('normal', 20); g.fillStyle = rgb(MUTED); g.textAlign = 'right';
-      g.fillText(`Generated ${nowText()}`, W - M - 18, y - 4); g.textAlign = 'left';
+      font('bold', 26); g.fillStyle = rgb(NAVY); g.fillText(fit(report.subtitle, 640), M + 18, y - 2);
+      font('normal', 19); g.fillStyle = rgb(MUTED); g.textAlign = 'right';
+      g.fillText(fit(`${report.preparedBy ? `By ${report.preparedBy} · ` : ''}${nowText()}`, 420), W - M - 18, y - 4); g.textAlign = 'left';
       y += 40;
     }
     if (kpis.length) {
@@ -332,7 +357,8 @@
       kpis.forEach(([label, value], i) => {
         const x = M + (i % per) * (bw + gap); const by = y + Math.floor(i / per) * 112;
         const ac = (report.alertKpis || []).includes(i) ? RED : ACCENTS[i % ACCENTS.length];
-        g.fillStyle = tint(ac, 0.9); rr(x, by, bw, 96, 14); g.fill();
+        g.fillStyle = tint(ac, 0.93); rr(x, by, bw, 96, 14); g.fill();
+        g.strokeStyle = tint(ac, 0.7); g.lineWidth = 1.5; rr(x, by, bw, 96, 14); g.stroke();
         g.fillStyle = rgb(ac); rr(x, by, 8, 96, 4); g.fill();
         font('bold', 18); g.fillStyle = rgb(MUTED); g.fillText(fit(String(label).toUpperCase(), bw - 36), x + 26, by + 34);
         font('bold', 36); g.fillStyle = rgb(ac.map((v) => Math.round(v * 0.75))); g.fillText(fit(value, bw - 36), x + 26, by + 78);
@@ -385,10 +411,11 @@
     });
     if (cut) { font('bold', 22); g.fillStyle = rgb(RED); g.fillText('More rows in the PDF / Excel export…', M, H - 92); }
     // Footer
-    g.fillStyle = 'rgb(242,246,250)'; g.fillRect(0, H - 64, W, 64);
-    font('normal', 19); g.fillStyle = rgb(MUTED);
-    g.fillText(fit(`${clinic || 'Hindivine Healthcare'} · Generated ${nowText()}${report.preparedBy ? ` by ${report.preparedBy}` : ''}`, 700), M, H - 26);
-    g.textAlign = 'right'; g.fillText('Developed by Aamir Sk · Hindivine Digital Marketing Team', W - M, H - 26); g.textAlign = 'left';
+    g.fillStyle = '#fff'; g.fillRect(0, H - 64, W, 64);
+    g.fillStyle = rgb(GOLD); g.fillRect(M, H - 62, W - 2 * M, 2);
+    font('bold', 19); g.fillStyle = rgb(NAVY); g.fillText(fit(ci.name, 420), M, H - 26);
+    font('normal', 17); g.fillStyle = rgb(MUTED); g.textAlign = 'right';
+    g.fillText(fit([contact, `Generated ${nowText()}`].filter(Boolean).join('  |  '), W - 2 * M - 440), W - M, H - 26); g.textAlign = 'left';
     // Fit onto one A4 page when it is not too long; otherwise keep one long A4-width image.
     let out = c;
     if (H > A4H && A4H / H >= 0.55) {
