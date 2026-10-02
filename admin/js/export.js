@@ -28,7 +28,9 @@
     a.href = URL.createObjectURL(blob);
     a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
-    setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+    // In a browser, a saved PDF also opens in a new tab (on Android the app opens it after saving).
+    if (/pdf/.test(mime)) { try { root.open(a.href, '_blank', 'noopener'); } catch (_) { /* pop-up blocked */ } }
+    setTimeout(() => URL.revokeObjectURL(a.href), 60000);
   }
 
   function pdf(report, clinic) {

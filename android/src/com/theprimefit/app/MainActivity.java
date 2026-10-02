@@ -28,6 +28,7 @@ public class MainActivity extends Activity {
     private WebView webView;
     private String pendingFileContent;
     private byte[] pendingFileBytes;
+    private String pendingMime;
     private ValueCallback<Uri[]> fileCallback;
 
     @Override
@@ -156,6 +157,7 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     pendingFileContent = content;
+                    pendingMime = mimeType;
                     Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
                     intent.setType(mimeType);
@@ -183,6 +185,7 @@ public class MainActivity extends Activity {
                         return;
                     }
                     pendingFileContent = null;
+                    pendingMime = mimeType;
                     Intent intent = new Intent(Intent.ACTION_CREATE_DOCUMENT);
                     intent.addCategory(Intent.CATEGORY_OPENABLE);
                     intent.setType(mimeType);
@@ -214,11 +217,29 @@ public class MainActivity extends Activity {
         pendingFileContent = null;
         pendingFileBytes = null;
         if (resultCode != RESULT_OK || data == null || data.getData() == null || (content == null && bytes == null)) return;
-        try (OutputStream out = getContentResolver().openOutputStream(data.getData())) {
+        String mime = pendingMime;
+        pendingMime = null;
+        Uri saved = data.getData();
+        try (OutputStream out = getContentResolver().openOutputStream(saved)) {
             out.write(bytes != null ? bytes : content.getBytes(StandardCharsets.UTF_8));
-            Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
         } catch (Exception e) {
             Toast.makeText(this, "Could not save file", Toast.LENGTH_LONG).show();
+            return;
         }
+        // Open a saved PDF or image straight away in the phone's viewer.
+        if (mime != null && (mime.equals("application/pdf") || mime.startsWith("image/"))) {
+            try {
+                Intent view = new Intent(Intent.ACTION_VIEW);
+                view.setDataAndType(saved, mime);
+                view.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION | Intent.FLAG_ACTIVITY_NEW_DOCUMENT);
+                startActivity(view);
+                Toast.makeText(this, "Saved · opening", Toast.LENGTH_SHORT).show();
+                return;
+            } catch (Exception e) {
+                Toast.makeText(this, "Saved. No app found to open it", Toast.LENGTH_LONG).show();
+                return;
+            }
+        }
+        Toast.makeText(this, "Saved", Toast.LENGTH_SHORT).show();
     }
 }
