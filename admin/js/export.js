@@ -13,9 +13,28 @@
     return out;
   };
   // Patient documents (slips, invoices, OPD slips) carry this note unless Settings has the clinic's own wording.
-  const PATIENT_NOTE = 'Medico-legal note: Products, programmes and diet plans are given under professional guidance. Results vary from person to person and depend on body type, medical history, medicines, diet, activity and adherence; no specific result is guaranteed. This document is not a medical prescription. Consult your doctor before starting any treatment, supplement or diet, and report any side effect straight away.';
-  const DIGITAL_NOTE = 'This is a digitally generated document. No signature is required.';
-  const TERMS = 'Fees for consultations and programmes are not refundable once the service has started. Products once opened or used cannot be returned. Keep this slip for your records.';
+  // Wording written for clinics in India; the clinic can replace the short notes in Settings → Company profile.
+  // Have your own legal adviser review it for your practice.
+  const PATIENT_NOTE = 'Medico-legal note: Services, products and diet plans are provided under professional guidance and are not a substitute for diagnosis or treatment by your doctor. Results vary from person to person; no cure or specific result is promised (Drugs & Magic Remedies (Objectionable Advertisements) Act, 1954). Prescription medicines are supplied only on a valid prescription of a Registered Medical Practitioner (Drugs & Cosmetics Act, 1940). Health supplements are not meant to diagnose, treat, cure or prevent any disease (FSS Act, 2006). Report any side effect at once. Your data is processed under the Digital Personal Data Protection Act, 2023.';
+  const DIGITAL_NOTE = 'This is a digitally generated document under the Information Technology Act, 2000. No signature is required.';
+  const TERMS = 'Fees for consultations and programmes once started are not refundable; opened or used products cannot be returned, except for a defective or wrongly supplied product reported within 48 hours. Your rights under the Consumer Protection Act, 2019 are not affected. Prices include applicable GST. Subject to the jurisdiction of courts where the clinic is located.';
+  /**
+   * Patient information, consent and terms (A4), written for India. Each part names the law it follows.
+   * {title, text} items; '•' starts a bullet line.
+   */
+  const LEGAL = [
+    ['1. About our services', 'We offer nutrition counselling, diet plans, weight-management and wellness programmes, clinic (OPD) and online consultations, and related products. Our services are not emergency care. In an emergency call 112 or go to the nearest hospital.'],
+    ['2. Medical supervision and prescription medicines', '• Medicines, including injectable weight-management medicines, are prescribed, supplied and administered only by or under a Registered Medical Practitioner, on a valid prescription, as required by the National Medical Commission Act, 2019, the NMC (Registered Medical Practitioner Professional Conduct) Regulations, 2023 and the Drugs and Cosmetics Act, 1940 and Rules, 1945 (Schedule H / H1).\n• A diet plan or nutrition advice is not a medical prescription. Do not stop or change any medicine without your doctor.'],
+    ['3. Your health information', 'I confirm that I have told the clinic my full medical history, present illnesses, medicines, allergies, surgeries, and whether I am pregnant, breastfeeding or planning pregnancy. I will inform the clinic at once of any change, and of any side effect or unusual symptom, which may also be reported under the Pharmacovigilance Programme of India.'],
+    ['4. Results and risks', 'Results differ from person to person and depend on body type, health, medicines, diet, activity and following the advice. No cure or specific result is promised, in line with the Drugs and Magic Remedies (Objectionable Advertisements) Act, 1954 and the Consumer Protection Act, 2019. Testimonials and before-and-after pictures show individual results only. Possible effects such as nausea, acidity, weakness, dizziness, low blood sugar, constipation or allergy have been explained to me, and I may ask questions at any time.'],
+    ['5. Health supplements and protein products', 'Supplements and protein products sold by the clinic are from FSSAI-licensed manufacturers and follow the Food Safety and Standards Act, 2006 and the FSS (Health Supplements, Nutraceuticals ...) Regulations, 2022. They are not intended to diagnose, treat, cure or prevent any disease. Check the label for allergens and use only as advised.'],
+    ['6. Online consultations', 'Online consultations follow the Telemedicine Practice Guidelines, 2020. By booking or joining an online consultation I give my consent to it. The practitioner may ask me to visit in person when an examination is needed. Some medicines cannot be prescribed online.'],
+    ['7. Privacy and data protection', 'The clinic collects my name, contact details, age, measurements, health information, photos (if I agree) and payment records only to provide care, plans, invoices, reminders and follow-up, and to meet legal duties. My data is processed with my consent under the Digital Personal Data Protection Act, 2023, and protected with reasonable security practices under the Information Technology Act, 2000 and its SPDI Rules, 2011. It is not sold. It is shared only with the treating team, service providers working for the clinic, or when the law requires. Medical records are kept for at least 3 years as required by NMC regulations. I may ask to see, correct or erase my data, withdraw consent, or raise a grievance with the contact given below; withdrawal does not affect care already given or records the law requires us to keep.'],
+    ['8. Calls and WhatsApp messages', 'I agree to receive calls, SMS and WhatsApp messages about my appointments, plans, follow-ups and offers. I can stop promotional messages at any time by replying STOP or telling the clinic (TRAI TCCCPR, 2018).'],
+    ['9. Fees, invoices and refunds', 'Fees are as told before the service. Tax invoices follow the Central Goods and Services Tax Act, 2017. Fees for a consultation or programme once started are not refundable; opened or used products cannot be returned, except a defective or wrongly supplied product reported within 48 hours. My rights under the Consumer Protection Act, 2019 are not affected.'],
+    ['10. Minors', 'For a person below 18 years, a parent or legal guardian gives this consent under the Indian Contract Act, 1872 and the DPDP Act, 2023, and should be present at consultations.'],
+    ['11. Law and jurisdiction', 'This consent is governed by the laws of India. Any dispute is subject to the jurisdiction of the courts where the clinic is located. Grievances are acknowledged within 48 hours and resolved within 30 days.'],
+  ];
   const reportNote = (p) => `Confidential: computer-generated report for internal use of ${p.legalName || p.name}. Figures are as recorded in the app at the time of export.`;
   const handleOf = (url, fb) => { const m = String(url || '').replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop(); return m ? (m.startsWith('@') ? m : `@${m}`) : fb; };
   function followLine() {
@@ -49,18 +68,27 @@
     return y + 1.7;
   }
   /** Footer on every page: gold hairline, address and contact, a small-print note, follow line and page number. */
+  /** The small-print note lines under the footer (up to 6), in the size they are printed at. */
+  function noteLines(doc, W, M, note) {
+    if (!note) return [];
+    const fs = doc.getFontSize(); doc.setFont('helvetica', 'italic'); doc.setFontSize(5.6);
+    const out = doc.splitTextToSize(pdfText(note), W - 2 * M).slice(0, 6);
+    doc.setFontSize(fs); return out;
+  }
+  /** Height the footer takes, so pages stop their content above it. */
+  const footH = (doc, W, M, note) => 13 + noteLines(doc, W, M, note).length * 2.4;
   function footband(doc, W, H, M, note, n, total) {
     const p = prof();
-    const notes = doc.splitTextToSize(pdfText(note || ''), W - 2 * M).slice(0, 3);
-    const top = H - 13 - notes.length * 2.7;
+    const notes = noteLines(doc, W, M, note);
+    const top = H - 13 - notes.length * 2.4;
     doc.setFillColor(...GOLD); doc.rect(M, top, W - 2 * M, 0.3, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(7); doc.setTextColor(...INK);
     doc.text(pdfText([p.legalName || p.name, p.address].filter(Boolean).join('  ·  ')).slice(0, 150), M, top + 3.6);
     doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED); doc.setFontSize(6.6);
     doc.text(pdfText([contactLine(p), idLine(p)].filter(Boolean).join('  |  ')).slice(0, 170), M, top + 6.7);
     if (n) doc.text(`Page ${n} of ${total}`, W - M, top + 3.6, { align: 'right' });
-    doc.setFont('helvetica', 'italic'); doc.setFontSize(6); doc.setTextColor(120, 128, 126);
-    notes.forEach((ln, i) => doc.text(ln, M, top + 9.6 + i * 2.6));
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(5.6); doc.setTextColor(120, 128, 126);
+    notes.forEach((ln, i) => doc.text(ln, M, top + 9.4 + i * 2.4));
     doc.setFillColor(...BRAND); doc.rect(0, H - 4.6, W, 4.6, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(6); doc.setTextColor(255, 255, 255);
     doc.text(pdfText(followLine()), W / 2, H - 1.6, { align: 'center' });
@@ -444,7 +472,7 @@
       const M = o.format === 'a4' ? 14 : 9;
       const big = o.format === 'a4' ? 1.12 : 1;
       const top = letterhead(doc, W, M, title, [pf.legalName || pf.name, pf.address, contactLine(pf), idLine(pf)], 5);
-      const foot = H - 22 - (note ? 8 : 0);
+      const foot = H - footH(doc, W, M, note) - 3;
       let y = top + 4;
       // Billed to / slip details
       doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 24 * big, 2, 2, 'F');
@@ -500,7 +528,7 @@
       if (o.terms) {
         doc.setFont('helvetica', 'bold'); doc.setFontSize(6.8 * big); doc.setTextColor(...BRAND); doc.text('TERMS', M, y); y += 3.2;
         doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED); doc.setFontSize(6.6 * big);
-        doc.splitTextToSize(pdfText(pf.terms || TERMS), W - 2 * M - 52).slice(0, 4).forEach((ln) => { doc.text(ln, M, y); y += 2.9; });
+        doc.splitTextToSize(pdfText(pf.terms || TERMS), W - 2 * M - 52).slice(0, 7).forEach((ln) => { doc.text(ln, M, y); y += 2.9; });
       }
       // Digital document: no signature needed.
       const sy = Math.min(foot - 4, Math.max(y + 8, foot - 10));
@@ -514,8 +542,66 @@
     save(name, 'application/pdf', doc.output('datauristring').split(',')[1], doc.output('blob'));
     return name;
   }
+  /**
+   * Patient information, consent & terms (A4). d = { patient, mobile, age, date, filename }.
+   * Consent is the one patient document that keeps signature lines: the patient's written consent.
+   */
+  function consent(d) {
+    const { jsPDF } = root.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4' });
+    const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 14;
+    const p = prof(); const x = d || {};
+    const foot = H - 26;
+    let y = letterhead(doc, W, M, 'PATIENT CONSENT & TERMS', [p.legalName || p.name, p.address, contactLine(p), idLine(p)]) + 5;
+    const page = (need) => { if (y + need > foot) { doc.addPage(); y = letterhead(doc, W, M, 'PATIENT CONSENT & TERMS', [p.legalName || p.name]) + 5; } };
+    // Patient box
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 15, 2, 2, 'F');
+    doc.setFontSize(8.4); doc.setTextColor(...INK);
+    const fld = (lbl, val, fx, fy, w) => { doc.setFont('helvetica', 'bold'); doc.text(lbl, fx, fy); const tx = fx + doc.getTextWidth(lbl) + 2; doc.setFont('helvetica', 'normal'); if (val) doc.text(pdfText(val), tx, fy - 0.3); else { doc.setDrawColor(...MUTED); doc.setLineWidth(0.2); doc.line(tx, fy + 0.6, fx + w, fy + 0.6); } };
+    fld('Patient name:', x.patient, M + 4, y + 6, 100); fld('Age:', x.age, M + 110, y + 6, 26); fld('Date:', x.date, M + 142, y + 6, 40);
+    fld('Mobile:', x.mobile, M + 4, y + 12, 70); fld('Doctor / counsellor:', [p.doctor, p.qualification].filter(Boolean).join(', '), M + 80, y + 12, 102);
+    y += 21;
+    doc.setFont('helvetica', 'italic'); doc.setFontSize(8); doc.setTextColor(...MUTED);
+    doc.splitTextToSize('Please read this carefully. Ask us about anything that is not clear before you sign. A copy is given to you.', W - 2 * M).forEach((ln) => { doc.text(ln, M, y); y += 3.6; });
+    y += 1.5;
+    LEGAL.forEach(([title, text]) => {
+      page(14);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.2); doc.setTextColor(...BRAND); doc.text(pdfText(title), M, y);
+      doc.setFillColor(...GOLD); doc.rect(M, y + 1.2, 18, 0.35, 'F'); y += 5;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.1); doc.setTextColor(...INK);
+      String(text).split('\n').forEach((para) => {
+        const bullet = para.startsWith('• '); const body = bullet ? para.slice(2) : para;
+        doc.splitTextToSize(pdfText(body), W - 2 * M - (bullet ? 4 : 0)).forEach((ln, i) => { page(4); if (bullet && i === 0) doc.text('-', M, y); doc.text(ln, M + (bullet ? 4 : 0), y); y += 3.75; });
+        y += 0.8;
+      });
+      y += 1.8;
+    });
+    // Grievance contact
+    page(16);
+    const gr = [p.grievanceName || p.doctor || p.legalName || p.name, p.grievanceEmail || p.email, p.phone].filter(Boolean).join('  |  ');
+    doc.setFillColor(251, 246, 234); doc.roundedRect(M, y, W - 2 * M, 11, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.2); doc.setTextColor(138, 100, 24); doc.text('Grievance / data protection contact', M + 4, y + 4.4);
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(...INK); doc.text(pdfText(gr), M + 4, y + 8.6);
+    y += 16;
+    // Declaration and signatures
+    page(44);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.2); doc.setTextColor(...BRAND); doc.text('Declaration', M, y); y += 5;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.1); doc.setTextColor(...INK);
+    doc.splitTextToSize('I have read (or had read to me in a language I understand) and understood the above. I had the chance to ask questions and they were answered. I give my free and informed consent to the consultation, diet plan and programme, and to the processing of my personal data as described.', W - 2 * M).forEach((ln) => { doc.text(ln, M, y); y += 3.75; });
+    y += 12;
+    const sig = (lbl, sub, sx, w) => { doc.setDrawColor(...INK); doc.setLineWidth(0.25); doc.line(sx, y, sx + w, y); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.8); doc.text(lbl, sx, y + 4); doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED); doc.setFontSize(7); doc.text(pdfText(sub), sx, y + 7.4); doc.setTextColor(...INK); };
+    const cw = (W - 2 * M - 12) / 3;
+    sig('Patient / parent or guardian', 'Name, relation and date', M, cw);
+    sig('Witness', 'Name and date', M + cw + 6, cw);
+    sig('Doctor / counsellor', [p.doctor, p.regNo ? `Reg. ${p.regNo}` : ''].filter(Boolean).join(', ') || 'Name and registration no.', M + 2 * (cw + 6), cw);
+    const total = doc.getNumberOfPages();
+    for (let i = 1; i <= total; i++) { doc.setPage(i); footband(doc, W, H, M, 'Patient copy and clinic copy. Keep this document with your medical records.', total > 1 ? i : 0, total); }
+    const name = `${x.filename || 'Patient-consent'}.pdf`;
+    save(name, 'application/pdf', doc.output('datauristring').split(',')[1], doc.output('blob'));
+    return name;
+  }
   /** Patient invoice: the sales slip with the title INVOICE. */
   const invoice = (d, opts) => slip({ title: 'INVOICE', ...d }, opts);
 
-  root.EXPORT = { pdf, xlsx, jpeg, pdfText, opdSlip, invoice, slip, inWords, profile: prof, PATIENT_NOTE, TERMS };
+  root.EXPORT = { pdf, xlsx, jpeg, pdfText, opdSlip, invoice, slip, consent, inWords, profile: prof, PATIENT_NOTE, TERMS, LEGAL };
 })(window);

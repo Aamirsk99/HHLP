@@ -120,7 +120,7 @@
         clickGapMins: 15, // repeat Call / WhatsApp taps on the same lead by the same person within this window count once
         // Company profile and payment details (slips, invoices, every PDF; shared with the diet charts).
         legalName: '', tagline: 'Transform Today, Thrive Tomorrow', whatsapp: '', email: '', address: '', regNo: '', doctor: '', qualification: '', facebook: '',
-        upi: '', payee: '', bankName: '', accountNo: '', ifsc: '', branch: '', disclaimer: '', terms: '',
+        upi: '', payee: '', bankName: '', accountNo: '', ifsc: '', branch: '', disclaimer: '', terms: '', grievanceName: '', grievanceEmail: '',
       },
       categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],

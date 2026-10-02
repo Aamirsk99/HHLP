@@ -207,7 +207,7 @@
   }
 
   // Company profile from Settings: every PDF, slip and invoice reads it, and so do the diet charts (same phone, same storage).
-  const PROFILE_KEYS = ['legalName', 'tagline', 'phone', 'whatsapp', 'email', 'website', 'address', 'gstin', 'regNo', 'doctor', 'qualification', 'instagram', 'youtube', 'facebook', 'upi', 'payee', 'bankName', 'accountNo', 'ifsc', 'branch', 'disclaimer', 'terms'];
+  const PROFILE_KEYS = ['legalName', 'tagline', 'phone', 'whatsapp', 'email', 'website', 'address', 'gstin', 'regNo', 'doctor', 'qualification', 'instagram', 'youtube', 'facebook', 'upi', 'payee', 'bankName', 'accountNo', 'ifsc', 'branch', 'disclaimer', 'terms', 'grievanceName', 'grievanceEmail'];
   function profile() {
     const st = set(); const c = (st.clinics || [])[0] || {};
     const p = { name: st.clinic || 'The Prime Fit' };
@@ -1963,6 +1963,13 @@
     sumUp();
   }
   function invoicePdf(id) { slipDialog(id, null, 'invoice'); }
+  /** Patient consent & terms (A4) — blank, or filled in for one patient. */
+  function consentForm(pid) {
+    const p = pid ? S().patients.find((x) => x.id === pid) : null;
+    try {
+      toast(`Saved ${X.consent(p ? { patient: p.name, mobile: p.mobile, age: p.age ? String(p.age) : '', date: fdate(admin.today()), filename: `Consent-${p.name.replace(/[^\w]+/g, '-')}` } : { filename: 'Patient-consent-form' })}`);
+    } catch (err) { toast(err.message, true); }
+  }
   function sampleSlip() {
     const st = set();
     try {
@@ -2854,7 +2861,12 @@
         <label class="f span">Terms on slips<textarea name="terms" rows="2" placeholder="${esc(X.TERMS)}">${esc(st.terms || '')}</textarea><span class="hint">Leave blank to use the wording shown.</span></label>
         <label class="f span">Medico-legal note on patient slips and diet charts<textarea name="disclaimer" rows="3" placeholder="${esc(X.PATIENT_NOTE)}">${esc(st.disclaimer || '')}</textarea><span class="hint">Leave blank to use the wording shown.</span></label>
       </div>
-      <div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm" data-act="slip-sample">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}Preview a sample slip</button></div>
+      <div class="grid">
+        <label class="f">Grievance / data protection officer<input name="grievanceName" value="${esc(st.grievanceName || '')}" placeholder="Name"></label>
+        <label class="f">Grievance email<input name="grievanceEmail" type="email" value="${esc(st.grievanceEmail || '')}" placeholder="care@theprimefit.in"></label>
+      </div>
+      <p class="hint legal-hint">The default wording follows Indian law: NMC Act 2019 and NMC conduct regulations 2023, Telemedicine Practice Guidelines 2020, Drugs & Cosmetics Act 1940, Drugs & Magic Remedies Act 1954, FSS Act 2006, DPDP Act 2023, IT Act 2000, Consumer Protection Act 2019, CGST Act 2017. Ask your legal adviser to review it for your clinic.</p>
+      <div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm" data-act="consent">${svg('<path d="M12 2l8 4v6c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/>')}Patient consent form</button><button type="button" class="btn sm" data-act="slip-sample">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}Preview a sample slip</button></div>
       </div>
       <div data-stab="data"><h2 style="margin-top:6px"><span class="ic teal">${svg('<path d="M4 4h16v16H4zM4 10h16M10 4v16"/>')}</span>Google Sheet (data storage)</h2>
       <p class="hint" style="margin:0">All data is stored in ${SHEET_LINK ? `<a href="${SHEET_LINK}" target="_blank" rel="noopener">The Prime Fit Google Sheet</a>` : 'The Prime Fit Google Sheet'} and refreshes automatically on every device. Set-up once: open the sheet → Extensions → Apps Script → paste <a href="google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a> → run <b>setup</b> → Deploy → Web app (Execute as: Me, Who has access: Anyone) → paste the URL and the secret here.</p>
@@ -2920,7 +2932,7 @@
         clinic: f.clinic.value.trim() || 'The Prime Fit', consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
         groups: Object.fromEntries(Object.keys(A.SALE_TYPES).map((k) => [k, f[`grp-${k}`].checked])),
-        ...Object.fromEntries(['phone', 'website', 'instagram', 'youtube', 'facebook', 'legalName', 'tagline', 'whatsapp', 'email', 'address', 'regNo', 'doctor', 'qualification', 'upi', 'payee', 'bankName', 'accountNo', 'branch', 'terms', 'disclaimer'].map((k) => [k, f[k].value.trim()])),
+        ...Object.fromEntries(['phone', 'website', 'instagram', 'youtube', 'facebook', 'legalName', 'tagline', 'whatsapp', 'email', 'address', 'regNo', 'doctor', 'qualification', 'upi', 'payee', 'bankName', 'accountNo', 'branch', 'terms', 'disclaimer', 'grievanceName', 'grievanceEmail'].map((k) => [k, f[k].value.trim()])),
         ifsc: f.ifsc.value.trim().toUpperCase(), slipFormat: f.slipFormat.value,
         invoicePrefix: (f.invoicePrefix.value.trim() || 'TPF').replace(/[^\w-]/g, ''), gstin: f.gstin.value.trim().toUpperCase(), invoiceGst: Number(f.invoiceGst.value) || 0, invoiceNote: f.invoiceNote.value.trim(),
         defaultGst: f.defaultGst.value === '' ? 12 : Number(f.defaultGst.value), videoFee: f.videoFee.value === '' ? 150 : Number(f.videoFee.value),
@@ -3426,7 +3438,7 @@
         html: `<p style="margin:0">${esc(p.mobile || 'No mobile')} · ${sales.length} sales · ${appts.length} appointments</p>
           ${sales.length ? `<b>Sales</b>${table(['Date', 'Product', '>Amount', '~Reference'], sales.map((s) => `<tr><td>${fdate(s.date)}</td><td>${typeBadge(s.type)} ${esc(s.product)}</td><td class="r">${inr(s.amount)}</td><td>${splitText(s)}</td></tr>`))}` : ''}
           ${appts.length ? `<b>OPD appointments</b>${table(['Date', 'Mode', 'Status', '>Fee'], appts.map((a) => `<tr><td>${fdate(a.date)} ${esc(time12(a.time))}</td><td>${modeBadge(a.mode)}</td><td>${statusBadge(a.status)}</td><td class="r">${inr(a.fee)}</td></tr>`))}` : ''}
-          <div class="quick">${sales.length ? `<button type="button" class="btn" data-act="slip-patient" data-id="${p.id}">Sales slip</button>` : ''}${can('appointments') ? `<button type="button" class="btn" data-act="appt-for" data-id="${p.id}">Book appointment</button>` : ''}${can('sell') ? `<button type="button" class="btn primary" data-act="sell-to" data-id="${p.id}">New sale</button>` : ''}</div>`,
+          <div class="quick">${sales.length ? `<button type="button" class="btn" data-act="slip-patient" data-id="${p.id}">Sales slip</button>` : ''}<button type="button" class="btn" data-act="consent" data-id="${p.id}">Consent form</button>${can('appointments') ? `<button type="button" class="btn" data-act="appt-for" data-id="${p.id}">Book appointment</button>` : ''}${can('sell') ? `<button type="button" class="btn primary" data-act="sell-to" data-id="${p.id}">New sale</button>` : ''}</div>`,
       });
       labelTables($('#modal-body'));
     },
@@ -3542,6 +3554,7 @@
     'today-export': () => todayExportForm(),
     'slip-patient': (d) => { modal.close(); setTimeout(() => slipDialog(null, d.id), 30); },
     'slip-sample': () => sampleSlip(),
+    consent: (d) => consentForm(d.id),
     'clinic-add': () => clinicForm(null),
     alerts: () => alertsModal(),
     'add-login-role': (d) => loginForm(null, null, { role: d.role }),
@@ -3625,7 +3638,7 @@
   };
 
   // Actions a view-only login may still use: they open, filter or export, never change data.
-  const RO_ACTIONS = ['today-export', 'slip', 'slip-patient', 'slip-sample', 'show-more', 'wa-all', 'sheet-check', 'lead-select', 'lead-pick', 'lead-pick-all', 'alerts', 'exp-founder-all', 'refresh', 'export', 'user-menu', 'my-pin', 'theme', 'invoice', 'lead', 'appt', 'patient', 'toggle-alert', 'alerts-on', 'rfilter-clear', 'exp-pick', 'opd-slip', 'lock'];
+  const RO_ACTIONS = ['today-export', 'consent', 'slip', 'slip-patient', 'slip-sample', 'show-more', 'wa-all', 'sheet-check', 'lead-select', 'lead-pick', 'lead-pick-all', 'alerts', 'exp-founder-all', 'refresh', 'export', 'user-menu', 'my-pin', 'theme', 'invoice', 'lead', 'appt', 'patient', 'toggle-alert', 'alerts-on', 'rfilter-clear', 'exp-pick', 'opd-slip', 'lock'];
   (function roStyle() {
     const st = document.createElement('style');
     st.textContent = `${Object.keys(ACTIONS).filter((k) => !RO_ACTIONS.includes(k)).map((k) => `body.ro [data-act="${k}"]`).join(',')},body.ro [data-go="sell"],body.ro [data-go="purchase-new"],body.ro #view form button[type=submit],body.ro .switch,body.ro .days-in{display:none!important}`;
