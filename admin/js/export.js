@@ -14,6 +14,7 @@
   };
   // Patient documents (slips, invoices, OPD slips) carry this note unless Settings has the clinic's own wording.
   const PATIENT_NOTE = 'Medico-legal note: Products, programmes and diet plans are given under professional guidance. Results vary from person to person and depend on body type, medical history, medicines, diet, activity and adherence; no specific result is guaranteed. This document is not a medical prescription. Consult your doctor before starting any treatment, supplement or diet, and report any side effect straight away.';
+  const DIGITAL_NOTE = 'This is a digitally generated document. No signature is required.';
   const TERMS = 'Fees for consultations and programmes are not refundable once the service has started. Products once opened or used cannot be returned. Keep this slip for your records.';
   const reportNote = (p) => `Confidential: computer-generated report for internal use of ${p.legalName || p.name}. Figures are as recorded in the app at the time of export.`;
   const handleOf = (url, fb) => { const m = String(url || '').replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop(); return m ? (m.startsWith('@') ? m : `@${m}`) : fb; };
@@ -431,7 +432,7 @@
         if (d.note) { y += 0.6; dash(); c(d.note, 7, false); }
         if (o.terms) { y += 0.6; dash(); c(pf.terms || TERMS, 6.2, false, MUTED); }
         if (note) { y += 0.6; c(note, 5.8, false, [120, 128, 126]); }
-        y += 1.4; dash(); c(`Thank you · ${followLine()}`, 6, true, BRAND);
+        y += 1.4; dash(); c(DIGITAL_NOTE, 6.4, true, INK); c(`Thank you · ${followLine()}`, 6, true, BRAND);
         return y + 3;
       };
       const h = draw(new jsPDF({ unit: 'mm', format: [80, 1200] }));
@@ -455,7 +456,7 @@
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2 * big); doc.setTextColor(...INK);
       doc.text(pdfText([d.mobile, d.patientId ? `ID ${String(d.patientId).slice(-6).toUpperCase()}` : ''].filter(Boolean).join('  ·  ')), M + 4, y + 16.5 * big);
       if (d.by) { doc.setFontSize(7 * big); doc.setTextColor(...MUTED); doc.text(pdfText(`Attended by ${d.by}`), M + 4, y + 21 * big); }
-      lab('Slip no.', x2, y + 5.5 * big); val(d.no, x2, y + 10.5 * big);
+      lab(/INVOICE/.test(title) ? 'Invoice no.' : /RECEIPT/.test(title) ? 'Receipt no.' : 'Slip no.', x2, y + 5.5 * big); val(d.no, x2, y + 10.5 * big);
       lab('Date', x2, y + 15.5 * big); val(d.dateText || d.date, x2, y + 20.5 * big);
       doc.setFontSize(7.6 * big); doc.setFont('helvetica', 'bold');
       const pillW = doc.getTextWidth(status) + 6;
@@ -501,11 +502,11 @@
         doc.setFont('helvetica', 'normal'); doc.setTextColor(...MUTED); doc.setFontSize(6.6 * big);
         doc.splitTextToSize(pdfText(pf.terms || TERMS), W - 2 * M - 52).slice(0, 4).forEach((ln) => { doc.text(ln, M, y); y += 2.9; });
       }
-      // Signature
-      const sy = Math.min(foot - 4, Math.max(y + 8, foot - 12));
-      doc.setDrawColor(...MUTED); doc.line(W - M - 46, sy - 5, W - M, sy - 5);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.4 * big); doc.setTextColor(...INK); doc.text(pdfText(`For ${pf.legalName || pf.name}`), W - M, sy - 0.8, { align: 'right' });
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(6.6 * big); doc.setTextColor(...MUTED); doc.text('Authorised signatory', W - M, sy + 2.6, { align: 'right' });
+      // Digital document: no signature needed.
+      const sy = Math.min(foot - 4, Math.max(y + 8, foot - 10));
+      doc.setFillColor(...ZEBRA); doc.roundedRect(M, sy - 6, W - 2 * M, 8.5, 2, 2, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(7.2 * big); doc.setTextColor(...BRAND);
+      doc.text(pdfText(DIGITAL_NOTE), W / 2, sy - 0.8, { align: 'center' });
       const total = doc.getNumberOfPages();
       for (let i = 1; i <= total; i++) { doc.setPage(i); footband(doc, W, H, M, note, total > 1 ? i : 0, total); }
     }

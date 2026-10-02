@@ -377,3 +377,18 @@ test('a sales slip combines several sales of one patient', () => {
   assert.strictEqual(s.total, 300); assert.strictEqual(s.lines.length, 2); assert.strictEqual(s.unpaid, 1);
   assert.strictEqual(s.nos.length, 2); assert.strictEqual(s.payMethod, 'UPI');
 });
+
+test('slips get serial numbers per kind, reprints keep the number, and the Slips sheet lists them', () => {
+  const admin = stocked();
+  const m = admin.saveMember({ name: 'Asha' });
+  const it = admin.saveItem({ name: 'Consult', category: 'Protein', kind: 'protein', price: 100, track: false });
+  const a = admin.saveSale({ type: 'protein', itemId: it.id, qty: 1, amount: 100, refId: m.id, patientName: 'Ravi', mobile: '9876543210', payMethod: 'Cash' });
+  const b = admin.saveSale({ type: 'protein', itemId: it.id, qty: 1, amount: 200, refId: m.id, patientName: 'Ravi', mobile: '9876543210' });
+  assert.strictEqual(admin.issueSlip([a.id], 'slip').no, 'TPF-SL-0001');
+  assert.strictEqual(admin.issueSlip([a.id, b.id], 'slip').no, 'TPF-SL-0002');
+  assert.strictEqual(admin.issueSlip([b.id, a.id], 'slip').no, 'TPF-SL-0002'); // same sales, same number
+  assert.strictEqual(admin.issueSlip([a.id], 'receipt').no, 'TPF-RC-0001');
+  assert.strictEqual(admin.issueSlip([a.id], 'invoice').no, admin.invoiceFor(a.id).no);
+  const sheet = admin.sheetsData().Slips;
+  assert.strictEqual(sheet.length, 5); assert.strictEqual(sheet[2][0], 'TPF-SL-0002'); assert.strictEqual(sheet[2][6], 300);
+});

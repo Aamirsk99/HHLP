@@ -26,7 +26,7 @@
   const EXPENSE_CATEGORIES = ['Salary', 'Incentive', 'Rent', 'Electricity', 'Courier', 'Marketing',
     'Founder', 'Ads', 'Editing', 'Product Purchase', 'Miscellaneous'];
   const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Service Sales', 'Injection Sales', 'Protein Sales', 'Other Sales', 'Diet Support', 'Purchases',
-    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Ads Report', 'Tasks', 'Attendance', 'Founders', 'Founder Notes', 'Activity Log'];
+    'Inventory', 'Team', 'Incentives', 'Salary', 'Expenses', 'Renewals', 'Doctors', 'Editors', 'Content', 'Campaigns', 'Ads Report', 'Tasks', 'Attendance', 'Founders', 'Founder Notes', 'Slips', 'Activity Log'];
 
   // Login roles. Every person can have their own login (name + PIN), shared through the Google Sheet.
   const ROLES = { super: 'Super Admin', admin: 'Admin', manager: 'Manager', desk: 'Front Desk', editor: 'Video Editor', marketing: 'Marketing', viewer: 'View only' };
@@ -124,7 +124,7 @@
       },
       categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
-      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, campaigns: [], ideas: [], tasks: [], attendance: {}, targets: {}, notes: [], capital: [], social: { youtube: {}, instagram: {}, fetchedAt: 0 },
+      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, campaigns: [], ideas: [], tasks: [], attendance: {}, targets: {}, notes: [], capital: [], slips: [], social: { youtube: {}, instagram: {}, fetchedAt: 0 },
       seeded: { packages: true, cleared: true, r7: true, r8: true, r9: true },
       accounts: [
         { id: 'super', name: 'Super Admin', username: 'superadmin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
@@ -977,6 +977,30 @@
         lines: [{ name: x.product, detail: it && it.days ? `${it.days} days${it.includes ? ` · ${it.includes}` : ''}` : (it && it.includes) || '', qty: x.qty, rate, mrp: it && it.mrp ? it.mrp : null, amount: x.amount }],
         total: x.amount, gst, taxable, tax: r2(x.amount - taxable), payMethod: x.payMethod || '', by: memberName(x.refId), notes: x.notes,
       };
+    }
+    /**
+     * Slip register: every slip, invoice or receipt made from sales gets the next serial number of its kind
+     * (TPF-SL-0001, TPF-RC-0001; an invoice for one sale keeps that sale's invoice number). Printing the
+     * same sales again reuses the number.
+     */
+    const SLIP_KINDS = { slip: ['SL', 'slipSeq', 'Sales slip'], receipt: ['RC', 'receiptSeq', 'Payment receipt'], invoice: ['', 'invoiceSeq', 'Invoice'] };
+    function issueSlip(ids, kind) {
+      const k = SLIP_KINDS[kind] ? kind : 'slip';
+      const key = `${k}:${[...ids].sort().join(',')}`;
+      const list = listFix('slips');
+      const v = slipFor(ids);
+      let r = list.find((x) => x.key === key);
+      if (!r) {
+        let no;
+        if (k === 'invoice') no = ids.length === 1 ? v.nos[0] : nextInvoiceNo();
+        else { const [code, seq] = SLIP_KINDS[k]; S.settings[seq] = (Number(S.settings[seq]) || 0) + 1; no = `${S.settings.invoicePrefix || 'TPF'}-${code}-${String(S.settings[seq]).padStart(4, '0')}`; }
+        r = { id: uid('sl'), key, no, kind: k, saleIds: [...ids], at: clock ? clock().getTime() : Date.now(), by: actor };
+        list.push(r);
+        log(`${SLIP_KINDS[k][2]} made`, `${no} · ${v.patient} · ₹${v.total}`);
+      }
+      Object.assign(r, { date: v.date, patient: v.patient, mobile: v.mobile, total: v.total, payMethod: v.payMethod, unpaid: v.unpaid, items: v.lines.map((l) => `${l.name} × ${l.qty}`).join(', '), invoices: v.nos.join(', ') });
+      save();
+      return { ...v, no: r.no, serial: r.no };
     }
     /** A sales slip for one or more sales of the same patient: lines, totals and payment modes combined. */
     function slipFor(ids) {
@@ -1898,6 +1922,8 @@
       listFix('capital').forEach((c) => out.Founders.push([(founder(c.founderId) || {}).name || '', c.date, c.type === 'invest' ? 'Invested' : 'Withdrawn', c.amount, c.note]));
       out['Founder Notes'] = [['Date', 'Time', 'Mode', 'Type', 'Title', 'Details', 'With', 'Minutes', 'Outcome / Decision', 'Next Step', 'Due', 'Pinned', 'Status', 'By']];
       listFix('notes').forEach((n) => out['Founder Notes'].push([n.date || new Date(n.at).toISOString().slice(0, 10), n.time || '', n.mode || '', n.tag || '', n.title || '', n.text || '', (n.with || []).map((x) => (founder(x) || {}).name || x).join(', '), n.mins || '', n.outcome || '', n.nextStep || '', n.due || '', n.pinned ? 'Yes' : '', n.done ? 'Done' : 'Open', n.by || '']));
+      out.Slips = [['Slip No.', 'Type', 'Date', 'Patient', 'Mobile', 'Items', 'Total', 'Payment', 'Made By', 'Made On', 'Sale Invoice Nos.']];
+      [...listFix('slips')].sort((a, b) => a.at - b.at).forEach((x) => out.Slips.push([x.no, (SLIP_KINDS[x.kind] || SLIP_KINDS.slip)[2], x.date || '', x.patient || '', x.mobile || '', x.items || '', x.total || 0, x.payMethod ? (x.unpaid ? `Part paid · ${x.payMethod}` : `Paid · ${x.payMethod}`) : 'Due', x.by || '', new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.invoices || '']));
       out['Activity Log'] = [['Date & Time', 'By', 'Action', 'Details']];
       S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.by, x.action, x.detail]));
       return out;
@@ -1988,7 +2014,7 @@
       account, saveAccount, setAccountPin, deleteAccount, setActor,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
       updatePatient, deletePatient, daySummary,
-      invoiceFor, slipFor, logLeadClick, clickStats, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, founders, founder, saveFounder, setFounderActive, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
+      invoiceFor, slipFor, issueSlip, logLeadClick, clickStats, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, founders, founder, saveFounder, setFounderActive, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, leadDay, kindName, kinds, saveKind, deleteKind, moveKind, clinic, saveClinic, deleteClinic, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,

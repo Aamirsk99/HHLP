@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.1';
+  const APP_VERSION = '4.2';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1569,6 +1569,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.2', 'Slips, receipts and invoices numbered in series (TPF-SL-0001, TPF-RC-0001, invoices TPF-2026-0001) and printing the same sales again keeps the number; digital documents say no signature is required; new Slips sheet in the Google Sheet and Excel template, and a Slip register in the Sales export.'],
     ['4.1', 'Back button always returns to the admin dashboard (never the Home page) and leaves the app from there; icons on every menu section; logo and app icon back in the original charcoal and teal colours.'],
     ['4.0', 'Company profile & payments in Settings (legal name, address, GSTIN, doctor, UPI, bank, terms, medico-legal note) used on every PDF and the diet charts; patient sales slips (several sales on one slip, A5, A4 or 80 mm receipt, invoice or payment receipt, amount in words, payment details); new letterhead and footer on all PDFs; Today export with period, sections and filters; Call and WhatsApp taps counted per team member with repeat taps ignored; follow-up reminders with remind-me times, snooze and done; redesigned dashboard boxes and menu icons; transparent logo and new app icon; lighter animations. Diet: Add food, Add recipe and My foods moved into Foods & Recipes, more tappable patients, charts, recipes and foods, premium chart and recipe PDFs with medico-legal note.'],
     ['3.9', 'Every dashboard box opens its screen; founders kept to the Founder Hub; WhatsApp today with tabs and options (which messages, how many, inactive patients, your own wording); menu in colour-coded sections that fold away; Settings as tiles with a Google Sheet connection status; saved PDFs and images open automatically; six multi-colour themes (Aurora, Peacock, Sunrise, Galaxy, Tropical, Maharaja); more luxury dashboard. Diet: all 11,018 recipes in Recipes with search and filters, clickable home boxes, multi-colour themes. Data Explorer removed.'],
@@ -1949,10 +1950,10 @@
         const opts = { kind: get('kind') || 'slip', format: get('format') || 'a5' };
         $$('[data-slipopt]', $('#modal-body')).forEach((i) => { opts[i.dataset.slipopt] = i.checked; });
         slipPrefs = opts;
-        const v = admin.slipFor(ids.reverse());
+        const v = admin.issueSlip(ids.reverse(), opts.kind);
         const title = { slip: 'SALES SLIP', invoice: 'INVOICE', receipt: 'PAYMENT RECEIPT' }[opts.kind];
         const name = X.slip({ ...v, title, dateText: v.from !== v.date ? `${fdate(v.from)} to ${fdate(v.date)}` : fdate(v.date), note: st.invoiceNote || '',
-          filename: `${title.replace(/ /g, '-').toLowerCase().replace(/(^|-)\w/g, (m) => m.toUpperCase())}-${v.nos[0]}-${String(v.patient || '').replace(/[^\w]+/g, '-')}` }, opts);
+          filename: `${title.replace(/ /g, '-').toLowerCase().replace(/(^|-)\w/g, (m) => m.toUpperCase())}-${v.no}-${String(v.patient || '').replace(/[^\w]+/g, '-')}` }, opts);
         return `Saved ${name}`;
       },
     });
@@ -2530,7 +2531,7 @@
       kpis: [['Total videos', num(st.total)], ['To edit', num(st.toEdit)], ['Total edited', num(st.edited)], ['Total posted', num(st.posted)], ['Remaining to post', num(st.remaining)], ['Scheduled', num(st.scheduled)]],
       sections: [R.content(filteredContent()), R.contentEditors(st)] }; },
     appointments: () => { const r = apptView === 'day' ? { from: apptDay, to: apptDay } : range(); const st = admin.appointmentStats(r); return { title: 'OPD Appointments', subtitle: apptView === 'day' ? fdate(apptDay) : periodLabel(), kpis: [['Appointments', num(st.total - st.cancelled)], ['Clinic visits', num(st.clinic)], ['Online', num(st.online)], ['Completed', num(st.completed)], ['Fees collected', inr(st.fees)], ['Unpaid', num(st.unpaid)], ['Cancelled', num(st.cancelled)], ['No-show', num(st.noshow)]], sections: [R.appointments(filteredAppts())] }; },
-    sales: () => ({ title: 'Sales', subtitle: periodLabel(), sections: [R.sales(filteredSales())] }),
+    sales: () => ({ title: 'Sales', subtitle: periodLabel(), sections: [R.sales(filteredSales()), slipSec()] }),
     patients: () => ({ title: 'Patients', subtitle: `As of ${fdate(stamp())}`, sections: [R.patients(patientRows())] }),
     renewals: () => ({ title: 'Renewal Alerts', subtitle: `Alert after ${set().renewalDays[0]} days · ${fdate(stamp())}`, sections: [R.renewals(renewalList())] }),
     products: () => ({ title: 'Products & Prices', subtitle: fdate(stamp()), sections: R.products() }),
@@ -2631,6 +2632,8 @@
     };
     return (list || []).length ? `<div class="filters"><div class="row">${list.map((k) => F[k]()).join('')}<button type="button" class="btn sm ghost" data-act="rfilter-clear">Clear filters</button></div></div>` : '';
   }
+  // Slip register (serial numbers) for the period, as in the Slips sheet.
+  const slipSec = () => { const rows = (admin.sheetsData().Slips || []).slice(1).filter((x) => inR(String(x[2]).slice(0, 10), range())); return sec('Slip Register', ['Slip No.', 'Type', 'Date', 'Patient', 'Mobile', 'Items', '>Total', 'Payment', 'Made By'], rows.map((x) => x.slice(0, 9)), { money: [6], total: [6] }); };
   const tapSec = (r, mine) => sec(`Calls & WhatsApp by Team (${r ? (r.from === r.to ? fdate(r.from) : `${fdate(r.from)} to ${fdate(r.to)}`) : 'all time'})`, ['Team member', '>Calls', '>WhatsApp', '>Total', '>Leads reached', '>Repeat taps not counted', 'Last tap'],
     admin.clickStats(r, mine).map((x) => [x.name, x.calls, x.whatsapp, x.total, x.leads, x.ignored, ftime(x.last)]), { total: [1, 2, 3] });
   const clinicLine = () => [set().clinic || 'The Prime Fit', set().phone].filter(Boolean).join(' · ');
