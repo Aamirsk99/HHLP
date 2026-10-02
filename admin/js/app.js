@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.9';
+  const APP_VERSION = '4.0';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -192,9 +192,26 @@
     $('#user-initial').textContent = me.name.trim().charAt(0).toUpperCase();
   }
 
+  // Company profile from Settings: every PDF, slip and invoice reads it, and so do the diet charts (same phone, same storage).
+  const PROFILE_KEYS = ['legalName', 'tagline', 'phone', 'whatsapp', 'email', 'website', 'address', 'gstin', 'regNo', 'doctor', 'qualification', 'instagram', 'youtube', 'facebook', 'upi', 'payee', 'bankName', 'accountNo', 'ifsc', 'branch', 'disclaimer', 'terms'];
+  function profile() {
+    const st = set(); const c = (st.clinics || [])[0] || {};
+    const p = { name: st.clinic || 'The Prime Fit' };
+    PROFILE_KEYS.forEach((k) => { p[k] = st[k] || ''; });
+    if (!p.address) p.address = c.address || '';
+    return p;
+  }
+  let sharedProfile = '';
+  function shareProfile() {
+    try {
+      const p = profile(); window.PRIMEFIT_PROFILE = p; window.PRIMEFIT_SOCIAL = p;
+      const j = JSON.stringify(p);
+      if (j !== sharedProfile) { sharedProfile = j; localStorage.setItem('primefit.profile', j); }
+    } catch (_) { /* ignore */ }
+  }
   function render() {
     if (!role) return;
-    try { const st = set(); window.PRIMEFIT_SOCIAL = { instagram: st.instagram, youtube: st.youtube, website: st.website, phone: st.phone }; } catch (_) { /* ignore */ }
+    shareProfile();
     const f = SCREENS[screen] || SCREENS[home()];
     const nav = NAV.find((n) => n[0] === screen);
     $('#title').textContent = TITLES[screen] || (screen === 'sell' && params.edit ? 'Edit Sale' : nav ? navLabel(nav[0], nav[1]) : '');
@@ -216,16 +233,16 @@
   // Numbers in the summary boxes count up when a screen opens.
   function countUp(root) {
     if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
-    $$('.kpi b, .hk b', root).forEach((el) => {
+    $$('.kpi b, .hk b', root).slice(0, 8).forEach((el) => {
       const text = el.textContent;
       const m = text.match(/^(−?₹?)([\d,]+)$/);
       if (!m) return;
       const target = Number(m[2].replace(/,/g, ''));
       if (!target || target > 1e9) return;
-      const t0 = performance.now(); const dur = 650;
+      const t0 = performance.now(); const dur = 420;
       const step = (t) => {
         const k = Math.min(1, (t - t0) / dur); const e = 1 - Math.pow(1 - k, 3);
-        el.textContent = m[1] + Math.round(target * e).toLocaleString('en-IN');
+        el.textContent = m[1] + NF.format(Math.round(target * e));
         if (k < 1) requestAnimationFrame(step); else el.textContent = text;
       };
       requestAnimationFrame(step);
@@ -530,8 +547,8 @@
     const base = { clinic: set().clinic, me: me.name.split(' ')[0] };
     if (can('leads')) {
       const ld = admin.leadDay(d, myLeadFilter());
-      if (on('followup')) ld.dueToday.concat(ld.overdue).forEach((l) => rows.push({ k: 'followup', who: l.name, what: `Follow-up${l.followTime ? ` ${time12(l.followTime)}` : ''}${l.followUp < d ? ' (overdue)' : ''}`, mobile: l.mobile, msg: fillWa('followup', { ...base, name: l.name, about: l.interest ? ` about ${l.interest}` : '' }), cls: l.followUp < d ? 'bad' : 'warn' }));
-      if (on('newlead')) ld.newLeads.filter((l) => !(l.history || []).some((h) => ['call', 'whatsapp'].includes(h.type))).forEach((l) => rows.push({ k: 'newlead', who: l.name, what: `New lead${l.source ? ` · ${l.source}` : ''}`, mobile: l.mobile, msg: fillWa('newlead', { ...base, name: l.name, about: l.interest ? ` with ${l.interest}` : '' }), cls: 'teal' }));
+      if (on('followup')) ld.dueToday.concat(ld.overdue).forEach((l) => rows.push({ k: 'followup', lead: l.id, who: l.name, what: `Follow-up${l.followTime ? ` ${time12(l.followTime)}` : ''}${l.followUp < d ? ' (overdue)' : ''}`, mobile: l.mobile, msg: fillWa('followup', { ...base, name: l.name, about: l.interest ? ` about ${l.interest}` : '' }), cls: l.followUp < d ? 'bad' : 'warn' }));
+      if (on('newlead')) ld.newLeads.filter((l) => !(l.history || []).some((h) => ['call', 'whatsapp'].includes(h.type))).forEach((l) => rows.push({ k: 'newlead', lead: l.id, who: l.name, what: `New lead${l.source ? ` · ${l.source}` : ''}`, mobile: l.mobile, msg: fillWa('newlead', { ...base, name: l.name, about: l.interest ? ` with ${l.interest}` : '' }), cls: 'teal' }));
     }
     if (can('appointments')) {
       const ap = admin.appointmentsIn({ from: d, to: d });
@@ -551,7 +568,7 @@
     const list = all.filter((r) => !waTab || r.k === waTab); const max = waShowAll ? Infinity : Math.max(3, Number(w.max) || 8);
     return `<section class="card wa-card"><h2><span class="ic wa">${svg('<path d="M20 12a8 8 0 0 1-11.8 7L4 20l1.1-4A8 8 0 1 1 20 12z"/><path d="M9 9.5c.3 1.8 1.7 3.3 3.5 3.9l1-1 2 .8v1.3c-2.8.4-6.6-2.3-7.4-5.6h1.3z"/>')}</span>WhatsApp today<span class="sp"></span><span class="badge ok">${all.length}</span>${readOnly() ? '' : `<button type="button" class="btn xs" data-act="wa-setup" aria-label="WhatsApp options">⚙ Options</button>`}</h2>
       ${kinds.length > 1 ? `<div class="scroll-x"><div class="seg sm wa-tabs"><button type="button" data-watab="" class="${!waTab ? 'on' : ''}">All ${all.length}</button>${kinds.map((k) => `<button type="button" data-watab="${k}" class="${waTab === k ? 'on' : ''}"><i class="wa-dot ${WA_KINDS[k][1]}"></i>${WA_KINDS[k][0]} ${all.filter((r) => r.k === k).length}</button>`).join('')}</div></div>` : ''}
-      ${list.length ? `<div class="wa-list">${list.slice(0, max).map((r) => `<a class="wa-row" href="${esc(waLink(r.mobile, r.msg))}" target="_blank" rel="noopener"><span class="wa-dot ${r.cls}"></span><span><b>${esc(r.who)}</b><small>${esc(r.what)}</small></span><span class="wa-go">WhatsApp</span></a>`).join('')}</div>${list.length > max ? `<p class="hint" style="margin:8px 0 0">${list.length - max} more · <button type="button" class="link" data-act="wa-all">Show all</button></p>` : ''}`
+      ${list.length ? `<div class="wa-list">${list.slice(0, max).map((r) => `<a class="wa-row" href="${esc(waLink(r.mobile, r.msg))}" target="_blank" rel="noopener"${r.lead ? ` data-walead="${r.lead}"` : ''}><span class="wa-dot ${r.cls}"></span><span><b>${esc(r.who)}</b><small>${esc(r.what)}</small></span><span class="wa-go">WhatsApp</span></a>`).join('')}</div>${list.length > max ? `<p class="hint" style="margin:8px 0 0">${list.length - max} more · <button type="button" class="link" data-act="wa-all">Show all</button></p>` : ''}`
         : '<p class="hint" style="margin:0">Nothing to send right now. Choose what shows here with ⚙ Options.</p>'}</section>`;
   }
   function waSetup() {
@@ -1196,7 +1213,7 @@
     const imgBtn = `<button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="jpeg">${svg('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>')}Image</button>`;
     const stockRow = (y) => `<tr><td>${esc(y.item.name)}</td><td>${esc(y.item.category)}</td><td class="r"><b>${num(y.stock)}</b> <span class="hint">${esc(y.item.unit)}</span></td><td>${y.item.orderAt != null && y.stock < y.item.orderAt ? '<span class="badge bad">Order required</span>' : y.stock > 0 ? '<span class="badge ok">Available</span>' : '<span class="badge">Not available</span>'}</td></tr>`;
     return `<div class="toolbar"><div class="day-nav"><button type="button" class="btn sm" data-day="-1" aria-label="Previous day">‹</button><input type="date" data-todaydate value="${esc(d)}" aria-label="Date"><button type="button" class="btn sm" data-day="1" aria-label="Next day">›</button>${d !== admin.today() ? '<button type="button" class="btn sm" data-day="0">Today</button>' : ''}</div>
-        <span class="grow"></span><span class="btn-group"><button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="pdf">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}PDF</button>${imgBtn}</span></div>
+        <span class="grow"></span><span class="btn-group"><button type="button" class="btn sm primary" data-act="today-export">${svg('<path d="M4 6h16M7 12h10M10 18h4"/>')}Export with filters</button><button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="pdf">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}PDF</button>${imgBtn}</span></div>
       <section class="hero"><div><small>${esc(set().clinic)} · ${fdate(d)}</small></div><div class="hero-row">
         <div class="hk"><small>Sales</small><b>${inr(x.salesTotal)}</b><small>${plural(x.sales.length, 'sale')}</small></div>
         <div class="hk"><small>Purchases</small><b>${inr(x.purchaseTotal)}</b><small>${plural(x.purchases.length, 'invoice')}</small></div>
@@ -1310,7 +1327,7 @@
         <div class="lead-top">${leadSelMode ? `<span class="pick-box ${leadSel.has(l.id) ? 'on' : ''}"></span>` : ''}<span class="prio ${PRIO_CLS[l.priority] || ''}" title="${esc(A.LEAD_PRIORITIES[l.priority] || '')}"></span><b>${esc(l.name)}</b><span class="score ${scoreCls(sc)}" title="Lead score">${sc}</span><span class="badge ${['Converted', 'Appointment booked'].includes(l.status) ? 'ok' : ['Lost', 'Not interested'].includes(l.status) ? 'bad' : 'info'}">${esc(l.status)}</span></div>
         <div class="lead-meta">${l.interest ? `<span>${esc(l.interest)}</span>` : ''}${l.source ? `<span>${esc(l.source)}</span>` : ''}${l.city ? `<span>${esc(l.city)}</span>` : ''}${l.assignedTo ? `<span>👤 ${esc(accountName(l.assignedTo))}</span>` : ''}${tagsOf(l).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>
         <div class="lead-foot">${l.followUp ? `<span class="badge ${due}">Follow-up ${fdate(l.followUp)}${l.followTime ? ` ${time12(l.followTime)}` : ''}</span>` : '<span class="hint">No follow-up set</span>'}
-          <span class="lead-acts"><a class="btn xs" href="tel:${esc(l.mobile)}" data-callout="${l.id}">📞 Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}${nextStage(l) && !readOnly() ? `<button type="button" class="btn xs" data-act="lead-next" data-id="${l.id}" title="Move to the next stage">→ ${esc(nextStage(l))}</button>` : ''}<button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></span></div></div>`;
+          <span class="lead-acts"><a class="btn xs" href="tel:${esc(l.mobile)}" data-callout="${l.id}">📞 Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener" data-walead="${l.id}">WhatsApp</a>` : ''}${nextStage(l) && !readOnly() ? `<button type="button" class="btn xs" data-act="lead-next" data-id="${l.id}" title="Move to the next stage">→ ${esc(nextStage(l))}</button>` : ''}${readOnly() ? '' : `<button type="button" class="btn xs" data-act="lead-remind" data-id="${l.id}" title="Remind me" aria-label="Remind me">⏰</button>`}<button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></span></div></div>`;
     };
     const srcs = set().lists.leadSources;
     const quickAdd = readOnly() ? '' : `<section class="card quick-lead"><h2><span class="ic teal">${svg('<path d="M12 5v14M5 12h14"/>')}</span>Quick add<span class="sp"></span><small class="hint">Name and mobile are enough</small></h2>
@@ -1330,8 +1347,10 @@
         <button type="button" class="btn sm ${leadSelMode ? 'primary' : ''}" data-act="lead-select">${leadSelMode ? 'Done selecting' : 'Select'}</button>
         <span class="grow"></span>${exportBtns('leads')}${readOnly() ? '' : '<button class="btn sm" data-act="lead-import">Import</button>'}<button class="btn primary" data-act="new-lead">${svg('<path d="M12 5v14M5 12h14"/>')}New lead</button></div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Open leads', num(st.open))}${kpi('New today', num(st.newToday), '', 'teal')}${kpi('Due today', num(st.dueToday), '', 'gold')}${kpi('Overdue', num(st.overdue), '', st.overdue ? 'bad' : '')}${kpi('Hot leads', num(st.hot), '', 'bad')}${kpi('Conversion', `${st.conversion}%`, `${st.won} of ${st.total}`, 'good')}</div>
+      ${reminderCard(mine)}
       ${quickAdd}
       ${leadSummaryCard(mine)}
+      ${tapCard(mine)}
       <div class="pipeline scroll-x">${pipeline.map(([x, n]) => `<button type="button" class="pipe ${leadF.status === x ? 'on' : ''}" data-leadstatus="${esc(x)}"><b>${n}</b><span>${esc(x)}</span></button>`).join('')}</div>
       <div class="filters"><div class="row">
         <input type="search" data-lfilter="q" placeholder="Search name, mobile, city, interest" value="${esc(leadF.q)}">
@@ -1351,7 +1370,7 @@
     const x = admin.leadDay(d, mine);
     const fu = (l) => `<div class="fu-row"><span class="fu-when ${l.followUp < today ? 'bad' : l.followUp === today ? 'warn' : ''}">${l.followUp === today ? 'Today' : fdate(l.followUp)}${l.followTime ? `<small>${time12(l.followTime)}</small>` : ''}</span>
       <button type="button" class="fu-name" data-act="lead" data-id="${l.id}"><b>${esc(l.name)}</b><small>${esc([l.status, l.interest].filter(Boolean).join(' · '))}</small></button>
-      <span class="fu-acts"><a class="btn xs" href="tel:${esc(l.mobile)}" data-callout="${l.id}">Call</a>${waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`) ? `<a class="btn xs" href="${esc(waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`))}" target="_blank" rel="noopener">WhatsApp</a>` : ''}</span></div>`;
+      <span class="fu-acts"><a class="btn xs" href="tel:${esc(l.mobile)}" data-callout="${l.id}">Call</a>${waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`) ? `<a class="btn xs" href="${esc(waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`))}" target="_blank" rel="noopener" data-walead="${l.id}">WhatsApp</a>` : ''}</span></div>`;
     const next = [...x.overdue, ...x.dueToday, ...x.upcoming].slice(0, 8);
     return `<section class="card lead-sum"><h2><span class="ic gold">${svg(ICON_TODAY)}</span>Daily summary<span class="sp"></span>
         <span class="day-nav"><button type="button" class="btn xs" data-leadsum="-1" aria-label="Previous day">‹</button><b>${d === today ? 'Today' : fdate(d)}</b><button type="button" class="btn xs" data-leadsum="1" aria-label="Next day" ${d >= today ? 'disabled' : ''}>›</button></span></h2>
@@ -1359,6 +1378,69 @@
       <div class="status-chips">${Object.entries(x.byStatus).filter(([, n]) => n).map(([k, n]) => `<span class="chip"><b>${n}</b>${esc(k)}</span>`).join('')}</div>
       ${x.statusChanges.length ? `<p class="hint" style="margin:8px 0 0">Status changes: ${x.statusChanges.slice(0, 6).map((h) => `<b>${esc(h.lead.name)}</b> ${esc(h.text)}`).join(' · ')}</p>` : ''}
       ${next.length ? `<h3 class="sub-h">Next follow-ups</h3><div class="fu-list">${next.map(fu).join('')}</div>` : '<p class="hint" style="margin:10px 0 0">No follow-ups planned. Set one from a lead with “Note / follow-up”.</p>'}</section>`;
+  }
+  // Calls & WhatsApp taps per team member (each lead, button and person counts once within the gap set in Settings).
+  let tapRange = 'today';
+  const TAP_RANGES = { today: 'Today', week: '7 days', month: 'This month', all: 'All time' };
+  function tapRangeOf(k) {
+    const d = admin.today();
+    return k === 'today' ? { from: d, to: d } : k === 'week' ? { from: shiftDay(d, -6), to: d } : k === 'month' ? { from: `${d.slice(0, 8)}01`, to: d } : null;
+  }
+  function tapCard(mine) {
+    const rows = admin.clickStats(tapRangeOf(tapRange), mine);
+    const tot = rows.reduce((a, r) => ({ calls: a.calls + r.calls, wa: a.wa + r.whatsapp }), { calls: 0, wa: 0 });
+    const top = Math.max(1, ...rows.map((r) => r.total));
+    return `<section class="card tap-card"><h2><span class="ic teal">${svg('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>')}</span>Calls & WhatsApp by team<span class="sp"></span>
+      <div class="seg sm">${Object.entries(TAP_RANGES).map(([k, l]) => `<button type="button" data-taprange="${k}" class="${tapRange === k ? 'on' : ''}">${l}</button>`).join('')}</div></h2>
+      <div class="tap-tot"><span><b>${num(tot.calls)}</b> calls</span><span><b>${num(tot.wa)}</b> WhatsApp</span><span><b>${num(rows.length)}</b> team member${rows.length === 1 ? '' : 's'}</span></div>
+      ${rows.length ? `<div class="tap-list">${rows.map((r) => `<div class="tap-row"><span class="tap-av">${esc(r.name.trim().charAt(0).toUpperCase())}</span>
+        <span class="tap-name"><b>${esc(r.name)}</b><small>${plural(r.leads, 'lead')} · last ${esc(ftime(r.last))}${r.ignored ? ` · ${r.ignored} repeat tap${r.ignored > 1 ? 's' : ''} not counted` : ''}</small><i class="tap-bar"><i style="width:${Math.round((r.total / top) * 100)}%"></i></i></span>
+        <span class="tap-n call"><b>${num(r.calls)}</b><small>Calls</small></span><span class="tap-n wa"><b>${num(r.whatsapp)}</b><small>WhatsApp</small></span></div>`).join('')}</div>`
+        : `<p class="hint" style="margin:6px 0 0">No calls or WhatsApp taps ${tapRange === 'all' ? 'yet' : `for ${TAP_RANGES[tapRange].toLowerCase()}`}. Taps on a lead's Call or WhatsApp button are counted here.</p>`}
+      <p class="hint" style="margin:8px 0 0">Repeat taps on the same lead and button by the same person within ${Number(set().clickGapMins) || 15} minutes count once.</p></section>`;
+  }
+  // Follow-up reminders: quick "remind me" times on any lead, and a reminders list with snooze and done.
+  const hm = (dt) => `${String(dt.getHours()).padStart(2, '0')}:${String(dt.getMinutes()).padStart(2, '0')}`;
+  const isoOf = (dt) => `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+  function remindPresets() {
+    const now = new Date(); const at = (mins) => new Date(now.getTime() + mins * 60000);
+    const day = (n, h) => { const x = new Date(now); x.setDate(x.getDate() + n); x.setHours(h, 0, 0, 0); return x; };
+    const list = [['30m', 'In 30 min', at(30)], ['1h', 'In 1 hour', at(60)], ['3h', 'In 3 hours', at(180)]];
+    if (now.getHours() < 17) list.push(['eve', 'This evening 6 PM', day(0, 18)]);
+    list.push(['tm', 'Tomorrow 10 AM', day(1, 10)], ['tm5', 'Tomorrow 5 PM', day(1, 17)], ['2d', 'In 2 days', day(2, 10)], ['wk', 'Next week', day(7, 10)]);
+    return list;
+  }
+  function remindForm(id) {
+    const l = admin.lead(id); if (!l) return;
+    const ps = remindPresets();
+    openForm({
+      title: `Remind me · ${l.name}`, submitLabel: 'Set reminder',
+      html: `<div class="remind-grid" id="rm-box">${ps.map(([k, label, dt]) => `<button type="button" class="remind-opt" data-rm="${k}" data-d="${isoOf(dt)}" data-t="${hm(dt)}"><b>${label}</b><small>${isoOf(dt) === admin.today() ? 'Today' : fdate(isoOf(dt))} · ${time12(hm(dt))}</small></button>`).join('')}</div>
+        <div class="grid two"><label class="f">Date<input type="date" id="rm-date" value="${esc(l.followUp || shiftDay(admin.today(), 1))}"></label><label class="f">Time<input type="time" id="rm-time" value="${esc(l.followTime || '10:00')}"></label>
+        <label class="f span">What to do (optional)<input id="rm-note" placeholder="Call back about the 3 month plan"></label></div>
+        <p class="hint" style="margin:0">You get an alert ${Number(set().remindMins) || 10} minutes before, and the lead shows in Follow-up reminders.</p>`,
+      onSubmit: () => {
+        const d = $('#rm-date').value; const t = $('#rm-time').value;
+        if (!d) throw new Error('Choose a date');
+        const note = $('#rm-note').value.trim();
+        admin.addLeadActivity(l.id, { type: 'note', text: note ? `Reminder: ${note}` : '', followUp: d, followTime: t });
+        return `Reminder set · ${l.name} · ${d === admin.today() ? 'today' : fdate(d)}${t ? ` ${time12(t)}` : ''}`;
+      },
+    });
+    $('#rm-box').addEventListener('click', (e) => { const b = e.target.closest('[data-rm]'); if (!b) return; $$('[data-rm]', $('#rm-box')).forEach((x) => x.classList.toggle('on', x === b)); $('#rm-date').value = b.dataset.d; $('#rm-time').value = b.dataset.t; });
+  }
+  function reminderCard(mine) {
+    const x = admin.leadDay(admin.today(), mine);
+    const nowT = hm(new Date());
+    const due = [...x.overdue, ...x.dueToday];
+    const soon = x.upcoming.slice(0, 3);
+    const when = (l) => { const late = l.followUp < admin.today() || (l.followUp === admin.today() && l.followTime && l.followTime < nowT); return `<span class="fu-when ${late ? 'bad' : 'warn'}">${l.followUp === admin.today() ? 'Today' : fdate(l.followUp)}${l.followTime ? `<small>${time12(l.followTime)}</small>` : ''}</span>`; };
+    const row = (l) => { const wa = waLink(l.mobile, fillWa('followup', { clinic: set().clinic, name: l.name, about: l.interest ? ` about ${l.interest}` : '' })); return `<div class="fu-row">${when(l)}<button type="button" class="fu-name" data-act="lead" data-id="${l.id}"><b>${esc(l.name)}</b><small>${esc([l.status, l.interest, l.assignedTo ? accountName(l.assignedTo) : ''].filter(Boolean).join(' · '))}</small></button>
+      <span class="fu-acts"><a class="btn xs" href="tel:${esc(l.mobile)}" data-callout="${l.id}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener" data-walead="${l.id}">WhatsApp</a>` : ''}${readOnly() ? '' : `<button type="button" class="btn xs" data-act="lead-snooze" data-id="${l.id}" title="Remind again in 1 hour">+1 h</button><button type="button" class="btn xs" data-act="lead-remind" data-id="${l.id}">⏰</button><button type="button" class="btn xs success" data-act="lead-fu-done" data-id="${l.id}" title="Follow-up done">✓</button>`}</span></div>`; };
+    const perm = window.Notification && Notification.permission === 'default' && !window.AndroidBridge;
+    return `<section class="card remind-card ${due.length ? 'has' : ''}"><h2><span class="ic gold">${svg('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>')}</span>Follow-up reminders${due.length ? ` <span class="badge ${x.overdue.length ? 'bad' : 'warn'}">${due.length}</span>` : ''}<span class="sp"></span>${perm ? '<button type="button" class="btn xs" data-act="notif-on">Turn on alerts</button>' : ''}</h2>
+      ${due.length ? `<div class="fu-list">${capList(due, 'remind').map(row).join('')}</div>${moreBtn('remind', due.length)}` : '<p class="hint" style="margin:0">No follow-ups due. Tap ⏰ on any lead to set a reminder.</p>'}
+      ${soon.length ? `<h3 class="sub-h">Coming up</h3><div class="fu-list">${soon.map(row).join('')}</div>` : ''}</section>`;
   }
   function leadForm(l) {
     const v = l || { priority: 'warm', status: 'New', assignedTo: role === 'desk' || role === 'marketing' ? me.id : '', followUp: shiftDay(admin.today(), Number(set().followUpDays) || 0) };
@@ -1411,7 +1493,7 @@
     openForm({
       title: l.name, submitLabel: 'Save update',
       html: `<div class="meta" style="display:flex;gap:6px;flex-wrap:wrap"><span class="badge ${PRIO_CLS[l.priority]}">${esc(A.LEAD_PRIORITIES[l.priority] || '')}</span><span class="badge info">${esc(l.status)}</span>${l.source ? `<span class="badge">${esc(l.source)}</span>` : ''}</div>
-        <div class="quick"><a class="btn" href="tel:${esc(l.mobile)}" data-callout="${l.id}">📞 Call</a>${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">💬 WhatsApp</a>` : ''}${can('appointments') && !l.apptId ? `<button type="button" class="btn success" data-act="lead-book" data-id="${l.id}">Book appointment</button>` : ''}${l.status !== 'Converted' ? `<button type="button" class="btn" data-act="lead-convert" data-id="${l.id}">Mark converted</button>` : ''}<button type="button" class="btn" data-act="lead-edit" data-id="${l.id}">Edit</button>${canDelete() ? `<button type="button" class="btn danger" data-act="lead-del" data-id="${l.id}">Delete</button>` : ''}</div>
+        <div class="quick"><a class="btn" href="tel:${esc(l.mobile)}" data-callout="${l.id}">📞 Call</a>${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener" data-walead="${l.id}">💬 WhatsApp</a>` : ''}${readOnly() ? '' : `<button type="button" class="btn" data-act="lead-remind" data-id="${l.id}">⏰ Remind me</button>`}${can('appointments') && !l.apptId ? `<button type="button" class="btn success" data-act="lead-book" data-id="${l.id}">Book appointment</button>` : ''}${l.status !== 'Converted' ? `<button type="button" class="btn" data-act="lead-convert" data-id="${l.id}">Mark converted</button>` : ''}<button type="button" class="btn" data-act="lead-edit" data-id="${l.id}">Edit</button>${canDelete() ? `<button type="button" class="btn danger" data-act="lead-del" data-id="${l.id}">Delete</button>` : ''}</div>
         <div class="wa-tpl"><small>WhatsApp message</small>${Object.keys(WA_DEFAULTS).map((k) => (waLink(l.mobile, waText(k, l)) ? `<a class="chip-btn" href="${esc(waLink(l.mobile, waText(k, l)))}" target="_blank" rel="noopener">${WA_LABELS[k]}</a>` : '')).join('')}</div>
         <div class="lead-score-row"><span class="score big ${scoreCls(admin.leadScore(l))}">${admin.leadScore(l)}</span><span><b>Lead score</b><small>From priority, contacts, follow-up, budget and booking</small></span>${tagsOf(l).map((t) => `<span class="tag">${esc(t)}</span>`).join('')}</div>
         <b style="font-size:13px">Move to stage</b>
@@ -1473,6 +1555,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.0', 'Company profile & payments in Settings (legal name, address, GSTIN, doctor, UPI, bank, terms, medico-legal note) used on every PDF and the diet charts; patient sales slips (several sales on one slip, A5, A4 or 80 mm receipt, invoice or payment receipt, amount in words, payment details); new letterhead and footer on all PDFs; Today export with period, sections and filters; Call and WhatsApp taps counted per team member with repeat taps ignored; follow-up reminders with remind-me times, snooze and done; redesigned dashboard boxes and menu icons; transparent logo and new app icon; lighter animations. Diet: Add food, Add recipe and My foods moved into Foods & Recipes, more tappable patients, charts, recipes and foods, premium chart and recipe PDFs with medico-legal note.'],
     ['3.9', 'Every dashboard box opens its screen; founders kept to the Founder Hub; WhatsApp today with tabs and options (which messages, how many, inactive patients, your own wording); menu in colour-coded sections that fold away; Settings as tiles with a Google Sheet connection status; saved PDFs and images open automatically; six multi-colour themes (Aurora, Peacock, Sunrise, Galaxy, Tropical, Maharaja); more luxury dashboard. Diet: all 11,018 recipes in Recipes with search and filters, clickable home boxes, multi-colour themes. Data Explorer removed.'],
     ['3.8', 'Founders can be edited, disabled and enabled again (data kept) with more profile details; Data Explorer for every data sheet with search, column filters, sort, group-by, column picker, saved views and PDF / Excel export; Super Admin branding & menu (rename or switch off menu items, app name, brand and gold colours, serif or modern headings, spacing, corners, animations); much faster on big data (lists show 50 at a time, quicker search); luxury serif headings. Diet charts: 9,070 foods and 11,018 recipes with full method and nutrition, a Foods & Recipes library with filters and exports, and protein powder shakes in diet charts.'],
     ['3.7', 'Several founder profiles (profit share, monthly limit, capital in / out, profit share per founder); Founder Hub discussions saved with date, time and mode (in person, call, WhatsApp, video…), who was there, outcome and next step, with a quick note box, search and a PDF of all discussions; more Founder Hub numbers (this month vs last, money by payment mode, top products and team); easier leads: quick add, one-tap call outcome after each call, next-stage button; scrolling fixed on Settings and every screen; more luxury styling.'],
@@ -1817,18 +1900,60 @@
     openForm({
       title: 'Sale saved', submitLabel: false,
       html: `<div class="done-mark">${svg('<path d="M5 12l5 5 9-10"/>')}</div><p style="text-align:center;margin:6px 0 14px"><b>${esc(sale.patientName)}</b> · ${esc(sale.product)} · <b>${inr(sale.amount)}</b><br><span class="hint">Invoice ${esc(admin.invoiceFor(sale.id).no)}</span></p>
-        <div class="quick" style="justify-content:center"><button type="button" class="btn primary" data-act="invoice" data-id="${sale.id}">Invoice PDF</button>${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">Send on WhatsApp</a>` : ''}<button type="button" class="btn" data-close>New sale</button></div>`,
+        <div class="quick" style="justify-content:center"><button type="button" class="btn primary" data-act="slip" data-id="${sale.id}">Sales slip</button><button type="button" class="btn" data-act="invoice" data-id="${sale.id}">Invoice</button>${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">Send on WhatsApp</a>` : ''}<button type="button" class="btn" data-close>New sale</button></div>`,
     });
   }
   function invoiceText(id) {
     const v = admin.invoiceFor(id);
     return `Namaste ${v.patient}, thank you for choosing ${set().clinic}.\nInvoice ${v.no} · ${fdate(v.date)}\n${v.lines.map((l) => `${l.name} × ${l.qty} = ${inr(l.amount)}`).join('\n')}\nTotal ${inr(v.total)}${v.payMethod ? ` · Paid by ${v.payMethod}` : ''}\n${set().phone || ''}`;
   }
-  function invoicePdf(id) {
-    const v = admin.invoiceFor(id); const st = set(); const c = (st.clinics || [])[0] || {};
+  // Sales slip for a patient: pick the sales to include, the kind and size of slip, and what to print.
+  let slipPrefs = null;
+  function slipDialog(saleId, patientId, kind) {
+    const st = set();
+    const x = saleId ? S().sales.find((s) => s.id === saleId) : null;
+    const pid = patientId || (x && x.patientId);
+    const mine = S().sales.filter((s) => (pid ? s.patientId === pid : x && s.mobile === x.mobile && s.patientName === x.patientName)).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : b.created - a.created)).slice(0, 40);
+    if (!mine.length) { toast('No sales for this patient yet', true); return; }
+    const pick = x ? new Set([x.id]) : new Set(mine.filter((s) => s.date === mine[0].date).map((s) => s.id));
+    const pr = slipPrefs || { kind: kind || 'slip', format: st.slipFormat || 'a5', pay: true, terms: true, disclaimer: true, words: true };
+    if (kind) pr.kind = kind;
+    const seg = (k, list, cur) => `<div class="seg sm" data-slipseg="${k}">${list.map(([v, l]) => `<button type="button" data-v="${v}" class="${cur === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    openForm({
+      title: `Sales slip · ${mine[0].patientName}`, submitLabel: 'Make PDF', ro: true,
+      html: `<div id="slip-box"><div class="slip-pick">${mine.map((s) => `<label class="slip-row"><input type="checkbox" data-slipsale="${s.id}" ${pick.has(s.id) ? 'checked' : ''}><span><b>${esc(s.product)}</b><small>${fdate(s.date)}${s.qty > 1 ? ` · × ${s.qty}` : ''} · ${s.payMethod ? esc(s.payMethod) : '<span class="bad-t">Not paid</span>'}</small></span><b class="r">${inr(s.amount)}</b></label>`).join('')}</div>
+        <p class="hint" id="slip-total" style="margin:6px 0 10px"></p>
+        <div class="slip-opts"><div class="f">Document${seg('kind', [['slip', 'Sales slip'], ['invoice', 'Invoice'], ['receipt', 'Payment receipt']], pr.kind)}</div>
+        <div class="f">Size${seg('format', [['a5', 'A5'], ['a4', 'A4'], ['thermal', '80 mm']], pr.format)}</div></div>
+        <div class="slip-checks">${[['pay', 'Payment details (UPI, bank)'], ['words', 'Amount in words'], ['terms', 'Terms'], ['disclaimer', 'Medico-legal note']].map(([k, l]) => `<label class="check"><input type="checkbox" data-slipopt="${k}" ${pr[k] !== false ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+        ${!(st.upi || st.accountNo) ? '<p class="hint" style="margin:6px 0 0">Add your UPI ID or bank account in Settings → Company profile & payments to print payment details.</p>' : ''}</div>`,
+      onSubmit: () => {
+        const ids = $$('[data-slipsale]:checked', $('#modal-body')).map((i) => i.dataset.slipsale);
+        if (!ids.length) throw new Error('Tick at least one sale');
+        const get = (k) => ($(`[data-slipseg="${k}"] button.on`, $('#modal-body')) || {}).dataset.v;
+        const opts = { kind: get('kind') || 'slip', format: get('format') || 'a5' };
+        $$('[data-slipopt]', $('#modal-body')).forEach((i) => { opts[i.dataset.slipopt] = i.checked; });
+        slipPrefs = opts;
+        const v = admin.slipFor(ids.reverse());
+        const title = { slip: 'SALES SLIP', invoice: 'INVOICE', receipt: 'PAYMENT RECEIPT' }[opts.kind];
+        const name = X.slip({ ...v, title, dateText: v.from !== v.date ? `${fdate(v.from)} to ${fdate(v.date)}` : fdate(v.date), note: st.invoiceNote || '',
+          filename: `${title.replace(/ /g, '-').toLowerCase().replace(/(^|-)\w/g, (m) => m.toUpperCase())}-${v.nos[0]}-${String(v.patient || '').replace(/[^\w]+/g, '-')}` }, opts);
+        return `Saved ${name}`;
+      },
+    });
+    const sumUp = () => { const ids = new Set($$('[data-slipsale]:checked', $('#modal-body')).map((i) => i.dataset.slipsale)); const t = mine.filter((s) => ids.has(s.id)); $('#slip-total').innerHTML = t.length ? `<b>${t.length} sale${t.length > 1 ? 's' : ''}</b> · total <b>${inr(t.reduce((a, s) => a + s.amount, 0))}</b>` : 'Tick the sales to put on the slip'; };
+    $('#slip-box').addEventListener('change', sumUp);
+    $('#slip-box').addEventListener('click', (e) => { const b = e.target.closest('[data-slipseg] button'); if (!b) return; $$('button', b.parentElement).forEach((x) => x.classList.toggle('on', x === b)); });
+    sumUp();
+  }
+  function invoicePdf(id) { slipDialog(id, null, 'invoice'); }
+  function sampleSlip() {
+    const st = set();
     try {
-      const name = X.invoice({ ...v, dateText: fdate(v.date), clinic: st.clinic, address: c.address || '', phone: st.phone || c.phone || '', website: st.website, gstin: st.gstin || '', note: st.invoiceNote || '', filename: `Invoice-${v.no}-${String(v.patient || '').replace(/[^\w]+/g, '-')}` });
-      toast(`Saved ${name}`);
+      toast(`Saved ${X.slip({ title: 'SALES SLIP', no: `${st.invoicePrefix || 'TPF'}-SAMPLE`, date: admin.today(), dateText: fdate(admin.today()), patient: 'Sample Patient', mobile: '98765 43210', by: me ? me.name : '',
+        lines: [{ name: 'Diet Support · 3 Month', detail: 'Personal diet chart, weekly follow-ups', qty: 1, rate: 5000, amount: 5000 }, { name: 'Protein Sachets', qty: 2, rate: 100, amount: 200 }],
+        total: 5200, gst: Number(st.invoiceGst) || 0, taxable: (Number(st.invoiceGst) ? Math.round((5200 / (1 + st.invoiceGst / 100)) * 100) / 100 : 5200), tax: (Number(st.invoiceGst) ? Math.round((5200 - 5200 / (1 + st.invoiceGst / 100)) * 100) / 100 : 0),
+        payMethod: 'UPI', note: st.invoiceNote || '', filename: 'Sample-sales-slip' }, { format: st.slipFormat || 'a5' })}`);
     } catch (err) { toast(err.message, true); }
   }
 
@@ -1848,7 +1973,7 @@
       <td>${typeBadge(s.type)} ${s.patientType === 'renewal' ? '<span class="badge">Renewal</span>' : '<span class="badge ok">New</span>'}</td>
       <td>${esc(s.product)}${s.qty > 1 ? ` × ${s.qty}` : ''}</td>
       <td class="r"><b>${inr(s.amount)}</b></td><td data-hm>${splitText(s)}</td><td class="r">${inr(s.incentive)}</td>
-      <td class="acts"><button class="btn xs" data-act="invoice" data-id="${s.id}">Invoice</button> <button class="btn xs" data-act="edit-sale" data-id="${s.id}">Edit</button> <button class="btn xs danger" data-act="del-sale" data-id="${s.id}">Delete</button></td></tr>`);
+      <td class="acts"><button class="btn xs" data-act="slip" data-id="${s.id}">Slip</button> <button class="btn xs" data-act="invoice" data-id="${s.id}">Invoice</button> <button class="btn xs" data-act="edit-sale" data-id="${s.id}">Edit</button> <button class="btn xs danger" data-act="del-sale" data-id="${s.id}">Delete</button></td></tr>`);
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('sales')}</div>
       <div class="filters"><div class="row"><input type="search" placeholder="Search patient, mobile, product" data-filter="q" value="${esc(salesFilter.q)}">
         <select data-filter="type" aria-label="Sale type">${opt('', 'All sale types', salesFilter.type)}${Object.entries(A.SALE_TYPES).map(([k, l]) => opt(k, l, salesFilter.type)).join('')}</select>
@@ -2403,17 +2528,8 @@
       return { title: 'Expenses', subtitle: periodLabel(), kpis: [['Total expenses', inr(list.reduce((a, e) => a + e.amount, 0))], ['Entries', num(list.length)], ['Founder', inr(g('Founder'))], ['Ads', inr(g('Ads'))], ['Editing', inr(g('Editing'))]],
         sections: [R.expenses(list), ...R.expenseGroups(admin.expenseSummary(range()))] }; },
     report: () => REPORTS[reportTab].build(),
-    today: () => {
-      const d = todayDate || stamp(); const x = admin.daySummary(d);
-      const kp = [['Sales', inr(x.salesTotal)], ['Purchases', inr(x.purchaseTotal)], ['OPD appointments', num(x.appt.total - x.appt.cancelled)], ['OPD fees', inr(x.appt.fees)],
-        ['Expenses', inr(x.expenseTotal)], ['New leads', num(x.leads)], ['Follow-ups', num(x.followUps.length)], ['Renewals due', num(x.renewals.length)],
-        ['Videos posted', num(x.posted.length)], ['Posts due', num(x.content.dueToday.length + x.content.overdue.length)], ['Items available', num(x.available.length)], ['Not available', num(x.notAvailable.length)]];
-      const has = (sec) => sec.rows.length;
-      return { title: 'Today Summary', subtitle: fdate(d), kpis: kp, alertKpis: [11], sections: [
-        ...(x.order.length ? [R.dayStock('ORDER REQUIRED', x.order)] : []), R.daySales(x), R.dayAppts(x), ...[R.dayExpenses(x), R.dayPurchases(x), R.dayLeads(x), R.dayRenewals(x), R.dayContent(x)].filter(has),
-        R.dayStock('Stock Available', x.available), ...(x.notAvailable.length ? [R.dayStock('Stock Not Available', x.notAvailable)] : [])] };
-    },
-    leads: () => { const list = filteredLeads(); return { title: 'Leads', subtitle: role === 'desk' ? `${me.name} · ${fdate(stamp())}` : fdate(stamp()), sections: [R.leads(list), ...(role !== 'desk' ? [R.leadOwners(list)] : [])] }; },
+    today: () => { const o = pendingToday ? todayXp(pendingToday) : todayXp({ period: 'day', type: '', member: '', pay: '', secs: {} }); pendingToday = null; return todayReport(o); },
+    leads: () => { const list = filteredLeads(); return { title: 'Leads', subtitle: role === 'desk' ? `${me.name} · ${fdate(stamp())}` : fdate(stamp()), sections: [R.leads(list), ...(role !== 'desk' ? [R.leadOwners(list)] : []), tapSec(tapRangeOf(tapRange), myLeadFilter())] }; },
     activity: () => ({ title: 'Activity Log', subtitle: periodLabel(), sections: [R.activity(filteredLog())] }),
     founder: () => {
       const r = range(); const sm = admin.expenseSummary(r); const fin = admin.financialReport(r); const f = (fdSel && admin.founder(fdSel)) || {};
@@ -2500,7 +2616,86 @@
     };
     return (list || []).length ? `<div class="filters"><div class="row">${list.map((k) => F[k]()).join('')}<button type="button" class="btn sm ghost" data-act="rfilter-clear">Clear filters</button></div></div>` : '';
   }
+  const tapSec = (r, mine) => sec(`Calls & WhatsApp by Team (${r ? (r.from === r.to ? fdate(r.from) : `${fdate(r.from)} to ${fdate(r.to)}`) : 'all time'})`, ['Team member', '>Calls', '>WhatsApp', '>Total', '>Leads reached', '>Repeat taps not counted', 'Last tap'],
+    admin.clickStats(r, mine).map((x) => [x.name, x.calls, x.whatsapp, x.total, x.leads, x.ignored, ftime(x.last)]), { total: [1, 2, 3] });
   const clinicLine = () => [set().clinic || 'The Prime Fit', set().phone].filter(Boolean).join(' · ');
+  // Today summary export: pick the period, the sections and filters (sale type, team member, payment).
+  const TODAY_SECS = [['kpis', 'Summary boxes'], ['order', 'Order required'], ['sales', 'Sales'], ['opd', 'OPD appointments'], ['expenses', 'Expenses'], ['purchases', 'Purchases'],
+    ['leads', 'Leads & follow-ups'], ['taps', 'Calls & WhatsApp by team'], ['renewals', 'Renewals due'], ['content', 'Videos & posts'], ['stock', 'Stock available'], ['nostock', 'Stock not available']];
+  let pendingToday = null;
+  function todayXp(o) {
+    let saved = {};
+    try { saved = JSON.parse(localStorage.getItem('primefit.todayXp') || '{}') || {}; } catch (_) { saved = {}; }
+    const d = todayDate || stamp();
+    return { period: 'day', type: '', member: '', pay: '', secs: Object.fromEntries(TODAY_SECS.map(([k]) => [k, true])), ...saved, ...(o || {}), day: d };
+  }
+  function todayPeriod(o) {
+    const d = o.day || stamp();
+    if (o.period === 'week') return { from: shiftDay(d, -6), to: d };
+    if (o.period === 'month') return { from: `${d.slice(0, 8)}01`, to: d };
+    if (o.period === 'custom' && o.from && o.to) return { from: o.from <= o.to ? o.from : o.to, to: o.from <= o.to ? o.to : o.from };
+    return { from: d, to: d };
+  }
+  function todayReport(o) {
+    const r = todayPeriod(o); const one = r.from === r.to; const on = (k) => o.secs[k] !== false;
+    const x = admin.daySummary(r.to);
+    const saleOk = (s2) => (!o.type || s2.type === o.type) && (!o.member || s2.splits.some((y) => y.memberId === o.member)) && (!o.pay || (o.pay === 'paid' ? !!s2.payMethod : !s2.payMethod));
+    const sales = S().sales.filter((s2) => inR(s2.date, r) && saleOk(s2));
+    const appts = admin.appointmentsIn(r).filter((a) => !o.pay || (o.pay === 'paid' ? a.paid : !a.paid && a.status !== 'cancelled'));
+    const exps = S().expenses.filter((e) => inR(e.date, r) && !e.deleted);
+    const purch = S().purchases.filter((p2) => inR(p2.date, r));
+    const leads = S().leads.filter((l) => inR(l.date, r));
+    const fees = appts.filter((a) => a.paid && a.status !== 'cancelled').reduce((a, b) => a + (Number(b.fee) || 0), 0);
+    const taps = admin.clickStats(r);
+    const filt = [o.type ? saleLabel(o.type) : '', o.member ? (admin.member(o.member) || {}).name : '', o.pay ? (o.pay === 'paid' ? 'Paid only' : 'Unpaid only') : ''].filter(Boolean).join(' · ');
+    const kp = [['Sales', inr(sales.reduce((a, b) => a + b.amount, 0))], ['Sales count', num(sales.length)], ['Purchases', inr(purch.reduce((a, b) => a + (Number(b.total) || 0), 0))], ['Expenses', inr(admin.expenseSummary(r).total)],
+      ['OPD appointments', num(appts.filter((a) => a.status !== 'cancelled').length)], ['OPD fees', inr(fees)], ['New leads', num(leads.length)], ['Calls / WhatsApp', `${num(taps.reduce((a, b) => a + b.calls, 0))} / ${num(taps.reduce((a, b) => a + b.whatsapp, 0))}`],
+      ['Renewals due', num(x.renewals.length)], ['Items available', num(x.available.length)], ['Not available', num(x.notAvailable.length)], ['Order required', num(x.order.length)]];
+    const xs = { ...x, sales, appointments: appts, expenses: exps, purchases: purch };
+    const secs = [];
+    if (on('order') && x.order.length) secs.push(R.dayStock('ORDER REQUIRED', x.order));
+    if (on('sales')) secs.push(one ? R.daySales(xs) : R.sales(sales));
+    if (on('opd')) secs.push(one ? R.dayAppts(xs) : R.appointments(appts));
+    if (on('expenses') && exps.length) secs.push(one ? R.dayExpenses(xs) : R.expenses(exps));
+    if (on('purchases') && purch.length) secs.push(one ? R.dayPurchases(xs) : R.purchases(purch));
+    if (on('leads')) secs.push(one ? R.dayLeads(x) : R.leads(leads));
+    if (on('taps') && taps.length) secs.push(tapSec(r));
+    if (on('renewals') && x.renewals.length) secs.push(R.dayRenewals(x));
+    if (on('content') && (x.posted.length || x.content.dueToday.length || x.content.overdue.length)) secs.push(R.dayContent(x));
+    if (on('stock')) secs.push(R.dayStock('Stock Available', x.available));
+    if (on('nostock') && x.notAvailable.length) secs.push(R.dayStock('Stock Not Available', x.notAvailable));
+    return { title: one ? 'Today Summary' : 'Daily Summary', subtitle: `${one ? fdate(r.to) : `${fdate(r.from)} to ${fdate(r.to)}`}${filt ? ` · ${filt}` : ''}`, kpis: on('kpis') ? kp : [], alertKpis: on('kpis') ? [10, 11] : [], sections: secs.length ? secs : [sec('Nothing selected', ['Note'], [['Tick at least one section to export']])] };
+  }
+  function todayExportForm() {
+    const o = todayXp();
+    const seg = (k, list, cur) => `<div class="seg sm" data-txseg="${k}">${list.map(([v, l]) => `<button type="button" data-v="${v}" class="${(cur || '') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    openForm({
+      title: 'Export summary', submitLabel: 'Export', ro: true,
+      html: `<div id="tx-box"><div class="f">Period${seg('period', [['day', fdate(o.day)], ['week', 'Last 7 days'], ['month', 'This month'], ['custom', 'Custom']], o.period)}</div>
+        <div class="grid two tx-custom" ${o.period === 'custom' ? '' : 'hidden'}><label class="f">From<input type="date" id="tx-from" value="${esc(o.from || shiftDay(o.day, -6))}"></label><label class="f">To<input type="date" id="tx-to" value="${esc(o.to || o.day)}"></label></div>
+        <h3 class="ui-h">What to include <button type="button" class="link" data-txall="1">All</button> · <button type="button" class="link" data-txall="0">None</button></h3>
+        <div class="tx-secs">${TODAY_SECS.map(([k, l]) => `<label class="check"><input type="checkbox" data-txsec="${k}" ${o.secs[k] !== false ? 'checked' : ''}> ${l}</label>`).join('')}</div>
+        <h3 class="ui-h">Filters</h3>
+        <div class="grid three"><label class="f">Sale type<select id="tx-type">${opt('', 'All types', o.type)}${saleTypes().map(([k, l]) => opt(k, l, o.type)).join('')}</select></label>
+          <label class="f">Team member<select id="tx-member">${memberOptions(o.member, 'Everyone')}</select></label>
+          <label class="f">Payment<select id="tx-pay">${[['', 'Paid and unpaid'], ['paid', 'Paid only'], ['unpaid', 'Unpaid only']].map(([k, l]) => opt(k, l, o.pay)).join('')}</select></label></div>
+        <div class="f" style="margin-top:8px">Format${seg('fmt', [['pdf', 'PDF'], ['xlsx', 'Excel'], ['jpeg', 'Image']], o.fmt || 'pdf')}</div></div>`,
+      onSubmit: () => {
+        const box = $('#tx-box'); const g = (k) => ($(`[data-txseg="${k}"] button.on`, box) || {}).dataset.v || '';
+        const n = { period: g('period') || 'day', fmt: g('fmt') || 'pdf', from: $('#tx-from').value, to: $('#tx-to').value, type: $('#tx-type').value, member: $('#tx-member').value, pay: $('#tx-pay').value,
+          secs: Object.fromEntries($$('[data-txsec]', box).map((i) => [i.dataset.txsec, i.checked])) };
+        try { localStorage.setItem('primefit.todayXp', JSON.stringify(n)); } catch (_) { /* ignore */ }
+        pendingToday = n; runExport('today', n.fmt);
+      },
+    });
+    const box = $('#tx-box');
+    box.addEventListener('click', (e) => {
+      const b = e.target.closest('[data-txseg] button');
+      if (b) { $$('button', b.parentElement).forEach((x) => x.classList.toggle('on', x === b)); if (b.parentElement.dataset.txseg === 'period') $('.tx-custom', box).hidden = b.dataset.v !== 'custom'; }
+      const a = e.target.closest('[data-txall]');
+      if (a) $$('[data-txsec]', box).forEach((i) => { i.checked = a.dataset.txall === '1'; });
+    });
+  }
   function runExport(what, fmt) {
     const rep = EXPORTS[what]();
     rep.filename = `ThePrimeFit-${rep.title.replace(/[^A-Za-z0-9]+/g, '-')}-${stamp()}`;
@@ -2551,23 +2746,23 @@
     const chips = (list) => `<div class="opt-chips">${st.lists[list].map((x) => `<span class="opt-chip">${esc(x)}<button type="button" data-act="list-rename" data-list="${list}" data-name="${esc(x)}" aria-label="Rename">✎</button><button type="button" data-act="list-del" data-list="${list}" data-name="${esc(x)}" aria-label="Remove">✕</button></span>`).join('')}
       <span class="opt-add"><input placeholder="Add new" data-listadd="${list}"><button type="button" class="btn xs primary" data-act="list-add" data-list="${list}">Add</button></span></div>`;
     const catChips = `<div class="opt-chips">${S().categories.map((c) => `<span class="opt-chip">${esc(c.name)}<small>${A.KINDS[c.kind]}</small><button type="button" data-act="cat-rename" data-name="${esc(c.name)}" aria-label="Rename">✎</button><button type="button" data-act="cat-del" data-name="${esc(c.name)}" aria-label="Delete">✕</button></span>`).join('')}<button type="button" class="btn xs primary" data-act="add-category">+ Category</button></div>`;
-    const STABS = [['general', 'Clinic & contact', 'Name, address, phone, social links', '<path d="M3 21h18M5 21V8l7-5 7 5v13"/>'],
+    const STABS = [['general', 'Clinic & fees', 'Fees, alerts, stock, sign-out', '<path d="M3 21h18M5 21V8l7-5 7 5v13"/>'],
+      ['profile', 'Company profile & payments', 'Name, contact, GSTIN, bank, UPI, slip wording', '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>'],
       ['selling', 'Selling & stock', 'Incentives, GST, invoices, stock alerts', '<path d="M4 8l8-4 8 4-8 4zM4 8v8l8 4 8-4V8"/>'],
       ['leads', 'Leads & WhatsApp', 'Follow-ups, tags, reminders, messages', ICON_LEADS],
       ['team', 'Logins & roles', 'Users, passwords, who sees what', '<rect x="5" y="11" width="14" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/>'],
       ['look', 'Look & branding', 'Themes, dashboards, menu, fonts', '<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z"/>'],
       ['data', 'Data & Google Sheet', 'Sync, backup and export', '<path d="M4 4h16v16H4zM4 10h16M10 4v16"/>']];
     return `${sheetStatusCard()}
-    <div class="set-tiles" role="tablist">${STABS.map(([k, l, d, ic], i) => `<button type="button" role="tab" data-stabgo="${k}" class="set-tile c${i} ${settingsTab === k ? 'on' : ''}"><span class="st-ic">${svg(ic)}</span><span class="st-t"><b>${l}</b><small>${d}</small></span></button>`).join('')}</div>
+    <div class="set-tiles" role="tablist">${STABS.map(([k, l, d, ic], i) => `<button type="button" role="tab" data-stabgo="${k}" class="set-tile c${i % 6} ${settingsTab === k ? 'on' : ''}"><span class="st-ic">${svg(ic)}</span><span class="st-t"><b>${l}</b><small>${d}</small></span></button>`).join('')}</div>
     ${role === 'super' ? brandingCard() : ''}
     <div class="card" data-stab="look"><h2><span class="ic">${svg('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z"/>')}</span>Theme</h2>${themeHtml()}<p class="hint" style="margin:10px 0 0">Applies on this phone to the clinic admin and the diet charts.</p></div>
     ${canCustomize() ? `<div class="card" data-stab="look"><h2><span class="ic violet">${svg('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>')}</span>What shows on dashboards</h2>
       <p class="hint" style="margin-top:0">Pick a screen, then tick the cards and boxes to show. Hidden ones keep their data. You can also tap <b>Show / hide</b> at the top of any of these screens.</p>
       <div class="opt-chips">${CUSTOM_SCREENS.filter((x) => can(x)).map((x) => `<button type="button" class="btn sm" data-act="customize-on" data-screen="${x}">${esc(TITLES[x] || (NAV.find((n) => n[0] === x) || [, x])[1])}${(hiddenOn(x) || []).length ? ` <span class="badge warn">${hiddenOn(x).length} hidden</span>` : ''}</button>`).join('')}</div></div>` : ''}
-    <form class="card form-card" id="settings-form" autocomplete="off" data-stab="general selling leads data">
+    <form class="card form-card" id="settings-form" autocomplete="off" data-stab="general profile selling leads data">
       <div data-stab="general"><h2><span class="ic">${svg('<path d="M3 21h18M5 21V8l7-5 7 5v13"/>')}</span>Clinic</h2>
       <div class="grid">
-        <label class="f">Clinic name<input name="clinic" value="${esc(st.clinic)}"></label>
         <label class="f">OPD consultation fee (₹)<input type="number" min="0" name="consultFee" value="${esc(st.consultFee)}"></label>
         <label class="f">Default GST % on purchases<input type="number" min="0" max="100" step="any" name="defaultGst" value="${esc(st.defaultGst != null ? st.defaultGst : 12)}"></label>
         <label class="f">Editor fee per video (₹)<input type="number" min="0" name="videoFee" value="${esc(st.videoFee != null ? st.videoFee : 150)}"></label>
@@ -2588,31 +2783,60 @@
         <small>${items.length ? esc(items.slice(0, 4).join(' · ')) + (items.length > 4 ? ` +${items.length - 4} more` : '') : 'No products yet'}</small>
         <button type="button" class="btn xs" ${k === 'diet' ? 'data-act="edit-plan"' : `data-act="add-product" data-kind="${k}"`}>+ Add ${k === 'diet' ? 'plan' : 'product'}</button></div>`; }).join('')}</div>
       <p style="margin:6px 0 0"><button type="button" class="btn sm" data-act="kind-add">+ Add a new type</button> <button type="button" class="link" data-go="products">Open Products</button></p>
-      <h2 style="margin-top:6px"><span class="ic violet">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7"/>')}</span>Patient invoices</h2>
+      <h2 style="margin-top:6px"><span class="ic violet">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5M9 13h7M9 17h7"/>')}</span>Patient slips & invoices</h2>
       <div class="grid">
-        <label class="f">Invoice number prefix<input name="invoicePrefix" value="${esc(st.invoicePrefix || 'TPF')}" maxlength="8"></label>
-        <label class="f">GSTIN (optional)<input name="gstin" value="${esc(st.gstin || '')}" placeholder="27ABCDE1234F1Z5"></label>
-        <label class="f">GST % included in prices<input type="number" min="0" max="28" step="any" name="invoiceGst" value="${esc(st.invoiceGst || 0)}"><span class="hint">0 = no GST line on the invoice</span></label>
-        <label class="f span">Note at the bottom of invoices<input name="invoiceNote" value="${esc(st.invoiceNote || '')}"></label>
+        <label class="f">Slip / invoice number prefix<input name="invoicePrefix" value="${esc(st.invoicePrefix || 'TPF')}" maxlength="8"></label>
+        <label class="f">GST % included in prices<input type="number" min="0" max="28" step="any" name="invoiceGst" value="${esc(st.invoiceGst || 0)}"><span class="hint">0 = no GST line on the slip</span></label>
+        <label class="f">Default slip size<select name="slipFormat">${[['a5', 'A5 slip'], ['a4', 'A4 invoice'], ['thermal', '80 mm receipt printer']].map(([k, l]) => opt(k, l, st.slipFormat || 'a5')).join('')}</select></label>
+        <label class="f span">Thank-you note on slips<input name="invoiceNote" value="${esc(st.invoiceNote || '')}"></label>
       </div>
+      <p class="hint" style="margin:0">Company name, GSTIN, bank and UPI details come from <button type="button" class="link" data-stabgo="profile">Company profile & payments</button>.</p>
       </div>
       <div data-stab="leads"><h2><span class="ic gold">${svg(ICON_LEADS)}</span>Leads & reminders</h2>
       <div class="grid two">
         <label class="f">New lead follow-up after (days)<input type="number" min="0" name="followUpDays" value="${esc(st.followUpDays != null ? st.followUpDays : 2)}"></label>
         <label class="f">Follow-up alert before (minutes)<input type="number" min="1" name="remindMins" value="${esc(st.remindMins || 10)}"></label>
+        <label class="f">Count repeat Call / WhatsApp taps once within (minutes)<input type="number" min="1" max="1440" name="clickGapMins" value="${esc(st.clickGapMins || 15)}"></label>
         <label class="f span">Lead tags (comma separated)<input name="leadTags" value="${esc((st.leadTags || []).join(', '))}"></label>
       </div>
       <label class="check"><input type="checkbox" name="autoAssign" ${st.autoAssign ? 'checked' : ''}> Share new leads automatically between Front Desk and Marketing logins (fewest open leads first)</label>
       <h2 style="margin-top:6px"><span class="ic wa">${svg('<path d="M20 12a8 8 0 0 1-11.8 7L4 20l1.1-4A8 8 0 1 1 20 12z"/>')}</span>WhatsApp messages</h2>
       <p class="hint" style="margin:0">Used on every lead. <code>{name}</code>, <code>{clinic}</code> and <code>{about}</code> are filled in. Leave blank for the default.</p>
       <div class="grid">${Object.keys(WA_DEFAULTS).map((k) => `<label class="f span">${WA_LABELS[k]}<textarea name="wa-${k}" rows="2" placeholder="${esc(WA_DEFAULTS[k])}">${esc((st.waTemplates || {})[k] || '')}</textarea></label>`).join('')}</div></div>
-      <div data-stab="general"><h2 style="margin-top:6px"><span class="ic teal">${svg('<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>')}</span>Clinic contact (on slips, PDFs and posts)</h2>
+      <div data-stab="profile"><h2><span class="ic teal">${svg('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>')}</span>Company profile</h2>
+      <p class="hint" style="margin:0 0 6px">Shown on every slip, invoice, OPD slip, report PDF and the diet charts. Change it here and everything updates automatically.</p>
       <div class="grid two">
-        <label class="f">Phone / WhatsApp<input name="phone" value="${esc(st.phone || '')}" placeholder="+91 92051 36303"></label>
+        <label class="f">Brand name<input name="clinic" value="${esc(st.clinic)}" placeholder="The Prime Fit"></label>
+        <label class="f">Registered / legal name<input name="legalName" value="${esc(st.legalName || '')}" placeholder="The Prime Fit Wellness Pvt. Ltd."></label>
+        <label class="f">Tagline<input name="tagline" value="${esc(st.tagline || '')}" placeholder="Transform Today, Thrive Tomorrow"></label>
+        <label class="f">Phone<input name="phone" type="tel" value="${esc(st.phone || '')}" placeholder="+91 92051 36303"></label>
+        <label class="f">WhatsApp number<input name="whatsapp" type="tel" value="${esc(st.whatsapp || '')}" placeholder="Same as phone"></label>
+        <label class="f">Email<input name="email" type="email" value="${esc(st.email || '')}" placeholder="care@theprimefit.in"></label>
         <label class="f">Website<input name="website" value="${esc(st.website || '')}" placeholder="www.theprimefit.in"></label>
+        <label class="f">GSTIN<input name="gstin" value="${esc(st.gstin || '')}" placeholder="27ABCDE1234F1Z5"></label>
+        <label class="f span">Address<textarea name="address" rows="2" placeholder="Shop no., street, area, city, PIN">${esc(st.address || '')}</textarea></label>
+        <label class="f">Registration / licence no.<input name="regNo" value="${esc(st.regNo || '')}"></label>
+        <label class="f">Doctor / dietitian name<input name="doctor" value="${esc(st.doctor || '')}" placeholder="Dr. …"></label>
+        <label class="f">Qualification<input name="qualification" value="${esc(st.qualification || '')}" placeholder="MBBS, MD · Clinical Nutrition"></label>
         <label class="f">Instagram link<input name="instagram" value="${esc(st.instagram || '')}"></label>
         <label class="f">YouTube link<input name="youtube" value="${esc(st.youtube || '')}"></label>
+        <label class="f">Facebook link<input name="facebook" value="${esc(st.facebook || '')}"></label>
       </div>
+      <h2 style="margin-top:6px"><span class="ic gold">${svg('<rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M6 15h3"/>')}</span>Payment details (printed on slips)</h2>
+      <div class="grid two">
+        <label class="f">UPI ID<input name="upi" value="${esc(st.upi || '')}" placeholder="theprimefit@upi"></label>
+        <label class="f">Payee name<input name="payee" value="${esc(st.payee || '')}" placeholder="Name on the account"></label>
+        <label class="f">Bank name<input name="bankName" value="${esc(st.bankName || '')}"></label>
+        <label class="f">Account number<input name="accountNo" value="${esc(st.accountNo || '')}" inputmode="numeric"></label>
+        <label class="f">IFSC<input name="ifsc" value="${esc(st.ifsc || '')}" placeholder="HDFC0001234"></label>
+        <label class="f">Branch<input name="branch" value="${esc(st.branch || '')}"></label>
+      </div>
+      <h2 style="margin-top:6px"><span class="ic violet">${svg('<path d="M12 2l8 4v6c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6z"/>')}</span>Terms & medico-legal note</h2>
+      <div class="grid">
+        <label class="f span">Terms on slips<textarea name="terms" rows="2" placeholder="${esc(X.TERMS)}">${esc(st.terms || '')}</textarea><span class="hint">Leave blank to use the wording shown.</span></label>
+        <label class="f span">Medico-legal note on patient slips and diet charts<textarea name="disclaimer" rows="3" placeholder="${esc(X.PATIENT_NOTE)}">${esc(st.disclaimer || '')}</textarea><span class="hint">Leave blank to use the wording shown.</span></label>
+      </div>
+      <div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm" data-act="slip-sample">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}Preview a sample slip</button></div>
       </div>
       <div data-stab="data"><h2 style="margin-top:6px"><span class="ic teal">${svg('<path d="M4 4h16v16H4zM4 10h16M10 4v16"/>')}</span>Google Sheet (data storage)</h2>
       <p class="hint" style="margin:0">All data is stored in ${SHEET_LINK ? `<a href="${SHEET_LINK}" target="_blank" rel="noopener">The Prime Fit Google Sheet</a>` : 'The Prime Fit Google Sheet'} and refreshes automatically on every device. Set-up once: open the sheet → Extensions → Apps Script → paste <a href="google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a> → run <b>setup</b> → Deploy → Web app (Execute as: Me, Who has access: Anyone) → paste the URL and the secret here.</p>
@@ -2673,14 +2897,15 @@
       const r1 = Number(f.r1.value) || 75; const r2 = Number(f.r2.value) || 90;
       const before = `${set().sheetsUrl}|${set().sheetsSecret}`;
       admin.updateSettings({
-        clinic: f.clinic.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
+        clinic: f.clinic.value.trim() || 'The Prime Fit', consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
         groups: Object.fromEntries(Object.keys(A.SALE_TYPES).map((k) => [k, f[`grp-${k}`].checked])),
-        phone: f.phone.value.trim(), website: f.website.value.trim(), instagram: f.instagram.value.trim(), youtube: f.youtube.value.trim(),
+        ...Object.fromEntries(['phone', 'website', 'instagram', 'youtube', 'facebook', 'legalName', 'tagline', 'whatsapp', 'email', 'address', 'regNo', 'doctor', 'qualification', 'upi', 'payee', 'bankName', 'accountNo', 'branch', 'terms', 'disclaimer'].map((k) => [k, f[k].value.trim()])),
+        ifsc: f.ifsc.value.trim().toUpperCase(), slipFormat: f.slipFormat.value,
         invoicePrefix: (f.invoicePrefix.value.trim() || 'TPF').replace(/[^\w-]/g, ''), gstin: f.gstin.value.trim().toUpperCase(), invoiceGst: Number(f.invoiceGst.value) || 0, invoiceNote: f.invoiceNote.value.trim(),
         defaultGst: f.defaultGst.value === '' ? 12 : Number(f.defaultGst.value), videoFee: f.videoFee.value === '' ? 150 : Number(f.videoFee.value),
         sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
-        followUpDays: Math.max(0, Number(f.followUpDays.value) || 0), remindMins: Math.max(1, Number(f.remindMins.value) || 10), autoAssign: f.autoAssign.checked, autoLockMins: Math.max(0, Number(f.autoLockMins.value) || 0),
+        followUpDays: Math.max(0, Number(f.followUpDays.value) || 0), remindMins: Math.max(1, Number(f.remindMins.value) || 10), clickGapMins: Math.min(1440, Math.max(1, Number(f.clickGapMins.value) || 15)), autoAssign: f.autoAssign.checked, autoLockMins: Math.max(0, Number(f.autoLockMins.value) || 0),
         leadTags: [...new Set(f.leadTags.value.split(',').map((x) => x.trim()).filter(Boolean))],
         waTemplates: Object.fromEntries(Object.keys(WA_DEFAULTS).map((k) => [k, f[`wa-${k}`].value.trim()]).filter(([, v]) => v)),
       });
@@ -3103,7 +3328,7 @@
         html: `<p style="margin:0">${esc(p.mobile || 'No mobile')} · ${sales.length} sales · ${appts.length} appointments</p>
           ${sales.length ? `<b>Sales</b>${table(['Date', 'Product', '>Amount', '~Reference'], sales.map((s) => `<tr><td>${fdate(s.date)}</td><td>${typeBadge(s.type)} ${esc(s.product)}</td><td class="r">${inr(s.amount)}</td><td>${splitText(s)}</td></tr>`))}` : ''}
           ${appts.length ? `<b>OPD appointments</b>${table(['Date', 'Mode', 'Status', '>Fee'], appts.map((a) => `<tr><td>${fdate(a.date)} ${esc(time12(a.time))}</td><td>${modeBadge(a.mode)}</td><td>${statusBadge(a.status)}</td><td class="r">${inr(a.fee)}</td></tr>`))}` : ''}
-          <div class="quick">${can('appointments') ? `<button type="button" class="btn" data-act="appt-for" data-id="${p.id}">Book appointment</button>` : ''}${can('sell') ? `<button type="button" class="btn primary" data-act="sell-to" data-id="${p.id}">New sale</button>` : ''}</div>`,
+          <div class="quick">${sales.length ? `<button type="button" class="btn" data-act="slip-patient" data-id="${p.id}">Sales slip</button>` : ''}${can('appointments') ? `<button type="button" class="btn" data-act="appt-for" data-id="${p.id}">Book appointment</button>` : ''}${can('sell') ? `<button type="button" class="btn primary" data-act="sell-to" data-id="${p.id}">New sale</button>` : ''}</div>`,
       });
       labelTables($('#modal-body'));
     },
@@ -3215,6 +3440,10 @@
     'task-del': (d) => { admin.deleteTask(d.id); render(); },
     'target-edit': () => targetForm(),
     invoice: (d) => invoicePdf(d.id),
+    slip: (d) => slipDialog(d.id),
+    'today-export': () => todayExportForm(),
+    'slip-patient': (d) => { modal.close(); setTimeout(() => slipDialog(null, d.id), 30); },
+    'slip-sample': () => sampleSlip(),
     'clinic-add': () => clinicForm(null),
     alerts: () => alertsModal(),
     'add-login-role': (d) => loginForm(null, null, { role: d.role }),
@@ -3236,6 +3465,10 @@
       modal.close(); render(); toast(`Saved · ${l.name}`);
       if (d.o === 'booked' && can('appointments') && !l.apptId) ACTIONS['lead-book']({ id: l.id });
     },
+    'lead-remind': (d) => { if (modal.open) modal.close(); setTimeout(() => remindForm(d.id), 30); },
+    'lead-snooze': (d) => { const l = admin.lead(d.id); if (!l) return; const t = new Date(Date.now() + 3600000); admin.addLeadActivity(l.id, { type: 'note', text: '', followUp: isoOf(t), followTime: hm(t) }); render(); toast(`${l.name}: reminder at ${time12(hm(t))}`); },
+    'lead-fu-done': (d) => { const l = admin.lead(d.id); if (!l) return; admin.addLeadActivity(l.id, { type: 'note', text: 'Follow-up done', followUp: '', followTime: '' }); render(); toast(`${l.name}: follow-up done`); },
+    'notif-on': () => { try { Notification.requestPermission().then(() => render()); } catch (_) { /* ignore */ } },
     'wa-setup': () => waSetup(),
     'sheet-check': () => pull(true),
     'wa-all': () => { waShowAll = true; render(); },
@@ -3294,7 +3527,7 @@
   };
 
   // Actions a view-only login may still use: they open, filter or export, never change data.
-  const RO_ACTIONS = ['show-more', 'wa-all', 'sheet-check', 'lead-select', 'lead-pick', 'lead-pick-all', 'alerts', 'exp-founder-all', 'refresh', 'export', 'user-menu', 'my-pin', 'theme', 'invoice', 'lead', 'appt', 'patient', 'toggle-alert', 'alerts-on', 'rfilter-clear', 'exp-pick', 'opd-slip', 'lock'];
+  const RO_ACTIONS = ['today-export', 'slip', 'slip-patient', 'slip-sample', 'show-more', 'wa-all', 'sheet-check', 'lead-select', 'lead-pick', 'lead-pick-all', 'alerts', 'exp-founder-all', 'refresh', 'export', 'user-menu', 'my-pin', 'theme', 'invoice', 'lead', 'appt', 'patient', 'toggle-alert', 'alerts-on', 'rfilter-clear', 'exp-pick', 'opd-slip', 'lock'];
   (function roStyle() {
     const st = document.createElement('style');
     st.textContent = `${Object.keys(ACTIONS).filter((k) => !RO_ACTIONS.includes(k)).map((k) => `body.ro [data-act="${k}"]`).join(',')},body.ro [data-go="sell"],body.ro [data-go="purchase-new"],body.ro #view form button[type=submit],body.ro .switch,body.ro .days-in{display:none!important}`;
@@ -3362,11 +3595,19 @@
     if (lsd) { leadSumDay = shiftDay(leadSumDay || admin.today(), Number(lsd.dataset.leadsum)); if (leadSumDay > admin.today()) leadSumDay = admin.today(); render(); return; }
     const lt = e.target.closest('[data-leadtab]');
     if (lt) { leadF.tab = lt.dataset.leadtab; render(); return; }
+    const tr = e.target.closest('[data-taprange]');
+    if (tr) { tapRange = tr.dataset.taprange; render(); return; }
     const ls = e.target.closest('[data-leadstatus]');
     if (ls) { leadF.status = leadF.status === ls.dataset.leadstatus ? '' : ls.dataset.leadstatus; leadF.tab = 'all'; render(); return; }
     const dn = e.target.closest('[data-day]');
     if (dn) { const n = Number(dn.dataset.day); todayDate = n ? shiftDay(todayDate || admin.today(), n) : admin.today(); render(); }
   });
+  // Every Call / WhatsApp tap on a lead is counted for the person signed in (repeat taps within the gap count once).
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest('a[data-callout], a[data-walead]');
+    if (!a || !me || readOnly()) return;
+    try { admin.logLeadClick(a.dataset.callout || a.dataset.walead, a.dataset.callout ? 'call' : 'whatsapp'); } catch (_) { /* never block the call */ }
+  }, true);
   // Links inside cards (Call / WhatsApp) must not open the card.
   view.addEventListener('click', (e) => { const a = e.target.closest('.lead a, .appt a'); if (!a) return; e.stopPropagation(); if (a.dataset.callout) setTimeout(() => callOutcome(a.dataset.callout), 900); }, true);
   view.addEventListener('keydown', (e) => {

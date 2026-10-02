@@ -344,3 +344,36 @@ test('founders can be disabled and re-enabled without losing data, and keep extr
   const again = admin.saveFounder({ id: a.id, name: 'Aamir S', share: 60 });
   assert.deepStrictEqual([again.city, again.role, again.joined, again.disabled], ['Mumbai', 'Operations', '2025-01-01', false]);
 });
+
+test('Call and WhatsApp taps count once per lead, button and person within the gap, per team member', () => {
+  let now = new Date('2026-10-02T10:00:00').getTime();
+  const admin = A.createAdmin(A.memoryStorage(), () => new Date(now));
+  const l = admin.saveLead({ name: 'Riya', mobile: '9876543210' });
+  admin.setActor('Asha');
+  assert.strictEqual(admin.logLeadClick(l.id, 'call').counted, true);
+  assert.strictEqual(admin.logLeadClick(l.id, 'call').counted, false); // repeat tap
+  now += 5 * 60000;
+  assert.strictEqual(admin.logLeadClick(l.id, 'call').counted, false);
+  assert.strictEqual(admin.logLeadClick(l.id, 'whatsapp').counted, true);
+  admin.setActor('Ravi');
+  assert.strictEqual(admin.logLeadClick(l.id, 'call').counted, true);
+  now += 20 * 60000;
+  admin.setActor('Asha');
+  assert.strictEqual(admin.logLeadClick(l.id, 'call').counted, true);
+  const st = admin.clickStats({ from: '2026-10-02', to: '2026-10-02' });
+  const asha = st.find((r) => r.name === 'Asha'); const ravi = st.find((r) => r.name === 'Ravi');
+  assert.deepStrictEqual([asha.calls, asha.whatsapp, asha.leads, asha.ignored], [2, 1, 1, 2]);
+  assert.deepStrictEqual([ravi.calls, ravi.whatsapp], [1, 0]);
+  assert.strictEqual(admin.clickStats({ from: '2026-10-03', to: '2026-10-03' }).length, 0);
+});
+
+test('a sales slip combines several sales of one patient', () => {
+  const admin = stocked();
+  const m = admin.saveMember({ name: 'Asha' });
+  const it = admin.saveItem({ name: 'Consult', category: 'Protein', kind: 'protein', price: 100, track: false });
+  const a = admin.saveSale({ type: 'protein', itemId: it.id, qty: 2, amount: 200, refId: m.id, patientName: 'Ravi', mobile: '9876543210', payMethod: 'UPI' });
+  const b = admin.saveSale({ type: 'protein', itemId: it.id, qty: 1, amount: 100, refId: m.id, patientName: 'Ravi', mobile: '9876543210' });
+  const s = admin.slipFor([a.id, b.id]);
+  assert.strictEqual(s.total, 300); assert.strictEqual(s.lines.length, 2); assert.strictEqual(s.unpaid, 1);
+  assert.strictEqual(s.nos.length, 2); assert.strictEqual(s.payMethod, 'UPI');
+});

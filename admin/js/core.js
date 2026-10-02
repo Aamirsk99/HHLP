@@ -117,6 +117,10 @@
         autoLockMins: 0, // sign out after this many idle minutes (0 = never)
         leadTags: ['GLP-1', 'Diet', 'Price asked', 'Callback', 'VIP'],
         waTemplates: {},
+        clickGapMins: 15, // repeat Call / WhatsApp taps on the same lead by the same person within this window count once
+        // Company profile and payment details (slips, invoices, every PDF; shared with the diet charts).
+        legalName: '', tagline: 'Transform Today, Thrive Tomorrow', whatsapp: '', email: '', address: '', regNo: '', doctor: '', qualification: '', facebook: '',
+        upi: '', payee: '', bankName: '', accountNo: '', ifsc: '', branch: '', disclaimer: '', terms: '',
       },
       categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
@@ -974,6 +978,20 @@
         total: x.amount, gst, taxable, tax: r2(x.amount - taxable), payMethod: x.payMethod || '', by: memberName(x.refId), notes: x.notes,
       };
     }
+    /** A sales slip for one or more sales of the same patient: lines, totals and payment modes combined. */
+    function slipFor(ids) {
+      const vs = (ids || []).map(invoiceFor);
+      if (!vs.length) fail('Choose at least one sale');
+      const uniq = (a) => [...new Set(a.filter(Boolean))];
+      const lines = vs.flatMap((v) => v.lines.map((l) => ({ ...l, date: v.date, no: v.no })));
+      const total = r2(sum(vs, (v) => v.total)); const taxable = r2(sum(vs, (v) => v.taxable));
+      const dates = vs.map((v) => v.date).sort();
+      return {
+        no: vs.length === 1 ? vs[0].no : `${vs[0].no} +${vs.length - 1}`, nos: vs.map((v) => v.no), date: dates[dates.length - 1], from: dates[0],
+        patient: vs[0].patient, mobile: vs[0].mobile, patientId: vs[0].patientId, lines, total, gst: vs[0].gst, taxable, tax: r2(total - taxable),
+        payMethod: uniq(vs.map((v) => v.payMethod)).join(' + '), unpaid: vs.filter((v) => !v.payMethod).length, by: uniq(vs.map((v) => v.by)).join(', '), notes: uniq(vs.map((v) => v.notes)).join(' · '),
+      };
+    }
     function deleteSale(id) {
       const x = S.sales.find((s) => s.id === id);
       S.sales = S.sales.filter((s) => s.id !== id);
@@ -1446,6 +1464,36 @@
       log('Lead activity', `${l.name} · ${input.type || 'note'}${text ? `: ${text.slice(0, 60)}` : ''}`);
       save();
       return l;
+    }
+    /**
+     * A tap on Call or WhatsApp for a lead, counted per team member. Repeat taps on the same lead and
+     * button by the same person within settings.clickGapMins count once (the extra taps are kept as a number).
+     */
+    function logLeadClick(id, kind) {
+      const l = lead(id);
+      if (!l || !['call', 'whatsapp'].includes(kind)) return { counted: false };
+      const at = clock ? clock().getTime() : Date.now();
+      if (!Array.isArray(l.clicks)) l.clicks = [];
+      const gap = Math.max(1, Number(S.settings.clickGapMins) || 15) * 60000;
+      const last = [...l.clicks].reverse().find((c) => c.k === kind && c.by === actor);
+      if (last && at - last.at < gap) { last.dup = (last.dup || 0) + 1; save(); return { counted: false }; }
+      l.clicks.push({ at, by: actor, k: kind });
+      if (l.clicks.length > 300) l.clicks = l.clicks.slice(-300);
+      l.lastContact = at;
+      save();
+      return { counted: true };
+    }
+    /** Call and WhatsApp taps per team member in a date range: calls, WhatsApp, leads reached, repeat taps ignored. */
+    function clickStats(range, filter) {
+      const rows = {};
+      S.leads.filter((l) => !filter || filter(l)).forEach((l) => (l.clicks || []).forEach((c) => {
+        if (!inRange(isoDate(new Date(c.at)), range)) return;
+        const k = c.by || 'Unknown';
+        const r = rows[k] || (rows[k] = { name: k, calls: 0, whatsapp: 0, leads: new Set(), ignored: 0, last: 0 });
+        if (c.k === 'call') r.calls += 1; else r.whatsapp += 1;
+        r.leads.add(l.id); r.ignored += c.dup || 0; r.last = Math.max(r.last, c.at);
+      }));
+      return Object.values(rows).map((r) => ({ ...r, leads: r.leads.size, total: r.calls + r.whatsapp })).sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
     }
     function deleteLead(id) {
       const l = lead(id);
@@ -1940,7 +1988,7 @@
       account, saveAccount, setAccountPin, deleteAccount, setActor,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
       updatePatient, deletePatient, daySummary,
-      invoiceFor, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, founders, founder, saveFounder, setFounderActive, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
+      invoiceFor, slipFor, logLeadClick, clickStats, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, founders, founder, saveFounder, setFounderActive, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, leadDay, kindName, kinds, saveKind, deleteKind, moveKind, clinic, saveClinic, deleteClinic, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,

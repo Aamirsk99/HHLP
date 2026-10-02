@@ -6,7 +6,12 @@
   const RC = window.RECIPES;
   const ING = window.INGREDIENTS;
   const IC = window.ICONS;
-  const BRAND = { company: 'The Prime Fit', website: 'www.theprimefit.in', phone: '+91 92051 36303', logo: 'img/logo.jpg' };
+  // Transparent logos: logo.png (dark ink, light backgrounds and every PDF), logo-light.png (dark backgrounds).
+  const BRAND = { company: 'The Prime Fit', website: 'www.theprimefit.in', phone: '+91 92051 36303', logo: 'img/logo.png', logoLight: 'img/logo-light.png' };
+  const CLINIC_KEY = 'primefit.profile'; // company profile written by the clinic admin (same origin)
+  const CLINIC_FIELDS = ['name', 'legalName', 'tagline', 'phone', 'whatsapp', 'email', 'website', 'address', 'gstin', 'regNo', 'doctor', 'qualification', 'instagram', 'youtube', 'facebook', 'upi', 'bankName', 'accountName', 'accountNo', 'ifsc', 'disclaimer'];
+  const DISCLAIMER_CHART = 'This diet plan is a general nutrition guide prepared for the named client. It is not a medical prescription and is not a substitute for advice from your doctor. Results vary from person to person and depend on adherence, health conditions, medicines and lifestyle; no specific result is guaranteed. Inform your dietitian of any allergy, pregnancy, medical condition or medicine before following it. Consult a doctor if you feel unwell.';
+  const DISCLAIMER_RECIPE = 'Nutrition values are estimates calculated from typical ingredients and portions; actual values vary with brands, sizes and cooking. Check every ingredient for allergens before cooking. This is general nutrition information, not medical advice.';
   const CURRENT_KEY = 'primefit.chart.v5';
   const LEGACY_KEY = 'primefit.chart.v3';
   const DIETITIAN_KEY = 'primefit.dietitian';
@@ -23,6 +28,32 @@
   try { storage = window.localStorage; storage.getItem('x'); } catch (_) { storage = window.STORE.memoryStorage(); }
   const store = window.STORE.createStore(storage, P, DB);
   store.syncFoods(); // the dietitian's own foods join the food database
+
+  /** Read a JSON object from storage; anything broken or missing gives {} (never throws). */
+  function readObj(key) {
+    try {
+      const v = JSON.parse(storage.getItem(key) || 'null');
+      return v && typeof v === 'object' && !Array.isArray(v) ? v : {};
+    } catch (_) { return {}; }
+  }
+  /**
+   * The clinic's details for the app bar and every PDF: the built-in brand, then the clinic admin's
+   * settings (primefit.admin.v1), then the shared company profile (primefit.profile). Empty values
+   * never override. Read fresh each time, so a change in the admin shows on the next PDF.
+   */
+  function clinic() {
+    const out = { name: BRAND.company, phone: BRAND.phone, website: BRAND.website };
+    CLINIC_FIELDS.forEach((k) => { if (!(k in out)) out[k] = ''; });
+    const put = (src) => CLINIC_FIELDS.forEach((k) => {
+      const v = src[k];
+      if ((typeof v === 'string' || typeof v === 'number') && String(v).trim()) out[k] = String(v).trim();
+    });
+    const st = readObj('primefit.admin.v1').settings;
+    if (st && typeof st === 'object') put({ phone: st.phone, website: st.website, instagram: st.instagram, youtube: st.youtube, email: st.email, address: st.address });
+    put(readObj(CLINIC_KEY));
+    out.website = out.website.replace(/^https?:\/\//i, '').replace(/\/+$/, '') || BRAND.website;
+    return out;
+  }
 
   const $ = (sel, el) => (el || document).querySelector(sel);
   const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
@@ -384,7 +415,7 @@
     else if (name === 'chart' && profile) sub = `${profile.name || 'Generic chart'} · Week ${meta.week || 1}`;
     $('#screen-sub').textContent = sub;
     $('#progress').hidden = stepIdx < 0;
-    $('#progress-bar').style.width = `${((stepIdx + 1) / STEPS.length) * 100}%`;
+    $('#progress-bar').style.transform = `scaleX(${(stepIdx + 1) / STEPS.length})`;
     $('#step-bar').hidden = stepIdx < 0 || name === 's5';
     $('#create-bar').hidden = name !== 's5';
     $('#chart-bar').hidden = name !== 'chart';
@@ -401,7 +432,7 @@
     if (name === 'library') renderLibrary();
     if (name === 'explore') lib.render();
     if (name === 'chart') render();
-    if (name === 'home') renderHome();
+    if (name === 'home') { renderBrand(); renderHome(); }
     if (name === 'patients') renderPatients();
     if (name === 'patient') renderPatient();
     if (name === 'charts') renderCharts();
@@ -412,11 +443,12 @@
   }
 
   /** Cards of a screen (or list) rise in one after another; CSS animates transform/opacity only. */
+  const calmMotion = window.matchMedia ? window.matchMedia('(prefers-reduced-motion: reduce)') : null;
   function animateIn(el) {
-    if (!el) return;
+    if (!el || (calmMotion && calmMotion.matches)) return;
     el.classList.add('entering');
     clearTimeout(el.enterTimer);
-    el.enterTimer = setTimeout(() => el.classList.remove('entering'), 800);
+    el.enterTimer = setTimeout(() => el.classList.remove('entering'), 520);
   }
 
   function go(name) {
@@ -459,7 +491,7 @@
   ];
   // Which menu entry is highlighted for screens that are not in the menu.
   const NAV_OF = { s1: 's1', s2: 's1', s3: 's1', s4: 's1', s5: 's1', chart: 'charts', patient: 'patients', recipe: 'recipes' };
-  $('#drawer-quick').innerHTML = [['s1', 'plus', 'New chart'], ['act:addfood', 'foods', 'Add food'], ['act:addrecipe', 'recipes', 'Add recipe']]
+  $('#drawer-quick').innerHTML = [['s1', 'plus', 'New chart'], ['charts', 'charts', 'Charts'], ['explore', 'search', 'Foods & recipes']]
     .map(([k, icon, label]) => `<button type="button" ${k.startsWith('act:') ? `data-act="${k.slice(4)}"` : `data-go="${k}"`}><span>${ui(icon)}</span><b>${esc(label)}</b></button>`).join('');
   $('#drawer-nav').innerHTML = NAV_GROUPS.map(([title, items]) => `<div class="nav-group"><small class="nav-title">${esc(title)}</small>${items.map(([k, icon, label]) => `<button type="button" data-go="${k}" data-nav="${k}"><span class="nav-ico">${ui(icon)}</span><span class="nav-label">${esc(label)}</span>${k === 'library' ? `<i class="nav-count my-foods-count" title="My foods"${myFoods().length ? '' : ' hidden'}>${myFoods().length}</i>` : ''}${k === 'admin' ? `<span class="nav-ext">${ICON.chev}</span>` : ''}</button>`).join('')}</div>`).join('');
   const TABS = [['home', 'home', 'Home'], ['patients', 'users', 'Patients'], ['s1', 'plus', 'New'], ['charts', 'charts', 'Charts'], ['recipes', 'recipes', 'Recipes']];
@@ -472,11 +504,12 @@
   function openDrawer() {
     clearTimeout(drawerTimer);
     $('#drawer').hidden = false; $('#scrim').hidden = false;
-    requestAnimationFrame(() => requestAnimationFrame(() => document.body.classList.add('drawer-open')));
+    requestAnimationFrame(() => requestAnimationFrame(() => { document.body.classList.add('drawer-open'); document.documentElement.classList.add('drawer-open'); }));
   }
   function closeDrawer() {
     if (!document.body.classList.contains('drawer-open')) { $('#drawer').hidden = true; $('#scrim').hidden = true; return; }
     document.body.classList.remove('drawer-open');
+    document.documentElement.classList.remove('drawer-open');
     clearTimeout(drawerTimer);
     drawerTimer = setTimeout(() => { $('#drawer').hidden = true; $('#scrim').hidden = true; }, 240);
   }
@@ -514,10 +547,7 @@
     ['patients', 'users', 'Patients', 'History & follow-up', 'q-purple'],
     ['charts', 'charts', 'Saved charts', 'Edit or reprint', 'q-teal'],
     ['recipes', 'recipes', 'Recipes', `${num(recipeTotal())} recipes`, 'q-red'],
-    ['explore', 'search', 'Library', `${num(foodTotal())} foods`, 'q-purple'],
-    ['act:addfood', 'plus', 'Add food', 'Your own foods', 'q-green'],
-    ['act:addrecipe', 'book', 'Add recipe', 'Step by step', 'q-orange'],
-    ['act:myfoods', 'foods', 'My foods', 'Edit or delete', 'q-teal'],
+    ['explore', 'search', 'Foods & recipes', `${num(foodTotal())} foods`, 'q-purple'],
     ['settings', 'settings', 'Settings', 'Theme & backup', 'q-grey'],
     ['admin', 'clinic', 'Clinic admin', 'Sales · OPD · Leads', 'q-brand'],
   ];
@@ -531,11 +561,11 @@
   function chartRow(c, opts) {
     const o = opts || {};
     const pl = P.PLANS[c.plan];
-    return `<div class="row-card" data-chart="${esc(c.id)}">
+    return `<div class="row-card is-link" data-chart="${esc(c.id)}" data-open-chart="${esc(c.id)}">
       <span class="rc-avatar">${esc((c.name || 'G').trim().charAt(0).toUpperCase())}</span>
       <button type="button" class="rc-main" data-open-chart="${esc(c.id)}">
         <b>${esc(c.name || 'Generic chart')}${o.hideWeek ? '' : ` <i class="wk">Week ${c.week || 1}</i>`}</b>
-        <small>${esc(pl ? pl.label : c.plan)} · ${num(c.kcal)} kcal · ${c.protein} g protein · ${c.days || 7} ${c.days === 1 ? 'day' : 'days'}</small>
+        <small>${esc(pl ? pl.label : c.plan)} · ${num(c.kcal || 0)} kcal · ${c.protein || 0} g protein · ${c.days || 7} ${c.days === 1 ? 'day' : 'days'}</small>
         <small class="date">${o.hideWeek ? `Week ${c.week || 1} · ` : ''}${dateText(c.updated)}</small>
       </button>
       <div class="rc-acts">
@@ -545,11 +575,22 @@
     </div>`;
   }
 
+  /** App bar logo, menu and dashboard follow the clinic's profile (name, website). */
+  function renderBrand() {
+    const c = clinic();
+    $$('#appbar-logo img, .drawer-logo').forEach((img) => { img.alt = c.name; });
+    const custom = c.name !== BRAND.company;
+    $('#drawer-name').textContent = c.name;
+    $('#drawer-name').hidden = !custom; // the logo already reads "The Prime Fit"
+    $('#drawer-foot-name').textContent = c.legalName || c.name;
+    $('#drawer-foot-web').textContent = [c.website, c.phone].filter(Boolean).join(' · ');
+  }
+
   function renderHome() {
     const dt = load(DIETITIAN_KEY) || {};
     const h = new Date().getHours();
     $('#dash-greet').textContent = h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening';
-    $('#dash-name').textContent = dt.dietitian || 'The Prime Fit';
+    $('#dash-name').textContent = dt.dietitian || clinic().name;
     const patients = store.listPatients();
     const charts = store.listCharts();
     renderTotals();
@@ -642,9 +683,9 @@
     store.listCharts().forEach((c) => { if (c.patientRef) counts[c.patientRef] = (counts[c.patientRef] || 0) + 1; });
     $('#pt-list').innerHTML = list.length ? list.map((p) => `
       <button type="button" class="row-card as-btn" data-patient="${esc(p.id)}">
-        <span class="rc-avatar">${esc(p.name.charAt(0).toUpperCase())}</span>
+        <span class="rc-avatar">${esc(String(p.name || '?').charAt(0).toUpperCase())}</span>
         <span class="rc-main">
-          <b>${esc(p.name)}</b>
+          <b>${esc(p.name || 'Unnamed patient')}</b>
           <small>${[p.age ? `${p.age} y` : '', p.sex ? (p.sex === 'male' ? 'Male' : 'Female') : '', p.weightKg ? `${p.weightKg} kg` : '', p.patientId, p.phone].filter(Boolean).map(esc).join(' · ') || 'No details'}</small>
           <small class="date">${counts[p.id] || 0} chart${counts[p.id] === 1 ? '' : 's'} · updated ${dateText(p.updated)}</small>
         </span>
@@ -660,14 +701,14 @@
   function renderPatient() {
     const p = store.getPatient(viewPatient);
     if (!p) { $('#pt-detail').innerHTML = '<div class="empty">Patient not found.</div>'; return; }
-    $('#screen-title').textContent = p.name;
+    $('#screen-title').textContent = p.name || 'Patient';
     const charts = store.listCharts(p.id);
     const bmi = p.heightCm && p.weightKg ? P.computeTargets({ ...p, plan: 'balanced' }) : null;
     const facts = [['Age', p.age ? `${p.age} years` : '—'], ['Sex', p.sex ? (p.sex === 'male' ? 'Male' : 'Female') : '—'], ['Height', p.heightCm ? `${p.heightCm} cm` : '—'], ['Weight', p.weightKg ? `${p.weightKg} kg` : '—'], ['BMI', bmi ? `${bmi.bmi} · ${bmi.bmiCategory}` : '—'], ['Mobile', p.phone || '—']];
     $('#pt-detail').innerHTML = `
       <div class="pt-hero">
-        <span class="rc-avatar lg">${esc(p.name.charAt(0).toUpperCase())}</span>
-        <div><h2>${esc(p.name)}</h2><p>${p.patientId ? 'ID ' + esc(p.patientId) + ' · ' : ''}${charts.length} saved chart${charts.length === 1 ? '' : 's'}</p></div>
+        <span class="rc-avatar lg">${esc(String(p.name || '?').charAt(0).toUpperCase())}</span>
+        <div><h2>${esc(p.name || 'Unnamed patient')}</h2><p>${p.patientId ? 'ID ' + esc(p.patientId) + ' · ' : ''}${charts.length} saved chart${charts.length === 1 ? '' : 's'}</p></div>
       </div>
       <div class="fact-grid">${facts.map(([k, v]) => `<div><small>${k}</small><b>${esc(v)}</b></div>`).join('')}</div>
       ${p.notes ? `<div class="card soft"><b>Notes:</b> ${esc(p.notes)}</div>` : ''}
@@ -754,7 +795,10 @@
       <ul class="food-items">${m.items.map((i) => {
         const dish = !i.custom && dishByName[i.name];
         const alt = [lang !== 'en' && !i.custom ? itemName(i, lang) : '', lang2 && !i.custom ? itemName(i, lang2) : ''].filter((x) => x && x !== i.name);
-        return `<li><span class="fi-ico">${iconOf(i)}</span><span class="fi-name">${dish ? `<button type="button" class="link-food" data-recipe="${esc(i.name)}">${esc(lang === 'en' ? i.name : itemName(i, lang))}</button>` : esc(lang === 'en' ? i.name : itemName(i, lang))}${alt.length ? `<small>${esc([lang !== 'en' ? i.name : '', ...alt.filter((x) => x !== itemName(i, lang))].filter(Boolean).join(' · '))}</small>` : ''}</span><b>${esc(itemQty(i, lang))}</b><em>${i.kcal}</em></li>`;
+        const shown = esc(lang === 'en' ? i.name : itemName(i, lang));
+        const link = dish ? `<button type="button" class="link-food" data-recipe="${esc(i.name)}">${shown}</button>`
+          : !i.custom && i.fid != null ? `<button type="button" class="link-food plain" data-food="${esc(i.fid)}">${shown}</button>` : shown;
+        return `<li><span class="fi-ico">${iconOf(i)}</span><span class="fi-name">${link}${alt.length ? `<small>${esc([lang !== 'en' ? i.name : '', ...alt.filter((x) => x !== itemName(i, lang))].filter(Boolean).join(' · '))}</small>` : ''}</span><b>${esc(itemQty(i, lang))}</b><em>${i.kcal}</em></li>`;
       }).join('')}</ul>`}
       <footer>
         <div class="nutri">
@@ -785,7 +829,7 @@
       <div class="summary">
         <div class="summary-main">
           <span class="eyebrow">${n}-Day ${profile.travel ? 'Travel Diet Chart · ' + esc(P.TRAVEL[profile.travel]) : 'Diet Chart'} · Week ${meta.week || 1}</span>
-          <h2>${profile.name ? esc(profile.name) : 'Generic diet chart'}</h2>
+          <h2>${profile.name && profile.patientRef && store.getPatient(profile.patientRef) ? `<button type="button" class="link-patient" data-view-patient="${esc(profile.patientRef)}" title="Open patient history">${esc(profile.name)}</button>` : profile.name ? esc(profile.name) : 'Generic diet chart'}</h2>
           <p>${esc(P.PLANS[profile.plan].label)} · ${esc(dietText(profile))}</p>
           ${conds.length ? `<div class="tags">${conds.map((x) => `<span>${esc(x)}</span>`).join('')}</div>` : ''}
         </div>
@@ -822,13 +866,13 @@
 
       <div class="card recipe-strip">
         <div class="sec-row"><h3>📖 Recipes in the PDF</h3><button type="button" class="link-btn" id="pick-recipes">${recipes.length ? 'Change' : 'Add recipes'}</button></div>
-        ${recipes.length ? `<div class="tags light">${recipes.map((r) => `<span>${IC.foodIcon(dishByName[r])} ${esc(r)}</span>`).join('')}</div><p class="muted">${recipes.length} recipe${recipes.length === 1 ? '' : 's'} will be printed on A4 pages after the chart.</p>` : '<p class="muted">Add recipes of this chart\'s dishes — they print on A4 pages after the diet chart.</p>'}
+        ${recipes.length ? `<div class="tags light">${recipes.map((r) => `<button type="button" class="tag-link" ${dishByName[r] ? `data-recipe="${esc(r)}"` : `data-open-recipe="${esc(r)}"`}>${IC.foodIcon(dishByName[r] || dishOf(r))} ${esc(r)}</button>`).join('')}</div><p class="muted">${recipes.length} recipe${recipes.length === 1 ? '' : 's'} will be printed on A4 pages after the chart.</p>` : '<p class="muted">Add recipes of this chart\'s dishes — they print on A4 pages after the diet chart.</p>'}
       </div>
       <div class="card soft">
         <h3>Guidelines</h3>
         <ul>${tipList(t).map((x) => `<li>${esc(I.tipText('en', x))}</li>`).join('')}</ul>
       </div>
-      ${showWl() ? `<div class="card soft"><h3>Smart weight-loss foods</h3><div class="tags light">${P.weightLossPicks(DB.FOODS, profile, 14).map((f) => `<span>${IC.foodIcon(f)} ${esc(f.name)}</span>`).join('')}</div></div>` : ''}`;
+      ${showWl() ? `<div class="card soft"><h3>Smart weight-loss foods</h3><div class="tags light">${P.weightLossPicks(DB.FOODS, profile, 14).map((f) => `<button type="button" class="tag-link" ${dishByName[f.name] === f ? `data-recipe="${esc(f.name)}"` : `data-food="${f.id}"`}>${IC.foodIcon(f)} ${esc(f.name)}</button>`).join('')}</div></div>` : ''}`;
   }
 
   result.addEventListener('click', (e) => {
@@ -838,6 +882,7 @@
     if (b.dataset.day) { activeDay = Number(b.dataset.day); saveCurrent(); render(); animateIn($('.meal-list', result)); }
     else if (b.dataset.edit) openEditor(...pair(b.dataset.edit));
     else if (b.dataset.recipe) openRecipeDialog(b.dataset.recipe);
+    else if (b.dataset.food) openFoodDetail(Number(b.dataset.food));
     else if (b.id === 'pick-recipes') openRecipePicker();
     else if (b.dataset.swap) {
       const [di, mi] = pair(b.dataset.swap);
@@ -887,9 +932,14 @@
 
   function openSheet(items) {
     $('#sheet-body').innerHTML = items.map(([k, icon, label, sub]) => `<button type="button" class="sheet-item" data-sheet="${k}"><span class="sheet-ico">${ui(icon)}</span><span><b>${esc(label)}</b><small>${esc(sub)}</small></span></button>`).join('') + '<button type="button" class="btn ghost sheet-cancel" data-close>Cancel</button>';
-    if (actionSheet.showModal) actionSheet.showModal(); else actionSheet.setAttribute('open', '');
+    showDialog(actionSheet);
   }
-  const closeDialog = (d) => { if (d.close) d.close(); else d.removeAttribute('open'); };
+  const closeDialog = (d) => { if (!d.open && !d.hasAttribute('open')) return; if (d.close) d.close(); else d.removeAttribute('open'); };
+  /** Open a dialog once (a second showModal() on an open dialog throws). */
+  function showDialog(d) {
+    if (d.open || d.hasAttribute('open')) return;
+    try { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); } catch (_) { d.setAttribute('open', ''); }
+  }
   actionSheet.addEventListener('click', (e) => {
     if (e.target === actionSheet) return closeDialog(actionSheet);
     const b = e.target.closest('button');
@@ -982,7 +1032,7 @@
     $('#editor-q').value = '';
     renderEditor();
     renderEditorResults();
-    if (editor.showModal) editor.showModal(); else editor.setAttribute('open', '');
+    showDialog(editor);
   }
   function closeEditor() {
     edit = null;
@@ -1100,6 +1150,7 @@
   function renderLibrary() {
     $$('#lib-filters .chip').forEach((c) => c.setAttribute('aria-pressed', String(!!libState[c.dataset.value])));
     $('#lib-my-foods').setAttribute('aria-pressed', String(!!libState.own));
+    if (current === 'library') $('#screen-title').textContent = libState.own ? 'My foods' : 'Diet-chart foods';
     const list = P.searchFoods(DB.FOODS, $('#lib-search').value, {
       own: libState.own, wl: libState.wl, hp: libState.hp, travel: libState.travel,
       category: $('#lib-category').value, region: $('#lib-region').value, dietExact: $('#lib-diet').value,
@@ -1112,7 +1163,7 @@
     const ings = DB.FOODS.filter((f) => f.ingKey).length;
     $('#lib-count').textContent = `${num(list.length)} of ${num(DB.FOODS.length)} foods (${num(DISHES.length)} dishes with recipes · ${num(ings)} ingredients${mine ? ` · ${mine} of your own` : ''})${list.length > shown.length ? ` · showing first ${shown.length}` : ''}`;
     $('#lib-list').innerHTML = (libState.own && !mine ? `<div class="empty">You have not added any foods yet. Tap <b>Add food</b> to add your own dish, drink or item — it can then be used in every chart.</div>` : '') + shown.map((f) => `
-      <div class="food-card${f.user ? ' mine' : ''}">
+      <div class="food-card is-link${f.user ? ' mine' : ''}" data-food-card="${f.id}" role="button" tabindex="0" aria-label="${esc(f.name)} — details">
         <div class="fc-top"><span class="fc-ico">${IC.foodIcon(f)}</span><div><b>${esc(f.name)}</b><small class="hi">${esc(f.hi)}</small></div><i class="diet-dot ${f.diet}" title="${esc(P.DIETS[f.diet] || f.diet)}"></i></div>
         <small>${f.ingKey ? 'Ingredient · per ' : esc(REGION_LABEL[f.region] || f.region) + ' · '}${esc(P.formatQty(f.qty))} ${esc(f.unit)}${f.user ? ' · ' + esc(rolesText(f.roles)) : ''}</small>
         <div class="fc-nutri"><span><b>${f.kcal}</b> kcal</span><span>P ${f.p}</span><span>C ${f.c}</span><span>F ${f.f}</span></div>
@@ -1132,11 +1183,27 @@
   $('#lib-my-foods').addEventListener('click', () => { libState.own = !libState.own; renderLibrary(); });
   $('#lib-list').addEventListener('click', (e) => {
     const b = e.target.closest('[data-edit-food],[data-del-food]');
-    if (!b) return;
-    if (b.dataset.editFood) return openFoodForm(store.getCustomFood(b.dataset.editFood));
-    deleteFood(b.dataset.delFood);
+    if (b) {
+      if (b.dataset.editFood) return openFoodForm(store.getCustomFood(b.dataset.editFood));
+      return deleteFood(b.dataset.delFood);
+    }
+    if (e.target.closest('button')) return; // recipe badges have their own handlers
+    const card = e.target.closest('[data-food-card]');
+    if (card) openFoodDetail(Number(card.dataset.foodCard));
+  });
+  /** A food's detail (nutrition, amount, add to chart) from the Foods & Recipes library dialog. */
+  function openFoodDetail(fid) {
+    const f = foodById(fid);
+    if (!f) return;
+    if (dishByName[f.name] === f) { viewRecipe = f.name; servings = 1; go('recipe'); return; }
+    lib.openFood(fid).then((ok) => { if (!ok) toast('Food not found.'); }).catch(() => toast('Could not open the food — please try again.'));
+  }
+  $('#lib-list').addEventListener('keydown', (e) => {
+    if ((e.key === 'Enter' || e.key === ' ') && e.target.matches('[data-food-card]')) { e.preventDefault(); openFoodDetail(Number(e.target.dataset.foodCard)); }
   });
   document.addEventListener('click', (e) => {
+    const pt = e.target.closest('[data-view-patient]');
+    if (pt) { viewPatient = pt.dataset.viewPatient; go('patient'); return; }
     const b = e.target.closest('[data-open-recipe]');
     if (b) { viewRecipe = b.dataset.openRecipe; servings = 1; go('recipe'); return; }
     const r = e.target.closest('[data-edit-recipe]');
@@ -1395,7 +1462,7 @@
     $('#rd-body').innerHTML = recipeBody(f, 1);
     const inChart = (profile.recipes || []).includes(name);
     $('#rd-foot').innerHTML = `<button type="button" class="btn ghost" data-close>Close</button><button type="button" class="btn" data-rd-edit="${esc(name)}">${ICON.edit} Edit</button><button type="button" class="btn" data-rd-print="${esc(name)}">${ICON.print} Print A4</button><button type="button" class="btn primary" data-rd-toggle="${esc(name)}">${inChart ? 'Remove from PDF' : 'Add to chart PDF'}</button>`;
-    if (rdialog.showModal) rdialog.showModal(); else rdialog.setAttribute('open', '');
+    showDialog(rdialog);
   }
 
   function openRecipePicker() {
@@ -1409,7 +1476,7 @@
       <div class="pick-list">${[...dishes, ...extra].map((n) => `<label class="pick"><input type="checkbox" value="${esc(n)}"${chosen.has(n) ? ' checked' : ''}><span>${IC.foodIcon(dishOf(n))} ${esc(n)}</span><small>${dishOf(n) ? dishOf(n).kcal + ' kcal' : ''}</small></label>`).join('')}</div>
       <p class="muted">Any other recipe can be added from the Recipes screen.</p>`;
     $('#rd-foot').innerHTML = '<button type="button" class="btn ghost" data-close>Cancel</button><button type="button" class="btn primary" data-pick-save>Save</button>';
-    if (rdialog.showModal) rdialog.showModal(); else rdialog.setAttribute('open', '');
+    showDialog(rdialog);
   }
 
   rdialog.addEventListener('click', (e) => {
@@ -1456,7 +1523,7 @@
   const UNITS = ['serving', 'pc', 'bowl', 'katori', 'cup', 'glass', 'plate', 'slice', 'tbsp', 'tsp', 'scoop', 'g', 'ml'];
   const DIET_SHORT = { vegan: 'Vegan', veg: 'Veg', egg: 'Egg', nonveg: 'Non-veg' };
 
-  function openDialog(d) { if (!d.open) { if (d.showModal) d.showModal(); else d.setAttribute('open', ''); } d.querySelector('.editor-body').scrollTop = 0; }
+  function openDialog(d) { showDialog(d); const body = d.querySelector('.editor-body'); if (body) body.scrollTop = 0; }
 
   function foodsChanged() {
     refreshFoods();
@@ -1902,6 +1969,7 @@
   $('#mode-seg').addEventListener('click', (e) => { const b = e.target.closest('[data-mode]'); if (b) setTheme('mode', b.dataset.mode); });
   // Another tab (e.g. the clinic admin) changed the theme.
   window.addEventListener('storage', (e) => {
+    if (e.key === CLINIC_KEY || e.key === 'primefit.admin.v1') { renderBrand(); if (current === 'home') renderHome(); return; }
     if (e.key === 'primefit.theme' && e.newValue && THEMES[e.newValue]) root.dataset.theme = e.newValue;
     else if (e.key === 'primefit.mode' && /^(auto|light|dark)$/.test(e.newValue || '')) { root.dataset.mode = e.newValue; if (window.primefitApplyTheme) window.primefitApplyTheme(); } else return;
     themeColor();
@@ -1994,14 +2062,7 @@
     const two = (fn, x) => { const a = fn(lang, x); const b = lang2 && !compact ? fn(lang2, x) : ''; return `${esc(a)}${b && b !== a ? `<i class="l2 blk">${esc(b)}</i>` : ''}`; };
 
     const head = `
-      <header class="ps-head">
-        <img src="${BRAND.logo}" alt="${esc(BRAND.company)}">
-        <div class="ps-title">
-          <h1>${esc(titleFor(lang))}${lang2 ? `<small>${esc(titleFor(lang2))}</small>` : ''}</h1>
-          <div class="ps-plan">${esc(planLabel)}${(meta.week || 1) > 1 ? ` · ${esc(T('week'))} ${meta.week}` : ''}</div>
-          <div class="ps-web">${esc(BRAND.website)} · ${esc(BRAND.phone)}</div>
-        </div>
-      </header>
+      ${brandHead(`${esc(titleFor(lang))}${lang2 ? `<small>${esc(titleFor(lang2))}</small>` : ''}`, { plan: `${esc(planLabel)}${(meta.week || 1) > 1 ? ` · ${esc(T('week'))} ${meta.week}` : ''}` })}
       ${info}
       <div class="ps-targets">
         <div><b>${num(t.calories)}</b>${esc(T('kcalDay'))}</div>
@@ -2024,9 +2085,10 @@
         </div>
       </div>
       <div class="ps-end">
-        <div>${profile.dietitian ? `${esc(T('preparedBy'))}: <b>${esc(profile.dietitian)}</b>${profile.qualification ? ', ' + esc(profile.qualification) : ''} · ` : ''}${esc(BRAND.company)}</div>
+        <div>${profile.dietitian ? `${esc(T('preparedBy'))}: <b>${esc(profile.dietitian)}</b>${profile.qualification ? ', ' + esc(profile.qualification) : ''}${profile.dietitianPhone ? ' · ' + esc(profile.dietitianPhone) : ''} · ` : ''}${esc(clinic().name)}</div>
         <div class="ps-disclaimer">${esc(T('computer'))} ${esc(T('portions'))}</div>
       </div>
+      ${legalNote('chart')}
       ${promo(lang, lang2)}
       <div class="ps-data" aria-hidden="true"><div>${esc(store.pdfPayload(named ? profile : { ...profile, name: '', patientId: '', phone: '', notes: '', patientRef: null }, plan, meta.week))}</div></div>`;
 
@@ -2043,14 +2105,49 @@
    * (localStorage 'primefit.admin.v1' → settings.instagram / youtube are full URLs), else the defaults.
    */
   function social() {
-    let st = {};
-    try { st = (JSON.parse(storage.getItem('primefit.admin.v1') || '{}') || {}).settings || {}; } catch (_) { st = {}; }
+    const c = clinic();
     const handle = (url, def) => {
       const h = String(url || '').trim().replace(/[?#].*$/, '').replace(/\/+$/, '').split('/').pop().replace(/^@/, '');
       return h && !/\.(com|in)$/i.test(h) ? '@' + h : def;
     };
-    const web = String(st.website || BRAND.website).trim().replace(/^https?:\/\//i, '').replace(/\/+$/, '') || BRAND.website;
-    return { ig: handle(st.instagram, '@theprimefit_'), yt: handle(st.youtube, '@ThePrimeFit'), web, phone: String(st.phone || '').trim() || BRAND.phone };
+    return { ig: handle(c.instagram, '@theprimefit_'), yt: handle(c.youtube, '@ThePrimeFit'), web: c.website, phone: c.phone };
+  }
+
+  // ── Print header, footer and medico-legal note (shared by charts, recipes and the library list) ──
+  /** Header of a printed page: logo + tagline on the left, title, plan and the clinic's contact line on the right. */
+  function brandHead(title, opts) {
+    const o = opts || {};
+    const c = clinic();
+    const contact = [c.phone, c.website, o.small ? '' : c.email].filter(Boolean).map(esc).join(' · ');
+    const doctor = !o.small && c.doctor ? `<div class="ps-doc">${esc(c.doctor)}${c.qualification ? ', ' + esc(c.qualification) : ''}${c.regNo ? ` · Reg. ${esc(c.regNo)}` : ''}</div>` : '';
+    return `<header class="ps-head${o.small ? ' sm' : ''}">
+        <div class="ps-brand"><img src="${BRAND.logo}" alt="${esc(c.name)}">${c.tagline ? `<small class="ps-tag">${esc(c.tagline)}</small>` : ''}</div>
+        <div class="ps-title">
+          <h1>${title}</h1>
+          ${o.plan ? `<div class="ps-plan">${o.plan}</div>` : ''}
+          <div class="ps-org"><b>${esc(c.name)}</b>${contact ? ` · ${contact}` : ''}</div>
+          ${doctor}
+        </div>
+      </header>`;
+  }
+  /** Footer on every printed page: gold-teal hairline, clinic name · phone · website, address, page number. */
+  function brandFoot(i, total, lang) {
+    const c = clinic();
+    const line1 = [c.website, c.phone, c.email].filter(Boolean).map(esc).join('<i>·</i>');
+    const line2 = [c.address, c.gstin ? 'GSTIN ' + c.gstin : '', c.regNo && !c.doctor ? 'Reg. ' + c.regNo : ''].filter(Boolean).map(esc).join('<i>·</i>');
+    return `<footer class="ps-foot"><div class="ps-foot-main"><span class="ps-foot-l1"><b>${esc(c.legalName || c.name)}</b>${line1 ? `<i>·</i>${line1}` : ''}</span>${line2 ? `<span class="ps-foot-sub">${line2}</span>` : ''}</div><span class="ps-pno">${esc(I.t(lang || 'en', 'page'))} ${i + 1} / ${total}</span></footer>`;
+  }
+  /** Add the footer to every page of the print sheet once the layout is final. */
+  function addFooters() {
+    const pages = $$('.ps-page', sheet);
+    const lang = L();
+    pages.forEach((pg, i) => { const old = $('.ps-foot', pg); if (old) old.remove(); pg.insertAdjacentHTML('beforeend', brandFoot(i, pages.length, lang)); });
+  }
+  /** Medico-legal note at the end of a chart (kind 'chart') or a recipe set ('recipe'). The admin's own text wins. */
+  function legalNote(kind) {
+    const own = clinic().disclaimer;
+    const text = own || (kind === 'recipe' ? DISCLAIMER_RECIPE : DISCLAIMER_CHART);
+    return `<div class="ps-legal"><b>${kind === 'recipe' ? 'Please note' : 'Important — please read'}</b><p>${esc(text)}</p></div>`;
   }
   const SOC_ICON = {
     ig: '<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="psig" x1="0" y1="1" x2="1" y2="0"><stop offset="0" stop-color="#f9a23b"/><stop offset=".5" stop-color="#e1306c"/><stop offset="1" stop-color="#833ab4"/></linearGradient></defs><rect x="2" y="2" width="20" height="20" rx="6" fill="url(#psig)"/><circle cx="12" cy="12" r="4.3" fill="none" stroke="#fff" stroke-width="2"/><circle cx="17.3" cy="6.7" r="1.3" fill="#fff"/></svg>',
@@ -2119,7 +2216,7 @@
   }
 
   const pageHtml = (inner, cls) => `<div class="ps-page${cls ? ' ' + cls : ''}"><div class="ps-inner">${inner}</div></div>`;
-  const recipeHead = (lang) => `<header class="ps-head sm"><img src="${BRAND.logo}" alt="${esc(BRAND.company)}"><div class="ps-title"><h1>${esc(I.t(lang, 'recipes'))}${L2() ? `<small>${esc(I.t(L2(), 'recipes'))}</small>` : ''}</h1><div class="ps-web">${esc(BRAND.website)}</div></div></header>`;
+  const recipeHead = (lang) => brandHead(`${esc(I.t(lang, 'recipes'))}${L2() ? `<small>${esc(I.t(L2(), 'recipes'))}</small>` : ''}`, { small: true });
 
   /** Fit each page into one A4 sheet by scaling type down. */
   function fitPages(minScale) {
@@ -2147,9 +2244,10 @@
     const list = names.filter((n) => dishOf(n));
     if (!list.length) return [];
     const head = recipeHead(lang);
+    const legal = legalNote('recipe');
     const tail = promo(lang, L2());
     const measure = (blocks) => {
-      sheet.innerHTML = pageHtml(head + blocks.join('') + tail, 'rp');
+      sheet.innerHTML = pageHtml(head + blocks.join('') + legal + tail, 'rp');
       const page = $('.ps-page', sheet);
       page.style.setProperty('--s', 1);
       const inner = $('.ps-inner', page);
@@ -2157,7 +2255,7 @@
       const tops = kids.map((el) => el.offsetTop);
       const hs = kids.map((el, i) => (i < kids.length - 1 ? tops[i + 1] - tops[i] : inner.scrollHeight - tops[i]));
       const pad = parseFloat(getComputedStyle(inner).paddingBottom) || 0;
-      return { cap: page.clientHeight - pad - 2, head: hs[0], cards: hs.slice(1, -1), tail: hs[hs.length - 1] };
+      return { cap: page.clientHeight - pad - 2, head: hs[0], cards: hs.slice(1, -2), legal: hs[hs.length - 2], tail: hs[hs.length - 1] };
     };
     let blocks = list.map((n) => ({ html: recipeCard(n, serves, big) }));
     let m = measure(blocks.map((b) => b.html));
@@ -2195,18 +2293,20 @@
       used += m.cards[i];
     });
     if (cur.length) pages.push(cur);
-    // The promo goes on the last page when it fits, otherwise on a page of its own is wasteful: drop it.
-    const lastFits = used + m.tail <= m.cap;
-    return pages.map((p, i) => head + p.join('') + (i === pages.length - 1 && lastFits ? tail : ''));
+    // The note (always printed) and the promo go on the last page when they fit; the note gets a page
+    // of its own (with the promo) only when it does not fit; a promo that does not fit is dropped.
+    const out = pages.map((p) => head + p.join(''));
+    if (used + m.legal + m.tail <= m.cap) out[out.length - 1] += legal + tail;
+    else if (used + m.legal <= m.cap) out[out.length - 1] += legal;
+    else out.push(head + legal + tail);
+    return out;
   }
 
-  function setPageStyle(total) {
-    const so = social();
-    const footer = [BRAND.company, `Instagram ${so.ig}`, `YouTube ${so.yt}`, so.web, (profile && profile.dietitianPhone) || so.phone].filter(Boolean).join('  ·  ');
-    let st = document.getElementById('ps-page-style');
-    if (!st) { st = document.createElement('style'); st.id = 'ps-page-style'; document.head.appendChild(st); }
-    st.textContent = `@page { @bottom-left { content: ${JSON.stringify(footer)}; font: 7pt system-ui, sans-serif; color: #2c2e2f; }
-      @bottom-right { content: ${JSON.stringify(I.t(L(), 'page') + ' ')} counter(page) " / ${total}"; font: 7pt system-ui, sans-serif; color: #2c2e2f; } }`;
+  /** The footer is printed inside every page (see brandFoot), so the page margin boxes stay empty. */
+  function setPageStyle() {
+    const st = document.getElementById('ps-page-style');
+    if (st) st.textContent = '';
+    addFooters();
   }
 
   function renderPrint(mode) {
@@ -2351,7 +2451,7 @@
     doPrint(title);
   }
   const lib = window.LIBRARY.init({
-    $, $$, esc, num, toast, debounce, P, DB, IC, ING, ICON, loadScript, saveFile, openDialog, closeDialog, recipeBody, genDish, addToChart, printPages,
+    $, $$, esc, num, toast, debounce, P, DB, IC, ING, ICON, loadScript, saveFile, openDialog, closeDialog, recipeBody, genDish, addToChart, printPages, brandHead, legalNote,
     getPlan: () => plan,
     isCurrent: () => current === 'explore',
     printDish: (f, serves) => { if (f) printRecipes([f.name], serves || 1); },
@@ -2402,6 +2502,7 @@
       }
     }
   } catch (_) { plan = null; profile = null; }
+  renderBrand();
   show(location.hash.slice(1) || 'home');
   // Generated recipes chosen for the chart PDF: load their data in the background (not at start-up otherwise).
   if (profile && (profile.recipes || []).some((n) => !dishByName[n])) setTimeout(() => loadGenRecipes().catch(() => { /* retried when Recipes opens */ }), 1500);

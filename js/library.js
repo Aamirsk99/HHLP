@@ -448,9 +448,13 @@
       const per = 30;
       const pages = [];
       for (let i = 0; i < list.length; i += per) pages.push(list.slice(i, i + per));
-      const head = `<header class="ps-head sm"><img src="img/logo.jpg" alt="The Prime Fit"><div class="ps-title"><h1>Foods &amp; Recipes<small>${esc(filterSummary())}</small></h1><div class="ps-web">${num(result.length)} result${result.length === 1 ? '' : 's'}${result.length > list.length ? ` · first ${list.length} shown (export Excel for all)` : ''}</div></div></header>`;
+      const title = `Foods &amp; Recipes<small>${esc(filterSummary())}</small>`;
+      const sub = `${num(result.length)} result${result.length === 1 ? '' : 's'}${result.length > list.length ? ` · first ${list.length} shown (export Excel for all)` : ''}`;
+      const head = ctx.brandHead
+        ? ctx.brandHead(title, { small: true, plan: sub })
+        : `<header class="ps-head sm"><img src="img/logo.png" alt="The Prime Fit"><div class="ps-title"><h1>${title}</h1><div class="ps-plan">${sub}</div></div></header>`;
       const table = (rows, start) => `<table class="lx-pt"><thead><tr><th>#</th><th>Name</th><th>Category</th><th>Diet</th><th>Per</th><th>kcal</th><th>Protein</th><th>Carbs</th><th>Fat</th><th>P/100 kcal</th></tr></thead><tbody>${rows.map((x, i) => `<tr><td>${start + i + 1}</td><td><b>${esc(x.name)}</b><small>${esc(SRC[x.src])}${x.time ? ` · ${x.time} min` : ''}</small></td><td>${esc(x.cat)}</td><td>${esc(DIET_LABEL[x.diet])}</td><td>${esc(x.basis)}</td><td>${Math.round(x.kcal)}</td><td>${x.p} g</td><td>${x.c} g</td><td>${x.f} g</td><td>${x.ppk}</td></tr>`).join('')}</tbody></table>`;
-      const credit = `<p class="lx-pcredit">${esc(root.FOODLIB_DATA ? root.FOODLIB_DATA.attribution : '')} Recipes: The Prime Fit — nutrition calculated from ingredients. Protein powders: typical label values.</p>`;
+      const credit = `<p class="lx-pcredit">${esc(root.FOODLIB_DATA ? root.FOODLIB_DATA.attribution : '')} Recipes: The Prime Fit — nutrition calculated from ingredients. Protein powders: typical label values.</p>${ctx.legalNote ? ctx.legalNote('recipe') : ''}`;
       ctx.printPages(pages.map((rows, pi) => (pi === 0 ? head : '') + table(rows, pi * per) + (pi === pages.length - 1 ? credit : '')), `ThePrimeFit_Library_${list.length}`);
     }
 
@@ -459,6 +463,14 @@
       /** Foods changed (dietitian added / edited a food): rebuild the combined list next time. */
       foodsChanged() { if (ITEMS && LIB) { rebuild(); if (ctx.isCurrent()) run(true); } },
       load,
+      /** Open the detail of a diet-chart food (DB.FOODS index) from anywhere in the app. */
+      openFood(fid) {
+        return load().then(() => {
+          const x = ITEMS.find((it) => it.fid === fid);
+          if (x) openItem(x);
+          return !!x;
+        });
+      },
       counts,
       state,
       result: () => result,
