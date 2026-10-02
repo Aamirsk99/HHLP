@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN 3.6 — COMPLETE SOURCE CODE
+ HINDIVINE ADMIN 3.7 — COMPLETE SOURCE CODE
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
 ================================================================================
 
@@ -28,7 +28,7 @@ Then:
   3. chmod +x android/build.sh
   4. npm test                      (unit tests, Node 18+)
   5. npx serve .   → open /admin/  (try it in a browser)
-  6. APP=admin VERSION_CODE=10 VERSION_NAME=3.6 ./android/build.sh
+  6. APP=admin VERSION_CODE=11 VERSION_NAME=3.7 ./android/build.sh
                                    (Android APK → dist/HindivineAdmin.apk)
 See "Hindivine_Admin_Regeneration_Script.txt" for the full explanation.
 
@@ -1043,6 +1043,12 @@ td b { font-variant-numeric: tabular-nums; }
 .side-quick button { background: linear-gradient(160deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .03)); border-color: rgba(255, 255, 255, .12); }
 .side-lock { background: linear-gradient(160deg, rgba(255, 255, 255, .08), rgba(255, 255, 255, .02)); transition: background .15s, border-color .15s; }
 .side-lock:hover { border-color: rgba(243, 213, 138, .5); }
+.more-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 12px; }
+.ripple { position: absolute; border-radius: 50%; pointer-events: none; background: currentColor; opacity: .18; transform: scale(0); animation: ripple .55s cubic-bezier(.2, .8, .3, 1) forwards; z-index: 0; }
+@keyframes ripple { to { transform: scale(1); opacity: 0; } }
+.toast.show { animation: toast-in .32s cubic-bezier(.2, .9, .25, 1.2); }
+@keyframes toast-in { from { transform: translateX(-50%) translateY(18px) scale(.96); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .ripple { display: none; } }
 ===== END FILE: admin/css/admin.css =====
 
 ===== BEGIN FILE: admin/js/config.js =====
@@ -2748,7 +2754,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.6';
+  const APP_VERSION = '3.7';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -3475,6 +3481,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     }).slice().reverse();
   }
   SUBS.activity = () => periodLabel();
+  let actLimit = 120;
   SCREENS.activity = () => {
     const list = filteredLog();
     const people = [...new Set(S().log.map((x) => x.by))];
@@ -3493,12 +3500,13 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       <section class="card"><h2><span class="ic violet">${svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>')}</span>By person</h2>
         ${table(['Person', '>Changes', '>Leads added', '>Lead updates', '>Appointments', '>Sales'], Object.entries(per).map(([n, p]) => `<tr><td><b>${esc(n)}</b></td><td class="r">${p.total}</td><td class="r">${p.leads}</td><td class="r">${p.updates}</td><td class="r">${p.appts}</td><td class="r">${p.sales}</td></tr>`))}</section>
       <section class="card"><h2><span class="ic">${svg('<path d="M3 12h4l3-8 4 16 3-8h4"/>')}</span>All changes<span class="sp"></span><span class="badge">${list.length}</span></h2>
-        <ol class="timeline big">${list.slice(0, 400).map((x) => `<li><span class="t-ic">${esc(x.by.charAt(0).toUpperCase())}</span><div><b>${esc(x.action)}</b>${x.detail ? `<span>${esc(x.detail)}</span>` : ''}<small>${ftime(x.at)} · ${esc(x.by)}</small></div></li>`).join('') || '<li class="empty">No changes in this period.</li>'}</ol>
-        ${list.length > 400 ? `<p class="hint">Showing the latest 400 of ${list.length}. Export to see all.</p>` : ''}</section>`;
+        <ol class="timeline big">${list.slice(0, actLimit).map((x) => `<li><span class="t-ic">${esc(x.by.charAt(0).toUpperCase())}</span><div><b>${esc(x.action)}</b>${x.detail ? `<span>${esc(x.detail)}</span>` : ''}<small>${ftime(x.at)} · ${esc(x.by)}</small></div></li>`).join('') || '<li class="empty">No changes in this period.</li>'}</ol>
+        ${list.length > actLimit ? `<div class="more-row"><span class="hint">Showing the latest ${actLimit} of ${list.length}</span><button type="button" class="btn sm" data-act="act-more">Show more</button></div>` : ''}</section>`;
   };
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.7', 'Built for Android 15 so Google Play Protect no longer blocks the install as an app for an older Android version; screens stay clear of the status bar, navigation bar and keyboard on Android 15; fixed a crash when the app was sent to the background with a lot of data; safer recovery if Android stops the page to save memory; smoother animations.'],
     ['3.6', 'Connects to the clinic Google Sheet by itself: first launch shows "Connecting…" and then the sign-in screen with the logins from the sheet (no Create Super Admin or Connect Google Sheet screens); clear retry screen when offline; Settings → Google Sheet: test connection, sync now, disconnect, reconnect to the clinic sheet or change the link; sign-in screen refreshes logins in the background; more premium side menu.'],
     ['3.5', 'Protein sales no longer ask New / Renewal (new / renewal now follows earlier injections); Today shows injection, protein and diet sales in separate boxes with patient mobile, age and gender, and exports them as separate sections; image export fixed: phone numbers, ages and amounts always show in full, long names wrap instead of being cut; more premium tables, filter plates and colours.'],
     ['3.4', 'Customize dashboard: choose which sections show; almost every dashboard box opens the matching screen with the right filter; Top performer removed from the team summary; richer dashboard plates; filters on Today, Patients (gender, age, city, buyers / OPD only), Renewals, Products, Inventory, Purchases (vendor, product), Team, Incentives, Salary and Expenses, with one-tap Clear; every export opens options (PDF, image or Excel, period for the file, summary boxes) and follows the screen filters; smoother typing in search boxes; safer image export on low-memory phones.'],
@@ -3830,9 +3838,14 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
   const ageBand = (a) => { const n = Number(a); if (!a || !(n > 0)) return 'none'; return n < 30 ? 'u30' : n < 40 ? '30' : n < 50 ? '40' : n < 60 ? '50' : '60'; };
   function patientRows() {
     const activeFrom = A.isoDate(new Date(Date.now() - set().activeDays * 86400000));
+    // Group once (fast with thousands of sales) instead of scanning every list per patient.
+    const salesBy = new Map(); const apptsBy = new Map();
+    S().sales.forEach((x) => { const l = salesBy.get(x.patientId); if (l) l.push(x); else salesBy.set(x.patientId, [x]); });
+    S().appointments.forEach((x) => { const l = apptsBy.get(x.patientId); if (l) l.push(x); else apptsBy.set(x.patientId, [x]); });
+    salesBy.forEach((l) => l.sort((a, b) => (a.date < b.date ? -1 : 1)));
     return S().patients.map((p) => {
-      const sales = admin.patientSales(p.id);
-      const appts = S().appointments.filter((a) => a.patientId === p.id);
+      const sales = salesBy.get(p.id) || [];
+      const appts = apptsBy.get(p.id) || [];
       const last = sales[sales.length - 1];
       const lastAny = [last && last.date, ...appts.map((a) => a.date)].filter(Boolean).sort().pop() || '';
       return { p, sales, appts, last, lastAny, active: !!lastAny && lastAny >= activeFrom, spent: sales.reduce((a, s) => a + s.amount, 0) + appts.reduce((a, x) => a + admin.feeEarned(x), 0) };
@@ -4982,6 +4995,20 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
   $('#nav-search').addEventListener('input', filterNav);
   $('#nav-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const b = $$('#nav button').find((x) => !x.hidden); if (b) b.click(); } });
 
+  // Tap ripple on buttons, boxes and menu items (one short CSS animation, removed when done).
+  document.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest('.btn, .kpi.tap, .hk.tap, .dq, .set-tile, .side-quick button, .chip-btn, .seg button');
+    if (!el || el.disabled) return;
+    const r = el.getBoundingClientRect(); const size = Math.max(r.width, r.height) * 1.4;
+    const dot = document.createElement('span');
+    dot.className = 'ripple';
+    dot.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`;
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    el.style.overflow = 'hidden';
+    el.appendChild(dot);
+    setTimeout(() => dot.remove(), 600);
+  }, { passive: true });
+
   // Never let an unexpected error freeze the app: show a short message instead.
   let lastErr = 0;
   const softError = (msg) => { if (Date.now() - lastErr > 4000 && role) { lastErr = Date.now(); toast(`Something went wrong: ${String(msg).slice(0, 80)}`, true); } };
@@ -5045,6 +5072,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       admin.updateSettings({ sheetsUrl: BUILT.sheetsUrl, sheetsSecret: BUILT.sheetsSecret || '' }); lsSet(SHEET_OFF_KEY, '');
       render(); toast('Connecting to the clinic sheet…'); await pull(true); render();
     },
+    'act-more': () => { actLimit += 200; render(); },
     'gf-clear': (d) => { GF[d.sc] = {}; render(); },
     'today-export-reset': () => { setPref('todayExport', TODAY_EXPORT_DEFAULT); todayExportForm(($('#modal-body .exp-fmt .on') || { dataset: { expfmt: 'pdf' } }).dataset.expfmt); },
     'user-menu': () => {
@@ -5771,7 +5799,7 @@ function json(o) {
 
 ===== BEGIN FILE: admin/sw.js =====
 /* Offline cache for Hindivine Admin (installed web app). */
-const CACHE = 'hindivine-admin-v9';
+const CACHE = 'hindivine-admin-v10';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/config.js', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js', 'vendor/fonts/PlusJakartaSans-latin.woff2',
   '../img/logo.jpg', '../img/icon-192.png', '../img/icon-512.png',
@@ -6007,6 +6035,14 @@ public class MainActivity extends Activity {
             // The page's renderer crashed or was stopped to free memory: reload instead of closing the app.
             @Override
             public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                // A dead renderer must not be used again: drop this WebView and start the screen afresh.
+                try {
+                    android.view.ViewGroup parent = (android.view.ViewGroup) view.getParent();
+                    if (parent != null) parent.removeView(view);
+                    view.destroy();
+                } catch (Exception ignored) {
+                }
+                webView = null;
                 recreate();
                 return true;
             }
@@ -6042,21 +6078,33 @@ public class MainActivity extends Activity {
             }
         });
         webView.addJavascriptInterface(new Bridge(), "AndroidBridge");
-        setContentView(webView);
+        // The page sits in a frame; on Android 15+ (edge to edge) the frame keeps it clear of the
+        // status bar, navigation bar, camera cut-out and keyboard.
+        android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+        root.setBackgroundColor(0xFF0A2F55);
+        root.addView(webView, new android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+        if (android.os.Build.VERSION.SDK_INT >= 35) {
+            root.setOnApplyWindowInsetsListener(new android.view.View.OnApplyWindowInsetsListener() {
+                @Override
+                public android.view.WindowInsets onApplyWindowInsets(android.view.View v, android.view.WindowInsets insets) {
+                    android.graphics.Insets i = insets.getInsets(android.view.WindowInsets.Type.systemBars()
+                            | android.view.WindowInsets.Type.displayCutout() | android.view.WindowInsets.Type.ime());
+                    v.setPadding(i.left, i.top, i.right, i.bottom);
+                    return android.view.WindowInsets.CONSUMED;
+                }
+            });
+        }
 
-        if (savedInstanceState != null) webView.restoreState(savedInstanceState);
-        else {
+        // All app data lives in the page's local storage, so the page simply starts again after a restart.
+        {
             // Each app build names its start page in res/values/strings.xml (Diet or Admin).
             int id = getResources().getIdentifier("start_page", "string", getPackageName());
             webView.loadUrl("file:///android_asset/" + (id != 0 ? getString(id) : "www/index.html"));
         }
     }
 
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        webView.saveState(outState);
-    }
 
     private long lastBack;
 
@@ -6064,11 +6112,12 @@ public class MainActivity extends Activity {
     // home screen does back leave the app, and only when pressed twice.
     @Override
     public void onBackPressed() {
+        if (webView == null) { super.onBackPressed(); return; }
         webView.evaluateJavascript("(window.hdvBack ? String(window.hdvBack()) : 'none')", new ValueCallback<String>() {
             @Override
             public void onReceiveValue(String handled) {
                 if ("\"true\"".equals(handled)) return;
-                if ("\"none\"".equals(handled) && webView.canGoBack()) { webView.goBack(); return; }
+                if ("\"none\"".equals(handled) && webView != null && webView.canGoBack()) { webView.goBack(); return; }
                 long now = System.currentTimeMillis();
                 if (now - lastBack < 2000) { finish(); return; }
                 lastBack = now;
@@ -6079,7 +6128,15 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        webView.destroy();
+        if (webView != null) {
+            try {
+                android.view.ViewGroup parent = (android.view.ViewGroup) webView.getParent();
+                if (parent != null) parent.removeView(webView);
+                webView.destroy();
+            } catch (Exception ignored) {
+            }
+            webView = null;
+        }
         super.onDestroy();
     }
 
@@ -6090,6 +6147,7 @@ public class MainActivity extends Activity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
+                    if (webView == null || isFinishing()) return;
                     PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
                     String job = title == null || title.isEmpty() ? "Hindivine-Diet-Chart" : title;
                     pm.print(job, webView.createPrintDocumentAdapter(job), new PrintAttributes.Builder()
@@ -6339,7 +6397,7 @@ ALIAS="${KEY_ALIAS:-dietchart}"
 VERSION_CODE="${VERSION_CODE:-1}"
 VERSION_NAME="${VERSION_NAME:-1.0}"
 MIN_SDK=24  # v2 signing only (apksig 2.3.0 cannot produce v1 signatures on modern JDKs)
-TARGET_SDK=30
+TARGET_SDK=35  # Android 15: Play Protect warns about apps built for older Android versions
 
 M=https://repo1.maven.org/maven2
 fetch() { # url dest

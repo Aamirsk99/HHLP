@@ -92,6 +92,14 @@ public class MainActivity extends Activity {
             // The page's renderer crashed or was stopped to free memory: reload instead of closing the app.
             @Override
             public boolean onRenderProcessGone(WebView view, android.webkit.RenderProcessGoneDetail detail) {
+                // A dead renderer must not be used again: drop this WebView and start the screen afresh.
+                try {
+                    android.view.ViewGroup parent = (android.view.ViewGroup) view.getParent();
+                    if (parent != null) parent.removeView(view);
+                    view.destroy();
+                } catch (Exception ignored) {
+                }
+                webView = null;
                 recreate();
                 return true;
             }
@@ -127,21 +135,33 @@ public class MainActivity extends Activity {
             }
         });
         webView.addJavascriptInterface(new Bridge(), "AndroidBridge");
-        setContentView(webView);
+        // The page sits in a frame; on Android 15+ (edge to edge) the frame keeps it clear of the
+        // status bar, navigation bar, camera cut-out and keyboard.
+        android.widget.FrameLayout root = new android.widget.FrameLayout(this);
+        root.setBackgroundColor(0xFF0A2F55);
+        root.addView(webView, new android.widget.FrameLayout.LayoutParams(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT, android.view.ViewGroup.LayoutParams.MATCH_PARENT));
+        setContentView(root);
+        if (android.os.Build.VERSION.SDK_INT >= 35) {
+            root.setOnApplyWindowInsetsListener(new android.view.View.OnApplyWindowInsetsListener() {
+                @Override
+                public android.view.WindowInsets onApplyWindowInsets(android.view.View v, android.view.WindowInsets insets) {
+                    android.graphics.Insets i = insets.getInsets(android.view.WindowInsets.Type.systemBars()
+                            | android.view.WindowInsets.Type.displayCutout() | android.view.WindowInsets.Type.ime());
+                    v.setPadding(i.left, i.top, i.right, i.bottom);
+                    return android.view.WindowInsets.CONSUMED;
+                }
+            });
+        }
 
-        if (savedInstanceState != null) webView.restoreState(savedInstanceState);
-        else {
+        // All app data lives in the page's local storage, so the page simply starts again after a restart.
+        {
             // Each app build names its start page in res/values/strings.xml (Diet or Admin).
             int id = getResources().getIdentifier("start_page", "string", getPackageName());
             webView.loadUrl("file:///android_asset/" + (id != 0 ? getString(id) : "www/index.html"));
         }
     }
 
-    @Override
-    protected void onSaveInstanceState(Bundle outState) {
-        super.onSaveInstanceState(outState);
-        webView.saveState(outState);
-    }
 
     private long lastBack;
 
@@ -149,11 +169,12 @@ public class MainActivity extends Activity {
     // home screen does back leave the app, and only when pressed twice.
     @Override
     public void onBackPressed() {
+        if (webView == null) { super.onBackPressed(); return; }
         webView.evaluateJavascript("(window.hdvBack ? String(window.hdvBack()) : 'none')", new ValueCallback<String>() {
             @Override
             public void onReceiveValue(String handled) {
                 if ("\"true\"".equals(handled)) return;
-                if ("\"none\"".equals(handled) && webView.canGoBack()) { webView.goBack(); return; }
+                if ("\"none\"".equals(handled) && webView != null && webView.canGoBack()) { webView.goBack(); return; }
                 long now = System.currentTimeMillis();
                 if (now - lastBack < 2000) { finish(); return; }
                 lastBack = now;
@@ -164,7 +185,15 @@ public class MainActivity extends Activity {
 
     @Override
     protected void onDestroy() {
-        webView.destroy();
+        if (webView != null) {
+            try {
+                android.view.ViewGroup parent = (android.view.ViewGroup) webView.getParent();
+                if (parent != null) parent.removeView(webView);
+                webView.destroy();
+            } catch (Exception ignored) {
+            }
+            webView = null;
+        }
         super.onDestroy();
     }
 
@@ -175,6 +204,7 @@ public class MainActivity extends Activity {
             runOnUiThread(new Runnable() {
                 @Override
                 public void run() {
+                    if (webView == null || isFinishing()) return;
                     PrintManager pm = (PrintManager) getSystemService(Context.PRINT_SERVICE);
                     String job = title == null || title.isEmpty() ? "Hindivine-Diet-Chart" : title;
                     pm.print(job, webView.createPrintDocumentAdapter(job), new PrintAttributes.Builder()

@@ -24,7 +24,7 @@ ALIAS="${KEY_ALIAS:-dietchart}"
 VERSION_CODE="${VERSION_CODE:-1}"
 VERSION_NAME="${VERSION_NAME:-1.0}"
 MIN_SDK=24  # v2 signing only (apksig 2.3.0 cannot produce v1 signatures on modern JDKs)
-TARGET_SDK=30
+TARGET_SDK=35  # Android 15: Play Protect warns about apps built for older Android versions
 
 M=https://repo1.maven.org/maven2
 fetch() { # url dest

@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.6';
+  const APP_VERSION = '3.7';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -733,6 +733,7 @@
     }).slice().reverse();
   }
   SUBS.activity = () => periodLabel();
+  let actLimit = 120;
   SCREENS.activity = () => {
     const list = filteredLog();
     const people = [...new Set(S().log.map((x) => x.by))];
@@ -751,12 +752,13 @@
       <section class="card"><h2><span class="ic violet">${svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>')}</span>By person</h2>
         ${table(['Person', '>Changes', '>Leads added', '>Lead updates', '>Appointments', '>Sales'], Object.entries(per).map(([n, p]) => `<tr><td><b>${esc(n)}</b></td><td class="r">${p.total}</td><td class="r">${p.leads}</td><td class="r">${p.updates}</td><td class="r">${p.appts}</td><td class="r">${p.sales}</td></tr>`))}</section>
       <section class="card"><h2><span class="ic">${svg('<path d="M3 12h4l3-8 4 16 3-8h4"/>')}</span>All changes<span class="sp"></span><span class="badge">${list.length}</span></h2>
-        <ol class="timeline big">${list.slice(0, 400).map((x) => `<li><span class="t-ic">${esc(x.by.charAt(0).toUpperCase())}</span><div><b>${esc(x.action)}</b>${x.detail ? `<span>${esc(x.detail)}</span>` : ''}<small>${ftime(x.at)} · ${esc(x.by)}</small></div></li>`).join('') || '<li class="empty">No changes in this period.</li>'}</ol>
-        ${list.length > 400 ? `<p class="hint">Showing the latest 400 of ${list.length}. Export to see all.</p>` : ''}</section>`;
+        <ol class="timeline big">${list.slice(0, actLimit).map((x) => `<li><span class="t-ic">${esc(x.by.charAt(0).toUpperCase())}</span><div><b>${esc(x.action)}</b>${x.detail ? `<span>${esc(x.detail)}</span>` : ''}<small>${ftime(x.at)} · ${esc(x.by)}</small></div></li>`).join('') || '<li class="empty">No changes in this period.</li>'}</ol>
+        ${list.length > actLimit ? `<div class="more-row"><span class="hint">Showing the latest ${actLimit} of ${list.length}</span><button type="button" class="btn sm" data-act="act-more">Show more</button></div>` : ''}</section>`;
   };
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.7', 'Built for Android 15 so Google Play Protect no longer blocks the install as an app for an older Android version; screens stay clear of the status bar, navigation bar and keyboard on Android 15; fixed a crash when the app was sent to the background with a lot of data; safer recovery if Android stops the page to save memory; smoother animations.'],
     ['3.6', 'Connects to the clinic Google Sheet by itself: first launch shows "Connecting…" and then the sign-in screen with the logins from the sheet (no Create Super Admin or Connect Google Sheet screens); clear retry screen when offline; Settings → Google Sheet: test connection, sync now, disconnect, reconnect to the clinic sheet or change the link; sign-in screen refreshes logins in the background; more premium side menu.'],
     ['3.5', 'Protein sales no longer ask New / Renewal (new / renewal now follows earlier injections); Today shows injection, protein and diet sales in separate boxes with patient mobile, age and gender, and exports them as separate sections; image export fixed: phone numbers, ages and amounts always show in full, long names wrap instead of being cut; more premium tables, filter plates and colours.'],
     ['3.4', 'Customize dashboard: choose which sections show; almost every dashboard box opens the matching screen with the right filter; Top performer removed from the team summary; richer dashboard plates; filters on Today, Patients (gender, age, city, buyers / OPD only), Renewals, Products, Inventory, Purchases (vendor, product), Team, Incentives, Salary and Expenses, with one-tap Clear; every export opens options (PDF, image or Excel, period for the file, summary boxes) and follows the screen filters; smoother typing in search boxes; safer image export on low-memory phones.'],
@@ -1088,9 +1090,14 @@
   const ageBand = (a) => { const n = Number(a); if (!a || !(n > 0)) return 'none'; return n < 30 ? 'u30' : n < 40 ? '30' : n < 50 ? '40' : n < 60 ? '50' : '60'; };
   function patientRows() {
     const activeFrom = A.isoDate(new Date(Date.now() - set().activeDays * 86400000));
+    // Group once (fast with thousands of sales) instead of scanning every list per patient.
+    const salesBy = new Map(); const apptsBy = new Map();
+    S().sales.forEach((x) => { const l = salesBy.get(x.patientId); if (l) l.push(x); else salesBy.set(x.patientId, [x]); });
+    S().appointments.forEach((x) => { const l = apptsBy.get(x.patientId); if (l) l.push(x); else apptsBy.set(x.patientId, [x]); });
+    salesBy.forEach((l) => l.sort((a, b) => (a.date < b.date ? -1 : 1)));
     return S().patients.map((p) => {
-      const sales = admin.patientSales(p.id);
-      const appts = S().appointments.filter((a) => a.patientId === p.id);
+      const sales = salesBy.get(p.id) || [];
+      const appts = apptsBy.get(p.id) || [];
       const last = sales[sales.length - 1];
       const lastAny = [last && last.date, ...appts.map((a) => a.date)].filter(Boolean).sort().pop() || '';
       return { p, sales, appts, last, lastAny, active: !!lastAny && lastAny >= activeFrom, spent: sales.reduce((a, s) => a + s.amount, 0) + appts.reduce((a, x) => a + admin.feeEarned(x), 0) };
@@ -2240,6 +2247,20 @@
   $('#nav-search').addEventListener('input', filterNav);
   $('#nav-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { const b = $$('#nav button').find((x) => !x.hidden); if (b) b.click(); } });
 
+  // Tap ripple on buttons, boxes and menu items (one short CSS animation, removed when done).
+  document.addEventListener('pointerdown', (e) => {
+    const el = e.target.closest('.btn, .kpi.tap, .hk.tap, .dq, .set-tile, .side-quick button, .chip-btn, .seg button');
+    if (!el || el.disabled) return;
+    const r = el.getBoundingClientRect(); const size = Math.max(r.width, r.height) * 1.4;
+    const dot = document.createElement('span');
+    dot.className = 'ripple';
+    dot.style.cssText = `width:${size}px;height:${size}px;left:${e.clientX - r.left - size / 2}px;top:${e.clientY - r.top - size / 2}px`;
+    if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    el.style.overflow = 'hidden';
+    el.appendChild(dot);
+    setTimeout(() => dot.remove(), 600);
+  }, { passive: true });
+
   // Never let an unexpected error freeze the app: show a short message instead.
   let lastErr = 0;
   const softError = (msg) => { if (Date.now() - lastErr > 4000 && role) { lastErr = Date.now(); toast(`Something went wrong: ${String(msg).slice(0, 80)}`, true); } };
@@ -2303,6 +2324,7 @@
       admin.updateSettings({ sheetsUrl: BUILT.sheetsUrl, sheetsSecret: BUILT.sheetsSecret || '' }); lsSet(SHEET_OFF_KEY, '');
       render(); toast('Connecting to the clinic sheet…'); await pull(true); render();
     },
+    'act-more': () => { actLimit += 200; render(); },
     'gf-clear': (d) => { GF[d.sc] = {}; render(); },
     'today-export-reset': () => { setPref('todayExport', TODAY_EXPORT_DEFAULT); todayExportForm(($('#modal-body .exp-fmt .on') || { dataset: { expfmt: 'pdf' } }).dataset.expfmt); },
     'user-menu': () => {
