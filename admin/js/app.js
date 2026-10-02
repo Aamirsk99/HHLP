@@ -25,12 +25,14 @@
   const $ = (sel, el) => (el || document).querySelector(sel);
   const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const inr = (n) => { const v = Math.round(Number(n) || 0); return (v < 0 ? '−₹' : '₹') + Math.abs(v).toLocaleString('en-IN'); };
+  // Formatters are built once; toLocaleString on every number is slow on phones.
+  const NF = new Intl.NumberFormat('en-IN'); const TF = new Intl.DateTimeFormat('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const inr = (n) => { const v = Math.round(Number(n) || 0); return (v < 0 ? '−₹' : '₹') + NF.format(Math.abs(v)); };
   const plural = (n, one, many) => `${num(n)} ${n === 1 ? one : many || one + 's'}`;
-  const num = (n) => (Number(n) || 0).toLocaleString('en-IN');
+  const num = (n) => NF.format(Number(n) || 0);
   const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const fdate = (d) => { if (!d) return ''; const [y, m, dd] = d.split('-'); return dd ? `${Number(dd)} ${MONTHS[m - 1]} ${y}` : `${MONTHS[m - 1]} ${y}`; };
-  const ftime = (ms) => new Date(ms).toLocaleString('en-IN', { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
+  const ftime = (ms) => TF.format(new Date(ms));
   const opt = (v, label, sel) => `<option value="${esc(v)}"${String(v) === String(sel) ? ' selected' : ''}>${esc(label)}</option>`;
   const svg = (d) => `<svg viewBox="0 0 24 24" aria-hidden="true">${d}</svg>`;
 
@@ -71,13 +73,14 @@
     ['marketing', 'Marketing Hub', '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/>', 'Marketing'],
     ['content', 'Content & Posts', '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2M8 9l4 3-4 3z"/>'],
     ['reports', 'Reports', '<path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h3"/>', 'Reports'],
+    ['explorer', 'Data Explorer', '<circle cx="11" cy="11" r="7"/><path d="M21 21l-5-5M8 11h6M11 8v6"/>'],
     ['activity', 'Activity Log', '<path d="M3 12h4l3-8 4 16 3-8h4"/>'],
     ['settings', 'Settings', '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1A1.7 1.7 0 0 0 4.6 9a1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>', 'Admin'],
     ['about', "What's new", '<circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v5h1"/>'],
   ];
   // Access: Super Admin opens everything; Admin, Manager and Front Desk follow Settings → Roles.
   const ALL = NAV.map((n) => n[0]).concat('purchase-new', 'diet');
-  const EXTRA = { purchases: ['purchase-new'] };
+  const EXTRA = { purchases: ['purchase-new'], reports: ['explorer'] };
   const TITLES = { 'purchase-new': 'Purchase Entry' };
   let me = null; // signed-in login
   let role = null;
@@ -90,7 +93,21 @@
     list.forEach((id) => (EXTRA[id] || []).forEach((x) => list.push(x)));
     if (list.includes('diet')) list.push('home'); // the split Diet charts | Clinic admin start page
     const ro = r !== 'super' && !!((set().perms || {})[r] || A.DEFAULT_PERMS[r] || {}).view;
-    return list.filter((id) => !ro || !['sell', 'purchase-new', 'settings'].includes(id)).concat('about');
+    const off = (set().ui || {}).off || [];
+    return list.filter((id) => (!ro || !['sell', 'purchase-new', 'settings'].includes(id)) && !off.includes(id)).concat('about');
+  }
+  // Super Admin's own names for menu items, brand line, colour, fonts and spacing (Settings → Look → Branding & menu).
+  const ui = () => set().ui || {};
+  const navLabel = (id, fallback) => (ui().labels || {})[id] || fallback;
+  function applyUi() {
+    const u = ui(); const d = document.documentElement;
+    if (u.accent) { d.style.setProperty('--brand', u.accent); d.style.setProperty('--brand-mid', u.accent); } else { d.style.removeProperty('--brand'); d.style.removeProperty('--brand-mid'); }
+    if (u.gold) d.style.setProperty('--gold', u.gold); else d.style.removeProperty('--gold');
+    if (u.radius) d.style.setProperty('--radius', `${u.radius}px`); else d.style.removeProperty('--radius');
+    document.body.classList.toggle('ui-modern', u.font === 'modern');
+    document.body.classList.toggle('ui-compact', u.density === 'compact');
+    document.body.classList.toggle('ui-still', !!u.noAnim);
+    const b = $('.side-head b'); if (b) b.textContent = u.brand || 'The Prime Fit';
   }
   const can = (id) => !!role && allowed(role).includes(id);
   const permOf = (r) => (set().perms || {})[r] || A.DEFAULT_PERMS[r] || {};
@@ -100,11 +117,16 @@
   const adminHome = () => ['dashboard', 'today', 'appointments', 'leads', 'content'].find(can) || NAV.map((n) => n[0]).find((id) => id !== 'home' && can(id)) || 'about';
   const home = () => (can('home') ? 'home' : adminHome());
   let changedScreen = true;
+  // Long lists show a page at a time ("Show more"), so thousands of rows never slow the phone down.
+  const PAGE = 50; let showN = {};
+  const capList = (arr, k) => arr.slice(0, showN[k] || PAGE);
+  const moreBtn = (k, total) => { const n = showN[k] || PAGE; return total > n ? `<button type="button" class="btn more-btn" data-act="show-more" data-k="${k}">Show more · ${num(total - n)} left</button>` : ''; };
 
   function go(id, p, fromHistory) {
     if (id === 'menu') { openMenu(true); return; }
     if (!can(id)) id = home();
     changedScreen = id !== screen;
+    if (changedScreen) showN = {};
     screen = id; params = p || {};
     openMenu(false);
     if (!fromHistory && changedScreen) { try { history.pushState({ screen: id }, ''); } catch (_) { /* file:// may refuse */ } }
@@ -133,26 +155,26 @@
     const due = can('renewals') ? admin.renewals().filter((r) => r.stage && !r.done).length : 0;
     const lowN = can('inventory') ? admin.lowStock().length + admin.orderRequired().length : 0;
     const todayN = admin.appointmentsIn({ from: admin.today(), to: admin.today() }).filter((a) => a.status === 'booked').length;
-    const leadsDue = can('leads') ? admin.leadStats(null, myLeadFilter()).dueToday + admin.leadStats(null, myLeadFilter()).overdue : 0;
+    const ls0 = can('leads') ? admin.leadStats(null, myLeadFilter()) : null; const leadsDue = ls0 ? ls0.dueToday + ls0.overdue : 0;
     const badge = (id) => (id === 'renewals' && due ? `<span class="badge warn">${due}</span>`
       : id === 'inventory' && lowN ? `<span class="badge bad">${lowN}</span>`
         : id === 'appointments' && todayN ? `<span class="badge info">${todayN}</span>`
           : id === 'leads' && leadsDue ? `<span class="badge warn">${leadsDue}</span>` : '');
     const sd = $('.side-diet'); if (sd) sd.hidden = !can('diet');
     const q = (($('#nav-q') || {}).value || '').trim().toLowerCase();
-    const items = NAV.filter((n) => can(n[0]) && (!q || n[1].toLowerCase().includes(q) || (n[3] || '').toLowerCase().includes(q)));
+    const items = NAV.filter((n) => can(n[0]) && (!q || navLabel(n[0], n[1]).toLowerCase().includes(q) || (n[3] || '').toLowerCase().includes(q)));
     const quick = [['sell', 'Sale', '<path d="M12 5v14M5 12h14"/>', 'go'], ['new-lead', 'Lead', ICON_LEADS, 'act', 'leads'], ['new-appt', 'OPD', ICON_CAL, 'act', 'appointments'], ['add-expense', 'Expense', '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>', 'act', 'expenses']]
       .filter(([id, , , kind, scr]) => !readOnly() && can(kind === 'go' ? id : scr));
     $('#side-quick').innerHTML = quick.map(([id, label, icon, kind]) => `<button type="button" ${kind === 'go' ? `data-go="${id}"` : `data-act="${id}"`}>${svg(icon)}${label}</button>`).join('');
     $('#side-quick').hidden = !quick.length;
-    if (!items.length) { $('#nav').innerHTML = '<p class="nav-empty">Nothing matches.</p>'; } else $('#nav').innerHTML = items.map(([id, label, icon, group]) => `${group ? `<div class="nav-group">${group}</div>` : ''}<button type="button" data-go="${id}" class="${screen === id || (id === 'purchases' && screen === 'purchase-new') ? 'on' : ''}">${svg(icon)}<span>${label}</span>${badge(id)}</button>`).join('');
+    if (!items.length) { $('#nav').innerHTML = '<p class="nav-empty">Nothing matches.</p>'; } else $('#nav').innerHTML = items.map(([id, label, icon, group]) => `${group ? `<div class="nav-group">${group}</div>` : ''}<button type="button" data-go="${id}" class="${screen === id || (id === 'purchases' && screen === 'purchase-new') ? 'on' : ''}">${svg(icon)}<span>${esc(navLabel(id, label))}</span>${badge(id)}</button>`).join('');
     const tabs = (can('dashboard') ? TAB_ORDER : DESK_TABS).filter(can);
     $('#tabs').hidden = tabs.length < 2;
     const tabLabel = { dashboard: 'Dashboard', today: 'Today', appointments: 'OPD', inventory: 'Inventory', leads: 'Leads' };
     $('#tabs').innerHTML = tabs.map((id) => {
       if (id === 'sell') return `<button type="button" data-go="sell" class="fab" aria-label="New sale">${svg('<path d="M12 5v14M5 12h14"/>')}<span>Sale</span></button>`;
       const n = NAV.find((x) => x[0] === id);
-      return `<button type="button" data-go="${id}" class="${screen === id ? 'on' : ''}">${svg(n[2])}<span>${tabLabel[id] || n[1]}</span>${badge(id).replace('badge', 'badge dot')}</button>`;
+      return `<button type="button" data-go="${id}" class="${screen === id ? 'on' : ''}">${svg(n[2])}<span>${esc((ui().labels || {})[id] || tabLabel[id] || n[1])}</span>${badge(id).replace('badge', 'badge dot')}</button>`;
     }).join('');
     $('#side-sub').textContent = `${me.name} · ${A.ROLES[role]}`;
     $('#user-initial').textContent = me.name.trim().charAt(0).toUpperCase();
@@ -163,7 +185,8 @@
     try { const st = set(); window.PRIMEFIT_SOCIAL = { instagram: st.instagram, youtube: st.youtube, website: st.website, phone: st.phone }; } catch (_) { /* ignore */ }
     const f = SCREENS[screen] || SCREENS[home()];
     const nav = NAV.find((n) => n[0] === screen);
-    $('#title').textContent = TITLES[screen] || (screen === 'sell' && params.edit ? 'Edit Sale' : nav ? nav[1] : '');
+    $('#title').textContent = TITLES[screen] || (screen === 'sell' && params.edit ? 'Edit Sale' : nav ? navLabel(nav[0], nav[1]) : '');
+    applyUi();
     $('#top-sub').textContent = SUBS[screen] ? SUBS[screen]() : `${me.name} · ${A.ROLES[role]}`;
     document.body.classList.toggle('ro', readOnly());
     view.innerHTML = f();
@@ -559,7 +582,7 @@
   SCREENS.founder = () => {
     const r = range(); const today = admin.today();
     const fin = admin.financialReport(r); const d = admin.dashboard(r); const sm = admin.expenseSummary(r);
-    const fs = admin.founderStats(r); const sel = fs.find((f) => f.id === fdSel) || null;
+    const fsAll = admin.founderStats(r, { all: true }); const fs = fsAll.filter((f) => !f.disabled); const offF = fsAll.filter((f) => f.disabled); const sel = fsAll.find((f) => f.id === fdSel) || null;
     const month = today.slice(0, 7); const prevM = (() => { const x = new Date(`${month}-01T00:00:00`); x.setMonth(x.getMonth() - 1); return A.isoDate(x).slice(0, 7); })();
     const mFin = admin.financialReport({ from: `${month}-01`, to: `${month}-31` }); const pFin = admin.financialReport({ from: `${prevM}-01`, to: `${prevM}-31` });
     const al = myAlerts();
@@ -580,13 +603,14 @@
     const team = admin.teamReport(r).filter((x) => x.totalSales).slice(0, 3);
     const renewVal = admin.renewals().filter((x) => x.stage && !x.done).reduce((a, x) => { const it = S().sales.filter((y) => y.patientId === x.patientId).slice(-1)[0]; return a + (it ? it.amount : 0); }, 0);
     const tp = admin.targetProgress(month);
-    const fCard = (f) => `<button type="button" class="f-card ${fdSel === f.id ? 'on' : ''}" data-fdsel="${f.id}"><span class="fh-av sm">${esc(initialsOf(f.name))}</span><span class="f-main"><b>${esc(f.name)}</b><small>${esc(f.title || 'Founder')} · ${f.share}% share</small>
+    const fCard = (f) => `<button type="button" class="f-card ${fdSel === f.id ? 'on' : ''} ${f.disabled ? 'off' : ''}" data-fdsel="${f.id}"><span class="fh-av sm" ${f.color ? `style="background:${esc(f.color)}"` : ''}>${esc(initialsOf(f.name))}</span><span class="f-main"><b>${esc(f.name)}${f.disabled ? ' <span class="badge">Disabled</span>' : ''}</b><small>${esc(f.title || 'Founder')} · ${f.share}% share${f.city ? ` · ${esc(f.city)}` : ''}</small>
       <span class="f-nums"><i>Spent <b>${inr(f.spent)}</b></i><i>Capital <b>${inr(f.net)}</b></i></span>${f.budget ? `<span class="meter lux ${f.limitPct > 100 ? 'bad' : f.limitPct > 80 ? 'warn' : ''}"><i style="width:${Math.min(100, f.limitPct)}%"></i></span><small>${inr(f.monthSpent)} of ${inr(f.budget)} this month</small>` : '<small>No monthly limit</small>'}</span></button>`;
     const heroName = sel ? sel.name : fs.length === 1 ? fs[0].name : fs.length ? 'All founders' : 'Founder Hub';
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('founder')}</div>
       <section class="hero founder-hero">
         <div class="fh-top"><div class="fh-av">${fs.length > 1 && !sel ? `${fs.length}` : esc(initialsOf(sel ? sel.name : (fs[0] || {}).name))}</div><div class="fh-id"><small>${sel ? esc(sel.title || 'Founder') : 'Founder Hub'}</small><b>${esc(heroName)}</b><span>${sel ? esc([sel.mobile, sel.email].filter(Boolean).join(' · ') || set().clinic) : `${esc(set().clinic)} · ${esc(periodLabel())}`}</span></div>
-          ${readOnly() ? '' : `<button type="button" class="btn sm glass" data-act="${sel ? 'founder-edit' : 'founder-add'}" ${sel ? `data-id="${sel.id}"` : ''}>${sel ? 'Edit' : '+ Founder'}</button>`}</div>
+          ${readOnly() ? '' : `<span class="fh-btns"><button type="button" class="btn sm glass" data-act="${sel ? 'founder-edit' : 'founder-add'}" ${sel ? `data-id="${sel.id}"` : ''}>${sel ? 'Edit profile' : '+ Founder'}</button>${sel ? `<button type="button" class="btn sm glass" data-act="founder-toggle" data-id="${sel.id}">${sel.disabled ? 'Enable' : 'Disable'}</button>` : ''}</span>`}</div>
+        ${sel && (sel.joined || sel.role || sel.about) ? `<p class="fh-about">${esc([sel.role, sel.joined ? `Since ${fdate(sel.joined)}` : '', sel.about].filter(Boolean).join(' · '))}</p>` : ''}${sel && sel.disabled ? '<p class="fh-about"><b>Disabled:</b> kept for records, left out of new expenses, alerts and profit share.</p>' : ''}
         <div class="hero-row">
           <div class="hk"><small>Revenue</small><b>${inr(fin.revenue)}</b><small>${esc(periodLabel())}</small></div>
           <div class="hk"><small>Net profit</small><b>${inr(fin.profit)}</b><small>${sel ? `${sel.name.split(' ')[0]}'s ${sel.share}%: ${inr(sel.profitShare)}` : 'after all counted expenses'}</small></div>
@@ -595,18 +619,18 @@
         </div>
       </section>
       <section class="card"><h2><span class="ic gold">${svg('<path d="M3 7l4 4 5-7 5 7 4-4-2 12H5z"/>')}</span>Founders<span class="sp"></span>${readOnly() ? '' : '<button class="btn sm primary" data-act="founder-add">+ Add founder</button>'}</h2>
-        ${fs.length ? `<div class="f-cards"><button type="button" class="f-card all ${!fdSel ? 'on' : ''}" data-fdsel=""><span class="fh-av sm">${fs.length}</span><span class="f-main"><b>All founders</b><small>${fs.map((f) => `${esc(f.name.split(' ')[0])} ${f.share}%`).join(' · ')}</small><span class="f-nums"><i>Spent <b>${inr(fs.reduce((a, f) => a + f.spent, 0))}</b></i><i>Capital <b>${inr(fs.reduce((a, f) => a + f.net, 0))}</b></i></span></span></button>${fs.map(fCard).join('')}</div>`
+        ${fs.length ? `<div class="f-cards"><button type="button" class="f-card all ${!fdSel ? 'on' : ''}" data-fdsel=""><span class="fh-av sm">${fs.length}</span><span class="f-main"><b>All founders</b><small>${fs.map((f) => `${esc(f.name.split(' ')[0])} ${f.share}%`).join(' · ')}</small><span class="f-nums"><i>Spent <b>${inr(fs.reduce((a, f) => a + f.spent, 0))}</b></i><i>Capital <b>${inr(fs.reduce((a, f) => a + f.net, 0))}</b></i></span></span></button>${fs.map(fCard).join('')}${offF.map(fCard).join('')}</div>`
           : '<p class="hint" style="margin:0">Add each founder or partner with their profit share and a monthly spending limit. Founder expenses, capital and discussions are then kept per person.</p>'}</section>
       <section class="card"><h2><span class="ic ${al.some((x) => x.level === 'bad') ? 'bad' : 'gold'}">${svg('<path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0"/>')}</span>Alerts<span class="sp"></span><span class="badge ${al.length ? 'warn' : 'ok'}">${al.length}</span></h2>${alertRows(al.slice(0, 12))}</section>
       <section class="card discuss-card"><h2><span class="ic violet">${svg('<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M8 9h8M8 13h5"/>')}</span>Discussions<span class="sp"></span><button class="btn sm" data-act="export" data-what="discussions" data-fmt="pdf">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}PDF</button>${readOnly() ? '' : '<button class="btn sm primary" data-act="note-add">+ Discussion</button>'}</h2>
         ${readOnly() ? '' : `<div class="quick-note"><textarea id="qn-text" rows="2" placeholder="Write a quick discussion point… (saved with today's date and time)"></textarea><div class="qn-row"><select id="qn-mode" aria-label="Mode">${Object.keys(NOTE_MODES).map((m) => opt(m, `${NOTE_MODES[m]} ${m}`, 'In person')).join('')}</select><select id="qn-tag" aria-label="Type">${Object.entries(NOTE_TAGS).map(([k, l]) => opt(k, l, 'discussion')).join('')}</select><button type="button" class="btn primary sm" data-act="note-quick">Save</button></div></div>`}
         <div class="row-tools"><div class="seg sm scroll-x">${[['', 'Open'], ...Object.entries(NOTE_TAGS), ['done', 'Done']].map(([k, l]) => `<button type="button" data-notef="${k}" class="${noteF === k ? 'on' : ''}">${l}</button>`).join('')}</div><input type="search" data-noteq placeholder="Search discussions" value="${esc(noteQ)}"></div>
-        ${notes.length ? `<ol class="d-timeline">${notes.map((n) => `<li class="note ${n.tag} ${n.pinned ? 'pin' : ''} ${n.done ? 'done' : ''}"><span class="d-dot">${NOTE_MODES[n.mode] || '💬'}</span><div class="d-body">
+        ${notes.length ? `<ol class="d-timeline">${capList(notes, 'notes').map((n) => `<li class="note ${n.tag} ${n.pinned ? 'pin' : ''} ${n.done ? 'done' : ''}"><span class="d-dot">${NOTE_MODES[n.mode] || '💬'}</span><div class="d-body">
           <div class="note-top"><b class="d-when">${fdate(n.date || A.isoDate(new Date(n.at)))}${n.time ? ` · ${time12(n.time)}` : ''}</b><span class="badge ${n.tag === 'important' ? 'bad' : n.tag === 'decision' ? 'ok' : n.tag === 'idea' ? 'violet' : n.tag === 'meeting' ? 'gold' : 'info'}">${NOTE_TAGS[n.tag] || 'Note'}</span>${n.mode ? `<span class="badge">${esc(n.mode)}</span>` : ''}${n.pinned ? '<span class="pin-ic">📌</span>' : ''}</div>
           ${n.title ? `<b class="d-title">${esc(n.title)}</b>` : ''}${n.text ? `<p>${esc(n.text).replace(/\n/g, '<br>')}</p>` : ''}
           ${n.outcome ? `<div class="d-out"><small>Outcome / decision</small>${esc(n.outcome)}</div>` : ''}${n.nextStep ? `<div class="d-out next"><small>Next step${n.due ? ` · by ${fdate(n.due)}` : ''}</small>${esc(n.nextStep)}</div>` : ''}
           <small class="d-meta">${(n.with || []).length ? `With ${esc((n.with || []).map((x) => fName(x) || x).join(', '))} · ` : ''}${n.place ? `${esc(n.place)} · ` : ''}${n.mins ? `${n.mins} min · ` : ''}Saved ${esc(ftime(n.updated || n.at))}${n.by ? ` by ${esc(n.by)}` : ''}</small>
-          ${readOnly() ? '' : `<div class="acts"><button class="btn xs" data-act="note-pin" data-id="${n.id}">${n.pinned ? 'Unpin' : 'Pin'}</button><button class="btn xs" data-act="note-done" data-id="${n.id}">${n.done ? 'Reopen' : 'Done'}</button><button class="btn xs" data-act="note-edit" data-id="${n.id}">Edit</button>${canDelete() ? `<button class="btn xs danger" data-act="note-del" data-id="${n.id}">✕</button>` : ''}</div>`}</div></li>`).join('')}</ol>`
+          ${readOnly() ? '' : `<div class="acts"><button class="btn xs" data-act="note-pin" data-id="${n.id}">${n.pinned ? 'Unpin' : 'Pin'}</button><button class="btn xs" data-act="note-done" data-id="${n.id}">${n.done ? 'Reopen' : 'Done'}</button><button class="btn xs" data-act="note-edit" data-id="${n.id}">Edit</button>${canDelete() ? `<button class="btn xs danger" data-act="note-del" data-id="${n.id}">✕</button>` : ''}</div>`}</div></li>`).join('')}</ol>${moreBtn('notes', notes.length)}`
           : '<p class="hint" style="margin:0">Every discussion is saved with its date, time and mode (in person, call, WhatsApp, video…). Add who was there, the outcome and the next step, then export them all as a PDF.</p>'}</section>
       <section class="card"><h2><span class="ic teal">${svg('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>')}</span>This month vs last month</h2>
         <div class="kpis">${kpi('Revenue', inr(mFin.revenue), `${fdate(prevM)}: ${inr(pFin.revenue)}`, 'teal').replace('</b>', `</b>${trend(mFin.revenue, pFin.revenue)}`)}${kpi('Expenses', inr(mFin.expenses), `${fdate(prevM)}: ${inr(pFin.expenses)}`, 'gold').replace('</b>', `</b>${trend(mFin.expenses, pFin.expenses, false)}`)}${kpi('Profit', inr(mFin.profit), `${fdate(prevM)}: ${inr(pFin.profit)}`, mFin.profit >= 0 ? 'good' : 'bad').replace('</b>', `</b>${trend(mFin.profit, pFin.profit)}`)}${kpi('Target', tp.revenueGoal ? `${tp.revenuePct}%` : '–', tp.revenueGoal ? `of ${inr(tp.revenueGoal)}` : 'Set in Team Desk', 'violet')}</div></section>
@@ -647,10 +671,17 @@
         { name: 'email', label: 'Email', type: 'email', value: f ? f.email : '' },
         { name: 'share', label: 'Profit share (%)', type: 'number', value: f ? f.share : (admin.founders().length ? '' : 100) },
         { name: 'budget', label: 'Monthly spending limit (₹, 0 = none)', type: 'number', value: f ? f.budget || '' : '' },
+        { name: 'role', label: 'Looks after', value: f ? f.role || '' : '', placeholder: 'Operations, marketing, medical…' },
+        { name: 'joined', label: 'Founder since', type: 'date', value: f ? f.joined || '' : '' },
+        { name: 'city', label: 'City', value: f ? f.city || '' : '' },
+        { name: 'pan', label: 'PAN (optional)', value: f ? f.pan || '' : '' },
+        { name: 'bank', label: 'Bank / UPI for payouts (optional)', value: f ? f.bank || '' : '' },
+        { name: 'color', label: 'Profile colour', type: 'select', value: f ? f.color || '' : '', options: [['', 'Gold (default)'], ['#015b53', 'Teal'], ['#1f2a2b', 'Charcoal'], ['#6c5bd4', 'Violet'], ['#b8892a', 'Bronze'], ['#c2185b', 'Rose'], ['#1565c0', 'Sapphire']] },
+        { name: 'active', label: 'Active (untick to disable this founder)', type: 'checkbox', value: f ? !f.disabled : true },
         { name: 'about', label: 'About / notes', type: 'textarea', value: f ? f.about : '', span: true },
       ],
       html: f && canDelete() ? `<p style="margin:0"><button type="button" class="btn sm danger" data-act="founder-del" data-id="${f.id}">Remove founder</button></p>` : '',
-      onSubmit: (v) => { const x = admin.saveFounder({ ...(f ? { id: f.id } : {}), ...v }); const tot = admin.founders().reduce((a, y) => a + (Number(y.share) || 0), 0); return tot > 100 ? `Saved ${x.name}. Profit shares add up to ${tot}%` : `Saved ${x.name}`; },
+      onSubmit: (v) => { const { active, ...rest } = v; const x = admin.saveFounder({ ...(f ? { id: f.id } : {}), ...rest, disabled: !active }); const tot = admin.founders().reduce((a, y) => a + (Number(y.share) || 0), 0); return tot > 100 ? `Saved ${x.name}. Profit shares add up to ${tot}%` : `Saved ${x.name}`; },
     });
   }
   function capitalForm() {
@@ -1083,6 +1114,7 @@
   SCREENS.today = () => {
     const d = todayDate || admin.today();
     const x = admin.daySummary(d);
+    const tLeads = [...x.leadList, ...x.followUps.filter((l) => !x.leadList.includes(l))];
     const imgBtn = `<button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="jpeg">${svg('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>')}Image</button>`;
     const stockRow = (y) => `<tr><td>${esc(y.item.name)}</td><td>${esc(y.item.category)}</td><td class="r"><b>${num(y.stock)}</b> <span class="hint">${esc(y.item.unit)}</span></td><td>${y.item.orderAt != null && y.stock < y.item.orderAt ? '<span class="badge bad">Order required</span>' : y.stock > 0 ? '<span class="badge ok">Available</span>' : '<span class="badge">Not available</span>'}</td></tr>`;
     return `<div class="toolbar"><div class="day-nav"><button type="button" class="btn sm" data-day="-1" aria-label="Previous day">‹</button><input type="date" data-todaydate value="${esc(d)}" aria-label="Date"><button type="button" class="btn sm" data-day="1" aria-label="Next day">›</button>${d !== admin.today() ? '<button type="button" class="btn sm" data-day="0">Today</button>' : ''}</div>
@@ -1110,7 +1142,7 @@
       </div>
       <div class="cards">
         <section class="card"><h2><span class="ic gold">${svg(ICON_LEADS)}</span>Leads & follow-ups<span class="sp"></span><span class="badge">${num(x.leadList.length)} new · ${num(x.followUps.length)} follow-up</span></h2>
-          ${table(['Name', 'Mobile', 'Source', 'Status'], [...x.leadList, ...x.followUps.filter((l) => !x.leadList.includes(l))].map((l) => `<tr><td>${esc(l.name)}${x.followUps.includes(l) ? ' <span class="badge gold">Follow-up</span>' : ''}</td><td>${esc(l.mobile)}</td><td>${esc(l.source || '')}</td><td>${esc(l.status)}</td></tr>`))}</section>
+          ${table(['Name', 'Mobile', 'Source', 'Status'], capList(tLeads, 'tleads').map((l) => `<tr><td>${esc(l.name)}${x.followUps.includes(l) ? ' <span class="badge gold">Follow-up</span>' : ''}</td><td>${esc(l.mobile)}</td><td>${esc(l.source || '')}</td><td>${esc(l.status)}</td></tr>`))}${moreBtn('tleads', tLeads.length)}</section>
         <section class="card"><h2><span class="ic">${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}</span>Renewals due<span class="sp"></span><span class="badge">${num(x.renewals.length)}</span></h2>
           ${table(['Patient', 'Product', '>Days', 'Reference'], x.renewals.slice(0, 30).map((rr) => `<tr><td>${esc(rr.name)}<span class="sub">${esc(rr.mobile)}</span></td><td>${esc(rr.product)}</td><td class="r">${num(rr.days)}</td><td><b>${esc(rr.ref)}</b></td></tr>`))}</section>
       </div>
@@ -1231,7 +1263,7 @@
         ${(set().leadTags || []).length ? `<select data-lfilter="tag" aria-label="Tag">${opt('', 'Any tag', leadF.tag)}${set().leadTags.map((x) => opt(x, x, leadF.tag)).join('')}</select>` : ''}
       </div></div>
       ${bulk}
-      ${leadView === 'board' ? board() : `<div class="lead-list">${list.map(card).join('') || `<div class="card empty">${svg(ICON_LEADS)}No leads here.<br><br><button class="btn primary" data-act="new-lead">Add a lead</button></div>`}</div>`}`;
+      ${leadView === 'board' ? board() : `<div class="lead-list">${capList(list, 'leads').map(card).join('') || `<div class="card empty">${svg(ICON_LEADS)}No leads here.<br><br><button class="btn primary" data-act="new-lead">Add a lead</button></div>`}</div>${moreBtn('leads', list.length)}`}`;
   };
   // Lead day summary: responses, status changes and the next follow-ups, for any day.
   let leadSumDay = '';
@@ -1357,8 +1389,8 @@
       <section class="card"><h2><span class="ic violet">${svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>')}</span>By person</h2>
         ${table(['Person', '>Changes', '>Leads added', '>Lead updates', '>Appointments', '>Sales'], Object.entries(per).map(([n, p]) => `<tr><td><b>${esc(n)}</b></td><td class="r">${p.total}</td><td class="r">${p.leads}</td><td class="r">${p.updates}</td><td class="r">${p.appts}</td><td class="r">${p.sales}</td></tr>`))}</section>
       <section class="card"><h2><span class="ic">${svg('<path d="M3 12h4l3-8 4 16 3-8h4"/>')}</span>All changes<span class="sp"></span><span class="badge">${list.length}</span></h2>
-        <ol class="timeline big">${list.slice(0, 400).map((x) => `<li><span class="t-ic">${esc(x.by.charAt(0).toUpperCase())}</span><div><b>${esc(x.action)}</b>${x.detail ? `<span>${esc(x.detail)}</span>` : ''}<small>${ftime(x.at)} · ${esc(x.by)}</small></div></li>`).join('') || '<li class="empty">No changes in this period.</li>'}</ol>
-        ${list.length > 400 ? `<p class="hint">Showing the latest 400 of ${list.length}. Export to see all.</p>` : ''}</section>`;
+        <ol class="timeline big">${capList(list, 'activity').map((x) => `<li><span class="t-ic">${esc(x.by.charAt(0).toUpperCase())}</span><div><b>${esc(x.action)}</b>${x.detail ? `<span>${esc(x.detail)}</span>` : ''}<small>${ftime(x.at)} · ${esc(x.by)}</small></div></li>`).join('') || '<li class="empty">No changes in this period.</li>'}</ol>
+        ${moreBtn('activity', list.length)}</section>`;
   };
 
   // ── What's new: app versions and credits ──────────────────────
@@ -1732,7 +1764,7 @@
   SUBS.sales = () => periodLabel();
   SCREENS.sales = () => {
     const list = filteredSales();
-    const rows = list.map((s) => `<tr><td>${esc(s.patientName)}<span class="sub">${fdate(s.date)}${s.mobile ? ` · ${esc(s.mobile)}` : ''}</span></td>
+    const rows = capList(list, 'sales').map((s) => `<tr><td>${esc(s.patientName)}<span class="sub">${fdate(s.date)}${s.mobile ? ` · ${esc(s.mobile)}` : ''}</span></td>
       <td>${typeBadge(s.type)} ${s.patientType === 'renewal' ? '<span class="badge">Renewal</span>' : '<span class="badge ok">New</span>'}</td>
       <td>${esc(s.product)}${s.qty > 1 ? ` × ${s.qty}` : ''}</td>
       <td class="r"><b>${inr(s.amount)}</b></td><td data-hm>${splitText(s)}</td><td class="r">${inr(s.incentive)}</td>
@@ -1743,7 +1775,7 @@
         <select data-filter="pt" aria-label="New or renewal">${opt('', 'New & renewal', salesFilter.pt)}${opt('new', 'New patients', salesFilter.pt)}${opt('renewal', 'Renewals', salesFilter.pt)}</select>
         <select data-filter="member" aria-label="Team member">${opt('', 'All team members', salesFilter.member)}${S().team.map((m) => opt(m.id, m.name, salesFilter.member)).join('')}</select></div></div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Sales', num(list.length))}${kpi('Amount', inr(list.reduce((a, s) => a + s.amount, 0)), '', 'good')}${kpi('Incentives', inr(list.reduce((a, s) => a + s.incentive, 0)), '', 'gold')}</div>
-      <div class="card">${table(['Patient', 'Type', 'Product', '>Amount', '~Reference', '>Incentive', ''], rows)}</div>`;
+      <div class="card">${table(['Patient', 'Type', 'Product', '>Amount', '~Reference', '>Incentive', ''], rows)}${moreBtn('sales', list.length)}</div>`;
   };
 
   // Patients
@@ -1751,9 +1783,10 @@
   let patientStatus = '';
   function patientRows() {
     const activeFrom = A.isoDate(new Date(Date.now() - set().activeDays * 86400000));
+    const apMap = new Map(); S().appointments.forEach((a) => { if (!a.patientId) return; const l = apMap.get(a.patientId); if (l) l.push(a); else apMap.set(a.patientId, [a]); });
     return S().patients.map((p) => {
       const sales = admin.patientSales(p.id);
-      const appts = S().appointments.filter((a) => a.patientId === p.id);
+      const appts = apMap.get(p.id) || [];
       const last = sales[sales.length - 1];
       const lastAny = [last && last.date, ...appts.map((a) => a.date)].filter(Boolean).sort().pop() || '';
       return { p, sales, appts, last, lastAny, active: !!lastAny && lastAny >= activeFrom, spent: sales.reduce((a, s) => a + s.amount, 0) + appts.reduce((a, x) => a + admin.feeEarned(x), 0) };
@@ -1763,7 +1796,7 @@
   }
   SCREENS.patients = () => {
     const list = patientRows();
-    const rows = list.map((x) => `<tr><td><button class="link" data-act="patient" data-id="${x.p.id}">${esc(x.p.name)}</button><span class="sub">${esc(x.p.mobile)}</span></td>
+    const rows = capList(list, 'patients').map((x) => `<tr><td><button class="link" data-act="patient" data-id="${x.p.id}">${esc(x.p.name)}</button><span class="sub">${esc(x.p.mobile)}</span></td>
           <td class="r">${x.sales.length + x.appts.length}</td><td class="r">${inr(x.spent)}</td>
           <td>${x.lastAny ? fdate(x.lastAny) : '—'}<span class="sub">${x.last ? esc(x.last.product) : x.appts.length ? 'OPD consultation' : ''}</span></td>
           <td>${x.active ? '<span class="badge ok">Active</span>' : '<span class="badge">Inactive</span>'}</td>
@@ -1771,7 +1804,7 @@
     return `<div class="filters"><div class="row"><input type="search" placeholder="Search name or mobile" data-filter="patient" value="${esc(patientQ)}">
         <select data-filter="pstatus" aria-label="Status">${opt('', 'All patients', patientStatus)}${opt('active', 'Active', patientStatus)}${opt('inactive', 'Inactive', patientStatus)}</select>
         ${exportBtns('patients')}</div></div>
-      <div class="card">${table(['Patient', '>Visits', '>Total spent', 'Last visit', 'Status', ''], rows)}</div>`;
+      <div class="card">${table(['Patient', '>Visits', '>Total spent', 'Last visit', 'Status', ''], rows)}${moreBtn('patients', list.length)}</div>`;
   };
 
   // Renewals
@@ -1792,7 +1825,7 @@
       const link = waLink(r.mobile, `Namaste ${r.name}, this is ${set().clinic}. Your last ${r.product} was on ${fdate(r.lastDate)}. Shall we arrange your renewal?`);
       return link ? `<a class="btn xs" href="tel:${esc(r.mobile)}">Call</a> <a class="btn xs" href="${esc(link)}" target="_blank" rel="noopener">WhatsApp</a>` : '';
     };
-    const rows = list.map((r) => `<tr class="${r.done ? 'off' : ''}"><td>${esc(r.name)}<span class="sub">${esc(r.mobile)}</span></td>
+    const rows = capList(list, 'renewals').map((r) => `<tr class="${r.done ? 'off' : ''}"><td>${esc(r.name)}<span class="sub">${esc(r.mobile)}</span></td>
       <td>${esc(r.product)}</td><td>${fdate(r.lastDate)}<span class="sub">${r.days} days ago</span></td>
       <td><span class="badge ${r.stage === d2 ? 'bad' : r.stage ? 'warn' : ''}">${stageLabel(r)}</span>${r.done ? ' <span class="badge ok">Contacted</span>' : ''}</td>
       <td data-hm>${esc(r.ref)}</td>
@@ -1801,7 +1834,7 @@
     const segs = [['due', `Due (${count((r) => r.stage && !r.done)})`], ['d60', `${d1}-day`], ['d90', `${d2}+ days`], ['soon', 'Next 10 days'], ['done', 'Contacted'], ['all', 'All']];
     return `<div class="toolbar"><div class="scroll-x"><div class="seg">${segs.map(([k, l]) => `<button type="button" data-renewal="${k}" class="${renewalFilter === k ? 'on' : ''}">${l}</button>`).join('')}</div></div><span class="grow"></span>${exportBtns('renewals')}</div>
       <div class="card"><p class="hint" style="margin-top:0">An alert appears ${d1} days after a patient's last injection; after ${d2} days it shows as overdue. A new sale clears it.</p>
-      ${table(['Patient', 'Product', 'Last purchase', 'Reminder', '~Reference team', ''], rows)}</div>`;
+      ${table(['Patient', 'Product', 'Last purchase', 'Reminder', '~Reference team', ''], rows)}${moreBtn('renewals', list.length)}</div>`;
   };
 
   // Products
@@ -2151,9 +2184,9 @@
       <p class="hint">Use the <b>Count</b> switches to leave a category or name (for example a marketing payment) out of the expense total and profit. The entries stay in the list.</p>
       <div class="cards">${mini('By category', sm.byCategory, 'cat')}${mini('By name (founder, ad platform, editor…)', sm.byName, 'name')}</div>
       ${sm.byBoth.length ? `<div class="cards">${mini('Category × name', sm.byBoth)}</div>` : ''}
-      <div class="card">${table(['Category', 'Name', '~Note', 'Date', '>Amount', ''], list.map((e) => `<tr><td>${scopeOf(e) === 'founder' ? `<span class="badge violet">${esc(fName(e.founderId) || 'Founder')}</span> ` : ''}${esc(e.category)} ${e.auto ? '<span class="badge info">Auto</span>' : ''}</td><td>${esc(e.name || '')}${admin.counted(e) ? '' : ' <span class="badge">Not counted</span>'}</td><td>${esc(e.note)}</td><td>${fdate(e.date)}</td><td class="r"><b>${inr(e.amount)}</b></td>
+      <div class="card">${table(['Category', 'Name', '~Note', 'Date', '>Amount', ''], capList(list, 'expenses').map((e) => `<tr><td>${scopeOf(e) === 'founder' ? `<span class="badge violet">${esc(fName(e.founderId) || 'Founder')}</span> ` : ''}${esc(e.category)} ${e.auto ? '<span class="badge info">Auto</span>' : ''}</td><td>${esc(e.name || '')}${admin.counted(e) ? '' : ' <span class="badge">Not counted</span>'}</td><td>${esc(e.note)}</td><td>${fdate(e.date)}</td><td class="r"><b>${inr(e.amount)}</b></td>
         <td class="acts">${e.auto ? '' : `<button class="btn xs" data-act="edit-expense" data-id="${e.id}">Edit</button> `}<button class="btn xs danger" data-act="del-expense" data-id="${e.id}">Delete</button></td></tr>`),
-        `<td colspan="4">Total · ${list.length} entries</td><td class="r">${inr(list.reduce((a, e) => a + e.amount, 0))}</td><td></td>`)}</div>`;
+        `<td colspan="4">Total · ${list.length} entries</td><td class="r">${inr(list.reduce((a, e) => a + e.amount, 0))}</td><td></td>`)}${moreBtn('expenses', list.length)}</div>`;
   };
   function expenseForm(e) {
     openForm({
@@ -2400,6 +2433,96 @@
     } catch (err) { toast(`Export failed: ${err.message}`, true); }
   }
 
+  // ── Data Explorer: every data sheet with search, filters, sort, group, columns and export ──
+  let dataVer = 0; let sheetsMemo = null; let sheetsMemoVer = -1;
+  admin.onChange(() => { dataVer += 1; });
+  const sheetsNow = () => { if (!sheetsMemo || sheetsMemoVer !== dataVer) { sheetsMemo = admin.sheetsData(); sheetsMemoVer = dataVer; } return sheetsMemo; };
+  const XP_SCREEN = { Appointments: 'appointments', Leads: 'leads', Patients: 'patients', 'Injection Sales': 'sales', 'Protein Sales': 'sales', 'Diet Support': 'sales', 'Other Sales': 'sales', 'Service Sales': 'sales',
+    Purchases: 'purchases', Inventory: 'inventory', Team: 'team', Incentives: 'incentives', Salary: 'salary', Expenses: 'expenses', Renewals: 'renewals', Doctors: 'doctors', Content: 'content', Editors: 'content',
+    Campaigns: 'marketing', 'Ads Report': 'marketing', Tasks: 'manage', Attendance: 'manage', Founders: 'founder', 'Founder Notes': 'founder', 'Activity Log': 'activity', Dashboard: 'dashboard' };
+  const XP_OPS = [['has', 'contains'], ['not', 'does not contain'], ['eq', 'is exactly'], ['gt', 'more than'], ['lt', 'less than'], ['empty', 'is empty'], ['full', 'is not empty']];
+  const XP_BLANK = () => ({ sheet: 'Leads', q: '', usePeriod: true, f: [{ c: '', op: 'has', v: '' }, { c: '', op: 'has', v: '' }], sort: '', dir: 'desc', group: '', hide: [] });
+  let xp = (() => { try { return { ...XP_BLANK(), ...JSON.parse(localStorage.getItem('primefit.explorer') || '{}') }; } catch (_) { return XP_BLANK(); } })();
+  const xpKeep = () => { try { localStorage.setItem('primefit.explorer', JSON.stringify(xp)); } catch (_) { /* private mode */ } };
+  const xpViews = () => { try { return JSON.parse(localStorage.getItem('primefit.explorer.views') || '[]'); } catch (_) { return []; } };
+  const xpSetViews = (v) => { try { localStorage.setItem('primefit.explorer.views', JSON.stringify(v)); } catch (_) { /* private mode */ } };
+  const xpNum = (v) => { if (typeof v === 'number') return v; const t = String(v == null ? '' : v).replace(/[₹,\s%]/g, ''); return t !== '' && !Number.isNaN(Number(t)) ? Number(t) : null; };
+  const XP_MONEY = /amount|total|fee|spend|spent|salary|incentive|revenue|budget|pay|rate|invested|withdrawn|capital|value|price/i;
+  function xpResult() {
+    const all = sheetsNow();
+    const names = Object.keys(all).filter((n) => role === 'super' || can(XP_SCREEN[n] || 'reports'));
+    const sheet = names.includes(xp.sheet) ? xp.sheet : names[0];
+    const rows = all[sheet] || [[]]; const head = rows[0] || [];
+    let body = rows.slice(1).filter((r) => r.some((v) => v !== '' && v != null));
+    const dateCol = head.findIndex((h, i) => /date|added|month|start|first purchase|due/i.test(h) && body.some((r) => /^\d{4}-\d{2}/.test(String(r[i] || ''))));
+    if (xp.usePeriod && dateCol >= 0) { const r = range(); if (r) body = body.filter((x) => { const v = String(x[dateCol] || '').slice(0, 10); return !v || inR(v.length === 7 ? `${v}-01` : v, r); }); }
+    const q = xp.q.trim().toLowerCase();
+    if (q) body = body.filter((r) => r.join(' ').toLowerCase().includes(q));
+    xp.f.forEach((f) => {
+      const ci = head.indexOf(f.c); if (ci < 0) return;
+      const v = String(f.v || '').toLowerCase(); const n = xpNum(f.v);
+      const test = { has: (x) => !v || String(x).toLowerCase().includes(v), not: (x) => !v || !String(x).toLowerCase().includes(v), eq: (x) => String(x).toLowerCase() === v,
+        gt: (x) => n == null || (xpNum(x) != null && xpNum(x) > n), lt: (x) => n == null || (xpNum(x) != null && xpNum(x) < n), empty: (x) => x === '' || x == null, full: (x) => x !== '' && x != null }[f.op] || (() => true);
+      body = body.filter((r) => test(r[ci] == null ? '' : r[ci]));
+    });
+    const si = head.indexOf(xp.sort);
+    if (si >= 0) {
+      const dir = xp.dir === 'asc' ? 1 : -1;
+      body = [...body].sort((a, b) => { const x = xpNum(a[si]); const y = xpNum(b[si]); if (x != null && y != null) return (x - y) * dir; return String(a[si] || '').localeCompare(String(b[si] || '')) * dir; });
+    }
+    const numCols = head.map((h, i) => i).filter((i) => body.length && body.slice(0, 50).every((r) => r[i] === '' || r[i] == null || xpNum(r[i]) != null) && body.some((r) => xpNum(r[i]) != null) && i !== dateCol && !/mobile|phone|year|time|pin|qty no/i.test(head[i]));
+    const moneyCols = numCols.filter((i) => XP_MONEY.test(head[i]));
+    const show = head.map((h, i) => i).filter((i) => !xp.hide.includes(head[i]));
+    let groups = null; const gi = head.indexOf(xp.group);
+    if (gi >= 0) {
+      const m = new Map();
+      body.forEach((r) => { const k = String(r[gi] == null || r[gi] === '' ? '(blank)' : r[gi]); const g = m.get(k) || { k, n: 0, sums: {} }; g.n += 1; numCols.forEach((i) => { g.sums[i] = (g.sums[i] || 0) + (xpNum(r[i]) || 0); }); m.set(k, g); });
+      groups = [...m.values()].sort((a, b) => b.n - a.n);
+    }
+    return { names, sheet, head, body, total: rows.length - 1, dateCol, numCols, moneyCols, show, groups, gi };
+  }
+  const xpFmt = (x, i, v) => (x.moneyCols.includes(i) && xpNum(v) != null && v !== '' ? inr(xpNum(v)) : /^\d{4}-\d{2}-\d{2}$/.test(String(v)) ? fdate(v) : esc(v == null ? '' : v));
+  SUBS.explorer = () => 'Search, filter, group and export any data';
+  SCREENS.explorer = () => {
+    const x = xpResult(); xp.sheet = x.sheet;
+    const all = sheetsNow();
+    const colOpts = (sel, blank) => opt('', blank, sel) + x.head.map((h) => opt(h, h, sel)).join('');
+    const views = xpViews();
+    const filt = xp.f.map((f, k) => `<div class="xp-f"><select data-xp="f${k}c" aria-label="Column">${colOpts(f.c, k ? 'And column…' : 'Column…')}</select><select data-xp="f${k}op" aria-label="Rule">${XP_OPS.map(([o, l]) => opt(o, l, f.op)).join('')}</select>${['empty', 'full'].includes(f.op) ? '' : `<input data-xp="f${k}v" placeholder="Value" value="${esc(f.v)}">`}</div>`).join('');
+    const kp = [kpi('Rows', num(x.body.length), x.body.length !== x.total ? `of ${num(x.total)}` : 'all rows', 'teal'),
+      ...x.moneyCols.slice(0, 3).map((i, k) => kpi(`Total ${x.head[i]}`, inr(x.body.reduce((a, r) => a + (xpNum(r[i]) || 0), 0)), '', ['gold', 'violet', 'good'][k]))].join('');
+    const groupTable = x.groups ? `<section class="card"><h2><span class="ic violet">${svg('<path d="M4 6h16M4 12h10M4 18h6"/>')}</span>By ${esc(xp.group)}<span class="sp"></span><span class="badge">${x.groups.length} groups</span></h2>
+      ${table([esc(xp.group), '>Rows', ...x.moneyCols.slice(0, 3).map((i) => `>${esc(x.head[i])}`)], capList(x.groups, 'xpg').map((g) => `<tr><td><button type="button" class="link" data-xpgroup="${esc(g.k)}">${esc(g.k)}</button></td><td class="r">${num(g.n)}</td>${x.moneyCols.slice(0, 3).map((i) => `<td class="r">${inr(g.sums[i])}</td>`).join('')}</tr>`))}${moreBtn('xpg', x.groups.length)}</section>` : '';
+    return `<div class="toolbar">${xp.usePeriod && x.dateCol >= 0 ? periodBar() : ''}<span class="grow"></span>${exportBtns('explorer')}</div>
+      <div class="scroll-x xp-sheets"><div class="seg">${x.names.map((n) => `<button type="button" data-xpsheet="${esc(n)}" class="${n === x.sheet ? 'on' : ''}">${esc(n)}<small>${num(Math.max(0, (all[n] || []).length - 1))}</small></button>`).join('')}</div></div>
+      ${views.length ? `<div class="xp-views">${views.map((v, k) => `<span class="chip-btn"><button type="button" data-xpview="${k}">★ ${esc(v.name)}</button><button type="button" class="x" data-xpviewdel="${k}" aria-label="Remove view">✕</button></span>`).join('')}</div>` : ''}
+      <section class="card xp-card"><div class="xp-top"><input type="search" data-xp="q" placeholder="Search every column in ${esc(x.sheet)}" value="${esc(xp.q)}">
+        ${x.dateCol >= 0 ? `<label class="check"><input type="checkbox" data-xp="usePeriod" ${xp.usePeriod ? 'checked' : ''}> Only the chosen period (${esc(x.head[x.dateCol])})</label>` : ''}</div>
+        <div class="xp-grid">${filt}
+          <div class="xp-f"><select data-xp="sort" aria-label="Sort by">${colOpts(xp.sort, 'Sort by…')}</select><select data-xp="dir" aria-label="Order">${opt('desc', 'High → low / Z → A', xp.dir)}${opt('asc', 'Low → high / A → Z', xp.dir)}</select></div>
+          <div class="xp-f"><select data-xp="group" aria-label="Group by">${colOpts(xp.group, 'Group by…')}</select></div></div>
+        <details class="xp-cols"><summary>Columns · ${x.show.length} of ${x.head.length} shown</summary><div class="tag-pick">${x.head.map((h) => `<label class="tag-opt"><input type="checkbox" data-xpcol="${esc(h)}" ${xp.hide.includes(h) ? '' : 'checked'}><span>${esc(h)}</span></label>`).join('')}</div></details>
+        <div class="xp-acts"><button type="button" class="btn sm" data-act="xp-reset">Clear filters</button><button type="button" class="btn sm" data-act="xp-save">★ Save this view</button></div></section>
+      <div class="kpis" style="margin-bottom:14px">${kp}</div>
+      ${groupTable}
+      <div class="card">${table(x.show.map((i) => (x.numCols.includes(i) ? `>${esc(x.head[i])}` : esc(x.head[i]))), capList(x.body, 'xp').map((r) => `<tr>${x.show.map((i) => `<td class="${x.numCols.includes(i) ? 'r' : ''}">${xpFmt(x, i, r[i])}</td>`).join('')}</tr>`))}${moreBtn('xp', x.body.length)}
+      ${x.body.length ? '' : '<p class="hint" style="margin:10px 0 0">No rows match. Clear a filter or pick another period.</p>'}</div>`;
+  };
+  EXPORTS.explorer = () => {
+    const x = xpResult();
+    const desc = [xp.q && `search “${xp.q}”`, ...xp.f.filter((f) => f.c && (f.v || ['empty', 'full'].includes(f.op))).map((f) => `${f.c} ${(XP_OPS.find((o) => o[0] === f.op) || [])[1]} ${f.v}`.trim()), xp.usePeriod && x.dateCol >= 0 && periodLabel()].filter(Boolean).join(' · ');
+    const sections = [];
+    if (x.groups) sections.push(sec(`By ${xp.group}`, [xp.group, '>Rows', ...x.moneyCols.slice(0, 3).map((i) => `>${x.head[i]}`)], x.groups.map((g) => [g.k, g.n, ...x.moneyCols.slice(0, 3).map((i) => g.sums[i])]), { money: x.moneyCols.slice(0, 3).map((_, k) => k + 2), total: [1, ...x.moneyCols.slice(0, 3).map((_, k) => k + 2)] }));
+    const cols = x.show; const money = cols.map((c, k) => (x.moneyCols.includes(c) ? k : -1)).filter((k) => k >= 0);
+    sections.push(sec(x.sheet, cols.map((i) => (x.numCols.includes(i) ? `>${x.head[i]}` : x.head[i])), x.body.map((r) => cols.map((i) => (x.numCols.includes(i) && xpNum(r[i]) != null ? xpNum(r[i]) : r[i] == null ? '' : r[i]))), { money, total: money }));
+    return { title: x.sheet, subtitle: desc || 'All rows', kpis: [['Rows', num(x.body.length)], ...x.moneyCols.slice(0, 3).map((i) => [`Total ${x.head[i]}`, inr(x.body.reduce((a, r) => a + (xpNum(r[i]) || 0), 0))])], sections };
+  };
+  function xpSet(key, val) {
+    const m = key.match(/^f(\d)(c|op|v)$/);
+    if (m) xp.f[Number(m[1])][m[2]] = val; else xp[key] = val;
+    xpKeep();
+  }
+
   // Reports
   let reportTab = 'overview';
   SUBS.reports = () => periodLabel();
@@ -2440,6 +2563,7 @@
     const catChips = `<div class="opt-chips">${S().categories.map((c) => `<span class="opt-chip">${esc(c.name)}<small>${A.KINDS[c.kind]}</small><button type="button" data-act="cat-rename" data-name="${esc(c.name)}" aria-label="Rename">✎</button><button type="button" data-act="cat-del" data-name="${esc(c.name)}" aria-label="Delete">✕</button></span>`).join('')}<button type="button" class="btn xs primary" data-act="add-category">+ Category</button></div>`;
     const STABS = [['general', 'General'], ['selling', 'Selling'], ['leads', 'Leads & messages'], ['team', 'Logins & roles'], ['look', 'Look & dashboards'], ['data', 'Data']];
     return `<div class="settings-tabs" role="tablist">${STABS.map(([k, l]) => `<button type="button" role="tab" data-stabgo="${k}" class="${settingsTab === k ? 'on' : ''}">${l}</button>`).join('')}</div>
+    ${role === 'super' ? brandingCard() : ''}
     <div class="card" data-stab="look"><h2><span class="ic">${svg('<circle cx="12" cy="12" r="9"/><path d="M12 3a9 9 0 0 0 0 18z"/>')}</span>Theme</h2>${themeHtml()}<p class="hint" style="margin:10px 0 0">Applies on this phone to the clinic admin and the diet charts.</p></div>
     ${canCustomize() ? `<div class="card" data-stab="look"><h2><span class="ic violet">${svg('<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>')}</span>What shows on dashboards</h2>
       <p class="hint" style="margin-top:0">Pick a screen, then tick the cards and boxes to show. Hidden ones keep their data. You can also tap <b>Show / hide</b> at the top of any of these screens.</p>
@@ -2525,6 +2649,22 @@
     <p class="credit-line">${esc(CREDIT)} · The Prime Fit Admin ${APP_VERSION}</p>`;
   };
   let settingsTab = 'general';
+  function brandingCard() {
+    const u = ui(); const labels = u.labels || {}; const off = u.off || [];
+    const rows = NAV.filter((n) => !['home', 'settings', 'about'].includes(n[0])).map(([id, label]) => `<div class="ui-row"><label class="check"><input type="checkbox" data-uion="${id}" ${off.includes(id) ? '' : 'checked'}></label><input data-uilabel="${id}" value="${esc(labels[id] || '')}" placeholder="${esc(label)}" aria-label="Menu name for ${esc(label)}"></div>`).join('');
+    const pick = (k, list, cur) => `<div class="seg sm">${list.map(([v, l]) => `<button type="button" data-uiset="${k}" data-v="${v}" class="${(cur || '') === v ? 'on' : ''}">${l}</button>`).join('')}</div>`;
+    return `<div class="card" data-stab="look"><h2><span class="ic gold">${svg('<path d="M3 7l4 4 5-7 5 7 4-4-2 12H5z"/>')}</span>Branding & menu<span class="sp"></span><span class="badge gold">Super Admin</span></h2>
+      <div class="ui-grid"><label class="f">App name in the menu<input id="ui-brand" value="${esc(u.brand || '')}" placeholder="The Prime Fit"></label>
+        <label class="f">Brand colour<span class="ui-color"><input type="color" id="ui-accent" value="${esc(u.accent || '#015b53')}"><button type="button" class="btn xs" data-uiset="accent" data-v="">Theme default</button></span></label>
+        <label class="f">Gold accent<span class="ui-color"><input type="color" id="ui-gold" value="${esc(u.gold || '#d99a1e')}"><button type="button" class="btn xs" data-uiset="gold" data-v="">Default</button></span></label></div>
+      <div class="ui-grid"><div class="f">Headings${pick('font', [['', 'Luxury serif'], ['modern', 'Modern sans']], u.font)}</div>
+        <div class="f">Spacing${pick('density', [['', 'Comfortable'], ['compact', 'Compact']], u.density)}</div>
+        <div class="f">Corners${pick('radius', [['', 'Soft'], ['10', 'Sharp'], ['26', 'Round']], u.radius)}</div>
+        <div class="f">Animations${pick('noAnim', [['', 'On'], ['1', 'Off (fastest)']], u.noAnim ? '1' : '')}</div></div>
+      <h3 class="ui-h">Menu items</h3><p class="hint" style="margin-top:0">Untick to switch a screen off for everyone except Super Admin. Type a new name to rename it in the menu and header.</p>
+      <div class="ui-rows">${rows}</div>
+      <div class="xp-acts" style="margin-top:12px"><button type="button" class="btn primary sm" data-act="ui-save">Save branding & menu</button><button type="button" class="btn sm" data-act="ui-reset">Reset to default</button></div></div>`;
+  }
   function showSettingsTab() {
     $$('#view [data-stab]').forEach((el) => { el.hidden = !el.dataset.stab.split(' ').includes(settingsTab); });
     $$('#view [data-stabgo]').forEach((b) => b.classList.toggle('on', b.dataset.stabgo === settingsTab));
@@ -3083,6 +3223,19 @@
       modal.close(); render(); toast(`Saved · ${l.name}`);
       if (d.o === 'booked' && can('appointments') && !l.apptId) ACTIONS['lead-book']({ id: l.id });
     },
+    'xp-reset': () => { xp = { ...XP_BLANK(), sheet: xp.sheet, usePeriod: xp.usePeriod }; xpKeep(); showN = {}; render(); },
+    'xp-save': () => openForm({ title: 'Save this view', fields: [{ name: 'name', label: 'View name', required: true, value: `${xp.sheet}${xp.group ? ` by ${xp.group}` : ''}` }],
+      onSubmit: (v) => { const list = xpViews().filter((x) => x.name !== v.name); list.push({ name: v.name, state: JSON.parse(JSON.stringify(xp)) }); xpSetViews(list); return `Saved view “${v.name}”`; } }),
+    'ui-save': () => {
+      const labels = {}; $$('[data-uilabel]').forEach((i) => { if (i.value.trim()) labels[i.dataset.uilabel] = i.value.trim(); });
+      const off = $$('[data-uion]').filter((c) => !c.checked).map((c) => c.dataset.uion);
+      const u = { ...ui(), labels, off, brand: $('#ui-brand').value.trim() };
+      const acc = $('#ui-accent').value; const gold = $('#ui-gold').value;
+      if (acc && acc !== '#015b53') u.accent = acc; if (gold && gold !== '#d99a1e') u.gold = gold;
+      admin.updateSettings({ ui: u }); render(); toast('Branding & menu saved');
+    },
+    'ui-reset': async () => { if (!(await confirmBox('Reset branding & menu?', 'Menu names, switched-off screens, colours and fonts go back to the defaults.', 'Reset'))) return; admin.updateSettings({ ui: {} }); render(); toast('Back to default'); },
+    'show-more': (d) => { showN[d.k] = (showN[d.k] || PAGE) + PAGE * 2; render(); },
     'lead-select': () => { leadSelMode = !leadSelMode; leadSel.clear(); render(); },
     'lead-pick': (d) => { if (leadSel.has(d.id)) leadSel.delete(d.id); else leadSel.add(d.id); render(); },
     'lead-pick-all': () => { filteredLeads().forEach((l) => leadSel.add(l.id)); render(); },
@@ -3100,6 +3253,7 @@
       onSubmit: (v) => { const r = admin.importLeads($('#imp-text').value, { ...(v.source ? { source: v.source } : {}), ...(v.assignedTo ? { assignedTo: v.assignedTo } : {}), followUp: admin.today() }); if (!r.added && r.skipped) throw new Error(`Nothing imported: ${r.skipped} line${r.skipped > 1 ? 's were' : ' was'} duplicate or missing a mobile`); return `${plural(r.added, 'lead')} imported${r.skipped ? `, ${r.skipped} skipped` : ''}`; },
     }),
     'ad-spend': () => adSpendForm(),
+    'founder-toggle': (d) => { const f = admin.founder(d.id); if (!f) return; admin.setFounderActive(f.id, !!f.disabled); render(); toast(`${f.name} ${f.disabled ? 'disabled' : 'enabled'}`); },
     'founder-edit': (d) => founderForm(admin.founder(d.id || fdSel) || admin.founders()[0] || null),
     'founder-add': () => founderForm(null),
     'founder-del': async (d) => { const f = admin.founder(d.id); if (f && await confirmBox('Remove founder', `Remove ${f.name}? Their past expenses and capital stay in the records.`, 'Remove')) { admin.deleteFounder(d.id); if (fdSel === d.id) fdSel = ''; render(); toast('Founder removed'); } },
@@ -3127,7 +3281,7 @@
   };
 
   // Actions a view-only login may still use: they open, filter or export, never change data.
-  const RO_ACTIONS = ['lead-select', 'lead-pick', 'lead-pick-all', 'alerts', 'exp-founder-all', 'refresh', 'export', 'user-menu', 'my-pin', 'theme', 'invoice', 'lead', 'appt', 'patient', 'toggle-alert', 'alerts-on', 'rfilter-clear', 'exp-pick', 'opd-slip', 'lock'];
+  const RO_ACTIONS = ['show-more', 'xp-reset', 'xp-save', 'lead-select', 'lead-pick', 'lead-pick-all', 'alerts', 'exp-founder-all', 'refresh', 'export', 'user-menu', 'my-pin', 'theme', 'invoice', 'lead', 'appt', 'patient', 'toggle-alert', 'alerts-on', 'rfilter-clear', 'exp-pick', 'opd-slip', 'lock'];
   (function roStyle() {
     const st = document.createElement('style');
     st.textContent = `${Object.keys(ACTIONS).filter((k) => !RO_ACTIONS.includes(k)).map((k) => `body.ro [data-act="${k}"]`).join(',')},body.ro [data-go="sell"],body.ro [data-go="purchase-new"],body.ro #view form button[type=submit],body.ro .switch,body.ro .days-in{display:none!important}`;
@@ -3167,6 +3321,16 @@
     if (att) { if (readOnly()) return; const cur = ((S().attendance || {})[deskDay || admin.today()] || {})[att.dataset.att]; admin.setAttendance(deskDay || admin.today(), att.dataset.att, cur === att.dataset.mark ? '' : att.dataset.mark); render(); return; }
     const sg = e.target.closest('[data-stabgo]');
     if (sg) { settingsTab = sg.dataset.stabgo; showSettingsTab(); window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+    const xs = e.target.closest('[data-xpsheet]');
+    if (xs) { if (xs.dataset.xpsheet !== xp.sheet) { xp = { ...XP_BLANK(), usePeriod: xp.usePeriod, sheet: xs.dataset.xpsheet }; xpKeep(); showN = {}; render(); } return; }
+    const xg = e.target.closest('[data-xpgroup]');
+    if (xg) { xp.f[0] = { c: xp.group, op: 'eq', v: xg.dataset.xpgroup === '(blank)' ? '' : xg.dataset.xpgroup }; if (xg.dataset.xpgroup === '(blank)') xp.f[0].op = 'empty'; xp.group = ''; xpKeep(); showN = {}; render(); return; }
+    const xv = e.target.closest('[data-xpview]');
+    if (xv) { const v = xpViews()[Number(xv.dataset.xpview)]; if (v) { xp = { ...XP_BLANK(), ...v.state }; xpKeep(); showN = {}; render(); } return; }
+    const xd = e.target.closest('[data-xpviewdel]');
+    if (xd) { const v = xpViews(); v.splice(Number(xd.dataset.xpviewdel), 1); xpSetViews(v); render(); return; }
+    const us = e.target.closest('[data-uiset]');
+    if (us) { const k = us.dataset.uiset; const v = us.dataset.v; admin.updateSettings({ ui: { ...ui(), [k]: k === 'noAnim' ? !!v : v } }); render(); return; }
     const qp = e.target.closest('[data-qlprio]');
     if (qp) { $$('#ql-prio button').forEach((b) => b.classList.toggle('on', b === qp)); return; }
     const lv = e.target.closest('[data-leadview]');
@@ -3205,6 +3369,9 @@
     const t = e.target;
     if (t.value === '__new__') return;
     if (t.dataset.pdate) { period[t.dataset.pdate] = t.value; render(); return; }
+    if (t.dataset.xp && t.tagName !== 'INPUT') { xpSet(t.dataset.xp, t.value); showN = {}; render(); return; }
+    if (t.dataset.xp === 'usePeriod') { xpSet('usePeriod', t.checked); showN = {}; render(); return; }
+    if (t.dataset.xpcol != null) { const h = t.dataset.xpcol; xp.hide = t.checked ? xp.hide.filter((x) => x !== h) : [...xp.hide, h]; xpKeep(); render(); const d = $('.xp-cols'); if (d) d.open = true; return; }
     if (t.matches('[data-apptdate]')) { apptDay = t.value || admin.today(); render(); return; }
     if (t.matches('[data-todaydate]')) { todayDate = t.value || admin.today(); render(); return; }
     if (t.matches('[data-deskday]')) { deskDay = t.value || admin.today(); render(); return; }
@@ -3226,6 +3393,7 @@
     render();
   });
   // Search boxes filter as you type and keep the cursor in place.
+  let searchTimer = 0;
   view.addEventListener('input', (e) => {
     const t = e.target;
     let key = t.dataset.filter || null; let sel = `[data-filter="${key}"]`;
@@ -3233,13 +3401,18 @@
     if (t.dataset.lfilter === 'q') { key = 'lq'; sel = '[data-lfilter="q"]'; }
     if (t.dataset.actfilter === 'q') { key = 'xq'; sel = '[data-actfilter="q"]'; }
     if ('noteq' in t.dataset) { key = 'nq'; sel = '[data-noteq]'; }
-    const setters = { nq: (v) => { noteQ = v; }, q: (v) => { salesFilter.q = v; }, patient: (v) => { patientQ = v; }, purchase: (v) => { purchaseQ = v; }, aq: (v) => { apptF.q = v; }, lq: (v) => { leadF.q = v; }, xq: (v) => { actF.q = v; } };
+    if (t.dataset.xp && t.tagName === 'INPUT' && t.type !== 'checkbox') { key = 'xp'; sel = `[data-xp="${t.dataset.xp}"]`; }
+    const setters = { xp: (v) => xpSet(t.dataset.xp, v), nq: (v) => { noteQ = v; }, q: (v) => { salesFilter.q = v; }, patient: (v) => { patientQ = v; }, purchase: (v) => { purchaseQ = v; }, aq: (v) => { apptF.q = v; }, lq: (v) => { leadF.q = v; }, xq: (v) => { actF.q = v; } };
     if (!setters[key]) return;
     setters[key](t.value);
-    const pos = t.selectionStart;
-    render();
-    const again = $(sel);
-    if (again) { again.focus(); again.setSelectionRange(pos, pos); }
+    // Wait for a short pause in typing, then filter once (no lag on long lists).
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      const cur = $(sel); const pos = cur ? cur.selectionStart : null;
+      showN = {}; render();
+      const again = $(sel);
+      if (again && pos != null) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (_) { /* search inputs */ } }
+    }, 180);
   });
   $('#menu-btn').addEventListener('click', () => openMenu(true));
   $('#nav-q').addEventListener('input', () => renderNav());

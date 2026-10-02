@@ -982,3 +982,39 @@ code, .pin { word-break: break-all; }
 @media (max-width: 520px) { .f-cards { grid-template-columns: 1fr; } .d-timeline::before { left: 19px; } .d-dot { width: 32px; height: 32px; } }
 .founder-hero { grid-template-columns: minmax(0, 1fr); } .founder-hero > * { min-width: 0; }
 @media (max-width: 520px) { .founder-hero .hero-row { grid-template-columns: repeat(2, minmax(0, 1fr)); } .fh-top { flex-wrap: wrap; } .fh-top .btn { margin-left: auto; } .founder-hero .hk { min-width: 0; overflow-wrap: anywhere; } }
+/* Round 10 */
+.f-card.off { opacity: .62; filter: saturate(.4); }
+.fh-btns { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.fh-about { position: relative; margin: 0; font-size: 13px; line-height: 1.5; color: rgba(255, 255, 255, .86); }
+.more-btn { display: block; width: 100%; margin-top: 12px; }
+/* Speed: blur behind glass panels is costly on phones; a solid tint looks the same there. */
+@media (max-width: 900px) { * { backdrop-filter: none !important; -webkit-backdrop-filter: none !important; } }
+/* Data Explorer */
+.xp-sheets { margin-bottom: 10px; } .xp-sheets .seg button small { margin-left: 6px; opacity: .65; font-size: 11px; font-weight: 600; }
+.xp-views { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 10px; }
+.xp-views .chip-btn { display: inline-flex; align-items: center; gap: 2px; padding: 0; overflow: hidden; }
+.xp-views .chip-btn button { font: inherit; border: 0; background: none; color: inherit; padding: 7px 10px; cursor: pointer; } .xp-views .chip-btn .x { padding: 7px 9px 7px 2px; opacity: .6; }
+.xp-card { display: grid; gap: 12px; }
+.xp-top { display: grid; gap: 8px; } .xp-top input[type=search] { width: 100%; }
+.xp-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 8px; }
+.xp-f { display: flex; gap: 6px; min-width: 0; } .xp-f > * { flex: 1 1 0; min-width: 0; }
+.xp-cols summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 4px 0; }
+.xp-cols .tag-pick { margin-top: 8px; }
+.xp-acts { display: flex; gap: 8px; flex-wrap: wrap; }
+@media (max-width: 520px) { .xp-grid { grid-template-columns: 1fr; } }
+/* Branding: luxury serif headings (Playfair Display, bundled for offline use) */
+@font-face { font-family: "Prime Serif"; src: url("../../fonts/playfair-display-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
+@font-face { font-family: "Prime Serif"; src: url("../../fonts/playfair-display-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
+#title, .card > h2, .hero h1, .hero h2, .fh-id b, .dh-hello b, .side-head b, .modal-title, #modal h2, .lock h1 { font-family: "Prime Serif", Georgia, "Times New Roman", serif; letter-spacing: .005em; }
+.card > h2 { font-weight: 700; }
+body.ui-modern #title, body.ui-modern .card > h2, body.ui-modern .hero h1, body.ui-modern .hero h2, body.ui-modern .fh-id b, body.ui-modern .dh-hello b, body.ui-modern .side-head b, body.ui-modern #modal h2 { font-family: inherit; }
+body.ui-compact .card { padding: 12px 13px; margin-bottom: 10px; } body.ui-compact .kpi { padding: 10px 11px; } body.ui-compact .kpis { gap: 8px; }
+body.ui-still *, body.ui-still *::before, body.ui-still *::after { animation: none !important; transition: none !important; }
+.side-head b { background: linear-gradient(100deg, #f6e27a, #d4af37 45%, #fff3c4 60%, #d4af37); -webkit-background-clip: text; background-clip: text; color: transparent; font-size: 17px; }
+.ui-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-bottom: 12px; }
+.ui-grid .seg { margin-top: 6px; display: flex; flex-wrap: wrap; }
+.ui-color { display: flex; gap: 8px; align-items: center; margin-top: 6px; } .ui-color input[type=color] { width: 54px; height: 38px; padding: 2px; border-radius: 10px; }
+.ui-h { margin: 6px 0 4px; font-size: 14px; }
+.ui-rows { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 6px 12px; }
+.ui-row { display: flex; align-items: center; gap: 8px; } .ui-row input:not([type=checkbox]) { flex: 1; min-width: 0; } .ui-row .check { margin: 0; }
+@media (max-width: 520px) { .fh-top .fh-btns { flex: 1 1 100%; justify-content: flex-start; } .fh-top .fh-btns .btn { margin-left: 0; } }

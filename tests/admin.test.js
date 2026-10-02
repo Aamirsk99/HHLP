@@ -326,3 +326,21 @@ test('several founders: own spending, limits, capital and profit share; discussi
   assert.deepStrictEqual([n.mode, n.time, n.outcome, n.with[0], n.mins], ['Call', '18:30', 'Agreed', a.id, 20]);
   assert.ok(admin.sheetsData().Founders.length > 2);
 });
+
+test('founders can be disabled and re-enabled without losing data, and keep extra profile fields', () => {
+  const admin = fresh();
+  const a = admin.saveFounder({ name: 'Aamir', share: 60, city: 'Mumbai', role: 'Operations', joined: '2025-01-01' });
+  const b = admin.saveFounder({ name: 'Sara', share: 40, budget: 100 });
+  admin.saveExpense({ category: 'Meals', amount: 500, scope: 'founder', founderId: b.id });
+  admin.setFounderActive(b.id, false);
+  assert.deepStrictEqual(admin.founders().map((f) => f.name), ['Aamir']);
+  assert.strictEqual(admin.founders({ all: true }).length, 2);
+  const all = admin.founderStats(null, { all: true }); const sb = all.find((x) => x.id === b.id);
+  assert.strictEqual(sb.spentAll, 500); assert.strictEqual(sb.profitShare, 0);
+  assert.ok(!admin.alerts().some((x) => /Sara/.test(x.text)));
+  assert.ok(admin.sheetsData().Founders.some((r) => r[0] === 'Sara' && r[10] === 'Disabled'));
+  admin.setFounderActive(b.id, true);
+  assert.strictEqual(admin.founders().length, 2);
+  const again = admin.saveFounder({ id: a.id, name: 'Aamir S', share: 60 });
+  assert.deepStrictEqual([again.city, again.role, again.joined, again.disabled], ['Mumbai', 'Operations', '2025-01-01', false]);
+});

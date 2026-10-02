@@ -314,6 +314,7 @@
       s.settings.kit = (s.settings.kit || []).filter((k) => s.items.some((i) => i.id === k.itemId));
     }
     function save(source) {
+      salesIdx = null;
       try { storage.setItem(KEY, JSON.stringify(S)); } catch (_) { throw new Error('Storage is full: export a backup and remove old data.'); }
       listeners.forEach((f) => f(source || 'local'));
     }
@@ -515,7 +516,8 @@
     }
 
     // Founders: several profiles, each with a profit share and a monthly spending limit.
-    const founders = () => (S.settings.founders || []).filter((f) => !f.removed);
+    // Disabled founders keep their data but drop out of forms, alerts and shares; { all: true } includes them.
+    const founders = (opts) => (S.settings.founders || []).filter((f) => !f.removed && ((opts && opts.all) || !f.disabled));
     const founder = (id) => (S.settings.founders || []).find((f) => f.id === id) || null;
     function saveFounder(input) {
       const name = String(input.name || '').trim();
@@ -525,8 +527,15 @@
       if (!f) { f = { id: uid('f') }; S.settings.founders.push(f); }
       Object.assign(f, { name, title: String(input.title || 'Founder').trim(), mobile: String(input.mobile || '').trim(), email: String(input.email || '').trim(),
         share: Math.max(0, Math.min(100, Number(input.share) || 0)), budget: Math.max(0, Number(input.budget) || 0), about: String(input.about || '').trim(), removed: false });
+      ['joined', 'city', 'role', 'pan', 'bank', 'color'].forEach((k) => { if (k in input) f[k] = String(input[k] || '').trim(); });
+      if ('disabled' in input) f.disabled = !!input.disabled; else if (f.disabled == null) f.disabled = false;
       if (!S.settings.lists.expenseNames.some((x) => low(x) === low(name))) S.settings.lists.expenseNames.push(name);
       log('Founder saved', name); save();
+      return f;
+    }
+    function setFounderActive(id, on) {
+      const f = founder(id); if (!f) fail('Founder not found');
+      f.disabled = !on; log(on ? 'Founder enabled' : 'Founder disabled', f.name); save();
       return f;
     }
     function deleteFounder(id) {
@@ -547,16 +556,16 @@
     }
     function deleteCapital(id) { S.capital = listFix('capital').filter((x) => x.id !== id); save(); }
     /** Per founder: spending in the range, this month vs limit, capital in/out and profit share. */
-    function founderStats(range) {
+    function founderStats(range, opts) {
       const fin = financialReport(range); const month = today().slice(0, 7);
-      const list = founders();
+      const list = founders(opts); const first = founders({ all: true })[0];
       const out = list.map((f) => {
-        const mine = S.expenses.filter((e) => e.scope === 'founder' && (e.founderId === f.id || (!e.founderId && list[0] && list[0].id === f.id)));
+        const mine = S.expenses.filter((e) => e.scope === 'founder' && (e.founderId === f.id || (!e.founderId && first && first.id === f.id)));
         const cap = listFix('capital').filter((c) => c.founderId === f.id);
         const invested = r2(sum(cap.filter((c) => c.type === 'invest'), (c) => c.amount)); const withdrawn = r2(sum(cap.filter((c) => c.type === 'withdraw'), (c) => c.amount));
         const monthSpent = r2(sum(mine.filter((e) => (e.date || '').startsWith(month)), (e) => e.amount));
         return { ...f, spent: r2(sum(mine.filter((e) => inRange(e.date, range)), (e) => e.amount)), spentAll: r2(sum(mine, (e) => e.amount)), monthSpent,
-          limitPct: f.budget ? Math.round((monthSpent / f.budget) * 100) : 0, invested, withdrawn, net: r2(invested - withdrawn), profitShare: r2((fin.profit * (Number(f.share) || 0)) / 100), entries: mine.length };
+          limitPct: f.budget ? Math.round((monthSpent / f.budget) * 100) : 0, invested, withdrawn, net: r2(invested - withdrawn), profitShare: f.disabled ? 0 : r2((fin.profit * (Number(f.share) || 0)) / 100), entries: mine.length };
       });
       return out;
     }
@@ -794,7 +803,16 @@
       if (!p) { p = { id: uid('p'), name: nm, mobile: String(mobile || '').trim(), created: today() }; S.patients.push(p); }
       return p;
     }
-    const patientSales = (pid) => S.sales.filter((s) => s.patientId === pid).sort((a, b) => (a.date < b.date ? -1 : 1));
+    // Sales grouped by patient, built once and rebuilt after any save (lists with thousands of patients stay fast).
+    let salesIdx = null; let salesIdxOf = null; let salesIdxLen = -1;
+    function salesByPatient() {
+      if (salesIdx && salesIdxOf === S.sales && salesIdxLen === S.sales.length) return salesIdx;
+      salesIdx = new Map(); salesIdxOf = S.sales; salesIdxLen = S.sales.length;
+      S.sales.forEach((x) => { if (!x.patientId) return; const l = salesIdx.get(x.patientId); if (l) l.push(x); else salesIdx.set(x.patientId, [x]); });
+      salesIdx.forEach((l) => l.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0)));
+      return salesIdx;
+    }
+    const patientSales = (pid) => (salesByPatient().get(pid) || []).slice();
     function updatePatient(id, input) {
       const p = S.patients.find((x) => x.id === id);
       if (!p) fail('Patient not found');
@@ -1827,11 +1845,11 @@
       const MARK = { P: 'Present', H: 'Half day', A: 'Absent', L: 'Leave', O: 'Week off' };
       Object.keys(S.attendance || {}).sort().reverse().slice(0, 400).forEach((d) => Object.entries(S.attendance[d]).forEach(([id, m]) => out.Attendance.push([d, memberName(id), MARK[m] || m])));
       out.Founders = [['Founder', 'Title', 'Mobile', 'Profit Share %', 'Monthly Limit', 'Spent (all time)', 'Spent this month', 'Invested', 'Withdrawn', 'Net Capital', 'Status']];
-      founderStats(null).forEach((f) => out.Founders.push([f.name, f.title, f.mobile, f.share, f.budget, f.spentAll, f.monthSpent, f.invested, f.withdrawn, f.net, f.removed ? 'Removed' : 'Active']));
+      founderStats(null, { all: true }).forEach((f) => out.Founders.push([f.name, f.title, f.mobile, f.share, f.budget, f.spentAll, f.monthSpent, f.invested, f.withdrawn, f.net, f.removed ? 'Removed' : f.disabled ? 'Disabled' : 'Active']));
       out.Founders.push([]); out.Founders.push(['Capital entries', 'Date', 'Type', 'Amount', 'Note']);
       listFix('capital').forEach((c) => out.Founders.push([(founder(c.founderId) || {}).name || '', c.date, c.type === 'invest' ? 'Invested' : 'Withdrawn', c.amount, c.note]));
       out['Founder Notes'] = [['Date', 'Time', 'Mode', 'Type', 'Title', 'Details', 'With', 'Minutes', 'Outcome / Decision', 'Next Step', 'Due', 'Pinned', 'Status', 'By']];
-      listFix('notes').forEach((n) => out['Founder Notes'].push([n.date || new Date(n.at).toISOString().slice(0, 10), n.time || '', n.mode || '', n.tag || '', n.title || '', n.text || '', (n.with || []).join(', '), n.mins || '', n.outcome || '', n.nextStep || '', n.due || '', n.pinned ? 'Yes' : '', n.done ? 'Done' : 'Open', n.by || '']));
+      listFix('notes').forEach((n) => out['Founder Notes'].push([n.date || new Date(n.at).toISOString().slice(0, 10), n.time || '', n.mode || '', n.tag || '', n.title || '', n.text || '', (n.with || []).map((x) => (founder(x) || {}).name || x).join(', '), n.mins || '', n.outcome || '', n.nextStep || '', n.due || '', n.pinned ? 'Yes' : '', n.done ? 'Done' : 'Open', n.by || '']));
       out['Activity Log'] = [['Date & Time', 'By', 'Action', 'Details']];
       S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.by, x.action, x.detail]));
       return out;
@@ -1922,7 +1940,7 @@
       account, saveAccount, setAccountPin, deleteAccount, setActor,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
       updatePatient, deletePatient, daySummary,
-      invoiceFor, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, founders, founder, saveFounder, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
+      invoiceFor, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, founders, founder, saveFounder, setFounderActive, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, leadDay, kindName, kinds, saveKind, deleteKind, moveKind, clinic, saveClinic, deleteClinic, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,

@@ -43,7 +43,7 @@ mkdir -p "$BUILD"/{res,gen,classes,assets/www,dex} "$(dirname "$OUT")"
 
 echo "• Copying web app into assets"
 cp "$ROOT/index.html" "$BUILD/assets/www/"
-cp -r "$ROOT/css" "$ROOT/js" "$ROOT/img" "$ROOT/vendor" "$BUILD/assets/www/"
+cp -r "$ROOT/css" "$ROOT/js" "$ROOT/img" "$ROOT/vendor" "$ROOT/fonts" "$BUILD/assets/www/"
 # Clinic admin lives in www/admin and shares the logo and icons in www/img.
 mkdir -p "$BUILD/assets/www/admin"
 cp "$ROOT/admin/index.html" "$ROOT/admin/manifest.webmanifest" "$BUILD/assets/www/admin/"
