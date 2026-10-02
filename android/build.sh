@@ -48,6 +48,15 @@ cp -r "$ROOT/css" "$ROOT/js" "$ROOT/img" "$ROOT/vendor" "$ROOT/fonts" "$BUILD/as
 mkdir -p "$BUILD/assets/www/admin"
 cp "$ROOT/admin/index.html" "$ROOT/admin/manifest.webmanifest" "$BUILD/assets/www/admin/"
 cp -r "$ROOT/admin/css" "$ROOT/admin/js" "$ROOT/admin/vendor" "$ROOT/admin/google-apps-script" "$BUILD/assets/www/admin/"
+# Built-in Google Sheet link and secret (android/sheet.local.json, not in git): the app connects by itself.
+if [ -f "$AND/sheet.local.json" ]; then
+  python3 - "$AND/sheet.local.json" "$BUILD/assets/www/admin/js/sheet-default.js" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+open(sys.argv[2], 'w').write('window.PRIMEFIT_SHEET = ' + json.dumps({'url': d.get('url', ''), 'secret': d.get('secret', '')}) + ';\n')
+PY
+  echo "• Built-in Google Sheet set"
+fi
 
 echo "• Compiling resources"
 "$AAPT2" compile --dir "$AND/res" -o "$BUILD/res/res.zip"

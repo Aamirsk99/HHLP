@@ -6,3 +6,4 @@ android/*.p12
 android/*.jks
 ios-app/node_modules/
 ios-app/www/
+android/*.local.json

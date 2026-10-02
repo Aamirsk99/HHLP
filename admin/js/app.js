@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.5';
+  const APP_VERSION = '4.6';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1567,6 +1567,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.6', 'The Prime Fit Google Sheet is built into the app: on first opening it connects by itself and loads the logins and data, no link or secret to type. Change it any time in Settings → Data & Google Sheet, or switch back with "Use The Prime Fit Google Sheet".'],
     ['4.5', 'Medico-legal wording written for Indian law on slips, invoices, OPD slips and diet charts; new patient consent & terms form (Settings and each patient) with grievance contact; more premium look (ivory, gold hairlines, serif numbers, frosted bottom bar). Fixes: a refused sale no longer leaves a stray patient; family members sharing one mobile stay separate patients; Patient → New sale closes the patient sheet; PDFs download once; invoice year follows the sale date; no "stock" note for services; Back from Edit sale returns to Sales; "Cancel appointment" clearly named; injection kit preview matches the product kit; sheet times in India time; diet app Back closes open dialogs first.'],
     ['4.4', 'No more "Data changed on another device" popups: saves from one phone run one at a time (two saves at once made the phone conflict with itself), and when two phones change data at the same time both sets of changes are merged and kept. Dialog buttons no longer run off the screen.'],
     ['4.3', 'Google Sheet connects reliably: the Android app now talks to Google itself, the pasted web app link is tidied automatically (a /dev link or extra text is fixed), and a failed connection says exactly what to change (sign-in needed, wrong secret, setup not run, editor or sheet link pasted, no internet). Code.gs version 10 returns its own errors and works even when created outside the sheet.'],
@@ -2877,6 +2878,7 @@
         <label class="f">Secret<input type="password" name="sheetsSecret" value="${esc(st.sheetsSecret)}"><span class="hint">Shown in the Apps Script log after running setup.</span></label>
       </div>
       <p class="hint" style="margin:0" id="last-sync">${connected() ? (last ? `Connected · last saved ${new Date(last).toLocaleString('en-IN')}` : 'Connected') : 'Not connected: data is only on this device'}</p>
+      ${defSheet().url && defSheet().url !== st.sheetsUrl ? `<div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm primary" data-act="sheet-default">${svg('<path d="M4 4h16v16H4zM4 10h16M10 4v16"/>')}Use The Prime Fit Google Sheet</button></div>` : ''}
       ${connected() ? `<div class="actions" style="justify-content:flex-start"><button type="button" class="btn sm" data-act="sheet-load">${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}Load from Google Sheet</button><button type="button" class="btn sm" data-act="sheet-send">${svg('<path d="M12 19V5M5 12l7-7 7 7"/>')}Send this device's data to the sheet</button></div>
       <p class="hint" style="margin:0">Use your current sheet (keep its URL) or a new one (paste the new URL and secret, then Save settings). The sheet's tabs are rewritten on every save.</p>` : ''}
       </div>
@@ -3331,6 +3333,7 @@
       if (acc) loginForm(acc); else loginForm(null, d.id);
     },
     'sheet-load': async () => { setBase(0); await pull(true); render(); },
+    'sheet-default': async () => { const d = defSheet(); admin.updateSettings({ sheetsUrl: d.url, sheetsSecret: d.secret }); setBase(0); render(); await pull(true); render(); },
     'sheet-send': async () => {
       if (!await confirmBox('Send data to Google Sheet', "Replace the Google Sheet's data with this device's data?")) return;
       try { await push(true); toast('Saved this device\'s data to the Google Sheet'); } catch (err) { toast(err.message, true); }
@@ -3979,9 +3982,35 @@
     return false;
   };
 
+  // Built-in Google Sheet (filled in when the APK is built): the first time the app opens it connects
+  // by itself and loads the logins and data, so nobody has to type the link and secret. It can be
+  // changed later in Settings → Data & Google Sheet.
+  const DEF_SHEET = window.PRIMEFIT_SHEET || {};
+  const DEF_KEY = 'primefit.admin.defaultSheet';
+  const defSheet = () => ({ url: cleanSheetUrl(DEF_SHEET.url).url || '', secret: cleanSecret(DEF_SHEET.secret) });
+  async function autoConnect() {
+    const d = defSheet();
+    if (!d.url || !d.secret || set().sheetsUrl || storage.getItem(DEF_KEY) === d.url) return;
+    storage.setItem(DEF_KEY, d.url);
+    admin.updateSettings({ sheetsUrl: d.url, sheetsSecret: d.secret });
+    // A device with its own logins merges on sign-in (pull); a new device loads the sheet now.
+    if (S().accounts.some((a) => a.role === 'super' && a.hash)) return;
+    const msg = $('#lk-err'); if (msg) msg.textContent = 'Connecting to The Prime Fit Google Sheet…';
+    try {
+      const out = await call('GET');
+      if (out.state) { admin.loadState(out.state); setBase(out.updated); setDirty(false); }
+      lockMode = 'login';
+      if (!role) showLock();
+      toast(out.state ? 'Connected to the Google Sheet. Sign in with your user ID and password.' : 'Connected. The Google Sheet is empty: create the Super Admin login.');
+    } catch (err) {
+      if (!role) showLock();
+      const m = $('#lk-err'); if (m) m.textContent = `Google Sheet: ${err.message}`;
+    }
+  }
   $('.side-credit').textContent = CREDIT;
   let saved = null;
   try { saved = sessionStorage.getItem(ROLE_KEY); } catch (_) { saved = null; }
   const savedAcc = saved && admin.account(saved);
   if (savedAcc && savedAcc.hash && !savedAcc.disabled) enter(saved); else showLock();
+  autoConnect();
 })();
