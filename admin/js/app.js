@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.7';
+  const APP_VERSION = '4.8';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1567,6 +1567,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.8', 'Android app now targets Android 14 so Google Play Protect no longer blocks the install as built for an older Android; smoother scrolling (no background repaint on every frame), pop-ups slide up like native sheets, press feedback on boxes; no crash if the app is closed while syncing.'],
     ['4.7', 'First opening shows a calm "Getting your clinic ready" screen while the Google Sheet loads, then Sign in (or Create Super Admin for an empty sheet); it never hangs: after 45 s it shows Try again or Set up without the sheet. More premium menu: deep emerald and gold, serif title, gold section labels and active item.'],
     ['4.6', 'The Prime Fit Google Sheet is built into the app: on first opening it connects by itself and loads the logins and data, no link or secret to type. Change it any time in Settings → Data & Google Sheet, or switch back with "Use The Prime Fit Google Sheet".'],
     ['4.5', 'Medico-legal wording written for Indian law on slips, invoices, OPD slips and diet charts; new patient consent & terms form (Settings and each patient) with grievance contact; more premium look (ivory, gold hairlines, serif numbers, frosted bottom bar). Fixes: a refused sale no longer leaves a stray patient; family members sharing one mobile stay separate patients; Patient → New sale closes the patient sheet; PDFs download once; invoice year follows the sale date; no "stock" note for services; Back from Edit sale returns to Sales; "Cancel appointment" clearly named; injection kit preview matches the product kit; sheet times in India time; diet app Back closes open dialogs first.'],

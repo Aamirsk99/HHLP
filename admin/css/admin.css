@@ -1279,3 +1279,18 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: color-m
 .side-diet { background: linear-gradient(120deg, color-mix(in srgb, var(--gold) 30%, transparent), rgba(255, 255, 255, .04)); color: #fff; }
 .side-diet svg { stroke: #f3d48b; }
 .side-credit { color: color-mix(in srgb, var(--side-muted) 80%, transparent); text-align: center; }
+
+/* ── Round 20: smooth on phones ──
+   A fixed background is repainted on every scroll frame in Android WebView: let it scroll. */
+@media (max-width: 899px) {
+  body, :root:not([data-mode=dark]) body { background-attachment: scroll !important; }
+  html { -webkit-tap-highlight-color: transparent; }
+  button, .btn, a, [data-act], [data-go] { touch-action: manipulation; }
+  /* Pop-ups rise from the bottom like a native sheet. */
+  dialog#modal[open] { animation: sheet-up .26s cubic-bezier(.2, .9, .25, 1) both; }
+  @keyframes sheet-up { from { transform: translateY(36px); opacity: .4; } to { transform: none; opacity: 1; } }
+  /* Gentle press feedback on cards and boxes (transform only, no layout work). */
+  .kpi:active, .card[data-act]:active, .set-tile:active, .lead-card:active, .side-quick button:active { transform: scale(.98); transition: transform .08s; }
+  .toast { transition: opacity .2s ease, transform .25s cubic-bezier(.2, .9, .25, 1); }
+}
+@media (prefers-reduced-motion: reduce) { dialog#modal[open] { animation: none; } }

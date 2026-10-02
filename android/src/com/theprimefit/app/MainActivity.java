@@ -189,7 +189,7 @@ public class MainActivity extends Activity {
                     final String js = "window.__tpfHttp && window.__tpfHttp(" + org.json.JSONObject.quote(id) + "," + status + "," + org.json.JSONObject.quote(text) + ")";
                     runOnUiThread(new Runnable() {
                         @Override
-                        public void run() { webView.evaluateJavascript(js, null); }
+                        public void run() { if (!isFinishing() && !isDestroyed()) webView.evaluateJavascript(js, null); } // the app may have closed meanwhile
                     });
                 }
             }).start();
