@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.2';
+  const APP_VERSION = '4.3';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1151,9 +1151,7 @@
     if (!connected()) { toast('Connect the Google Sheet in Settings first, or use Edit counts', true); return; }
     toast('Fetching counts…');
     try {
-      const url = set().sheetsUrl;
-      const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}action=social&secret=${encodeURIComponent(set().sheetsSecret)}`);
-      const out = await res.json().catch(() => null);
+      const out = await sheetGet('social');
       if (!out || !out.ok) throw new Error((out && out.error) || 'The Google Sheet script did not answer. Paste the new Code.gs and deploy a new version.');
       // An older Code.gs answers with its health check instead of counts.
       if (!out.youtube && !out.instagram) throw new Error('Your Google Sheet still runs the old Code.gs. Paste the new Code.gs, run testSocial once, then Deploy → Manage deployments → New version.');
@@ -1569,6 +1567,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.3', 'Google Sheet connects reliably: the Android app now talks to Google itself, the pasted web app link is tidied automatically (a /dev link or extra text is fixed), and a failed connection says exactly what to change (sign-in needed, wrong secret, setup not run, editor or sheet link pasted, no internet). Code.gs version 10 returns its own errors and works even when created outside the sheet.'],
     ['4.2', 'Slips, receipts and invoices numbered in series (TPF-SL-0001, TPF-RC-0001, invoices TPF-2026-0001) and printing the same sales again keeps the number; digital documents say no signature is required; new Slips sheet in the Google Sheet and Excel template, and a Slip register in the Sales export.'],
     ['4.1', 'Back button always returns to the admin dashboard (never the Home page) and leaves the app from there; icons on every menu section; logo and app icon back in the original charcoal and teal colours.'],
     ['4.0', 'Company profile & payments in Settings (legal name, address, GSTIN, doctor, UPI, bank, terms, medico-legal note) used on every PDF and the diet charts; patient sales slips (several sales on one slip, A5, A4 or 80 mm receipt, invoice or payment receipt, amount in words, payment details); new letterhead and footer on all PDFs; Today export with period, sections and filters; Call and WhatsApp taps counted per team member with repeat taps ignored; follow-up reminders with remind-me times, snooze and done; redesigned dashboard boxes and menu icons; transparent logo and new app icon; lighter animations. Diet: Add food, Add recipe and My foods moved into Foods & Recipes, more tappable patients, charts, recipes and foods, premium chart and recipe PDFs with medico-legal note.'],
@@ -2914,6 +2913,8 @@
       const f = e.target;
       const r1 = Number(f.r1.value) || 75; const r2 = Number(f.r2.value) || 90;
       const before = `${set().sheetsUrl}|${set().sheetsSecret}`;
+      const su = cleanSheetUrl(f.sheetsUrl.value);
+      if (su.error) { toast(su.error, true); f.sheetsUrl.focus(); return; }
       admin.updateSettings({
         clinic: f.clinic.value.trim() || 'The Prime Fit', consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
@@ -2922,7 +2923,7 @@
         ifsc: f.ifsc.value.trim().toUpperCase(), slipFormat: f.slipFormat.value,
         invoicePrefix: (f.invoicePrefix.value.trim() || 'TPF').replace(/[^\w-]/g, ''), gstin: f.gstin.value.trim().toUpperCase(), invoiceGst: Number(f.invoiceGst.value) || 0, invoiceNote: f.invoiceNote.value.trim(),
         defaultGst: f.defaultGst.value === '' ? 12 : Number(f.defaultGst.value), videoFee: f.videoFee.value === '' ? 150 : Number(f.videoFee.value),
-        sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
+        sheetsUrl: su.url, sheetsSecret: cleanSecret(f.sheetsSecret.value),
         followUpDays: Math.max(0, Number(f.followUpDays.value) || 0), remindMins: Math.max(1, Number(f.remindMins.value) || 10), clickGapMins: Math.min(1440, Math.max(1, Number(f.clickGapMins.value) || 15)), autoAssign: f.autoAssign.checked, autoLockMins: Math.max(0, Number(f.autoLockMins.value) || 0),
         leadTags: [...new Set(f.leadTags.value.split(',').map((x) => x.trim()).filter(Boolean))],
         waTemplates: Object.fromEntries(Object.keys(WA_DEFAULTS).map((k) => [k, f[`wa-${k}`].value.trim()]).filter(([, v]) => v)),
@@ -3049,13 +3050,52 @@
       ${on ? `<button type="button" class="btn xs" data-act="sheet-check">Sync now</button>` : `<button type="button" class="btn xs primary" data-stabgo="data">Connect</button>`}</div>`;
   }
   function showSheetState() { syncState(''); }
+  // Every Google Sheet request goes through here. In the Android app the phone makes the request
+  // itself (AndroidBridge.http), so the web view's cross-site rules and Apps Script's redirect can't
+  // block it; in a browser it is a normal fetch.
+  const httpWait = {};
+  window.__tpfHttp = (id, status, text) => { const w = httpWait[id]; if (w) { delete httpWait[id]; w({ status, text }); } };
+  function sheetHttp(method, url, body) {
+    if (window.AndroidBridge && window.AndroidBridge.http) {
+      return new Promise((resolve) => {
+        const id = `h${Date.now()}${Math.random().toString(36).slice(2, 7)}`;
+        httpWait[id] = resolve;
+        window.AndroidBridge.http(id, method, url, body || '');
+      });
+    }
+    const opts = method === 'POST' ? { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body } : {};
+    return fetch(url, opts).then(async (res) => ({ status: res.status, text: await res.text() }), (err) => ({ status: -1, text: err.message }));
+  }
+  /** Tidy a pasted web app link: keep only …/macros/s/<id>/exec; spot editor or sheet links. */
+  function cleanSheetUrl(raw) {
+    const u = String(raw || '').replace(/\s+/g, '');
+    if (!u) return { url: '' };
+    const m = u.match(/^(?:https?:\/\/)?script\.google\.com\/(?:a\/macros\/([^/]+)\/|macros\/(?:u\/\d+\/)?)s\/([\w-]{20,})/);
+    if (m) return { url: `https://script.google.com/${m[1] ? `a/macros/${m[1]}/` : 'macros/'}s/${m[2]}/exec` };
+    if (/script\.google\.com\/(home|d\/|u\/\d+\/home)/.test(u)) return { error: 'This is the Apps Script editor link. Use the Web app URL instead: Deploy → Manage deployments → copy the URL that ends in /exec.' };
+    if (/docs\.google\.com\/spreadsheets/.test(u)) return { error: 'This is the Google Sheet link. Use the Web app URL instead: in the sheet open Extensions → Apps Script → Deploy → Manage deployments → copy the URL that ends in /exec.' };
+    if (/script\.googleusercontent\.com/.test(u)) return { error: 'This is a temporary link. Use the Web app URL from Deploy → Manage deployments (it ends in /exec).' };
+    return { error: 'Paste the Web app URL from Apps Script: Deploy → Manage deployments. It starts with https://script.google.com/macros/s/ and ends in /exec.' };
+  }
+  /** The secret as pasted from the Apps Script log ("Secret for the admin app: abc123…"). */
+  const cleanSecret = (raw) => String(raw || '').trim().split(/\s+/).pop().replace(/^["'`]|["'`.]$/g, '');
+  /** Turn what Google sent back into something the person can act on. */
+  function sheetReply(r) {
+    if (r.status === -1 || r.status === 0) throw new Error('Could not reach Google. Check the internet connection and try again.');
+    let out = null;
+    try { out = JSON.parse(r.text); } catch (_) { /* HTML page from Google */ }
+    if (out) return out;
+    const t = r.text || '';
+    if (/accounts\.google\.com|ServiceLogin|Sign in/i.test(t)) throw new Error('Google asked for a sign-in, so the web app is not open to the app. In Apps Script: Deploy → Manage deployments → Edit → Execute as: Me, Who has access: Anyone → Deploy.');
+    if (/function not found|doGet|doPost/i.test(t)) throw new Error('The Apps Script has no ThePrimeFit code. Paste the Code.gs file, Save, then Deploy → Manage deployments → Edit → Version: New version → Deploy.');
+    if (r.status === 404 || /unable to open the file|not found/i.test(t)) throw new Error('Google could not find this web app. Copy the URL again from Deploy → Manage deployments (ends in /exec), and make sure the deployment was not archived.');
+    if (/authori[sz]ation is required|needs your permission|has not been authorized/i.test(t)) throw new Error('The script has not been allowed yet. In Apps Script run the setup function once and press Allow, then deploy a new version.');
+    const msg = (t.match(/<div[^>]*>([^<]{8,200})<\/div>/) || t.match(/<title>([^<]+)<\/title>/) || [])[1];
+    throw new Error(`Google Sheet replied ${r.status}${msg ? `: ${msg.trim()}` : ''}. Check the web app URL and that it is deployed for "Anyone".`);
+  }
+  const sheetGet = (action) => { const url = set().sheetsUrl; return sheetHttp('GET', `${url}${url.includes('?') ? '&' : '?'}action=${action}&secret=${encodeURIComponent(set().sheetsSecret)}`).then(sheetReply); };
   async function call(method, payload) {
-    const url = set().sheetsUrl;
-    const res = method === 'GET'
-      ? await fetch(`${url}${url.includes('?') ? '&' : '?'}action=load&secret=${encodeURIComponent(set().sheetsSecret)}`)
-      : await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
-    const out = await res.json().catch(() => null);
-    if (!out) throw new Error(`Google Sheet replied ${res.status}. Check the web app URL and that it is deployed for "Anyone".`);
+    const out = method === 'GET' ? await sheetGet('load') : sheetReply(await sheetHttp('POST', set().sheetsUrl, JSON.stringify(payload)));
     if (!out.ok && !out.conflict) throw new Error(out.error || 'Google Sheet refused the request');
     return out;
   }
@@ -3851,8 +3891,9 @@
       return;
     }
     if (a === 'connect') {
-      const url = $('#lk-url').value.trim(); const secret = $('#lk-secret').value.trim();
-      if (!/^https:\/\//.test(url) || !secret) { $('#lk-err').textContent = 'Enter the web app URL and the secret'; return; }
+      const su = cleanSheetUrl($('#lk-url').value); const secret = cleanSecret($('#lk-secret').value);
+      if (!su.url || !secret) { $('#lk-err').textContent = su.error || 'Enter the web app URL and the secret'; return; }
+      const url = su.url; $('#lk-url').value = url;
       admin.updateSettings({ sheetsUrl: url, sheetsSecret: secret });
       b.disabled = true; b.textContent = 'Connecting…';
       try {

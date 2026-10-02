@@ -138,6 +138,63 @@ public class MainActivity extends Activity {
 
     /** Called from JavaScript; WebView has no window.print() or blob downloads. */
     private class Bridge {
+        /**
+         * Google Sheet requests made by the phone itself, not the web view: a page opened from the app's
+         * own files can be refused by the browser's cross-site rules, and Apps Script answers with a
+         * redirect. The reply comes back through window.__tpfHttp(id, status, text).
+         */
+        @JavascriptInterface
+        public void http(final String id, final String method, final String address, final String body) {
+            new Thread(new Runnable() {
+                @Override
+                public void run() {
+                    int status = 0;
+                    String text;
+                    try {
+                        String url = address;
+                        boolean post = "POST".equals(method);
+                        java.net.HttpURLConnection c = null;
+                        for (int hop = 0; hop < 6; hop++) {
+                            c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
+                            c.setInstanceFollowRedirects(false);
+                            c.setConnectTimeout(20000);
+                            c.setReadTimeout(60000);
+                            if (post) {
+                                c.setRequestMethod("POST");
+                                c.setDoOutput(true);
+                                c.setRequestProperty("Content-Type", "text/plain;charset=utf-8");
+                                try (OutputStream o = c.getOutputStream()) { o.write(body == null ? new byte[0] : body.getBytes(StandardCharsets.UTF_8)); }
+                            }
+                            status = c.getResponseCode();
+                            if (status < 300 || status > 399) break;
+                            String next = c.getHeaderField("Location");
+                            c.disconnect();
+                            if (next == null) break;
+                            url = new java.net.URL(new java.net.URL(url), next).toString();
+                            post = false; // Apps Script: POST, then GET the answer from the redirect
+                        }
+                        java.io.InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
+                        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
+                        if (in != null) {
+                            byte[] b = new byte[16384];
+                            for (int n; (n = in.read(b)) > 0; ) buf.write(b, 0, n);
+                            in.close();
+                        }
+                        c.disconnect();
+                        text = new String(buf.toByteArray(), StandardCharsets.UTF_8);
+                    } catch (Exception e) {
+                        status = -1;
+                        text = String.valueOf(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
+                    }
+                    final String js = "window.__tpfHttp && window.__tpfHttp(" + org.json.JSONObject.quote(id) + "," + status + "," + org.json.JSONObject.quote(text) + ")";
+                    runOnUiThread(new Runnable() {
+                        @Override
+                        public void run() { webView.evaluateJavascript(js, null); }
+                    });
+                }
+            }).start();
+        }
+
         @JavascriptInterface
         public void print(final String title) {
             runOnUiThread(new Runnable() {

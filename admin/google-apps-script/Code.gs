@@ -12,6 +12,9 @@
  * 2. Run `setup` once and allow access. It creates the sheets and logs a secret (View → Logs).
  * 3. Deploy → New deployment → Web app: Execute as "Me", Who has access "Anyone".
  * 4. In the admin app: Settings → Google Sheet → paste the web app URL and the secret → Save.
+ *    The URL must be the Web app URL (https://script.google.com/macros/s/…/exec), not the editor or sheet link.
+ * After pasting a newer Code.gs: Deploy → Manage deployments → Edit (pencil) → Version: New version → Deploy.
+ * Otherwise Google keeps running the old code. The URL stays the same.
  *
  * Edit data in the app, not in the sheets: each save rewrites the 27 sheets.
  *
@@ -36,7 +39,17 @@ const CHUNK = 40000; // a cell holds up to 50,000 characters
 const NAVY = '#015b53'; // The Prime Fit teal (sheet headers)
 
 function book() {
-  return SHEET_ID ? SpreadsheetApp.openById(SHEET_ID) : SpreadsheetApp.getActiveSpreadsheet();
+  if (SHEET_ID) return SpreadsheetApp.openById(SHEET_ID);
+  const active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) return active;
+  // A script made at script.google.com (not from the sheet) has no sheet of its own: make one once.
+  const props = PropertiesService.getScriptProperties();
+  const id = props.getProperty('BOOK_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  const ss = SpreadsheetApp.create('The Prime Fit Data');
+  props.setProperty('BOOK_ID', ss.getId());
+  Logger.log('Created the sheet "The Prime Fit Data": ' + ss.getUrl());
+  return ss;
 }
 
 function setup() {
@@ -66,9 +79,12 @@ function dataSheet(ss) {
   return sh;
 }
 
-function checkSecret(given) {
+/** null when the secret matches, else the reason to show in the app. */
+function secretError(given) {
   const secret = PropertiesService.getScriptProperties().getProperty('SECRET');
-  return !!secret && given === secret;
+  if (!secret) return 'Setup was not run. In Apps Script choose the setup function, press Run and Allow, then copy the secret from the log.';
+  if (String(given || '').trim() !== secret) return 'Wrong secret. In Apps Script run setup again and copy the secret shown in the log.';
+  return null;
 }
 
 function readData(ss) {
@@ -111,12 +127,19 @@ function writeSheets(ss, sheets) {
 
 /** GET ?action=load&secret=… → the app data; GET without action → health check. */
 function doGet(e) {
-  const p = (e && e.parameter) || {};
-  if (p.action !== 'load' && p.action !== 'social') return json({ ok: true, app: 'primefit-admin-sheets', version: 9, sheets: SHEETS });
-  if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
-  if (p.action === 'social') return json(socialStats());
-  const d = readData(book());
-  return json({ ok: true, updated: d.updated, by: d.by, state: d.state });
+  try {
+    const p = (e && e.parameter) || {};
+    if (p.action !== 'load' && p.action !== 'social') {
+      return json({ ok: true, app: 'primefit-admin-sheets', version: 10, setup: !!PropertiesService.getScriptProperties().getProperty('SECRET'), sheets: SHEETS });
+    }
+    const bad = secretError(p.secret);
+    if (bad) return json({ ok: false, error: bad });
+    if (p.action === 'social') return json(socialStats());
+    const d = readData(book());
+    return json({ ok: true, updated: d.updated, by: d.by, state: d.state });
+  } catch (err) {
+    return json({ ok: false, error: 'Google Sheet script error: ' + err.message });
+  }
 }
 
 /**
@@ -124,26 +147,31 @@ function doGet(e) {
  * if another device saved since then the save is refused (conflict) so no one's work is overwritten.
  */
 function doPost(e) {
-  let body;
-  try { body = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'Bad JSON' }); }
-  if (!checkSecret(body.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
-  const lock = LockService.getScriptLock();
-  lock.waitLock(20000);
   try {
-    const ss = book();
-    let updated = null;
-    if (body.action === 'save') {
-      const current = JSON.parse(dataSheet(ss).getRange('A1').getValue() || '{"updated":0}');
-      if (current.updated && !body.force && body.base !== current.updated) {
-        return json({ ok: false, conflict: true, updated: current.updated, by: current.by || '' });
+    let body;
+    try { body = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'Bad JSON' }); }
+    const bad = secretError(body.secret);
+    if (bad) return json({ ok: false, error: bad });
+    const lock = LockService.getScriptLock();
+    if (!lock.tryLock(30000)) return json({ ok: false, error: 'The Google Sheet is busy saving another device. Try again in a moment.' });
+    try {
+      const ss = book();
+      let updated = null;
+      if (body.action === 'save') {
+        const current = JSON.parse(dataSheet(ss).getRange('A1').getValue() || '{"updated":0}');
+        if (current.updated && !body.force && body.base !== current.updated) {
+          return json({ ok: false, conflict: true, updated: current.updated, by: current.by || '' });
+        }
+        updated = writeData(ss, body.state, body.by);
       }
-      updated = writeData(ss, body.state, body.by);
+      const written = writeSheets(ss, body.sheets);
+      SpreadsheetApp.flush();
+      return json({ ok: true, updated: updated, written: written });
+    } finally {
+      lock.releaseLock();
     }
-    const written = writeSheets(ss, body.sheets);
-    SpreadsheetApp.flush();
-    return json({ ok: true, updated: updated, written: written });
-  } finally {
-    lock.releaseLock();
+  } catch (err) {
+    return json({ ok: false, error: 'Google Sheet script error: ' + err.message });
   }
 }
 
