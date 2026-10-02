@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.5';
+  const APP_VERSION = '3.6';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -37,6 +37,12 @@
   const admin = A.createAdmin(storage);
   const S = () => admin.state;
   const set = () => admin.state.settings;
+  // Built-in Google Sheet (clinic APK): connect by itself unless someone disconnected it on this device.
+  const BUILT = window.HDV_CONFIG || {};
+  const SHEET_OFF_KEY = 'hindivine.admin.sheetOff';
+  if (BUILT.sheetsUrl && !admin.state.settings.sheetsUrl && lsGet(SHEET_OFF_KEY, '') !== '1') {
+    admin.updateSettings({ sheetsUrl: BUILT.sheetsUrl, sheetsSecret: BUILT.sheetsSecret || '' });
+  }
 
   const $ = (sel, el) => (el || document).querySelector(sel);
   const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
@@ -751,6 +757,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.6', 'Connects to the clinic Google Sheet by itself: first launch shows "Connecting…" and then the sign-in screen with the logins from the sheet (no Create Super Admin or Connect Google Sheet screens); clear retry screen when offline; Settings → Google Sheet: test connection, sync now, disconnect, reconnect to the clinic sheet or change the link; sign-in screen refreshes logins in the background; more premium side menu.'],
     ['3.5', 'Protein sales no longer ask New / Renewal (new / renewal now follows earlier injections); Today shows injection, protein and diet sales in separate boxes with patient mobile, age and gender, and exports them as separate sections; image export fixed: phone numbers, ages and amounts always show in full, long names wrap instead of being cut; more premium tables, filter plates and colours.'],
     ['3.4', 'Customize dashboard: choose which sections show; almost every dashboard box opens the matching screen with the right filter; Top performer removed from the team summary; richer dashboard plates; filters on Today, Patients (gender, age, city, buyers / OPD only), Renewals, Products, Inventory, Purchases (vendor, product), Team, Incentives, Salary and Expenses, with one-tap Clear; every export opens options (PDF, image or Excel, period for the file, summary boxes) and follows the screen filters; smoother typing in search boxes; safer image export on low-memory phones.'],
     ['3.3', 'Patient age, gender and city on every sale (filled in automatically for known patients); Today export can add patient details (mobile, age / gender, city); vitals with automatic BMI on OPD appointments and the OPD slip; luxury dashboard with greeting, revenue and margin, icon plates and quick actions; Settings in clear sections (Clinic & doctors, Fees & rules, Google Sheet, Logins, Permissions, Choice lists, Backup); redesigned PDF and image reports with clinic address and phone, report details strip and page badges, without the developer line; bug fixes.'],
@@ -1820,7 +1827,9 @@
       </div>
       <p class="hint" style="margin:0">Product-wise incentive amounts are in <button type="button" class="link" data-go="incentives">Incentives</button>.</p>${saveBtn}`)}
       ${sec('sheet', `${head('sheet')}
-      <div class="sheet-status ${connected() ? 'ok' : ''}"><b>${connected() ? 'Connected' : 'Not connected'}</b><span id="last-sync">${connected() ? (last ? `Last saved ${new Date(last).toLocaleString('en-IN')}` : 'Saving automatically') : 'Data is only on this device'}</span>${info ? `<a href="${esc(info.url)}" target="_blank" rel="noopener">${esc(info.name)} ↗</a>` : ''}</div>
+      <div class="sheet-status ${connected() ? 'ok' : ''}"><b>${connected() ? 'Connected' : 'Not connected'}</b><span id="last-sync">${connected() ? (last ? `Last saved ${new Date(last).toLocaleString('en-IN')}` : 'Saving automatically') : 'Data is only on this device'}</span>${info && connected() ? `<a href="${esc(info.url)}" target="_blank" rel="noopener">${esc(info.name)} ↗</a>` : ''}</div>
+      <div class="sheet-acts">${connected() ? `<button type="button" class="btn sm" data-act="sheet-test">${svg('<path d="M20 6L9 17l-5-5"/>')}Test connection</button><button type="button" class="btn sm" data-act="refresh">${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}Sync now</button><button type="button" class="btn sm danger" data-act="sheet-off">Disconnect</button>` : ''}
+        ${BUILT.sheetsUrl && set().sheetsUrl !== BUILT.sheetsUrl ? `<button type="button" class="btn sm primary" data-act="sheet-builtin">${svg('<path d="M10 14a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1M14 10a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1"/>')}Connect to the clinic sheet</button>` : ''}</div>
       <div class="grid two">
         <label class="f">Web app URL<input name="sheetsUrl" value="${esc(st.sheetsUrl)}" placeholder="https://script.google.com/macros/s/…/exec"></label>
         <label class="f">Secret<input type="password" name="sheetsSecret" value="${esc(st.sheetsSecret)}"><span class="hint">Shown in the Apps Script log after running setup.</span></label>
@@ -1860,6 +1869,7 @@
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
         sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
       });
+      lsSet(SHEET_OFF_KEY, f.sheetsUrl.value.trim() ? '' : '1');
       toast('Settings saved');
       render();
       if (connected() && !wasConnected) pull(true);
@@ -1971,7 +1981,7 @@
     setDirty(false);
     // Signed-in login removed or disabled on another device: back to sign-in.
     const acc = me && admin.account(me.id);
-    if (!role || !acc || !acc.hash || acc.disabled) { if (role) lock(); else if (!$('#lock').hidden) showLock(); return; }
+    if (!role || !acc || !acc.hash || acc.disabled) { if (role) lock(); else if (!$('#lock').hidden && !lockPin && lockMode === 'login') showLock(); return; }
     me = acc; role = acc.role;
     const editing = modal.open || screen === 'sell' || screen === 'purchase-new' || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName));
     if (!editing && !$('#shell').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
@@ -2280,6 +2290,18 @@
       if (base === 'inv') { invF.cat = ''; invF.status = ''; if (v === 'low') invF.status = 'low'; else invF.cat = v; go('inventory'); return; }
       if (base === 'renewals') { renewalFilter = 'due'; go('renewals'); return; }
       if (can(base)) go(base);
+    },
+    'sheet-test': async () => {
+      toast('Testing the Google Sheet…');
+      try { const out = await call('GET'); toast(`Connected · ${out.sheetName || 'Google Sheet'} · last saved ${out.updated ? new Date(out.updated).toLocaleString('en-IN') : 'never'}`); } catch (err) { toast(err.message, true); }
+    },
+    'sheet-off': async () => {
+      if (!(await confirmBox('Disconnect Google Sheet', 'This device stops saving to and loading from the Google Sheet. Data already on the device stays. You can connect again here any time.', 'Disconnect'))) return;
+      admin.updateSettings({ sheetsUrl: '', sheetsSecret: '' }); lsSet(SHEET_OFF_KEY, '1'); syncState('Not connected'); render(); toast('Disconnected from the Google Sheet');
+    },
+    'sheet-builtin': async () => {
+      admin.updateSettings({ sheetsUrl: BUILT.sheetsUrl, sheetsSecret: BUILT.sheetsSecret || '' }); lsSet(SHEET_OFF_KEY, '');
+      render(); toast('Connecting to the clinic sheet…'); await pull(true); render();
     },
     'gf-clear': (d) => { GF[d.sc] = {}; render(); },
     'today-export-reset': () => { setPref('todayExport', TODAY_EXPORT_DEFAULT); todayExportForm(($('#modal-body .exp-fmt .on') || { dataset: { expfmt: 'pdf' } }).dataset.expfmt); },
@@ -2638,16 +2660,39 @@
   };
   let lockId = null;
   let lockPin = '';
-  let lockMode = 'login'; // login | setup | connect
+  let lockMode = 'login'; // login | setup | connect | connecting | offline
+  let lockErr = '';
+  // First launch on a connected device: load the logins and data from the sheet before showing anything else.
+  async function autoConnect() {
+    lockMode = 'connecting'; showLock();
+    try {
+      const out = await call('GET');
+      if (out.state) { admin.loadState(out.state); setBase(out.updated); setDirty(false); }
+      lockMode = out.state ? 'login' : 'setup';
+      showLock();
+    } catch (err) {
+      lockErr = err.message; lockMode = 'offline'; showLock();
+    }
+  }
   const loginAccounts = () => S().accounts.filter((a) => a.hash && !a.disabled);
+  const SPIN = '<div class="conn-spin"><i></i><i></i><i></i></div>';
   function lockHtml() {
+    if (lockMode === 'connecting') {
+      return `<div class="conn">${SPIN}<h1>Connecting…</h1><p>Loading your clinic data and logins from the ${esc(BUILT.sheetName || 'Hindivine')} Google Sheet.</p><small class="hint" id="lk-status">This takes a few seconds the first time.</small></div>`;
+    }
+    if (lockMode === 'offline') {
+      return `<div class="conn"><div class="conn-ic">${svg('<path d="M2 8.8a15 15 0 0 1 20 0M5 12.6a10 10 0 0 1 14 0M8.5 16.4a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/>')}</div><h1>Can't reach the Google Sheet</h1>
+        <p>${esc(lockErr || 'Check the internet connection and try again.')}</p>
+        <button class="btn primary" data-lock="retry">Try again</button>
+        <div class="lock-links"><button class="link" data-lock="connect-mode">Change link</button></div></div>`;
+    }
     if (!S().accounts.some((a) => a.role === 'super' && a.hash) && lockMode === 'login') lockMode = 'setup';
     if (lockMode === 'setup') {
       return `<h1>Welcome to Hindivine Admin</h1><p>First time on this device? Create the Super Admin PIN, or connect to the Hindivine Google Sheet to use the logins already set up there.</p>
         <label class="f" style="text-align:left">Super Admin PIN (4–6 digits)<input class="pin-input" id="lk-pin" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>
         <label class="f" style="text-align:left">Repeat PIN<input class="pin-input" id="lk-pin2" type="password" inputmode="numeric" maxlength="6" autocomplete="off"></label>
         <button class="btn primary" data-lock="create">Create Super Admin</button>
-        <div class="lock-links"><button class="link" data-lock="connect-mode">Connect Google Sheet instead</button></div>
+        ${connected() ? '<p class="hint" style="margin:0">Connected to the Google Sheet: it has no logins yet, so this PIN starts it.</p>' : '<div class="lock-links"><button class="link" data-lock="connect-mode">Connect Google Sheet instead</button></div>'}
         <small class="err" id="lk-err"></small>`;
     }
     if (lockMode === 'connect') {
@@ -2745,6 +2790,7 @@
     const a = b.dataset.lock;
     if (a === 'role') { lockId = b.dataset.id; lockPin = ''; $('#lock-body').innerHTML = lockHtml(); return; }
     if (a === 'connect-mode') { lockMode = 'connect'; showLock(); return; }
+    if (a === 'retry') { autoConnect(); return; }
     if (a === 'back') { lockMode = 'login'; showLock(); return; }
     if (a === 'create') {
       const pin = $('#lk-pin').value.trim();
@@ -2761,6 +2807,7 @@
       const url = $('#lk-url').value.trim(); const secret = $('#lk-secret').value.trim();
       if (!/^https:\/\//.test(url) || !secret) { $('#lk-err').textContent = 'Enter the web app URL and the secret'; return; }
       admin.updateSettings({ sheetsUrl: url, sheetsSecret: secret });
+      lsSet(SHEET_OFF_KEY, '');
       b.disabled = true; b.textContent = 'Connecting…';
       try {
         const out = await call('GET');
@@ -2795,5 +2842,8 @@
   let saved = null;
   try { saved = sessionStorage.getItem(ROLE_KEY); } catch (_) { saved = null; }
   const savedAcc = saved && admin.account(saved);
-  if (savedAcc && savedAcc.hash && !savedAcc.disabled) enter(saved); else showLock();
+  const hasLogins = S().accounts.some((a) => a.role === 'super' && a.hash);
+  if (savedAcc && savedAcc.hash && !savedAcc.disabled) enter(saved);
+  else if (connected() && !hasLogins) autoConnect();
+  else { showLock(); if (connected()) pull(); }
 })();

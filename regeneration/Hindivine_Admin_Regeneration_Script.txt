@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.5)
+ HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.6)
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
  Hindivine Healthcare Pvt. Ltd. · www.hindivine.com
 ================================================================================
@@ -14,7 +14,7 @@ from scratch by a developer or by an AI coding assistant. It has three parts:
           rule, every screen, exports, Google Sheet storage, Android build.
   PART C  Step-by-step rebuild and release checklist.
 
-The exact source code of version 3.5 is in the companion file
+The exact source code of version 3.6 is in the companion file
 "Hindivine_Admin_Full_Source.txt" (every file, with an unpack script). If you
 want an identical app, use that file. If you want to regenerate or extend the
 app, use this file.
@@ -330,7 +330,7 @@ Reports, Admin.
     Roles & permissions matrix (Super Admin only); Choice lists (chips with
     rename/remove + add) incl. inventory categories; Backup (export/import
     JSON), All reports, Erase all data (Super Admin).
-20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5) and credits.
+20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6) and credits.
 Every drop-down backed by a list ends with "+ Add new…" which shows an
 inline input and saves the new option for everyone.
 Period options everywhere: Today, This month (auto), Choose month, Last
@@ -509,6 +509,24 @@ B19. VERSION 3.5 ADDITIONS
 * Image (JPEG) export lays tables out first: numbers, phone, age, date,
   type columns keep their full width, other text wraps to up to 3 lines,
   font size adapts to the column count; row heights follow the wrapped text.
+
+B20. VERSION 3.6 ADDITIONS
+--------------------------
+* admin/js/config.js sets window.HDV_CONFIG = { sheetsUrl, sheetsSecret,
+  sheetName } (empty in the public repository). A clinic build fills it:
+  SHEET_ENV=android/sheet.env OUT=<path> APP=admin ./android/build.sh, where
+  sheet.env (git-ignored) has HDV_SHEET_URL and HDV_SHEET_SECRET. Never commit
+  that APK or the file to a public repository.
+* On start the app copies the built-in link into its settings unless this
+  device disconnected (localStorage hindivine.admin.sheetOff = 1). A device
+  with no logins yet shows "Connecting…", loads the sheet, then the sign-in
+  screen; an empty sheet asks for the first Super Admin PIN; no internet
+  shows "Can't reach the Google Sheet" with Try again / Change link. Devices
+  with logins sign in at once and refresh the sheet in the background
+  (without clearing a PIN being typed).
+* Settings → Google Sheet: status, Test connection, Sync now, Disconnect,
+  Connect to the clinic sheet (built-in link), change link / secret.
+* More premium side menu: gold-trimmed groups, glass profile and icons.
 
 B14. TESTS (node --test tests/*.test.js)
 ----------------------------------------

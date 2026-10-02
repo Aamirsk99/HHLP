@@ -10,7 +10,7 @@ TOOLS="${TOOLS_DIR:-$AND/.tools}"
 BUILD="$AND/build"
 APP="${APP:-diet}"
 if [ "$APP" = admin ]; then
-  OUT="$ROOT/dist/HindivineAdmin.apk"
+  OUT="${OUT:-$ROOT/dist/HindivineAdmin.apk}"
   MANIFEST="$AND/admin/AndroidManifest.xml"
   BUILD="$AND/build-admin"
 else
@@ -57,6 +57,13 @@ if [ "$APP" = admin ]; then
   cp "$ROOT/admin/index.html" "$ROOT/admin/manifest.webmanifest" "$BUILD/assets/www/admin/"
   cp -r "$ROOT/admin/css" "$ROOT/admin/js" "$ROOT/admin/vendor" "$ROOT/admin/google-apps-script" "$BUILD/assets/www/admin/"
   cp -r "$ROOT/img" "$BUILD/assets/www/"
+  # Clinic build only: SHEET_ENV=android/sheet.env (git-ignored file with HDV_SHEET_URL and HDV_SHEET_SECRET)
+  # puts the Google Sheet link inside the APK so it connects by itself. Never commit such an APK to a public repo.
+  if [ -n "${SHEET_ENV:-}" ]; then . "$SHEET_ENV"; fi
+  if [ -n "${HDV_SHEET_URL:-}" ]; then
+    echo "  (built-in Google Sheet connection included)"
+    node -e 'const [u, k] = process.argv.slice(1); process.stdout.write(`window.HDV_CONFIG = ${JSON.stringify({ sheetsUrl: u, sheetsSecret: k, sheetName: "Hindivine" })};\n`);' "$HDV_SHEET_URL" "${HDV_SHEET_SECRET:-}" > "$BUILD/assets/www/admin/js/config.js"
+  fi
 else
   cp "$ROOT/index.html" "$BUILD/assets/www/"
   cp -r "$ROOT/css" "$ROOT/js" "$ROOT/img" "$ROOT/vendor" "$BUILD/assets/www/"
