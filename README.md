@@ -27,6 +27,8 @@ The Prime Fit is a **new app** (Android `com.theprimefit.app`, iOS `com.theprime
 
 **Round 12 (APK 2.0):** company profile and payment details in Settings that flow into every PDF and the diet charts, patient sales slips (A5, A4, 80 mm), a new PDF letterhead and footer with medico-legal wording, Today export filters, Call and WhatsApp taps per team member with repeat taps ignored, follow-up reminders in Leads, redesigned dashboard boxes and menu icons, a transparent logo and new app icon, lighter animations; in the diet app My foods sits in Foods & Recipes and charts, patients, recipes and foods are tappable.
 
+**Round 13 (APK 2.1):** Back returns to the admin dashboard instead of Home, every menu section has an icon, and the logo and app icon keep the original colours.
+
 The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
 ## Features

@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.0';
+  const APP_VERSION = '4.1';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -50,6 +50,18 @@
   const ICON_TODAY = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>';
   const ICON_LEADS = '<path d="M3 4h18l-7 8v6l-4 2v-8z"/>';
   const ICON_INV = '<rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/><path d="M9 7h6M9 17h6"/>';
+  // Menu section icons.
+  const GROUP_ICONS = {
+    Overview: '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>',
+    'Patients & OPD': '<path d="M12 21s-7-4.4-7-10a4 4 0 0 1 7-2.6A4 4 0 0 1 19 11c0 5.6-7 10-7 10z"/><path d="M12 10v4M10 12h4"/>',
+    Sales: '<path d="M6 6h15l-1.5 9h-12z"/><path d="M6 6L5 3H2"/><circle cx="9" cy="20" r="1.5"/><circle cx="18" cy="20" r="1.5"/>',
+    Stock: '<path d="M21 8l-9-5-9 5v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>',
+    'Team & money': '<circle cx="9" cy="8" r="3.5"/><path d="M2 20c0-3.6 3.1-6 7-6s7 2.4 7 6"/><circle cx="18" cy="9" r="2.5"/><path d="M18 14c2.4 0 4 1.6 4 4"/>',
+    Founder: '<path d="M3 7l4 4 5-7 5 7 4-4-2 12H5z"/>',
+    Marketing: '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1z"/><path d="M15 9a4 4 0 0 1 0 6"/>',
+    Reports: '<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>',
+    Admin: '<path d="M12 2l8 4v6c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6z"/><path d="M9 12l2 2 4-4"/>',
+  };
   const NAV = [
     ['home', 'Home', '<path d="M3 11l9-7 9 7"/><path d="M5 10v10h5v-6h4v6h5V10"/>', 'Overview'],
     ['dashboard', 'Dashboard', '<path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 4v4h6V4z"/>'],
@@ -144,7 +156,8 @@
     if (modal.open) { modal.close(); try { history.pushState({ screen }, ''); } catch (_) { /* ignore */ } return; }
     if ($('#side').classList.contains('open')) { openMenu(false); try { history.pushState({ screen }, ''); } catch (_) { /* ignore */ } return; }
     if (!role) return;
-    go(e.state && e.state.screen ? e.state.screen : home(), {}, true);
+    const to = e.state && e.state.screen ? e.state.screen : adminHome();
+    go(to === 'home' && screen !== 'home' ? adminHome() : to, {}, true);
   });
 
   // Bottom menu: 1 Dashboard · 2 Today summary · 3 Sale · 4 OPD · 5 Inventory (only what the login may open).
@@ -172,11 +185,12 @@
       const groups = []; let gName = 'Overview';
       NAV.forEach((n) => { if (n[3]) gName = n[3]; if (items.includes(n)) { let g = groups.find((x) => x.name === gName); if (!g) { g = { name: gName, items: [] }; groups.push(g); } g.items.push(n); } });
       const closed = navClosed();
+      const gIcon = (n) => `<i class="ng-ic">${svg(GROUP_ICONS[n] || '<circle cx="12" cy="12" r="4"/>')}</i>`;
       $('#nav').innerHTML = groups.map((g, gi) => {
         const active = g.items.some(([id]) => screen === id || (id === 'purchases' && screen === 'purchase-new'));
         const open = q || active || (closed ? !closed.includes(g.name) : g.name === 'Overview') || g.items.length === 1;
         const cnt = g.items.reduce((a, [id]) => a + (badge(id) ? 1 : 0), 0);
-        return `<div class="nav-sec c${gi % 6} ${open ? 'open' : ''}">${g.items.length > 1 ? `<button type="button" class="nav-group" data-navgroup="${esc(g.name)}"><i></i><span>${esc(g.name)}</span>${!open && cnt ? `<em>${cnt}</em>` : ''}<svg viewBox="0 0 24 24" class="chev"><path d="M6 9l6 6 6-6"/></svg></button>` : `<div class="nav-group solo"><i></i><span>${esc(g.name)}</span></div>`}
+        return `<div class="nav-sec c${gi % 6} ${open ? 'open' : ''}">${g.items.length > 1 ? `<button type="button" class="nav-group" data-navgroup="${esc(g.name)}">${gIcon(g.name)}<span>${esc(g.name)}</span>${!open && cnt ? `<em>${cnt}</em>` : ''}<svg viewBox="0 0 24 24" class="chev"><path d="M6 9l6 6 6-6"/></svg></button>` : `<div class="nav-group solo">${gIcon(g.name)}<span>${esc(g.name)}</span></div>`}
           <div class="nav-items">${g.items.map(([id, label, icon]) => `<button type="button" data-go="${id}" class="${screen === id || (id === 'purchases' && screen === 'purchase-new') ? 'on' : ''}">${svg(icon)}<span>${esc(navLabel(id, label))}</span>${badge(id)}</button>`).join('')}</div></div>`;
       }).join('');
     }
@@ -1555,6 +1569,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.1', 'Back button always returns to the admin dashboard (never the Home page) and leaves the app from there; icons on every menu section; logo and app icon back in the original charcoal and teal colours.'],
     ['4.0', 'Company profile & payments in Settings (legal name, address, GSTIN, doctor, UPI, bank, terms, medico-legal note) used on every PDF and the diet charts; patient sales slips (several sales on one slip, A5, A4 or 80 mm receipt, invoice or payment receipt, amount in words, payment details); new letterhead and footer on all PDFs; Today export with period, sections and filters; Call and WhatsApp taps counted per team member with repeat taps ignored; follow-up reminders with remind-me times, snooze and done; redesigned dashboard boxes and menu icons; transparent logo and new app icon; lighter animations. Diet: Add food, Add recipe and My foods moved into Foods & Recipes, more tappable patients, charts, recipes and foods, premium chart and recipe PDFs with medico-legal note.'],
     ['3.9', 'Every dashboard box opens its screen; founders kept to the Founder Hub; WhatsApp today with tabs and options (which messages, how many, inactive patients, your own wording); menu in colour-coded sections that fold away; Settings as tiles with a Google Sheet connection status; saved PDFs and images open automatically; six multi-colour themes (Aurora, Peacock, Sunrise, Galaxy, Tropical, Maharaja); more luxury dashboard. Diet: all 11,018 recipes in Recipes with search and filters, clickable home boxes, multi-colour themes. Data Explorer removed.'],
     ['3.8', 'Founders can be edited, disabled and enabled again (data kept) with more profile details; Data Explorer for every data sheet with search, column filters, sort, group-by, column picker, saved views and PDF / Excel export; Super Admin branding & menu (rename or switch off menu items, app name, brand and gold colours, serif or modern headings, spacing, corners, animations); much faster on big data (lists show 50 at a time, quicker search); luxury serif headings. Diet charts: 9,070 foods and 11,018 recipes with full method and nutrition, a Foods & Recipes library with filters and exports, and protein powder shakes in diet charts.'],
@@ -3857,7 +3872,8 @@
   window.hdvBack = () => {
     if (modal.open) { modal.close(); return true; }
     if ($('#side').classList.contains('open')) { openMenu(false); return true; }
-    if (role && screen !== home()) { go(home()); return true; }
+    // Back always returns to the admin dashboard (never the Home page); on the dashboard it leaves the app.
+    if (role && screen !== adminHome()) { go(adminHome()); return true; }
     return false;
   };
 

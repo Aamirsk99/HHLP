@@ -1185,3 +1185,9 @@ body.ui-still *, body.ui-still *::before, body.ui-still *::after { animation: no
 .remind-card .fu-acts { gap: 4px; } .remind-card .fu-acts .btn { padding-inline: 8px; min-width: 0; }
 @media (max-width: 420px) { .remind-card .fu-acts .btn { padding-inline: 7px; font-size: 12px; } }
 @media (prefers-color-scheme: dark) { :root:not([data-mode=light]) .lock-logo { content: url("../../img/logo-light.png"); } }
+/* Menu section headers carry their own icon tile. */
+#nav .nav-group i.ng-ic { width: 26px; height: 26px; border-radius: 9px; display: grid; place-items: center; box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gc, #d4af37) 45%, transparent);
+  background: linear-gradient(145deg, color-mix(in srgb, var(--gc, #d4af37) 32%, transparent), color-mix(in srgb, var(--gc, #d4af37) 10%, transparent)); }
+#nav .nav-group i.ng-ic svg { width: 15px; height: 15px; padding: 0; background: none; border-radius: 0; box-shadow: none; fill: none; stroke: var(--gc, #d4af37); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+#nav .nav-group i.ng-ic svg :is(rect, circle) { fill: color-mix(in srgb, var(--gc, #d4af37) 25%, transparent); }
+#nav .nav-group { font-size: 11px; color: color-mix(in srgb, var(--side-ink, #fff) 80%, transparent); }
