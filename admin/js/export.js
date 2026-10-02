@@ -317,7 +317,7 @@
    * long A4-width image instead of several files.
    */
   function jpeg(report, clinic) {
-    const W = 1240; const A4H = 1754; const M = 56; const ROW = 44; const MAX_H = 15000;
+    const W = 1240; const A4H = 1754; const M = 56; const ROW = 44; const MAX_H = 8000;
     const rgb = (a) => `rgb(${a.join(',')})`;
     const tint = (a, k) => rgb(a.map((c) => Math.round(c + (255 - c) * k)));
     const kpis = report.kpis || [];

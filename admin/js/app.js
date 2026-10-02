@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.3';
+  const APP_VERSION = '3.4';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -290,7 +290,7 @@
     'New patients': '<circle cx="10" cy="8" r="3.5"/><path d="M4 20c0-3.5 2.7-6 6-6M18 14v6M15 17h6"/>', 'Renewal patients': '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
     'Active patients': '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
   };
-  const kpi = (label, value, sub, cls) => `<div class="kpi ${cls || ''}${KPI_IC[label] ? ' has-ic' : ''}">${KPI_IC[label] ? `<i class="kpi-ic">${svg(KPI_IC[label])}</i>` : ''}<small>${esc(label)}</small><b title="${esc(value)}">${esc(value)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
+  const kpi = (label, value, sub, cls, link) => `<div class="kpi ${cls || ''}${KPI_IC[label] ? ' has-ic' : ''}${link ? ' tap' : ''}"${link ? ` data-act="dash-go" data-k="${link}" role="button" tabindex="0"` : ''}>${KPI_IC[label] ? `<i class="kpi-ic">${svg(KPI_IC[label])}</i>` : ''}<small>${esc(label)}</small><b title="${esc(value)}">${esc(value)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
   // Header prefixes: ">" right-aligned number, "~" hidden on phones (details stay in exports).
   const th = (h) => {
     let hm = ''; if (h.startsWith('~')) { hm = ' data-hm="1"'; h = h.slice(1); }
@@ -300,6 +300,16 @@
     <tbody>${rows.join('') || `<tr><td colspan="${head.length}" class="empty">${svg('<path d="M4 7h16M4 12h16M4 17h10"/>')}No records for this selection.</td></tr>`}</tbody>${foot ? `<tfoot><tr>${foot}</tr></tfoot>` : ''}</table></div>`;
   // PDF + Excel buttons for a screen; EXPORTS[key]() builds the report from the current filters.
   const exportBtns = (key) => `<span class="btn-group"><button type="button" class="btn sm" data-act="export" data-what="${key}" data-fmt="pdf">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/><path d="M9 14h6M9 17h4"/>')}PDF</button><button type="button" class="btn sm" data-act="export" data-what="${key}" data-fmt="xlsx">${svg('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8l8 8M16 8l-8 8"/>')}Excel</button></span>`;
+  // ── Shared filters: any screen can have a search box and drop-downs (kept while the app is open) ──
+  const GF = {};
+  const gf = (sc) => GF[sc] || (GF[sc] = {});
+  const fSearch = (sc, ph) => `<input type="search" data-gf="${sc}" data-k="q" placeholder="${esc(ph)}" value="${esc(gf(sc).q || '')}" autocomplete="off">`;
+  const fSelect = (sc, k, label, options) => `<select data-gf="${sc}" data-k="${k}" aria-label="${esc(label)}" class="${gf(sc)[k] ? 'set' : ''}">${opt('', label, gf(sc)[k] || '')}${options.map(([v, l]) => opt(v, l, gf(sc)[k] || '')).join('')}</select>`;
+  const fActive = (sc) => Object.values(gf(sc)).some(Boolean);
+  const fClear = (sc) => (fActive(sc) ? `<button type="button" class="btn sm ghost" data-act="gf-clear" data-sc="${sc}">✕ Clear</button>` : '');
+  const filterRow = (sc, ...parts) => `<div class="filters"><div class="row">${parts.filter(Boolean).join('')}${fActive(sc) ? `<button type="button" class="btn sm ghost" data-act="gf-clear" data-sc="${sc}">✕ Clear</button>` : ''}</div></div>`;
+  const qHit = (sc, ...texts) => { const q = String(gf(sc).q || '').trim().toLowerCase(); return !q || texts.join(' ').toLowerCase().includes(q); };
+  const fv = (sc, k) => gf(sc)[k] || '';
   const SUBS = {};
   const activeMembers = () => S().team.filter((m) => !m.disabled);
   const memberOptions = (sel, blank) => (blank != null ? opt('', blank, sel) : '') + activeMembers().map((m) => opt(m.id, m.name + (m.designation ? ` · ${m.designation}` : ''), sel)).join('')
@@ -383,6 +393,10 @@
   const AFTER = {};
 
   const greet = () => { const h = new Date().getHours(); return h < 12 ? 'Good morning' : h < 17 ? 'Good afternoon' : 'Good evening'; };
+  // Dashboard sections each person can switch on or off (saved on this device per login).
+  const DASH_SECTIONS = [['hero', 'Top summary (revenue, OPD, profit, renewals)'], ['quick', 'Quick actions'], ['order', 'Order required banner'], ['sales', 'Sales summary'],
+    ['opd', 'OPD appointments'], ['patients', 'Patient summary'], ['leads', 'Leads'], ['team', 'Team summary'], ['stock', 'Stock summary'], ['chart', 'Revenue vs expenses chart']];
+  const dashHidden = () => { const h = (prefs().dash || {})[me ? me.id : ''] || []; return Array.isArray(h) ? h : []; };
   SCREENS.dashboard = () => {
     const d = admin.dashboard(range());
     const s = d.sales; const p = d.patients; const t = d.team; const st = d.stock;
@@ -391,81 +405,80 @@
     const ap = d.appointments; const td = d.today;
     const empty = !S().sales.length && !S().team.length && !S().appointments.length;
     const H = (ic, cls, title) => `<h2><span class="ic ${cls}">${svg(ic)}</span>${title}</h2>`;
-    return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('dashboard')}</div>
-      <section class="hero lux-hero">
+    return `<div class="dash" data-hide="${esc(dashHidden().join(' '))}"><div class="toolbar">${periodBar()}<span class="grow"></span><button type="button" class="btn sm" data-act="dash-custom">${svg('<path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/>')}Customize</button>${exportBtns('dashboard')}</div>
+      <section class="hero lux-hero" data-dash="hero">
         <div class="hero-top"><div><small class="hero-hi">${greet()}, ${esc(me.name.split(' ')[0])}</small><span class="hero-clinic">${esc(set().clinic)} · ${esc(periodLabel())}</span></div>
           <div class="hero-big"><small>Revenue</small><b>${inr(s.revenue)}</b><span class="${s.profit >= 0 ? 'up' : 'down'}">${s.revenue ? `${Math.round((s.profit / s.revenue) * 100)}% margin` : 'No sales yet'}</span></div></div>
         <div class="hero-row">
-          <div class="hk"><i>${svg(ICON_CAL)}</i><small>Today's OPD</small><b>${num(td.total - td.cancelled)}</b><small>${td.completed} done · ${td.booked} waiting</small></div>
-          <div class="hk"><i>${svg('<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>')}</i><small>Net profit</small><b>${inr(s.profit)}</b><small>after ${inr(s.expenses)} expenses</small></div>
-          <div class="hk"><i>${svg('<path d="M6 7h12l-1 13H7zM9 7a3 3 0 0 1 6 0"/>')}</i><small>Orders</small><b>${num(s.orders)}</b><small>${plural(s.injectionCount, 'injection')}</small></div>
-          <div class="hk"><i>${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}</i><small>Renewals due</small><b>${num(d.renewalsDue)}</b><small>${set().renewalDays[0]}+ days</small></div>
+          <div class="hk tap" data-act="dash-go" data-k="appts-today" role="button" tabindex="0"><i>${svg(ICON_CAL)}</i><small>Today's OPD</small><b>${num(td.total - td.cancelled)}</b><small>${td.completed} done · ${td.booked} waiting</small></div>
+          <div class="hk tap" data-act="dash-go" data-k="reports" role="button" tabindex="0"><i>${svg('<path d="M3 17l6-6 4 4 8-8M15 7h6v6"/>')}</i><small>Net profit</small><b>${inr(s.profit)}</b><small>after ${inr(s.expenses)} expenses</small></div>
+          <div class="hk tap" data-act="dash-go" data-k="sales" role="button" tabindex="0"><i>${svg('<path d="M6 7h12l-1 13H7zM9 7a3 3 0 0 1 6 0"/>')}</i><small>Orders</small><b>${num(s.orders)}</b><small>${plural(s.injectionCount, 'injection')}</small></div>
+          <div class="hk tap" data-act="dash-go" data-k="renewals" role="button" tabindex="0"><i>${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}</i><small>Renewals due</small><b>${num(d.renewalsDue)}</b><small>${set().renewalDays[0]}+ days</small></div>
         </div>
       </section>
-      <div class="dash-quick">${[['sell', 'New sale', '<path d="M12 5v14M5 12h14"/>', 'new-sale'], ['appointments', 'Book OPD', ICON_CAL, 'new-appt'], ['leads', 'Add lead', ICON_LEADS, 'new-lead'], ['today', 'Today summary', ICON_TODAY, '']]
+      <div class="dash-quick" data-dash="quick">${[['sell', 'New sale', '<path d="M12 5v14M5 12h14"/>', 'new-sale'], ['appointments', 'Book OPD', ICON_CAL, 'new-appt'], ['leads', 'Add lead', ICON_LEADS, 'new-lead'], ['today', 'Today summary', ICON_TODAY, '']]
         .filter((q) => can(q[0])).map(([id, l, ic, act]) => `<button type="button" class="dq" ${act ? `data-act="${act}"` : `data-go="${id}"`}><span>${svg(ic)}</span><b>${l}</b></button>`).join('')}</div>
-      ${st.order.length && can('inventory') ? `<button type="button" class="order-banner" data-go="today">${svg('<path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>')}<span><b>Order required</b>${st.order.map((o) => `${esc(o.item.name)} (${num(o.stock)})`).join(' · ')}</span>${svg('<path d="M9 5l7 7-7 7"/>')}</button>` : ''}
+      ${st.order.length && can('inventory') ? `<button type="button" class="order-banner" data-go="today" data-dash="order">${svg('<path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>')}<span><b>Order required</b>${st.order.map((o) => `${esc(o.item.name)} (${num(o.stock)})`).join(' · ')}</span>${svg('<path d="M9 5l7 7-7 7"/>')}</button>` : ''}
       ${empty ? `<div class="card"><h2>Welcome</h2><p>Start in three steps: <button class="link" data-go="team">add your team</button>, <button class="link" data-go="products">set product prices</button>, then <button class="link" data-go="purchases">add stock</button>. Appointments and sales then update revenue, stock and incentives automatically.</p></div>` : ''}
       <div class="cards">
-        <section class="card">${H('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>', '', 'Sales summary')}<div class="kpis">
-          ${kpi('Total orders', num(s.orders))}
-          ${kpi('Total revenue', inr(s.revenue))}
-          ${kpi('Total expenses', inr(s.expenses), '', 'gold')}
-          ${kpi('Net profit', inr(s.profit), 'Revenue − Expenses', s.profit >= 0 ? 'good' : 'bad')}
-          ${kpi('Injection sales', inr(s.injection), plural(s.injectionCount, 'order'))}
-          ${kpi('Protein sales', inr(s.protein), plural(s.proteinCount, 'order'), 'teal')}
-          ${kpi('Diet support', inr(s.diet), plural(s.dietCount, 'plan'), 'violet')}
-          ${kpi('Consultation fees', inr(s.consultation), `${ap.total - ap.cancelled} appointments`, 'teal')}
+        <section class="card" data-dash="sales">${H('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>', '', 'Sales summary')}<div class="kpis">
+          ${kpi('Total orders', num(s.orders), '', '', 'sales')}
+          ${kpi('Total revenue', inr(s.revenue), '', '', 'reports')}
+          ${kpi('Total expenses', inr(s.expenses), '', 'gold', 'expenses')}
+          ${kpi('Net profit', inr(s.profit), 'Revenue − Expenses', s.profit >= 0 ? 'good' : 'bad', 'reports')}
+          ${kpi('Injection sales', inr(s.injection), plural(s.injectionCount, 'order'), '', 'sales-injection')}
+          ${kpi('Protein sales', inr(s.protein), plural(s.proteinCount, 'order'), 'teal', 'sales-protein')}
+          ${kpi('Diet support', inr(s.diet), plural(s.dietCount, 'plan'), 'violet', 'sales-diet')}
+          ${kpi('Consultation fees', inr(s.consultation), `${ap.total - ap.cancelled} appointments`, 'teal', 'appts-paid')}
         </div></section>
-        <section class="card">${H(ICON_CAL, 'violet', 'OPD appointments')}<div class="kpis">
-          ${kpi('Appointments', num(ap.total))}
-          ${kpi('Clinic visits', num(ap.clinic), '', 'teal')}
-          ${kpi('Online', num(ap.online), '', 'violet')}
-          ${kpi('Completed', num(ap.completed), '', 'good')}
-          ${kpi('Fees collected', inr(ap.fees), '', 'good')}
-          ${kpi('Unpaid', num(ap.unpaid), '', ap.unpaid ? 'warn' : '')}
+        <section class="card" data-dash="opd">${H(ICON_CAL, 'violet', 'OPD appointments')}<div class="kpis">
+          ${kpi('Appointments', num(ap.total), '', '', 'appts')}
+          ${kpi('Clinic visits', num(ap.clinic), '', 'teal', 'appts-clinic')}
+          ${kpi('Online', num(ap.online), '', 'violet', 'appts-online')}
+          ${kpi('Completed', num(ap.completed), '', 'good', 'appts-completed')}
+          ${kpi('Fees collected', inr(ap.fees), '', 'good', 'appts-paid')}
+          ${kpi('Unpaid', num(ap.unpaid), '', ap.unpaid ? 'warn' : '', 'appts-unpaid')}
         </div></section>
-        <section class="card">${H('<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/>', 'teal', 'Patient summary')}<div class="kpis">
-          ${kpi('Total patients', num(p.total), 'All time')}
-          ${kpi('New patients', num(p.new), '', 'teal')}
-          ${kpi('Renewal patients', num(p.renewal), '', 'violet')}
-          ${kpi('Active patients', num(p.active), `Last ${set().activeDays} days`, 'good')}
+        <section class="card" data-dash="patients">${H('<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6"/>', 'teal', 'Patient summary')}<div class="kpis">
+          ${kpi('Total patients', num(p.total), 'All time', '', 'patients')}
+          ${kpi('New patients', num(p.new), '', 'teal', 'sales-new')}
+          ${kpi('Renewal patients', num(p.renewal), '', 'violet', 'sales-renewal')}
+          ${kpi('Active patients', num(p.active), `Last ${set().activeDays} days`, 'good', 'patients-active')}
         </div>
         ${d.renewalsDue && can('renewals') ? `<p style="margin:12px 0 0"><button class="btn sm gold" data-go="renewals">${d.renewalsDue} renewal alert${d.renewalsDue > 1 ? 's' : ''} (${set().renewalDays[0]}+ days) →</button></p>` : ''}</section>
-        ${can('leads') ? `<section class="card">${H(ICON_LEADS, 'gold', 'Leads')}<div class="kpis">
-          ${kpi('New leads', num(d.leads.total))}
-          ${kpi('Open leads', num(d.leads.open), '', 'violet')}
-          ${kpi('Converted', num(d.leads.won), `${d.leads.conversion}% conversion`, 'good')}
-          ${kpi('Follow-ups due', num(d.leads.dueToday + d.leads.overdue), d.leads.overdue ? `${d.leads.overdue} overdue` : 'today', d.leads.overdue ? 'bad' : 'gold')}
+        ${can('leads') ? `<section class="card" data-dash="leads">${H(ICON_LEADS, 'gold', 'Leads')}<div class="kpis">
+          ${kpi('New leads', num(d.leads.total), '', '', 'leads-all')}
+          ${kpi('Open leads', num(d.leads.open), '', 'violet', 'leads-open')}
+          ${kpi('Converted', num(d.leads.won), `${d.leads.conversion}% conversion`, 'good', 'leads-won')}
+          ${kpi('Follow-ups due', num(d.leads.dueToday + d.leads.overdue), d.leads.overdue ? `${d.leads.overdue} overdue` : 'today', d.leads.overdue ? 'bad' : 'gold', 'leads-follow')}
         </div></section>` : ''}
-        ${can('team') ? `<section class="card">${H('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>', 'gold', 'Team summary')}<div class="kpis">
-          ${kpi('Team members', num(t.members), 'Active')}
-          ${kpi('Total incentives', inr(t.incentives), '', 'gold')}
-          ${kpi('Total salary', inr(t.salary), 'Per month')}
-          ${kpi('Top performer', t.top ? t.top.name : '—', t.top ? `${inr(t.top.totalSales)} sales` : '', 'good')}
+        ${can('team') ? `<section class="card" data-dash="team">${H('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>', 'gold', 'Team summary')}<div class="kpis">
+          ${kpi('Team members', num(t.members), 'Active', '', 'team')}
+          ${kpi('Total incentives', inr(t.incentives), '', 'gold', 'incentives')}
+          ${kpi('Total salary', inr(t.salary), 'Per month', '', 'salary')}
         </div></section>` : ''}
-        <section class="card">${H('<rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/>', '', 'Stock summary')}
+        <section class="card" data-dash="stock">${H('<rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/>', '', 'Stock summary')}
         <div class="stock-chips">${st.available.length ? st.available.map((x) => `<span class="chip ${x.item.orderAt != null && x.stock < x.item.orderAt ? 'bad' : 'ok'}"><b>${num(x.stock)}</b>${esc(x.item.name)}</span>`).join('') : '<span class="hint">No stock available yet</span>'}</div>
         <div class="kpis">
-          ${kpi('Injection stock', num(st.injection), 'pens')}
-          ${kpi('Protein stock', num(st.protein), '', 'teal')}
-          ${kpi('Low stock alerts', set().stockAlerts === false ? 'Off' : num(st.low.length), '', st.low.length ? 'bad' : 'good')}
-          ${kpi('Needles', num(st.needles))}
-          ${kpi('Swabs', num(st.swabs))}
-          ${kpi('Syringes', num(st.syringes))}
+          ${kpi('Injection stock', num(st.injection), 'pens', '', 'inv-Injection')}
+          ${kpi('Protein stock', num(st.protein), '', 'teal', 'inv-Protein')}
+          ${kpi('Low stock alerts', set().stockAlerts === false ? 'Off' : num(st.low.length), '', st.low.length ? 'bad' : 'good', 'inv-low')}
+          ${kpi('Needles', num(st.needles), '', '', 'inv-Needles')}
+          ${kpi('Swabs', num(st.swabs), '', '', 'inv-Alcohol Swabs')}
+          ${kpi('Syringes', num(st.syringes), '', '', 'inv-Insulin Syringes')}
         </div>
         ${st.order.length ? `<div class="alerts" style="margin-top:12px">${st.order.map((l) => `<div class="alert bad"><b>${esc(l.item.name)}</b><span class="badge bad">Order required · ${num(l.stock)} left</span></div>`).join('')}</div>` : ''}
         ${(() => { const lowOnly = st.low.filter((l) => !st.order.some((o) => o.item.id === l.item.id)); st.lowOnly = lowOnly; return ''; })()}
         ${st.lowOnly.length ? `<div class="alerts" style="margin-top:12px">${st.lowOnly.slice(0, 4).map((l) => `<div class="alert"><b>${esc(l.item.name)}</b><span class="badge bad">${num(l.stock)} left</span></div>`).join('')}${st.lowOnly.length > 4 ? `<button class="link" data-go="inventory">See all ${st.lowOnly.length} low items →</button>` : ''}</div>` : ''}</section>
       </div>
-      <section class="card">${H('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>', 'teal', 'Revenue vs expenses by month')}
+      <section class="card" data-dash="chart">${H('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>', 'teal', 'Revenue vs expenses by month')}
         ${months.length ? `<div class="legend"><span><i style="background:var(--accent)"></i>Revenue</span><span><i style="background:var(--warn)"></i>Expenses</span></div><div class="bars">
           ${months.map((m) => `<div class="bar-row"><span>${fdate(m.month)}</span><div class="bar-track">
             <div class="bar rev" style="width:${(m.revenue / max) * 100}%" title="Revenue ${inr(m.revenue)}"></div>
             <div class="bar exp" style="width:${(m.expenses / max) * 100}%" title="Expenses ${inr(m.expenses)}"></div></div>
             <b class="num" style="text-align:right;color:${m.profit >= 0 ? 'var(--ok)' : 'var(--danger)'}">${inr(m.profit)}</b></div>`).join('')}
         </div>` : '<p class="empty">Monthly figures appear after the first sale or expense.</p>'}
-      </section>`;
+      </section></div>`;
   };
 
   // ── Today summary: sales, purchases, OPD, stock available / not available, order required ──
@@ -485,7 +498,10 @@
   }
   SCREENS.today = () => {
     const d = todayDate || admin.today();
-    const x = admin.daySummary(d);
+    const x0 = admin.daySummary(d);
+    const sales = x0.sales.filter((s) => (!fv('today', 'type') || s.type === fv('today', 'type')) && (!fv('today', 'pt') || (s.patientType || 'new') === fv('today', 'pt'))
+      && (!fv('today', 'ref') || s.splits.some((y) => y.memberId === fv('today', 'ref'))) && qHit('today', s.patientName, s.mobile || '', s.product));
+    const x = { ...x0, sales, salesTotal: sales.reduce((a, s) => a + (Number(s.amount) || 0), 0) };
     const imgBtn = `<button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="jpeg">${svg('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>')}JPEG</button>`;
     const stockRow = (y) => `<tr><td>${esc(y.item.name)}</td><td>${esc(y.item.category)}</td><td class="r"><b>${num(y.stock)}</b> <span class="hint">${esc(y.item.unit)}</span></td><td>${y.item.orderAt != null && y.stock < y.item.orderAt ? '<span class="badge bad">Order required</span>' : y.stock > 0 ? '<span class="badge ok">Available</span>' : '<span class="badge">Not available</span>'}</td></tr>`;
     return `<div class="toolbar"><div class="day-nav"><button type="button" class="btn sm" data-day="-1" aria-label="Previous day">‹</button><input type="date" data-todaydate value="${esc(d)}" aria-label="Date"><button type="button" class="btn sm" data-day="1" aria-label="Next day">›</button>${d !== admin.today() ? '<button type="button" class="btn sm" data-day="0">Today</button>' : ''}</div>
@@ -496,6 +512,8 @@
         <div class="hk"><small>OPD</small><b>${num(x.appt.total - x.appt.cancelled)}</b><small>fees ${inr(x.appt.fees)}</small></div>
         <div class="hk"><small>Expenses</small><b>${inr(x.expenseTotal)}</b><small>${plural(x.leads, 'new lead')}</small></div>
       </div></section>
+      ${filterRow('today', fSearch('today', 'Search patient, product'), fSelect('today', 'type', 'All sale types', Object.entries(A.SALE_TYPES)), fSelect('today', 'pt', 'New + renewal', [['new', 'New'], ['renewal', 'Renewal']]),
+        fSelect('today', 'ref', 'All references', activeMembers().map((m) => [m.id, m.name])))}
       ${x.order.length ? `<section class="card order-card"><h2><span class="ic bad">${svg('<path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>')}</span>Order required</h2>
         <div class="alerts">${x.order.map((o) => `<div class="alert bad"><b>${esc(o.item.name)}</b><span class="badge bad">${num(o.stock)} left · below ${o.item.orderAt}</span></div>`).join('')}</div></section>` : ''}
       <div>
@@ -712,6 +730,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.4', 'Customize dashboard: choose which sections show; almost every dashboard box opens the matching screen with the right filter; Top performer removed from the team summary; richer dashboard plates; filters on Today, Patients (gender, age, city, buyers / OPD only), Renewals, Products, Inventory, Purchases (vendor, product), Team, Incentives, Salary and Expenses, with one-tap Clear; every export opens options (PDF, image or Excel, period for the file, summary boxes) and follows the screen filters; smoother typing in search boxes; safer image export on low-memory phones.'],
     ['3.3', 'Patient age, gender and city on every sale (filled in automatically for known patients); Today export can add patient details (mobile, age / gender, city); vitals with automatic BMI on OPD appointments and the OPD slip; luxury dashboard with greeting, revenue and margin, icon plates and quick actions; Settings in clear sections (Clinic & doctors, Fees & rules, Google Sheet, Logins, Permissions, Choice lists, Backup); redesigned PDF and image reports with clinic address and phone, report details strip and page badges, without the developer line; bug fixes.'],
     ['3.2', 'Today Summary export options: choose what goes in the PDF / image / Excel and filter by sale type, reference and new or renewal patients (default: patient, product, amount, new / renewal and reference only); product-wise incentive for everyone or per person; doctors and clinics to choose in OPD appointments (add, rename, delete in Settings); new OPD slip with every detail (token, slip no., doctor, clinic, address, phone, patient visit no., payment, vitals, Rx) and no developer line; Black & Gold and Rose Gold luxury themes, premium font and refined design; pop-ups always on top and no keyboard jumping up on phones; Google Sheet: keep the current sheet or move to a new one; sync never hangs on slow internet.'],
     ['3.1', 'Follow-up reminders: bell with count, reminders list on sign-in, pop-up at the follow-up time, phone notifications even when the app is closed, snooze; Follow-ups tab and one-tap follow-up times for leads; OPD slip PDF for every appointment; Today Summary shows every reference (team member) with sales and incentive, also in PDF and image; image export is one clean A4 file; better structured PDF reports; 5 colour themes including dark Midnight; redesigned animated side menu with search and quick actions; app-like screens (no text selection); crash protection and smoother animations.'],
@@ -1036,6 +1055,8 @@
   // Patients
   let patientQ = '';
   let patientStatus = '';
+  const AGE_BANDS = [['u30', 'Under 30'], ['30', '30 – 39'], ['40', '40 – 49'], ['50', '50 – 59'], ['60', '60+'], ['none', 'Age not set']];
+  const ageBand = (a) => { const n = Number(a); if (!a || !(n > 0)) return 'none'; return n < 30 ? 'u30' : n < 40 ? '30' : n < 50 ? '40' : n < 60 ? '50' : '60'; };
   function patientRows() {
     const activeFrom = A.isoDate(new Date(Date.now() - set().activeDays * 86400000));
     return S().patients.map((p) => {
@@ -1045,7 +1066,9 @@
       const lastAny = [last && last.date, ...appts.map((a) => a.date)].filter(Boolean).sort().pop() || '';
       return { p, sales, appts, last, lastAny, active: !!lastAny && lastAny >= activeFrom, spent: sales.reduce((a, s) => a + s.amount, 0) + appts.reduce((a, x) => a + admin.feeEarned(x), 0) };
     }).filter((x) => (!patientQ || `${x.p.name} ${x.p.mobile}`.toLowerCase().includes(patientQ.toLowerCase()))
-      && (!patientStatus || (patientStatus === 'active' ? x.active : !x.active)))
+      && (!patientStatus || (patientStatus === 'active' ? x.active : !x.active))
+      && (!fv('patients', 'gender') || x.p.gender === fv('patients', 'gender')) && (!fv('patients', 'city') || x.p.city === fv('patients', 'city'))
+      && (!fv('patients', 'age') || ageBand(x.p.age) === fv('patients', 'age')) && (!fv('patients', 'kind') || (fv('patients', 'kind') === 'buyer' ? x.sales.length : !x.sales.length)))
       .sort((a, b) => b.lastAny.localeCompare(a.lastAny));
   }
   SCREENS.patients = () => {
@@ -1057,6 +1080,8 @@
           <td class="acts">${can('sell') ? `<button class="btn xs" data-act="sell-to" data-id="${x.p.id}">New sale</button>` : ''} <button class="btn xs" data-act="patient-edit" data-id="${x.p.id}">Edit</button>${canDelete() ? ` <button class="btn xs danger" data-act="patient-del" data-id="${x.p.id}">Delete</button>` : ''}</td></tr>`);
     return `<div class="filters"><div class="row"><input type="search" placeholder="Search name or mobile" data-filter="patient" value="${esc(patientQ)}">
         <select data-filter="pstatus" aria-label="Status">${opt('', 'All patients', patientStatus)}${opt('active', 'Active', patientStatus)}${opt('inactive', 'Inactive', patientStatus)}</select>
+        ${fSelect('patients', 'gender', 'Any gender', [['Female', 'Female'], ['Male', 'Male'], ['Other', 'Other']])}${fSelect('patients', 'age', 'Any age', AGE_BANDS)}
+        ${fSelect('patients', 'city', 'All cities', [...new Set(S().patients.map((x) => x.city).filter(Boolean))].sort().map((c) => [c, c]))}${fSelect('patients', 'kind', 'Buyers + OPD only', [['buyer', 'Bought products'], ['opd', 'OPD only']])}${fClear('patients')}
         ${exportBtns('patients')}</div></div>
       <div class="card">${table(['Patient', '>Visits', '>Total spent', 'Last visit', 'Status', ''], rows)}</div>`;
   };
@@ -1068,7 +1093,9 @@
     const [d1, d2] = set().renewalDays;
     return admin.renewals().filter((r) => (renewalFilter === 'due' ? r.stage && !r.done
       : renewalFilter === 'd90' ? r.stage === d2 : renewalFilter === 'd60' ? r.stage === d1
-        : renewalFilter === 'soon' ? !r.stage && r.dueIn <= 10 : renewalFilter === 'done' ? r.done : true));
+        : renewalFilter === 'soon' ? !r.stage && r.dueIn <= 10 : renewalFilter === 'done' ? r.done : true)
+      && qHit('renewals', r.name, r.mobile, r.product, r.ref) && (!fv('renewals', 'product') || r.product === fv('renewals', 'product'))
+      && (!fv('renewals', 'ref') || String(r.ref || '').includes(fv('renewals', 'ref'))));
   }
   SUBS.renewals = () => `Alert ${set().renewalDays[0]} days after the last injection`;
   SCREENS.renewals = () => {
@@ -1087,24 +1114,29 @@
     const count = (f) => all.filter(f).length;
     const segs = [['due', `Due (${count((r) => r.stage && !r.done)})`], ['d60', `${d1}-day`], ['d90', `${d2}+ days`], ['soon', 'Next 10 days'], ['done', 'Contacted'], ['all', 'All']];
     return `<div class="toolbar"><div class="scroll-x"><div class="seg">${segs.map(([k, l]) => `<button type="button" data-renewal="${k}" class="${renewalFilter === k ? 'on' : ''}">${l}</button>`).join('')}</div></div><span class="grow"></span>${exportBtns('renewals')}</div>
+      ${filterRow('renewals', fSearch('renewals', 'Search patient, mobile, product'), fSelect('renewals', 'product', 'All products', [...new Set(all.map((r) => r.product))].map((x) => [x, x])),
+        fSelect('renewals', 'ref', 'All references', activeMembers().map((m) => [m.name, m.name])))}
       <div class="card"><p class="hint" style="margin-top:0">An alert appears ${d1} days after a patient's last injection; after ${d2} days it shows as overdue. A new sale clears it.</p>
       ${table(['Patient', 'Product', 'Last purchase', 'Reminder', '~Reference team', ''], rows)}</div>`;
   };
 
   // Products
+  const prodHit = (i) => qHit('products', i.name, i.brand || '') && (!fv('products', 'status') || (fv('products', 'status') === 'active' ? !i.disabled : i.disabled))
+    && (!fv('products', 'price') || !i.price);
   SCREENS.products = () => {
     const inc = set().incentive;
-    const itemRows = (kind) => admin.itemsOf(kind, true).map((i) => `<tr class="${i.disabled ? 'off' : ''}"><td>${esc(i.name)}</td>
+    const itemRows = (kind) => admin.itemsOf(kind, true).filter(prodHit).map((i) => `<tr class="${i.disabled ? 'off' : ''}"><td>${esc(i.name)}</td>
       <td class="r">${i.price ? inr(i.price) : '<span class="badge warn">Set price</span>'}</td>
       <td class="r">${inr(i.incentive != null ? i.incentive : inc[kind])}${i.incentive == null ? '<span class="sub">default</span>' : ''}</td>
       <td class="r">${num(admin.stockOf(i.id))}</td><td>${i.disabled ? '<span class="badge">Disabled</span>' : '<span class="badge ok">Active</span>'}</td>
       <td class="acts"><button class="btn sm" data-act="edit-product" data-id="${i.id}">Edit</button> <button class="btn sm" data-act="toggle-item" data-id="${i.id}">${i.disabled ? 'Enable' : 'Disable'}</button></td></tr>`);
-    const planRows = set().dietPlans.map((p) => `<tr class="${p.disabled ? 'off' : ''}"><td>${esc(p.name)}</td>
+    const planRows = set().dietPlans.filter(prodHit).map((p) => `<tr class="${p.disabled ? 'off' : ''}"><td>${esc(p.name)}</td>
       <td class="r">${p.price ? inr(p.price) : '<span class="badge warn">Set price</span>'}</td><td class="r">${inr(p.incentive)}</td><td></td>
       <td>${p.disabled ? '<span class="badge">Disabled</span>' : '<span class="badge ok">Active</span>'}</td>
       <td class="acts"><button class="btn sm" data-act="edit-plan" data-id="${p.id}">Edit</button> <button class="btn sm" data-act="toggle-plan" data-id="${p.id}">${p.disabled ? 'Enable' : 'Disable'}</button></td></tr>`);
     const head = ['Product', '>Price', '>Incentive', '>Stock', 'Status', ''];
     return `<div class="toolbar"><span class="grow"></span>${exportBtns('products')}</div>
+      ${filterRow('products', fSearch('products', 'Search product'), fSelect('products', 'status', 'Active + disabled', [['active', 'Active'], ['disabled', 'Disabled']]), fSelect('products', 'price', 'Any price', [['noprice', 'Price not set']]))}
       <div class="card"><h2>Injections<span class="sp"></span><button class="btn sm" data-act="add-product" data-kind="injection">+ Add injection</button></h2>${table(head, itemRows('injection'))}</div>
       <div class="card"><h2>Protein<span class="sp"></span><button class="btn sm" data-act="add-product" data-kind="protein">+ Add protein type</button></h2>${table(head, itemRows('protein'))}</div>
       <div class="card"><h2>Diet support plans<span class="sp"></span><button class="btn sm" data-act="edit-plan">+ Add plan</button></h2>${table(['Plan', '>Price', '>Incentive', '', 'Status', ''], planRows)}</div>
@@ -1141,7 +1173,8 @@
   const invF = { cat: '', status: '' };
   function inventoryRows() {
     return admin.stockReport(range()).filter((r) => (!invF.cat || r.category === invF.cat)
-      && (!invF.status || (invF.status === 'low' ? !r.disabled && r.current <= r.lowAt : invF.status === 'ok' ? !r.disabled && r.current > r.lowAt : r.disabled)));
+      && (!invF.status || (invF.status === 'low' ? !r.disabled && r.current <= r.lowAt : invF.status === 'ok' ? !r.disabled && r.current > r.lowAt : r.disabled))
+      && qHit('inventory', r.name, r.category));
   }
   SUBS.inventory = () => `Stock movement · ${periodLabel()}`;
   SCREENS.inventory = () => {
@@ -1158,7 +1191,7 @@
         <td class="acts"><button class="btn xs" data-act="adjust" data-id="${r.itemId}">± Stock</button> <button class="btn xs ${r.alertOff ? '' : 'on'}" data-act="toggle-alert" data-id="${r.itemId}" title="Low-stock alert on/off">${r.alertOff ? '🔕' : '🔔'}</button> <button class="btn xs" data-act="edit-item" data-id="${r.itemId}">Edit</button></td></tr>`).join('');
     });
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('inventory')}</div>
-      <div class="filters"><div class="row">
+      <div class="filters"><div class="row">${fSearch('inventory', 'Search item')}${fClear('inventory')}
         <select data-filter="invcat" aria-label="Category">${opt('', 'All categories', invF.cat)}${cats.map((c) => opt(c, c, invF.cat)).join('')}</select>
         <select data-filter="invstatus" aria-label="Status">${opt('', 'All items', invF.status)}${opt('low', 'Low stock only', invF.status)}${opt('ok', 'In stock', invF.status)}${opt('disabled', 'Disabled', invF.status)}</select>
         <button class="btn primary sm" data-act="add-item">+ Item</button><button class="btn sm" data-act="add-category">+ Category</button><button class="btn sm" data-go="purchase-new">+ Purchase</button>${role === 'super' || role === 'admin' ? '<button class="btn sm gold" data-act="kit">Injection kit</button>' : ''}</div></div>
@@ -1197,7 +1230,8 @@
   let purchaseQ = '';
   const newDraft = () => ({ vendor: '', invoiceNo: '', date: admin.today(), lines: [{ itemId: '', qty: 1, rate: '', gst: 12, batch: '', expiry: '' }] });
   const filteredPurchases = () => [...S().purchases].sort((a, b) => (a.date < b.date ? 1 : -1)).filter((p) => inR(p.date, range())
-    && (!purchaseQ || `${p.vendor} ${p.invoiceNo} ${p.lines.map((l) => l.name).join(' ')}`.toLowerCase().includes(purchaseQ.toLowerCase())));
+    && (!purchaseQ || `${p.vendor} ${p.invoiceNo} ${p.lines.map((l) => l.name).join(' ')}`.toLowerCase().includes(purchaseQ.toLowerCase()))
+    && (!fv('purchases', 'vendor') || p.vendor === fv('purchases', 'vendor')) && (!fv('purchases', 'item') || p.lines.some((l) => l.itemId === fv('purchases', 'item'))));
   SCREENS.purchases = () => {
     const list = filteredPurchases();
     const rows = list.map((p) => `<tr><td>${esc(p.vendor || 'Vendor')}<span class="sub">${fdate(p.date)}${p.invoiceNo ? ` · ${esc(p.invoiceNo)}` : ''}</span></td>
@@ -1205,6 +1239,8 @@
       <td class="acts"><button class="btn xs" data-act="edit-purchase" data-id="${p.id}">Edit</button> <button class="btn xs danger" data-act="del-purchase" data-id="${p.id}">Delete</button></td></tr>`);
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('purchases')}</div>
       <div class="filters"><div class="row"><input type="search" placeholder="Search vendor, invoice or product" data-filter="purchase" value="${esc(purchaseQ)}">
+        ${fSelect('purchases', 'vendor', 'All vendors', [...new Set(S().purchases.map((x) => x.vendor).filter(Boolean))].sort().map((v) => [v, v]))}
+        ${fSelect('purchases', 'item', 'All products', S().items.filter((i) => !i.disabled).map((i) => [i.id, i.name]))}${fClear('purchases')}
         <button class="btn primary" data-act="new-purchase">${svg('<path d="M12 5v14M5 12h14"/>')}New purchase</button></div></div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Invoices', num(list.length))}${kpi('Purchase value', inr(list.reduce((a, p) => a + p.total, 0)), 'incl. GST', 'gold')}${kpi('Units in', num(list.reduce((a, p) => a + p.lines.reduce((b, l) => b + l.qty, 0), 0)), '', 'teal')}</div>
       <div class="card">${table(['Vendor / invoice', 'Stock added', '>Total', ''], rows)}</div>`;
@@ -1273,7 +1309,7 @@
   let teamStatus = '';
   SCREENS.team = () => {
     const PAY = { both: 'Salary + Incentive', salary: 'Salary only', incentive: 'Incentive only' };
-    const rows = S().team.filter((m) => !teamStatus || (teamStatus === 'active' ? !m.disabled : m.disabled)).map((m) => {
+    const rows = S().team.filter((m) => (!teamStatus || (teamStatus === 'active' ? !m.disabled : m.disabled)) && teamHit(m)).map((m) => {
       const acc = S().accounts.find((a) => a.memberId === m.id);
       return `<tr class="${m.disabled ? 'off' : ''}"><td>${esc(m.name)}<span class="sub">${esc(m.designation || '')}${m.mobile ? ` · ${esc(m.mobile)}` : ''}</span></td>
       <td class="r">${inr(m.salary)}</td>
@@ -1283,11 +1319,12 @@
       <td>${m.disabled ? '<span class="badge">Disabled</span>' : '<span class="badge ok">Active</span>'}</td>
       <td class="acts"><button class="btn xs" data-act="edit-member" data-id="${m.id}">Edit</button> <button class="btn xs" data-act="member-login" data-id="${m.id}">${acc ? 'Login' : '+ Login'}</button> <button class="btn xs" data-act="toggle-member" data-id="${m.id}">${m.disabled ? 'Enable' : 'Disable'}</button>${canDelete() ? ` <button class="btn xs danger" data-act="del-member" data-id="${m.id}">Delete</button>` : ''}</td></tr>`;
     });
-    return `<div class="toolbar"><select data-filter="teamstatus" aria-label="Status" style="max-width:200px">${opt('', 'All members', teamStatus)}${opt('active', 'Active', teamStatus)}${opt('disabled', 'Disabled', teamStatus)}</select>
+    return `<div class="toolbar">${fSearch('team', 'Search name, mobile')}${fSelect('team', 'pay', 'Any pay', [['both', 'Salary + Incentive'], ['salary', 'Salary only'], ['incentive', 'Incentive only']])}${fClear('team')}<select data-filter="teamstatus" aria-label="Status" style="max-width:200px">${opt('', 'All members', teamStatus)}${opt('active', 'Active', teamStatus)}${opt('disabled', 'Disabled', teamStatus)}</select>
         <span class="grow"></span>${exportBtns('team')}<button class="btn primary" data-act="add-member">+ Add member</button></div>
       <div class="card">${table(['Name', '>Salary', 'Incentive per sale', 'Pay counts', '~Login', 'Status', ''], rows)}
       <p class="hint">Each person can have their own incentive rates (blank = clinic default ${inr(set().incentive.injection)} per injection, ${inr(set().incentive.protein)} per protein sale) and their own login. “Pay counts” decides what goes into their monthly pay. Disabled members keep their history.</p></div>`;
   };
+  const teamHit = (m) => qHit('team', m.name, m.mobile || '', m.designation || '') && (!fv('team', 'pay') || (m.payMode || 'both') === fv('team', 'pay'));
   function memberForm(m) {
     openForm({
       title: m ? `Edit ${m.name}` : 'Add team member',
@@ -1308,9 +1345,11 @@
 
   // Incentives
   let ledgerMember = '';
+  const ledgerRows = () => admin.incentiveLedger(range()).filter((l) => (!ledgerMember || l.memberId === ledgerMember) && (!fv('incentives', 'type') || l.type === fv('incentives', 'type'))
+    && qHit('incentives', l.patient, l.product, l.name));
   SCREENS.incentives = () => {
     const inc = set().incentive;
-    const ledger = admin.incentiveLedger(range()).filter((l) => !ledgerMember || l.memberId === ledgerMember);
+    const ledger = ledgerRows();
     const totals = {};
     ledger.forEach((l) => { totals[l.name] = (totals[l.name] || 0) + l.amount; });
     return `<form class="card form-card" id="inc-form"><h2>Incentive amounts</h2>
@@ -1322,7 +1361,7 @@
       <p class="hint" style="margin:0">Single reference gets 100%. With a shared reference the incentive is split 50-50 or by the custom % on the sale, automatically. Set amounts per product and per person in <b>Product-wise incentive</b> below. New amounts apply to new sales.</p>
       <div class="actions"><button class="btn primary" type="submit">Save incentives</button></div></form>
       ${rateMatrix()}
-      <div class="toolbar">${periodBar()}<select data-filter="ledger" aria-label="Team member">${opt('', 'All team', ledgerMember)}${S().team.map((m) => opt(m.id, m.name, ledgerMember)).join('')}</select><span class="grow"></span>${exportBtns('incentives')}</div>
+      <div class="toolbar">${periodBar()}<select data-filter="ledger" aria-label="Team member">${opt('', 'All team', ledgerMember)}${S().team.map((m) => opt(m.id, m.name, ledgerMember)).join('')}</select>${fSelect('incentives', 'type', 'All sale types', Object.entries(A.SALE_TYPES))}${fSearch('incentives', 'Search patient or product')}${fClear('incentives')}<span class="grow"></span>${exportBtns('incentives')}</div>
       <div class="card"><h2>Incentive ledger</h2>
       ${Object.keys(totals).length ? `<div class="kpis" style="margin-bottom:12px">${Object.entries(totals).sort((a, b) => b[1] - a[1]).map(([n, v]) => kpi(n, inr(v))).join('')}</div>` : ''}
       ${table(['Date', 'Team member', 'Sale', 'Patient', '>Share', '>Incentive'], ledger.map((l) => `<tr><td>${fdate(l.date)}</td><td>${esc(l.name)}</td><td>${typeBadge(l.type)} ${esc(l.product)}</td><td>${esc(l.patient)}</td><td class="r">${l.pct}%</td><td class="r">${inr(l.amount)}</td></tr>`),
@@ -1360,12 +1399,14 @@
 
   // Salary
   let salaryMonth = '';
+  const salHit = (r) => qHit('salary', r.name, r.designation || '') && (!fv('salary', 'mode') || r.mode === fv('salary', 'mode'));
   SCREENS.salary = () => {
     const month = salaryMonth || admin.today().slice(0, 7);
-    const rows = admin.salarySheet(month);
+    const rows = admin.salarySheet(month).filter(salHit);
     const posted = admin.salaryPosted(month);
     const t = (k) => rows.reduce((a, r) => a + r[k], 0);
     return `<div class="toolbar"><label class="f" style="flex-direction:row;align-items:center;gap:8px">Month <input type="month" data-filter="salary" value="${esc(month)}"></label>
+      ${fSearch('salary', 'Search employee')}${fSelect('salary', 'mode', 'Any pay', [['both', 'Salary + Incentive'], ['salary', 'Salary only'], ['incentive', 'Incentive only']])}${fClear('salary')}
       <span class="grow"></span>${exportBtns('salary')}
       <button class="btn primary" data-act="post-salary" data-month="${month}">${posted ? 'Re-book as expenses' : 'Book as expenses'}</button></div>
       <div class="card">${posted ? '<p><span class="badge ok">Booked</span> Salary and incentive for this month are in Expenses.</p>' : ''}
@@ -1376,7 +1417,8 @@
 
   // Expenses
   let expenseCat = '';
-  const filteredExpenses = () => S().expenses.filter((e) => inR(e.date, range()) && (!expenseCat || e.category === expenseCat))
+  const filteredExpenses = () => S().expenses.filter((e) => inR(e.date, range()) && (!expenseCat || e.category === expenseCat)
+    && qHit('expenses', e.note || '', e.category) && (!fv('expenses', 'kind') || (fv('expenses', 'kind') === 'auto' ? e.auto : !e.auto)))
     .sort((a, b) => (a.date < b.date ? 1 : -1));
   SUBS.expenses = () => periodLabel();
   SCREENS.expenses = () => {
@@ -1385,6 +1427,7 @@
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('expenses')}</div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Revenue', inr(fin.revenue))}${kpi('Expenses', inr(fin.expenses), '', 'gold')}${kpi('Profit', inr(fin.profit), 'Revenue − Expenses', fin.profit >= 0 ? 'good' : 'bad')}</div>
       <div class="filters"><div class="row"><select data-filter="expense" aria-label="Category">${opt('', 'All categories', expenseCat)}${set().lists.expenseCategories.map((c) => opt(c, `${c}${fin.byCategory[c] ? ` · ${inr(fin.byCategory[c])}` : ''}`, expenseCat)).join('')}</select>
+        ${fSearch('expenses', 'Search note')}${fSelect('expenses', 'kind', 'Manual + auto', [['manual', 'Entered by hand'], ['auto', 'Auto (salary, purchases)']])}${fClear('expenses')}
         <button class="btn primary" data-act="add-expense">+ Add expense</button></div></div>
       <div class="card">${table(['Category', '~Note', 'Date', '>Amount', ''], list.map((e) => `<tr><td>${esc(e.category)} ${e.auto ? '<span class="badge info">Auto</span>' : ''}</td><td>${esc(e.note)}</td><td>${fdate(e.date)}</td><td class="r"><b>${inr(e.amount)}</b></td>
         <td class="acts">${e.auto ? '' : `<button class="btn xs" data-act="edit-expense" data-id="${e.id}">Edit</button> `}<button class="btn xs danger" data-act="del-expense" data-id="${e.id}">Delete</button></td></tr>`),
@@ -1418,14 +1461,14 @@
       list.map((a) => [a.date, time12(a.time), a.patientName, a.mobile, A.APPT_MODES[a.mode], A.APPT_STATUS[a.status], a.status === 'cancelled' ? '—' : a.paid ? `Paid ${a.payMethod || ''}`.trim() : 'Unpaid', a.fee]), { money: [7], total: [7] }),
     sales: (list) => sec('Sales', ['Date', 'Patient', 'Mobile', 'Type', 'New/Renewal', 'Product', '>Qty', '>Amount', 'Reference', '>Incentive'],
       list.map((s) => [s.date, s.patientName, s.mobile, A.SALE_TYPES[s.type], s.patientType === 'new' ? 'New' : 'Renewal', s.product, s.qty, s.amount, s.splits.map((x) => `${x.name}${s.splits.length > 1 ? ` ${x.pct}%` : ''}`).join(' + '), s.incentive]), { money: [7, 9], total: [7, 9] }),
-    patients: (list) => sec('Patients', ['Patient', 'Mobile', '>Visits', '>Total Spent', 'Last Visit', 'Status'],
-      list.map((x) => [x.p.name, x.p.mobile, x.sales.length + x.appts.length, x.spent, x.lastAny, x.active ? 'Active' : 'Inactive']), { money: [3], total: [2, 3] }),
+    patients: (list) => sec('Patients', ['Patient', 'Mobile', 'Age / Sex', 'City', '>Visits', '>Total Spent', 'Last Visit', 'Status'],
+      list.map((x) => [x.p.name, x.p.mobile, [x.p.age ? `${x.p.age} y` : '', x.p.gender ? x.p.gender.charAt(0) : ''].filter(Boolean).join(' / ') || '-', x.p.city || '-', x.sales.length + x.appts.length, x.spent, x.lastAny, x.active ? 'Active' : 'Inactive']), { money: [5], total: [4, 5] }),
     renewals: (list) => sec('Renewals', ['Patient', 'Mobile', 'Product', 'Last Purchase', '>Days', 'Reminder', 'Reference Team', 'Contacted'],
       list.map((r) => [r.name, r.mobile, r.product, r.lastDate, r.days, stageLabel(r), r.ref, r.done ? 'Yes' : 'No'])),
     products: () => [
-      sec('Injections', ['Product', '>Price', '>Incentive', '>Stock', 'Status'], admin.itemsOf('injection', true).map((i) => [i.name, i.price, i.incentive != null ? i.incentive : set().incentive.injection, admin.stockOf(i.id), i.disabled ? 'Disabled' : 'Active']), { money: [1, 2] }),
-      sec('Protein', ['Product', '>Price', '>Incentive', '>Stock', 'Status'], admin.itemsOf('protein', true).map((i) => [i.name, i.price, i.incentive != null ? i.incentive : set().incentive.protein, admin.stockOf(i.id), i.disabled ? 'Disabled' : 'Active']), { money: [1, 2] }),
-      sec('Diet Support Plans', ['Plan', '>Price', '>Incentive', 'Status'], set().dietPlans.map((p) => [p.name, p.price, p.incentive, p.disabled ? 'Disabled' : 'Active']), { money: [1, 2] }),
+      sec('Injections', ['Product', '>Price', '>Incentive', '>Stock', 'Status'], admin.itemsOf('injection', true).filter(prodHit).map((i) => [i.name, i.price, i.incentive != null ? i.incentive : set().incentive.injection, admin.stockOf(i.id), i.disabled ? 'Disabled' : 'Active']), { money: [1, 2] }),
+      sec('Protein', ['Product', '>Price', '>Incentive', '>Stock', 'Status'], admin.itemsOf('protein', true).filter(prodHit).map((i) => [i.name, i.price, i.incentive != null ? i.incentive : set().incentive.protein, admin.stockOf(i.id), i.disabled ? 'Disabled' : 'Active']), { money: [1, 2] }),
+      sec('Diet Support Plans', ['Plan', '>Price', '>Incentive', 'Status'], set().dietPlans.filter(prodHit).map((p) => [p.name, p.price, p.incentive, p.disabled ? 'Disabled' : 'Active']), { money: [1, 2] }),
     ],
     inventory: (rows) => sec('Inventory', ['Category', 'Item', '>Available', '>Opening', '>Purchased', '>Sold', '>Kit Used', '>Adjusted', 'Status'],
       rows.map((r) => [r.category, r.name, r.current, r.opening, r.purchased, r.sold, r.used, r.adjusted, r.disabled ? 'Disabled' : r.orderAt != null && r.current < r.orderAt ? 'ORDER REQUIRED' : r.current <= r.lowAt && !r.alertOff ? 'LOW' : 'OK'])),
@@ -1445,11 +1488,11 @@
     purchases: (list) => sec('Purchases', ['Date', 'Vendor', 'Invoice', 'Product', '>Qty', 'Batch', 'Expiry', '>Rate', '>GST %', '>Total'],
       list.flatMap((p) => p.lines.map((l) => [p.date, p.vendor, p.invoiceNo, l.name, l.qty, l.batch, l.expiry, l.rate, l.gst, l.total])), { money: [7, 9], total: [4, 9] }),
     team: () => sec('Team', ['Name', 'Designation', 'Mobile', '>Salary', 'Incentive', 'Joining Date', 'Status'],
-      S().team.filter((m) => !teamStatus || (teamStatus === 'active' ? !m.disabled : m.disabled)).map((m) => [m.name, m.designation || '', m.mobile || '', m.salary, m.incentiveOn === false ? 'Off' : 'On', m.joiningDate || '', m.disabled ? 'Disabled' : 'Active']), { money: [3], total: [3] }),
+      S().team.filter((m) => (!teamStatus || (teamStatus === 'active' ? !m.disabled : m.disabled)) && teamHit(m)).map((m) => [m.name, m.designation || '', m.mobile || '', m.salary, m.incentiveOn === false ? 'Off' : 'On', m.joiningDate || '', m.disabled ? 'Disabled' : 'Active']), { money: [3], total: [3] }),
     incentives: (ledger) => sec('Incentive Ledger', ['Date', 'Team Member', 'Sale', 'Product', 'Patient', '>Share %', '>Incentive'],
       ledger.map((l) => [l.date, l.name, A.SALE_TYPES[l.type], l.product, l.patient, l.pct, l.amount]), { money: [6], total: [6] }),
     salary: (month) => sec(`Salary ${fdate(month)}`, ['Employee', 'Designation', 'Pay Counts', '>Salary', '>Incentive', '>Total Pay'],
-      admin.salarySheet(month).map((r) => [r.name, r.designation || '', { both: 'Salary + Incentive', salary: 'Salary only', incentive: 'Incentive only' }[r.mode], r.salary, r.incentive, r.total]), { money: [3, 4, 5], total: [3, 4, 5] }),
+      admin.salarySheet(month).filter(salHit).map((r) => [r.name, r.designation || '', { both: 'Salary + Incentive', salary: 'Salary only', incentive: 'Incentive only' }[r.mode], r.salary, r.incentive, r.total]), { money: [3, 4, 5], total: [3, 4, 5] }),
     expenses: (list) => sec('Expenses', ['Date', 'Category', 'Note', '>Amount'], list.map((e) => [e.date, e.category, e.note || '', e.amount]), { money: [3], total: [3] }),
     teamReport: (r) => sec('Team Performance', ['Team Member', '>Total Sales', '>Orders', '>New Patients', '>Renewals', '>Injection', '>Protein', '>Diet Support', '>Incentive'],
       admin.teamReport(r).map((x) => [x.name, x.totalSales, x.orders, x.newPatients, x.renewals, x.injectionSales, x.proteinSales, x.dietSales, x.incentive]), { money: [1, 5, 6, 7, 8], total: [1, 2, 3, 4, 5, 6, 7, 8] }),
@@ -1489,7 +1532,7 @@
     inventory: () => ({ title: 'Inventory', subtitle: periodLabel(), sections: [R.inventory(inventoryRows())] }),
     purchases: () => ({ title: 'Purchases', subtitle: periodLabel(), sections: [R.purchases(filteredPurchases())] }),
     team: () => ({ title: 'Team', subtitle: fdate(stamp()), sections: [R.team()] }),
-    incentives: () => ({ title: 'Incentives', subtitle: periodLabel(), sections: [R.incentives(admin.incentiveLedger(range()).filter((l) => !ledgerMember || l.memberId === ledgerMember))] }),
+    incentives: () => ({ title: 'Incentives', subtitle: periodLabel(), sections: [R.incentives(ledgerRows())] }),
     salary: () => { const m = salaryMonth || stamp().slice(0, 7); return { title: 'Salary', subtitle: fdate(m), sections: [R.salary(m)] }; },
     expenses: () => ({ title: 'Expenses', subtitle: periodLabel(), sections: [R.expenses(filteredExpenses())] }),
     report: () => REPORTS[reportTab].build(),
@@ -1605,9 +1648,63 @@
       $('#modal-foot .primary').textContent = `Export ${FMT[b.dataset.expfmt]}`;
     };
   }
+  // Export options for every screen: format, period (for this file only), summary boxes; screen filters apply.
+  const PERIOD_EXPORTS = ['dashboard', 'appointments', 'sales', 'inventory', 'purchases', 'incentives', 'expenses', 'activity', 'report', 'all'];
+  const FILTER_NAMES = { renewals: 'Renewals', products: 'Products', inventory: 'Inventory', purchases: 'Purchases', team: 'Team', incentives: 'Incentives', salary: 'Salary', expenses: 'Expenses', patients: 'Patients' };
+  function exportForm(what, fmt) {
+    const FMT = { pdf: 'PDF', jpeg: 'Image (JPEG)', xlsx: 'Excel' };
+    const usesPeriod = PERIOD_EXPORTS.includes(what) && !(what === 'appointments' && apptView === 'day');
+    const o = { kpis: true, ...((prefs().exportOpts || {})[what] || {}) };
+    const sc = what === 'report' ? '' : what;
+    const chips = [];
+    if (sc && FILTER_NAMES[sc]) Object.entries(gf(sc)).filter(([, v]) => v).forEach(([k, v]) => chips.push(k === 'q' ? `“${v}”` : String((S().items.find((i) => i.id === v) || {}).name || v)));
+    if (what === 'sales') [salesFilter.type && A.SALE_TYPES[salesFilter.type], salesFilter.member && (admin.member(salesFilter.member) || {}).name, salesFilter.pt, salesFilter.q && `“${salesFilter.q}”`].filter(Boolean).forEach((x) => chips.push(x));
+    if (what === 'leads') [leadF.status, leadF.source, leadF.priority, leadF.q && `“${leadF.q}”`].filter(Boolean).forEach((x) => chips.push(x));
+    if (what === 'appointments') Object.values(apptF).filter(Boolean).forEach((x) => chips.push(x));
+    if (what === 'inventory') [invF.cat, invF.status].filter(Boolean).forEach((x) => chips.push(x));
+    if (what === 'expenses' && expenseCat) chips.push(expenseCat);
+    if (what === 'patients') [patientStatus, patientQ && `“${patientQ}”`].filter(Boolean).forEach((x) => chips.push(x));
+    if (what === 'report') Object.values(repF).filter(Boolean).forEach((x) => chips.push((admin.member(x) || {}).name || x));
+    const P = [['', `As on screen (${periodLabel()})`], ['today', 'Today'], ['month', 'This month'], ['lastMonth', 'Last month'], ['year', 'This year'], ['all', 'All time'], ['custom', 'Custom dates']];
+    openForm({
+      title: 'Export', submitLabel: `Export ${FMT[fmt] || 'PDF'}`,
+      html: `<div class="exp-fmt seg">${Object.entries(FMT).map(([k, l]) => `<button type="button" class="${k === fmt ? 'on' : ''}" data-expfmt="${k}">${l}</button>`).join('')}</div>
+        ${usesPeriod ? `<h3 class="menu-h">Period</h3><div class="grid"><label class="f span">For this file<select id="ex-period">${P.map(([k, l]) => opt(k, l, '')).join('')}</select></label>
+          <label class="f" id="ex-from-w" hidden>From<input type="date" id="ex-from"></label><label class="f" id="ex-to-w" hidden>To<input type="date" id="ex-to"></label></div>` : ''}
+        <h3 class="menu-h">Include</h3><div class="opt-grid"><label class="opt-check"><input type="checkbox" id="ex-kpis" ${o.kpis ? 'checked' : ''}><span>Summary boxes</span></label></div>
+        <h3 class="menu-h">Filters</h3>${chips.length ? `<div class="chip-row">${chips.map((c) => `<span class="badge info">${esc(c)}</span>`).join('')}</div><p class="hint" style="margin:6px 0 0">The file shows only what the screen's filters show.</p>` : '<p class="hint" style="margin:0">No filters: everything on this screen is exported. Use the filters on the screen to narrow it down.</p>'}`,
+      onSubmit: () => {
+        const f = (($('#modal-body .exp-fmt .on') || {}).dataset || {}).expfmt || fmt;
+        const kp = $('#ex-kpis').checked;
+        const all = prefs().exportOpts || {}; all[what] = { kpis: kp }; setPref('exportOpts', all);
+        const pv = usesPeriod ? $('#ex-period').value : '';
+        const over = pv ? { name: pv, from: pv === 'custom' ? $('#ex-from').value : '', to: pv === 'custom' ? $('#ex-to').value : '', month: '' } : null;
+        if (over && over.name === 'custom' && !over.from && !over.to) throw new Error('Choose the dates');
+        setTimeout(() => runExport(what, f, undefined, { period: over, kpis: kp }), 60);
+      },
+    });
+    $('#modal-body').onclick = (e) => {
+      const b = e.target.closest('[data-expfmt]');
+      if (!b) return;
+      $$('#modal-body [data-expfmt]').forEach((x) => x.classList.toggle('on', x === b));
+      $('#modal-foot .primary').textContent = `Export ${FMT[b.dataset.expfmt]}`;
+    };
+    $('#modal-body').onchange = (e) => {
+      if (e.target.id !== 'ex-period') return;
+      const c = e.target.value === 'custom';
+      $('#ex-from-w').hidden = !c; $('#ex-to-w').hidden = !c;
+    };
+  }
   const clinicCard = () => ({ name: set().clinic, address: set().clinicAddress || '', phone: set().clinicPhone || '' });
-  function runExport(what, fmt, o) {
-    const rep = EXPORTS[what](o);
+  function runExport(what, fmt, o, opts) {
+    const x = opts || {};
+    const keep = period;
+    let rep;
+    try {
+      if (x.period) period = x.period;
+      rep = EXPORTS[what](o);
+    } catch (err) { period = keep; toast(`Export failed: ${err.message}`, true); return; } finally { period = keep; }
+    if (x.kpis === false) delete rep.kpis;
     rep.filename = `Hindivine-${rep.title.replace(/[^A-Za-z0-9]+/g, '-')}-${stamp()}`;
     rep.preparedBy = me ? me.name : '';
     try {
@@ -2112,7 +2209,7 @@
   const randomPin = () => String(Math.floor(100000 + Math.random() * 900000));
   const ACTIONS = {
     refresh: () => refreshNow(),
-    export: (d) => (d.what === 'today' && !d.quick ? todayExportForm(d.fmt) : runExport(d.what, d.fmt)),
+    export: (d) => (d.quick ? runExport(d.what, d.fmt) : d.what === 'today' ? todayExportForm(d.fmt) : exportForm(d.what, d.fmt)),
     'rates-clear': async () => {
       if (!(await confirmBox('Clear personal amounts', 'Remove every person + product amount? Product and personal rates stay.', 'Clear'))) return;
       S().team.forEach((m) => { Object.keys(m.rates || {}).forEach((k) => admin.setRate(m.id, k, '')); });
@@ -2124,6 +2221,35 @@
       $$('.set-sec').forEach((x) => x.classList.toggle('on', x.dataset.sec === d.tab));
       const first = $('.set-sec.on'); if (first && window.innerWidth < 900) first.scrollIntoView({ behavior: 'smooth', block: 'start' });
     },
+    'dash-custom': () => {
+      const hidden = dashHidden();
+      openForm({
+        title: 'Customize dashboard', submitLabel: 'Save',
+        html: `<p class="hint" style="margin:0">Choose what your dashboard shows. Saved for your login on this device.</p>
+          <div class="opt-grid">${DASH_SECTIONS.map(([k, l]) => `<label class="opt-check"><input type="checkbox" name="dash" value="${k}" ${hidden.includes(k) ? '' : 'checked'}><span>${l}</span></label>`).join('')}</div>`,
+        onSubmit: () => {
+          const on = $$('#modal-body input[name=dash]:checked').map((x) => x.value);
+          const all = prefs().dash || {}; all[me.id] = DASH_SECTIONS.map((x) => x[0]).filter((k) => !on.includes(k)); setPref('dash', all);
+          return 'Dashboard updated';
+        },
+      });
+    },
+    'dash-go': (d) => {
+      const k = d.k; const i = k.indexOf('-'); const base = i < 0 ? k : k.slice(0, i); const v = i < 0 ? '' : k.slice(i + 1);
+      if (base === 'sales') { salesFilter = { type: '', q: '', member: '', pt: '' }; if (['injection', 'protein', 'diet'].includes(v)) salesFilter.type = v; if (['new', 'renewal'].includes(v)) salesFilter.pt = v; go('sales'); return; }
+      if (base === 'appts') {
+        Object.keys(apptF).forEach((x) => { apptF[x] = ''; });
+        if (v === 'today') { apptView = 'day'; apptDay = admin.today(); } else apptView = 'list';
+        if (v === 'clinic' || v === 'online') apptF.mode = v; if (v === 'completed') apptF.status = 'completed'; if (v === 'paid' || v === 'unpaid') apptF.pay = v;
+        go('appointments'); return;
+      }
+      if (base === 'patients') { patientStatus = v === 'active' ? 'active' : ''; go('patients'); return; }
+      if (base === 'leads') { leadF.status = ''; leadF.tab = v === 'follow' ? 'follow' : v === 'won' ? 'won' : v === 'open' ? 'open' : 'all'; go('leads'); return; }
+      if (base === 'inv') { invF.cat = ''; invF.status = ''; if (v === 'low') invF.status = 'low'; else invF.cat = v; go('inventory'); return; }
+      if (base === 'renewals') { renewalFilter = 'due'; go('renewals'); return; }
+      if (can(base)) go(base);
+    },
+    'gf-clear': (d) => { GF[d.sc] = {}; render(); },
     'today-export-reset': () => { setPref('todayExport', TODAY_EXPORT_DEFAULT); todayExportForm(($('#modal-body .exp-fmt .on') || { dataset: { expfmt: 'pdf' } }).dataset.expfmt); },
     'user-menu': () => {
       openForm({
@@ -2384,10 +2510,12 @@
     if (e.key !== 'Enter') return;
     if (e.target.matches('.appt')) apptDetail(e.target.dataset.id);
     if (e.target.matches('.lead')) leadDetail(e.target.dataset.id);
+    if (e.target.matches('[role=button][data-act]')) e.target.click();
   });
   view.addEventListener('change', (e) => {
     const t = e.target;
     if (t.value === '__new__') return;
+    if (t.dataset.gf && t.tagName === 'SELECT') { gf(t.dataset.gf)[t.dataset.k] = t.value; render(); return; }
     if (t.matches('[data-rate-item]')) {
       try { admin.setRate(t.dataset.rateMember, t.dataset.rateItem, t.value); t.classList.toggle('own', t.value !== '' && !!t.dataset.rateMember); toast(t.value === '' ? 'Back to default' : `Incentive ₹${t.value} saved`); } catch (err) { toast(err.message, true); }
       return;
@@ -2411,8 +2539,20 @@
     render();
   });
   // Search boxes filter as you type and keep the cursor in place.
+  // Search boxes: update the filter at once, redraw shortly after typing pauses (smooth on phones).
+  let typeTimer = null;
+  const redrawKeeping = (sel, t) => {
+    clearTimeout(typeTimer);
+    typeTimer = setTimeout(() => {
+      const pos = t.selectionStart;
+      render();
+      const again = $(sel);
+      if (again) { again.focus(); try { again.setSelectionRange(pos, pos); } catch (_) { /* number inputs */ } }
+    }, 220);
+  };
   view.addEventListener('input', (e) => {
     const t = e.target;
+    if (t.dataset.gf && t.tagName === 'INPUT') { gf(t.dataset.gf)[t.dataset.k] = t.value; redrawKeeping(`[data-gf="${t.dataset.gf}"][data-k="${t.dataset.k}"]`, t); return; }
     let key = t.dataset.filter || null; let sel = `[data-filter="${key}"]`;
     if (t.dataset.afilter === 'q') { key = 'aq'; sel = '[data-afilter="q"]'; }
     if (t.dataset.lfilter === 'q') { key = 'lq'; sel = '[data-lfilter="q"]'; }
@@ -2420,10 +2560,7 @@
     const setters = { q: (v) => { salesFilter.q = v; }, patient: (v) => { patientQ = v; }, purchase: (v) => { purchaseQ = v; }, aq: (v) => { apptF.q = v; }, lq: (v) => { leadF.q = v; }, xq: (v) => { actF.q = v; } };
     if (!setters[key]) return;
     setters[key](t.value);
-    const pos = t.selectionStart;
-    render();
-    const again = $(sel);
-    if (again) { again.focus(); again.setSelectionRange(pos, pos); }
+    redrawKeeping(sel, t);
   });
   $('#menu-btn').addEventListener('click', () => openMenu(true));
   $('#scrim').addEventListener('click', () => openMenu(false));
