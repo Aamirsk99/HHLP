@@ -177,7 +177,7 @@ test('OPD appointments: fee ₹1000, clinic or online, revenue once paid', () =>
   assert.equal(a.dashboard(A.rangeFor('month', '2026-09-15')).sales.consultation, 1000);
   const rows = a.sheetsData().Appointments;
   assert.equal(rows.length, 3);
-  assert.deepEqual(rows[2].slice(0, 10), ['2026-09-15', '10:30', 'Ravi', '9811111111', 'Clinic visit', '', 1000, 'Paid', 'UPI', 'Completed']);
+  assert.deepEqual(rows[2].slice(0, 12), ['2026-09-15', '10:30', 'Ravi', '9811111111', 'Clinic visit', '', '', '', 1000, 'Paid', 'UPI', 'Completed']);
   assert.equal(a.state.patients.length, 2);
 });
 
@@ -375,4 +375,41 @@ test('Google Sheet store: shared data leaves device settings behind and loads ba
   assert.equal(b.state.settings.sheetsSecret, 's2');
   assert.deepEqual(seen, ['remote']);
   assert.throws(() => b.loadState({}), /not readable/);
+});
+
+test('product-wise incentive: person + product, product, person, default', () => {
+  const a = setup();
+  const pen = byName(a, 'Mounjaro 15mg'); const pen5 = byName(a, 'Mounjaro 5mg');
+  const m = a.saveMember({ name: 'Riya', incInjection: 1200 });
+  const n = a.saveMember({ name: 'Sam' });
+  a.adjustStock(pen.id, 10, 'count'); a.adjustStock(pen5.id, 10, 'count');
+  const sale = (who, it) => a.saveSale({ type: 'injection', patientName: `P${Math.random()}`, mobile: String(9000000000 + Math.floor(Math.random() * 99999)), itemId: it.id, amount: 10000, refId: who.id }).incentive;
+  assert.equal(sale(m, pen), 1200, 'personal rate');
+  assert.equal(sale(n, pen), 1000, 'default');
+  a.setRate('', pen.id, 1500);
+  assert.equal(sale(m, pen), 1500, 'product rate beats personal rate');
+  assert.equal(sale(n, pen5), 1000, 'other products unchanged');
+  a.setRate(n.id, pen.id, 1800);
+  assert.equal(sale(n, pen), 1800, 'person + product wins');
+  a.setRate(n.id, pen.id, '');
+  assert.equal(sale(n, pen), 1500, 'cleared back to product rate');
+  const plan = a.state.settings.dietPlans[0];
+  a.setRate(m.id, plan.id, 1300);
+  assert.equal(a.saveSale({ type: 'diet', patientName: 'D1', mobile: '9555500001', planId: plan.id, amount: 5000, refId: m.id }).incentive, 1300);
+  assert.throws(() => a.setRate(m.id, pen.id, -5), /negative/);
+});
+
+test('appointments keep doctor and clinic; lists grow and rename', () => {
+  const a = setup();
+  assert.ok(a.state.settings.lists.doctors.length >= 1);
+  const ap = a.saveAppointment({ patientName: 'Kiran', mobile: '9800011111', date: '2026-09-15', time: '10:00', mode: 'clinic', doctor: 'Dr. Mehta', branch: 'Salt Lake' });
+  assert.equal(ap.doctor, 'Dr. Mehta'); assert.equal(ap.branch, 'Salt Lake');
+  assert.ok(a.state.settings.lists.doctors.includes('Dr. Mehta'));
+  assert.ok(a.state.settings.lists.clinics.includes('Salt Lake'));
+  a.renameListItem('doctors', 'Dr. Mehta', 'Dr. R. Mehta');
+  assert.equal(a.appointment(ap.id).doctor, 'Dr. R. Mehta');
+  a.removeListItem('clinics', 'Salt Lake');
+  assert.ok(!a.state.settings.lists.clinics.includes('Salt Lake'));
+  const rows = a.sheetsData().Appointments;
+  assert.equal(rows[0][6], 'Doctor'); assert.equal(rows[1][6], 'Dr. R. Mehta');
 });

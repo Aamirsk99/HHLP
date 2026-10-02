@@ -1,7 +1,7 @@
 /* Offline cache for Hindivine Admin (installed web app). */
-const CACHE = 'hindivine-admin-v4';
+const CACHE = 'hindivine-admin-v5';
 const ASSETS = [
-  './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js',
+  './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js', 'vendor/fonts/PlusJakartaSans-latin.woff2',
   '../img/logo.jpg', '../img/icon-192.png', '../img/icon-512.png',
 ];
 

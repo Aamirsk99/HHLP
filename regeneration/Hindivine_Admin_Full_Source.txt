@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN 3.1 — COMPLETE SOURCE CODE
+ HINDIVINE ADMIN 3.2 — COMPLETE SOURCE CODE
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
 ================================================================================
 
@@ -21,12 +21,14 @@ Then:
         npm pack jspdf@2.5.2 jspdf-autotable@3.8.4 xlsx@0.18.5
      copy dist/jspdf.umd.min.js, dist/jspdf.plugin.autotable.min.js and
      dist/xlsx.mini.min.js from the packages into admin/vendor/.
+     Font: download Plus Jakarta Sans (latin, variable 400-800, OFL) as
+     admin/vendor/fonts/PlusJakartaSans-latin.woff2 (Google Fonts).
   2. Put the images in img/ (logo.jpg, icon-192.png, icon-512.png) and the
      Android launcher icons in android/res/mipmap-*/ (from the repository).
   3. chmod +x android/build.sh
   4. npm test                      (unit tests, Node 18+)
   5. npx serve .   → open /admin/  (try it in a browser)
-  6. APP=admin VERSION_CODE=5 VERSION_NAME=3.1 ./android/build.sh
+  6. APP=admin VERSION_CODE=6 VERSION_NAME=3.2 ./android/build.sh
                                    (Android APK → dist/HindivineAdmin.apk)
 See "Hindivine_Admin_Regeneration_Script.txt" for the full explanation.
 
@@ -732,6 +734,137 @@ a.btn { text-decoration: none; }
 #nav .badge { background: rgba(255, 255, 255, .14); color: #fff; }
 #nav .badge.warn { background: #f2a65a; color: #3a1d00; }
 #nav .badge.bad { background: #ff5a4a; color: #fff; }
+
+/* ══ 3.2: luxury layer ═══════════════════════════════ */
+@font-face { font-family: "Jakarta"; src: url("../vendor/fonts/PlusJakartaSans-latin.woff2") format("woff2"); font-weight: 400 800; font-style: normal; font-display: swap; }
+:root { --font: "Jakarta", system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans", sans-serif; --lux: linear-gradient(90deg, #b8872b, #f3d58a 45%, #c99a3c); --lux-solid: #c9a24a; --radius: 20px; }
+body, button, input, select, textarea { font-family: var(--font); }
+body { font-feature-settings: "ss01", "cv11"; letter-spacing: -.003em; }
+h1, h2, h3, .kpi b, .hero .hk b { letter-spacing: -.02em; }
+
+/* Black & Gold (dark luxury) */
+[data-theme="gold"] { color-scheme: dark; --navy: #0d0d0f; --navy-2: #1a1a1f; --brand: #c9a24a; --sky: #e9c876; --teal: #3fb39b; --gold: #d8ae52; --violet: #9b8cf0;
+  --bg: #08080a; --surface: #121215; --surface-2: #19191d; --surface-3: #222228; --text: #f3efe6; --muted: #a39d90; --border: #2a2823;
+  --accent: #d8b25c; --accent-ink: #141008; --ok: #49c497; --warn: #e9a65a; --danger: #f0786b;
+  --grad: linear-gradient(135deg, #0b0b0d 0%, #1b1813 55%, #2b2416 100%); --grad-btn: linear-gradient(135deg, #b8872b, #e6c46e 55%, #c99a3c);
+  --side-bg: linear-gradient(180deg, #0a0a0c 0%, #121011 100%); --nav-on: linear-gradient(135deg, #b8872b, #e6c46e); --side-ink: #e8dfcb; --side-dim: #8f8571; --glow: rgba(216, 178, 92, .45);
+  --shadow: 0 1px 2px rgba(0, 0, 0, .6), 0 14px 32px -18px rgba(0, 0, 0, .9); --shadow-sm: none; }
+[data-theme="gold"] .btn.primary, [data-theme="gold"] .seg button.on, [data-theme="gold"] .chip-btn.on, [data-theme="gold"] #nav button.on, [data-theme="gold"] .tabs button.fab { color: #1a1306; }
+[data-theme="gold"] #nav button.on .nav-ic { background: rgba(0, 0, 0, .15); }
+[data-theme="gold"] .card h2 .ic, [data-theme="gold"] .side-quick svg { color: #1a1306; }
+/* Rose Gold (light luxury) */
+[data-theme="rose"] { --navy: #3b1d26; --navy-2: #5c2d3a; --brand: #b76e79; --sky: #e2a3a0; --accent: #a65864; --gold: #c99a5b;
+  --bg: #fbf6f4; --surface: #ffffff; --surface-2: #f8eeec; --surface-3: #f1e1de; --border: #eedfdb; --text: #2c1a1f; --muted: #866a70;
+  --grad: linear-gradient(135deg, #3b1d26 0%, #7a3e4c 55%, #c98b86 100%); --grad-btn: linear-gradient(135deg, #b76e79, #d79a8e);
+  --side-bg: linear-gradient(180deg, #341920 0%, #43212b 100%); --nav-on: linear-gradient(135deg, #c07a7f, #e3aa9a); --side-ink: #f6dfe0; --side-dim: #c49aa0; --glow: rgba(183, 110, 121, .5); }
+@media (prefers-color-scheme: dark) { [data-theme="rose"] { --accent: #e7a3a6; } }
+
+/* Gold hairlines: top bar, side menu, hero */
+.top { position: sticky; }
+.top::after { content: ""; position: absolute; left: 0; right: 0; bottom: 0; height: 1.5px; background: var(--lux); opacity: .75; }
+.side { border-right: 1px solid rgba(255, 255, 255, .05); }
+.side-head { position: relative; }
+.side-head::after { content: ""; position: absolute; left: 16px; right: 16px; bottom: -1px; height: 1px; background: var(--lux); opacity: .45; }
+.side-head b { letter-spacing: .01em; }
+.hero { border: 1px solid rgba(255, 255, 255, .08); box-shadow: 0 22px 44px -24px var(--glow), inset 0 1px 0 rgba(255, 255, 255, .12); }
+.hero::before { content: ""; position: absolute; inset: 0; background: radial-gradient(120% 80% at 0% 0%, rgba(255, 255, 255, .10), transparent 55%); pointer-events: none; }
+.hero .hk { backdrop-filter: none; border-color: rgba(255, 255, 255, .14); }
+.hero .hk b { font-size: 22px; }
+
+/* Plates */
+.card { border-radius: 22px; padding: 20px; border: 1px solid color-mix(in srgb, var(--border) 85%, transparent);
+  box-shadow: 0 1px 1px rgba(10, 30, 60, .03), 0 12px 32px -20px rgba(10, 30, 60, .28); }
+.card::before { left: 22px; right: 22px; height: 2.5px; background: var(--lux); opacity: .7; }
+.card h2 { font-size: 16.5px; font-weight: 750; }
+.card h2 .ic { width: 34px; height: 34px; border-radius: 11px; }
+.kpi { border-radius: 16px; padding: 13px 14px 12px 16px; background: linear-gradient(165deg, var(--surface), var(--surface-2)); border: 1px solid var(--border); box-shadow: 0 6px 18px -14px rgba(10, 30, 60, .35); }
+.kpi small { font-size: 10.8px; letter-spacing: .07em; font-weight: 700; }
+.kpi b { font-size: 22px; font-weight: 800; }
+.btn { border-radius: 13px; font-weight: 700; letter-spacing: .005em; }
+.btn.primary { background: var(--grad-btn); }
+.btn.gold { background: var(--lux); color: #261a03; }
+.seg { border-radius: 15px; }
+.seg button { font-weight: 700; }
+input, select, textarea { border-radius: 13px; background: var(--surface); }
+.badge { font-weight: 700; letter-spacing: .01em; }
+table th { letter-spacing: .04em; }
+::-webkit-scrollbar { width: 8px; height: 8px; }
+::-webkit-scrollbar-thumb { background: color-mix(in srgb, var(--muted) 35%, transparent); border-radius: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+
+/* Bottom bar: floating glass pill */
+@media (max-width: 900px) {
+  .tabs { border-radius: 24px; background: color-mix(in srgb, var(--surface) 94%, transparent); border: 1px solid var(--border); box-shadow: 0 18px 40px -16px rgba(5, 15, 30, .45); }
+  .tabs button.on { background: none; color: var(--accent); }
+  .tabs button.on::after { content: ""; position: absolute; bottom: 1px; left: 50%; width: 18px; height: 3px; margin-left: -9px; border-radius: 3px; background: var(--grad-btn); animation: pop .25s ease; }
+  .tabs button.on svg { transform: translateY(-1px) scale(1.08); transition: transform .2s; }
+  .tabs button.fab { background: var(--grad-btn); box-shadow: 0 12px 24px -10px var(--glow), 0 0 0 4px var(--bg); }
+  .top { border-radius: 0 0 22px 22px; }
+  .top::after { left: 22px; right: 22px; }
+}
+
+/* Dialogs: refined sheet, handle on phones */
+dialog { border-radius: 26px; border: 1px solid var(--border); }
+dialog header h2 { font-weight: 800; }
+dialog::backdrop { background: rgba(4, 10, 20, .55); }
+dialog footer { border-top: 1px solid var(--border); background: color-mix(in srgb, var(--surface-2) 45%, var(--surface)); }
+@media (max-width: 600px) {
+  dialog { max-height: 92dvh; border-radius: 26px 26px 0 0; border-bottom: 0; }
+  dialog form { max-height: 92dvh; }
+  dialog[open] { animation: sheet-up .32s cubic-bezier(.2, .9, .25, 1); }
+  dialog header { position: relative; padding-top: 22px; }
+  dialog header::before { content: ""; position: absolute; top: 8px; left: 50%; width: 40px; height: 4.5px; margin-left: -20px; border-radius: 4px; background: var(--border); }
+  dialog::backdrop { backdrop-filter: none; }
+}
+@keyframes sheet-up { from { transform: translateY(40%); opacity: .3; } to { transform: none; opacity: 1; } }
+.toast { border-radius: 16px; padding: 12px 18px; box-shadow: 0 18px 40px -14px rgba(0, 0, 0, .5); border: 1px solid rgba(255, 255, 255, .08); }
+.toast::before { content: "✓  "; color: #7be0b3; font-weight: 800; }
+.toast.bad::before { content: "!  "; color: #fff; }
+
+/* Login: luxury */
+.lock { background: var(--grad); }
+.lock::before { background: radial-gradient(circle, rgba(243, 213, 138, .55), transparent 70%); opacity: .35; filter: none; }
+.lock::after { background: radial-gradient(circle, rgba(255, 255, 255, .5), transparent 70%); opacity: .25; filter: none; }
+.lock-card { border-radius: 28px; border: 1px solid rgba(255, 255, 255, .2); box-shadow: 0 40px 80px -30px rgba(0, 0, 0, .6); animation: rise .5s cubic-bezier(.2, .8, .2, 1) both; }
+.lock-card::before { content: ""; position: absolute; top: 0; left: 28px; right: 28px; height: 3px; border-radius: 0 0 3px 3px; background: var(--lux); }
+.keypad button { border-radius: 18px; font-weight: 700; box-shadow: inset 0 -2px 0 rgba(10, 30, 60, .06); }
+.dots i.on { background: var(--lux-solid); border-color: var(--lux-solid); }
+
+/* Today export dialog */
+.opt-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 7px; }
+.opt-check { display: flex; align-items: center; gap: 9px; padding: 10px 12px; border-radius: 13px; border: 1.5px solid var(--border); background: var(--surface); font-size: 13.5px; font-weight: 650; cursor: pointer; transition: border-color .15s, background .15s; }
+.opt-check:has(input:checked) { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.exp-fmt { display: flex; width: 100%; }
+.exp-fmt button { flex: 1; }
+
+/* Product-wise incentive table */
+.rate-wrap { overflow-x: auto; }
+table.rate-table { min-width: 100%; border-collapse: separate; border-spacing: 0; }
+table.rate-table th, table.rate-table td { white-space: nowrap; padding: 6px 6px; }
+table.rate-table td:first-child, table.rate-table th:first-child { position: sticky; left: 0; background: var(--surface); z-index: 1; min-width: 150px; }
+.rate-in { width: 92px; min-height: 38px; padding: 6px 8px; text-align: right; font-weight: 700; }
+.rate-in.base { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.rate-in.own { background: color-mix(in srgb, var(--gold) 14%, var(--surface)); border-color: var(--gold); }
+@media (max-width: 700px) {
+  table.rate-table { display: table; }
+  table.rate-table thead { display: table-header-group !important; }
+  table.rate-table tbody { display: table-row-group !important; }
+  table.rate-table tr { display: table-row !important; padding: 0 !important; }
+  table.rate-table td { display: table-cell !important; }
+  table.rate-table td[data-label]::before { content: none !important; }
+}
+
+/* Smoothness: cheaper paints on phones */
+@media (max-width: 900px) {
+  .card, .kpi, .lead, .appt { box-shadow: 0 6px 18px -14px rgba(10, 30, 60, .35); }
+  .card:hover, .kpi:hover { box-shadow: 0 6px 18px -14px rgba(10, 30, 60, .35); }
+  .btn.primary::after, .btn.success::after, .btn.gold::after { display: none; }
+  .tabs button.fab { animation: none; }
+}
+body { letter-spacing: normal; font-feature-settings: normal; word-spacing: .02em; }
+h1, h2, h3, .kpi b, .hero .hk b { letter-spacing: -.012em; }
+.opt-check input { flex: none; }
+.side-head small { color: var(--side-dim); }
 ===== END FILE: admin/css/admin.css =====
 
 ===== BEGIN FILE: admin/js/core.js =====
@@ -762,6 +895,8 @@ a.btn { text-decoration: none; }
     leadSources: ['Instagram', 'Facebook', 'Google', 'Website', 'WhatsApp', 'Walk-in', 'Referral', 'Phone call', 'Other'],
     leadStatuses: ['New', 'Contacted', 'Interested', 'Follow-up', 'Appointment booked', 'Converted', 'Not interested', 'Lost'],
     payMethods: ['Cash', 'UPI', 'Card', 'Bank transfer'],
+    doctors: ['Consulting Doctor'],
+    clinics: ['Hindivine Healthcare'],
     designations: ['Doctor', 'Dietitian', 'Counsellor', 'Front Desk', 'Manager', 'Nurse', 'Pharmacist'],
   };
   // Built-in expense categories the app books by itself; they can't be removed.
@@ -802,6 +937,7 @@ a.btn { text-decoration: none; }
       version: 1,
       settings: {
         clinic: 'Hindivine Healthcare',
+        clinicAddress: '', clinicPhone: '',
         incentive: { injection: 1000, protein: 500 },
         dietPlans: [
           { id: 'd1', name: '1 Month', months: 1, price: 0, incentive: 1000, disabled: false },
@@ -990,11 +1126,33 @@ a.btn { text-decoration: none; }
       save();
     }
     /** Incentive rate for one person: their own rate, else the product's, else the clinic default. */
+    // Incentive per unit: this person for this product → this product → this person's rate → the default.
     function rateFor(m, type, it) {
+      const pp = m && it && m.rates ? m.rates[it.id] : null;
+      if (pp != null) return pp;
+      if (it && it.incentive != null) return it.incentive;
       const own = m && (type === 'injection' ? m.incInjection : type === 'protein' ? m.incProtein : null);
       if (own != null) return own;
-      if (it && it.incentive != null) return it.incentive;
       return S.settings.incentive[type] || 0;
+    }
+    /** Product-wise incentive: memberId '' sets the product's rate for everyone; value '' clears it. */
+    function setRate(memberId, itemId, value) {
+      const v = numOrNull(value);
+      if (v != null && v < 0) fail('Incentive cannot be negative');
+      const plan = S.settings.dietPlans.find((p) => p.id === itemId);
+      const it = item(itemId);
+      if (!plan && !it) fail('Product not found');
+      if (!memberId) {
+        if (plan) plan.incentive = v == null ? 0 : v; else it.incentive = v;
+        log('Incentive changed', `${(plan || it).name}: ${v == null ? 'default' : `₹${v}`}`);
+      } else {
+        const m = member(memberId);
+        if (!m) fail('Team member not found');
+        m.rates = m.rates || {};
+        if (v == null) delete m.rates[itemId]; else m.rates[itemId] = v;
+        log('Incentive changed', `${m.name} · ${(plan || it).name}: ${v == null ? 'default' : `₹${v}`}`);
+      }
+      save();
     }
 
     // Items, categories, stock
@@ -1139,7 +1297,8 @@ a.btn { text-decoration: none; }
       const units = input.type === 'injection' ? (Number(input.qty) || 1) : 1;
       const plan = input.type === 'diet' ? S.settings.dietPlans.find((p) => p.id === input.planId) : null;
       const it = input.type === 'diet' ? null : item(input.itemId);
-      const bases = refs.map((r) => (input.type === 'diet' ? (plan ? Number(plan.incentive) || 0 : 0) : rateFor(member(r.memberId), input.type, it) * units));
+      const planRate = (m) => { const own = plan && m && m.rates ? m.rates[plan.id] : null; return own != null ? own : plan ? Number(plan.incentive) || 0 : 0; };
+      const bases = refs.map((r) => (input.type === 'diet' ? planRate(member(r.memberId)) : rateFor(member(r.memberId), input.type, it) * units));
       const same = bases.every((b) => b === bases[0]);
       // Same rate for everyone: split exactly (remainder to the first); otherwise each gets rate × share.
       const parts = same ? splitIncentive(bases[0], refs) : refs.map((r, i) => ({ memberId: r.memberId, pct: r.pct, amount: Math.round(bases[i] * r.pct / 100) }));
@@ -1314,12 +1473,15 @@ a.btn { text-decoration: none; }
         date: input.date, time: input.time || '', patientId: patient.id, patientName: patient.name, mobile: patient.mobile,
         mode: input.mode, fee, link: String(input.link || '').trim(), notes: String(input.notes || '').trim(),
         service: String(input.service || '').trim(),
+        doctor: String(input.doctor || '').trim(), branch: String(input.branch || '').trim(),
       });
       ['status', 'paid', 'payMethod', 'by', 'leadId'].forEach((k) => { if (k in input) a[k] = input[k]; });
       if (!APPT_STATUS[a.status]) a.status = 'booked';
       a.paid = !!a.paid;
       if (a.service && !S.settings.lists.services.includes(a.service)) S.settings.lists.services.push(a.service);
-      log(input.id ? 'Appointment updated' : 'Appointment booked', `${a.patientName} · ${a.date} ${a.time}${a.service ? ` · ${a.service}` : ''}`);
+      if (a.doctor && !S.settings.lists.doctors.includes(a.doctor)) S.settings.lists.doctors.push(a.doctor);
+      if (a.branch && !S.settings.lists.clinics.includes(a.branch)) S.settings.lists.clinics.push(a.branch);
+      log(input.id ? 'Appointment updated' : 'Appointment booked', `${a.patientName} · ${a.date} ${a.time}${a.service ? ` · ${a.service}` : ''}${a.doctor ? ` · ${a.doctor}` : ''}`);
       save();
       return a;
     }
@@ -1413,6 +1575,8 @@ a.btn { text-decoration: none; }
       if (list === 'expenseCategories') S.expenses.forEach((e) => { if (e.category === oldName) e.category = n; });
       if (list === 'leadSources') S.leads.forEach((x) => { if (x.source === oldName) x.source = n; });
       if (list === 'leadStatuses') S.leads.forEach((x) => { if (x.status === oldName) x.status = n; });
+      if (list === 'doctors') S.appointments.forEach((x) => { if (x.doctor === oldName) x.doctor = n; });
+      if (list === 'clinics') S.appointments.forEach((x) => { if (x.branch === oldName) x.branch = n; });
       if (list === 'services') { S.appointments.forEach((x) => { if (x.service === oldName) x.service = n; }); S.leads.forEach((x) => { if (x.interest === oldName) x.interest = n; }); }
       log('Option renamed', `${list}: ${oldName} → ${n}`);
       save();
@@ -1734,8 +1898,8 @@ a.btn { text-decoration: none; }
         ['Low Stock Alerts', db.stock.low.map((l) => `${l.item.name} (${l.stock})`).join(', '), ''],
         ['Updated', new Date(clock ? clock() : Date.now()).toISOString(), ''],
       ];
-      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Service', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
-      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], a.service || '', a.fee,
+      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Service', 'Doctor', 'Clinic', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
+      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], a.service || '', a.doctor || '', a.branch || '', a.fee,
         a.paid ? 'Paid' : 'Unpaid', a.payMethod || '', APPT_STATUS[a.status], a.link || '', a.notes || '']));
       const accName = (id) => (account(id) || {}).name || '';
       out.Leads = [['Date', 'Name', 'Mobile', 'Alt Mobile', 'Age', 'Gender', 'City', 'Source', 'Interested In', 'Priority', 'Status', 'Assigned To', 'Next Follow-up', 'Weight (kg)', 'Target (kg)', 'Height (cm)', 'Budget', 'Last Note', 'Added By']];
@@ -1767,10 +1931,11 @@ a.btn { text-decoration: none; }
       out.Inventory = [['Category', 'Item', 'Opening Stock', 'Purchased Stock', 'Sold Stock', 'Used (injection kit)', 'Adjusted', 'Available Stock', 'Low Stock At', 'Status', 'Order Required']];
       stockReport(null).forEach((r) => out.Inventory.push([r.category, r.name, r.opening, r.purchased, r.sold, r.used, r.adjusted, r.current, r.lowAt,
         r.disabled ? 'Disabled' : r.alertOff || S.settings.stockAlerts === false ? 'Alert off' : r.current <= r.lowAt ? 'LOW' : 'OK', r.orderAt != null && r.current < r.orderAt ? 'ORDER REQUIRED' : '']));
-      out.Team = [['Name', 'Designation', 'Mobile', 'Salary', 'Incentive Status', 'Injection Incentive', 'Protein Incentive', 'Pay Counts', 'Joining Date', 'Status']];
+      out.Team = [['Name', 'Designation', 'Mobile', 'Salary', 'Incentive Status', 'Injection Incentive', 'Protein Incentive', 'Product-wise Incentive', 'Pay Counts', 'Joining Date', 'Status']];
       const PAY = { both: 'Salary + Incentive', salary: 'Salary only', incentive: 'Incentive only' };
       S.team.forEach((m) => out.Team.push([m.name, m.designation || '', m.mobile || '', m.salary, m.incentiveOn === false ? 'Off' : 'On',
-        rateFor(m, 'injection', null), rateFor(m, 'protein', null), PAY[m.payMode || 'both'], m.joiningDate || '', m.disabled ? 'Disabled' : 'Active']));
+        rateFor(m, 'injection', null), rateFor(m, 'protein', null),
+        Object.entries(m.rates || {}).map(([k, v]) => `${(item(k) || S.settings.dietPlans.find((p) => p.id === k) || { name: k }).name} ₹${v}`).join(', '), PAY[m.payMode || 'both'], m.joiningDate || '', m.disabled ? 'Disabled' : 'Active']));
       out.Incentives = [['Date', 'Team Member', 'Sale Type', 'Patient', 'Product', 'Share %', 'Incentive']];
       incentiveLedger(null).reverse().forEach((l) => out.Incentives.push([l.date, l.name, SALE_TYPES[l.type], l.patient, l.product, l.pct, l.amount]));
       out.Salary = [['Month', 'Name', 'Designation', 'Salary', 'Incentive', 'Total Pay', 'Booked as Expense']];
@@ -1854,7 +2019,7 @@ a.btn { text-decoration: none; }
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
       account, saveAccount, setAccountPin, deleteAccount, setActor,
-      addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
+      addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
@@ -2031,64 +2196,110 @@ a.btn { text-decoration: none; }
     return fname;
   }
 
-  /** OPD slip (A4): clinic header, token, patient and visit details, fee, notes / Rx space, signature. */
+  /** OPD slip (A4): clinic header, token, patient and visit details, doctor, clinic, payment, vitals, Rx space, signature. */
   function opdSlip(a, info) {
     const { jsPDF } = root.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
-    const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 14;
-    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 34, 'F');
-    doc.setFillColor(...BRAND); doc.rect(0, 34, W, 1.6, 'F');
-    doc.setFillColor(255, 255, 255); doc.roundedRect(M, 7, 56, 20, 3, 3, 'F');
-    try { doc.addImage(LOGO, 'JPEG', M + 2, 8, 52, 17.8); } catch (_) { /* optional */ }
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.text('OPD SLIP', W - M, 17, { align: 'right' });
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.text(pdfText(info.clinic), W - M, 24, { align: 'right' });
-    doc.setFontSize(8.5); doc.text('www.hindivine.com', W - M, 29.5, { align: 'right' });
-    // Token + date strip
+    const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 12;
+    const clinicName = info.branch || info.clinic;
+    // Header
+    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 36, 'F');
+    doc.setFillColor(...BRAND); doc.rect(0, 36, W, 1.4, 'F');
+    doc.setFillColor(217, 154, 30); doc.rect(0, 37.4, W, 0.6, 'F');
+    doc.setFillColor(255, 255, 255); doc.roundedRect(M, 7, 58, 21, 3, 3, 'F');
+    try { doc.addImage(LOGO, 'JPEG', M + 2, 8.6, 54, 18.4); } catch (_) { /* optional */ }
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(19); doc.text('OPD SLIP', W - M, 14, { align: 'right' });
+    doc.setFontSize(10.5); doc.text(pdfText(clinicName), W - M, 21, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2);
+    const contact = [info.address, info.phone ? `Phone ${info.phone}` : ''].filter(Boolean);
+    contact.forEach((t, i) => doc.text(pdfText(t), W - M, 26 + i * 4.3, { align: 'right', maxWidth: 110 }));
+    if (!contact.length) doc.text('www.hindivine.com', W - M, 26.5, { align: 'right' });
+    // Token strip
     let y = 44;
-    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 20, 3, 3, 'F');
-    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 40, 20, 3, 3, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.text('TOKEN NO.', M + 20, y + 6.5, { align: 'center' });
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(String(info.token || '-'), M + 20, y + 15.5, { align: 'center' });
-    const cell = (x, label, value) => {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); doc.setTextColor(...MUTED); doc.text(label, x, y + 7);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...INK); doc.text(pdfText(value), x, y + 14.5);
-    };
-    cell(M + 47, 'DATE', info.date); cell(M + 92, 'TIME', info.time || 'Walk-in'); cell(M + 128, 'VISIT', info.mode);
-    y += 28;
-    // Patient box
-    const box = (title, rows) => {
-      doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 7, 1, 1, 'F');
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY); doc.text(title, M + 5, y + 5.2);
-      y += 9;
-      doc.setDrawColor(226, 233, 241); doc.setLineWidth(0.3);
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 19, 3, 3, 'F');
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 34, 19, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.text('TOKEN NO.', M + 17, y + 6, { align: 'center' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(String(info.token || '-'), M + 17, y + 15, { align: 'center' });
+    const strip = [['DATE', info.date], ['TIME', info.time || 'Walk-in'], ['VISIT', info.mode], ['SLIP NO.', info.slipNo || '-']];
+    const sw = (W - 2 * M - 38) / strip.length;
+    strip.forEach(([l, v], i) => {
+      const x = M + 40 + i * sw;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(...MUTED); doc.text(l, x, y + 6.5);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...INK); doc.text(pdfText(v), x, y + 13.5, { maxWidth: sw - 3 });
+    });
+    y += 25;
+    // Two panels: patient | visit
+    const colW = (W - 2 * M - 6) / 2;
+    const panel = (x, title, rows) => {
+      let yy = y;
+      doc.setFillColor(...BRAND); doc.roundedRect(x, yy, 2.2, 6.5, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text(title, x + 5, yy + 5);
+      yy += 9;
+      const top = yy;
       rows.forEach(([k, v], i) => {
-        if (i % 2 === 0) { doc.setFillColor(246, 249, 252); doc.rect(M, y, W - 2 * M, 8.5, 'F'); }
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTED); doc.text(k, M + 3, y + 5.6);
-        doc.setFont('helvetica', 'bold'); doc.setTextColor(...INK); doc.text(pdfText(v || '-'), M + 52, y + 5.6, { maxWidth: W - 2 * M - 55 });
-        y += 8.5;
+        if (i % 2 === 0) { doc.setFillColor(246, 249, 252); doc.rect(x, yy, colW, 8.6, 'F'); }
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(...MUTED); doc.text(k, x + 2.5, yy + 5.6);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9.2); doc.setTextColor(...INK);
+        const t = doc.splitTextToSize(pdfText(v || '-'), colW - 36);
+        doc.text(t[0] + (t.length > 1 ? '...' : ''), x + 34, yy + 5.6);
+        yy += 8.6;
       });
-      y += 6;
+      doc.setDrawColor(222, 230, 240); doc.setLineWidth(0.3); doc.roundedRect(x, top, colW, yy - top, 1.5, 1.5);
+      return yy;
     };
-    box('Patient details', [['Patient name', a.patientName], ['Mobile', a.mobile], ['Age / Gender', info.ageGender], ['City', info.city]]);
-    box('Visit details', [['Treatment / service', a.service || 'Consultation'], ['Consultation mode', info.mode], ['Status', info.status], ...(a.link ? [['Online meeting link', a.link]] : []), ['Booked by', a.by || '']]);
-    box('Payment', [['Consultation fee', info.fee], ['Payment status', a.paid ? `Paid${a.payMethod ? ` (${a.payMethod})` : ''}` : 'Unpaid'], ['Notes', a.notes]]);
-    // Vitals + Rx
-    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 7, 1, 1, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY); doc.text('Doctor / dietitian notes', M + 5, y + 5.2);
-    y += 10;
-    const vit = ['Weight (kg)', 'Height (cm)', 'BMI', 'BP', 'Sugar'];
-    const vw = (W - 2 * M) / vit.length;
-    vit.forEach((v, i) => { doc.setDrawColor(210, 220, 232); doc.roundedRect(M + i * vw + 1, y, vw - 2, 13, 2, 2); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text(v, M + i * vw + 4, y + 4.5); });
+    const y1 = panel(M, 'Patient details', [['Patient name', a.patientName], ['Mobile', a.mobile], ['Age / Gender', info.ageGender], ['City', info.city],
+      ['Patient visit no.', info.visitNo], ['Patient since', info.since]]);
+    const y2 = panel(M + colW + 6, 'Visit details', [['Doctor', info.doctor], ['Clinic / branch', clinicName], ['Treatment', a.service || 'Consultation'],
+      ['Visit type', info.mode], ['Status', info.status], ['Booked by', a.by || '']]);
+    y = Math.max(y1, y2) + 6;
+    // Payment strip
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 6.5, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text('Payment', M + 5, y + 5);
+    y += 9;
+    const paid = !!a.paid;
+    const pay = [['Consultation fee', info.fee], ['Payment status', paid ? 'PAID' : 'UNPAID'], ['Payment method', paid ? (a.payMethod || 'Cash') : '-']];
+    const pw = (W - 2 * M) / pay.length;
+    pay.forEach(([l, v], i) => {
+      const x = M + i * pw;
+      if (i === 1) doc.setFillColor(...(paid ? [228, 245, 237] : [253, 236, 234])); else doc.setFillColor(246, 249, 252);
+      doc.roundedRect(x + (i ? 1.5 : 0), y, pw - 1.5, 13, 2, 2, 'F');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(...MUTED); doc.text(l, x + 4, y + 5);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      if (i === 1) doc.setTextColor(...(paid ? [20, 138, 94] : RED)); else doc.setTextColor(...INK);
+      doc.text(pdfText(v), x + 4, y + 10.6);
+    });
     y += 18;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...BRAND); doc.text('Rx', M, y + 6);
-    doc.setDrawColor(226, 233, 241);
-    for (let ly = y + 12; ly < H - 42; ly += 9) doc.line(M, ly, W - M, ly);
-    // Signature + footer
-    doc.setDrawColor(...MUTED); doc.line(W - M - 60, H - 30, W - M, H - 30);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MUTED); doc.text('Doctor / dietitian signature', W - M - 30, H - 25, { align: 'center' });
-    doc.setFillColor(242, 246, 250); doc.rect(0, H - 14, W, 14, 'F');
-    doc.setFontSize(7.5); doc.text(pdfText(`${info.clinic} · Slip generated ${nowText()}`), M, H - 6);
-    doc.text('Developed by Aamir Sk · Hindivine Digital Marketing Team', W - M, H - 6, { align: 'right' });
+    if (a.link || a.notes) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6); doc.setTextColor(...INK);
+      const lines = [a.notes ? `Notes / complaint: ${a.notes}` : '', a.link ? `Online meeting link: ${a.link}` : ''].filter(Boolean);
+      lines.forEach((t) => { const l = doc.splitTextToSize(pdfText(t), W - 2 * M).slice(0, 2); doc.text(l, M, y + 3); y += l.length * 4.2 + 1.5; });
+      y += 2;
+    }
+    // Vitals
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 6.5, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text('Vitals', M + 5, y + 5);
+    y += 9;
+    const vit = ['Weight (kg)', 'Height (cm)', 'BMI', 'BP', 'Pulse', 'Sugar'];
+    const vw = (W - 2 * M) / vit.length;
+    vit.forEach((v, i) => { doc.setDrawColor(210, 220, 232); doc.roundedRect(M + i * vw + (i ? 1 : 0), y, vw - 1, 13, 2, 2); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(...MUTED); doc.text(v, M + i * vw + 3.5, y + 4.5); });
+    y += 19;
+    // Rx
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...BRAND); doc.text('Rx', M, y + 5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text('Advice / diet / medicines', M + 13, y + 5);
+    doc.setDrawColor(228, 235, 243); doc.setLineWidth(0.25);
+    for (let ly = y + 13; ly < H - 40; ly += 8.5) doc.line(M, ly, W - M, ly);
+    // Next visit + signature
+    doc.setDrawColor(...MUTED); doc.setLineWidth(0.3);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6); doc.setTextColor(...MUTED);
+    doc.text('Next visit:', M, H - 27); doc.line(M + 16, H - 27, M + 70, H - 27);
+    doc.line(W - M - 62, H - 29, W - M, H - 29);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(...INK); doc.text(pdfText(info.doctor || 'Doctor / dietitian'), W - M - 31, H - 24, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(...MUTED); doc.text('Signature', W - M - 31, H - 20, { align: 'center' });
+    // Footer: clinic details only
+    doc.setFillColor(...NAVY); doc.rect(0, H - 12, W, 12, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(7.8);
+    doc.text(pdfText([clinicName, info.phone, info.address].filter(Boolean).join('  |  ')), M, H - 5, { maxWidth: W - 2 * M - 50 });
+    doc.text(pdfText(`Printed ${nowText()}`), W - M, H - 5, { align: 'right' });
     const fname = `OPD-Slip-${String(a.patientName).replace(/[^A-Za-z0-9]+/g, '-')}-${a.date}.pdf`;
     const b64 = doc.output('datauristring').split(',')[1];
     save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
@@ -2257,7 +2468,7 @@ a.btn { text-decoration: none; }
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.1';
+  const APP_VERSION = '3.2';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -2267,7 +2478,8 @@ a.btn { text-decoration: none; }
   const SHEET_LINK = 'https://docs.google.com/spreadsheets/d/1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y/edit';
   const IDLE_LOCK_MS = 15 * 60 * 1000;
   // Colour themes (chosen per device).
-  const THEMES = [['royal', 'Royal Blue', '#0e6fb5'], ['emerald', 'Emerald', '#0f9d8f'], ['purple', 'Royal Purple', '#6c5bd4'], ['sunset', 'Sunset', '#e0622f'], ['midnight', 'Midnight', '#111c2b']];
+  const THEMES = [['royal', 'Royal Blue', '#0e6fb5', '#0A2F55'], ['gold', 'Black & Gold', '#c9a24a', '#0d0d0f'], ['rose', 'Rose Gold', '#b76e79', '#3b1d26'], ['emerald', 'Emerald', '#0f9d8f', '#053a35'],
+    ['purple', 'Royal Purple', '#6c5bd4', '#221849'], ['sunset', 'Sunset', '#e0622f', '#43170a'], ['midnight', 'Midnight', '#111c2b', '#0a111c']];
   const THEME_KEY = 'hindivine.admin.theme';
   const PREF_KEY = 'hindivine.admin.prefs'; // device preferences: reminder scope, sound
   const lsGet = (k, d) => { try { const v = localStorage.getItem(k); return v == null ? d : v; } catch (_) { return d; } };
@@ -2278,7 +2490,7 @@ a.btn { text-decoration: none; }
     const th = THEMES.find((x) => x[0] === t) || THEMES[0];
     document.documentElement.dataset.theme = th[0];
     const meta = document.querySelector('meta[name=theme-color]');
-    if (meta) meta.setAttribute('content', th[0] === 'midnight' ? '#0a111c' : th[0] === 'royal' ? '#0A2F55' : th[2]);
+    if (meta) meta.setAttribute('content', th[3]);
   }
   applyTheme(lsGet(THEME_KEY, 'royal'));
 
@@ -2303,8 +2515,14 @@ a.btn { text-decoration: none; }
   const view = $('#view');
   const modal = $('#modal');
   let toastTimer;
+  // An open dialog sits in the browser's top layer; messages move inside it so they are never hidden behind it.
+  function onTop(el) {
+    const host = modal && modal.open ? modal : document.body;
+    if (el.parentNode !== host) host.appendChild(el);
+  }
   function toast(msg, bad) {
     const t = $('#toast');
+    onTop(t);
     t.textContent = msg; t.className = 'toast show' + (bad ? ' bad' : '');
     clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.className = 'toast'; }, bad ? 5000 : 3000);
   }
@@ -2452,6 +2670,7 @@ a.btn { text-decoration: none; }
   // "~" in the header are hidden on phones to keep the cards short.
   function labelTables(root) {
     $$('table', root).forEach((t) => {
+      if (t.classList.contains('rate-table')) return;
       t.classList.add('rt');
       const heads = $$('thead th', t).map((th) => ({ text: th.textContent.replace(/^~/, ''), hide: th.dataset.hm === '1' }));
       $$('tbody tr, tfoot tr', t).forEach((tr) => {
@@ -2564,6 +2783,7 @@ a.btn { text-decoration: none; }
     return `<label class="f ${f.span ? 'span' : ''}" for="${id}">${esc(f.label)}${input}${f.hint ? `<span class="hint">${esc(f.hint)}</span>` : ''}</label>`;
   }
   /** Open a form in the modal; onSubmit(values) may throw to show an error. */
+  const TOUCH = window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
   function openForm({ title, fields, html, submitLabel, onSubmit, danger }) {
     $('#modal-title').textContent = title;
     $('#modal-body').innerHTML = (html || '') + (fields ? `<div class="grid">${fields.map(field).join('')}</div>` : '');
@@ -2579,8 +2799,12 @@ a.btn { text-decoration: none; }
       });
       return onSubmit ? onSubmit(values) : undefined;
     };
-    modal.showModal();
-    const first = $('input:not([type=checkbox]), select, textarea', $('#modal-body'));
+    // A dialog may replace another one that is still open (e.g. Update from the Reminders list).
+    if (!modal.open) { try { modal.showModal(); } catch (_) { modal.setAttribute('open', ''); } }
+    $('#modal-body').scrollTop = 0;
+    $('#modal-body').onchange = null; $('#modal-body').onclick = null;
+    // Phones: don't pop the keyboard up on every dialog; desktop: focus the first box.
+    const first = !TOUCH && $('input:not([type=checkbox]):not([type=radio]):not([type=date]):not([type=time]), textarea', $('#modal-body'));
     if (first) setTimeout(() => first.focus(), 30);
   }
   function confirmBox(title, message, okLabel) {
@@ -2599,6 +2823,10 @@ a.btn { text-decoration: none; }
     } catch (err) { $('#modal-err').textContent = err.message; }
   });
   modal.addEventListener('click', (e) => { if (e.target.closest('[data-close]')) modal.close(); });
+  // Closing a dialog keeps a message that is still showing.
+  modal.addEventListener('close', () => { ['#toast', '#reminder-pop'].forEach((id) => { const el = $(id); if (el.parentNode === modal) document.body.appendChild(el); }); });
+  // Tap outside an info sheet (no form to lose) closes it.
+  modal.addEventListener('mousedown', (e) => { if (e.target === modal) { const r = modal.getBoundingClientRect(); const out = e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom; if (out && !$('#modal-foot [type=submit]') && !$('#modal-foot [data-choice]')) modal.close(); } });
 
   // ── Screens ───────────────────────────────────────────────────
   const SCREENS = {};
@@ -2707,7 +2935,7 @@ a.btn { text-decoration: none; }
     const imgBtn = `<button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="jpeg">${svg('<rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="9" cy="10" r="2"/><path d="M21 16l-5-5-9 9"/>')}JPEG</button>`;
     const stockRow = (y) => `<tr><td>${esc(y.item.name)}</td><td>${esc(y.item.category)}</td><td class="r"><b>${num(y.stock)}</b> <span class="hint">${esc(y.item.unit)}</span></td><td>${y.item.orderAt != null && y.stock < y.item.orderAt ? '<span class="badge bad">Order required</span>' : y.stock > 0 ? '<span class="badge ok">Available</span>' : '<span class="badge">Not available</span>'}</td></tr>`;
     return `<div class="toolbar"><div class="day-nav"><button type="button" class="btn sm" data-day="-1" aria-label="Previous day">‹</button><input type="date" data-todaydate value="${esc(d)}" aria-label="Date"><button type="button" class="btn sm" data-day="1" aria-label="Next day">›</button>${d !== admin.today() ? '<button type="button" class="btn sm" data-day="0">Today</button>' : ''}</div>
-        <span class="grow"></span><span class="btn-group"><button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="pdf">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}PDF</button>${imgBtn}</span></div>
+        <span class="grow"></span><span class="btn-group"><button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="pdf">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}PDF</button>${imgBtn}<button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="xlsx">${svg('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8l6 8M15 8l-6 8"/>')}Excel</button></span></div>
       <section class="hero"><div><small>${esc(set().clinic)} · ${fdate(d)}</small></div><div class="hero-row">
         <div class="hk"><small>Sales</small><b>${inr(x.salesTotal)}</b><small>${plural(x.sales.length, 'sale')}</small></div>
         <div class="hk"><small>Purchases</small><b>${inr(x.purchaseTotal)}</b><small>${plural(x.purchases.length, 'invoice')}</small></div>
@@ -2716,9 +2944,9 @@ a.btn { text-decoration: none; }
       </div></section>
       ${x.order.length ? `<section class="card order-card"><h2><span class="ic bad">${svg('<path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>')}</span>Order required</h2>
         <div class="alerts">${x.order.map((o) => `<div class="alert bad"><b>${esc(o.item.name)}</b><span class="badge bad">${num(o.stock)} left · below ${o.item.orderAt}</span></div>`).join('')}</div></section>` : ''}
-      <div class="cards">
+      <div>
         <section class="card"><h2><span class="ic">${svg('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>')}</span>Sales<span class="sp"></span><span class="badge">${inr(x.salesTotal)}</span></h2>
-          ${table(['Patient', 'Product', '>Qty', '>Amount', 'Reference', '>Incentive'], x.sales.map((s) => `<tr><td>${esc(s.patientName)}</td><td>${typeBadge(s.type)} ${esc(s.product)}</td><td class="r">${s.qty}</td><td class="r"><b>${inr(s.amount)}</b></td><td><span class="ref-chips">${s.splits.map((y) => `<span class="ref-chip">${esc(y.name)}${s.splits.length > 1 ? ` · ${y.pct}%` : ''}</span>`).join('')}</span></td><td class="r">${inr(s.incentive)}</td></tr>`))}</section>
+          ${table(['Patient', 'Product', '>Amount', 'Type', 'Reference', '>Incentive'], x.sales.map((s) => `<tr><td>${esc(s.patientName)}</td><td>${typeBadge(s.type)} ${esc(s.product)}${s.qty > 1 ? ` × ${s.qty}` : ''}</td><td class="r"><b>${inr(s.amount)}</b></td><td>${s.patientType === 'renewal' ? '<span class="badge gold">Renewal</span>' : '<span class="badge ok">New</span>'}</td><td><span class="ref-chips">${s.splits.map((y) => `<span class="ref-chip">${esc(y.name)}${s.splits.length > 1 ? ` · ${y.pct}%` : ''}</span>`).join('')}</span></td><td class="r">${inr(s.incentive)}</td></tr>`))}</section>
         <section class="card"><h2><span class="ic gold">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}</span>Purchases<span class="sp"></span><span class="badge">${inr(x.purchaseTotal)}</span></h2>
           ${table(['Vendor', 'Stock in', '>Total'], x.purchases.map((p) => `<tr><td>${esc(p.vendor || 'Vendor')}<span class="sub">${esc(p.invoiceNo)}</span></td><td>${p.lines.map((l) => `${esc(l.name)} +${num(l.qty)}`).join('<br>')}</td><td class="r">${inr(p.total)}</td></tr>`))}</section>
       </div>
@@ -2930,6 +3158,7 @@ a.btn { text-decoration: none; }
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.2', 'Today Summary export options: choose what goes in the PDF / image / Excel and filter by sale type, reference and new or renewal patients (default: patient, product, amount, new / renewal and reference only); product-wise incentive for everyone or per person; doctors and clinics to choose in OPD appointments (add, rename, delete in Settings); new OPD slip with every detail (token, slip no., doctor, clinic, address, phone, patient visit no., payment, vitals, Rx) and no developer line; Black & Gold and Rose Gold luxury themes, premium font and refined design; pop-ups always on top and no keyboard jumping up on phones; Google Sheet: keep the current sheet or move to a new one; sync never hangs on slow internet.'],
     ['3.1', 'Follow-up reminders: bell with count, reminders list on sign-in, pop-up at the follow-up time, phone notifications even when the app is closed, snooze; Follow-ups tab and one-tap follow-up times for leads; OPD slip PDF for every appointment; Today Summary shows every reference (team member) with sales and incentive, also in PDF and image; image export is one clean A4 file; better structured PDF reports; 5 colour themes including dark Midnight; redesigned animated side menu with search and quick actions; app-like screens (no text selection); crash protection and smoother animations.'],
     ['3.0', 'Leads CRM for the front desk with follow-ups, history and conversion to OPD appointments; personal logins for every team member plus a new Admin role; editable role permissions; Today Summary with order-required alerts and PDF / A4 image export; injection kit auto-deducted from stock (travel bag, ice gel, swabs, needles); personal incentive rates and pay mode per team member; stock alerts on/off; patient edit and delete; "+ Add new" options everywhere; services for appointments; month-wise view; report filters; activity log of every change; full redesign with animations.'],
     ['2.0', 'Logins for Super Admin, Manager and Front Desk; OPD appointments (₹1000, clinic visit or online); PDF and Excel export on every screen; renewal alert at 75 days; new design; auto refresh; Android back button fix; AI scanner removed.'],
@@ -2981,7 +3210,7 @@ a.btn { text-decoration: none; }
     </div></div>`;
     const cards = list.map((a) => `<div class="appt st-${a.status}" data-act="appt" data-id="${a.id}" role="button" tabindex="0">
         <div class="appt-time"><b>${time12(a.time).replace(/ (AM|PM)/, '')}</b><small>${a.time ? (Number(a.time.slice(0, 2)) < 12 ? 'AM' : 'PM') : 'Any time'}</small></div>
-        <div class="appt-main"><b>${esc(a.patientName)}</b>${a.service ? `<small class="svc">${esc(a.service)}</small>` : ''}<div class="meta">${modeBadge(a.mode)}${statusBadge(a.status)}${apptView === 'list' ? `<span class="badge">${fdate(a.date)}</span>` : ''}</div></div>
+        <div class="appt-main"><b>${esc(a.patientName)}</b>${a.service || a.doctor ? `<small class="svc">${esc([a.service, a.doctor].filter(Boolean).join(' · '))}</small>` : ''}<div class="meta">${modeBadge(a.mode)}${statusBadge(a.status)}${apptView === 'list' ? `<span class="badge">${fdate(a.date)}</span>` : ''}</div></div>
         <div class="appt-side"><b>${inr(a.fee)}</b>${payBadge(a)}</div></div>`).join('');
     return `<div class="toolbar"><div class="seg">${[['day', 'Day view'], ['list', 'All appointments']].map(([k, l]) => `<button type="button" data-apptview="${k}" class="${apptView === k ? 'on' : ''}">${l}</button>`).join('')}</div>
         <span class="grow"></span>${exportBtns('appointments')}<button class="btn primary" data-act="new-appt">${svg('<path d="M12 5v14M5 12h14"/>')}New appointment</button></div>
@@ -3003,7 +3232,9 @@ a.btn { text-decoration: none; }
         <label class="f">Mobile<input id="ap-mobile" type="tel" inputmode="tel" value="${esc(v.mobile || '')}"></label>
         <label class="f">Date<input id="ap-date" type="date" value="${esc(v.date)}"></label>
         <label class="f">Time<input id="ap-time" type="time" value="${esc(v.time)}"></label>
-        <label class="f span">Treatment / service (optional)${listSelect('services', 'id="ap-service"', v.service, 'No service selected')}</label></div>
+        <label class="f span">Treatment / service (optional)${listSelect('services', 'id="ap-service"', v.service, 'No service selected')}</label>
+        <label class="f">Doctor${listSelect('doctors', 'id="ap-doctor"', a ? v.doctor : v.doctor || prefs().lastDoctor || '', 'Choose doctor')}</label>
+        <label class="f">Clinic / branch${listSelect('clinics', 'id="ap-branch"', a ? v.branch : v.branch || prefs().lastBranch || set().lists.clinics[0] || '', 'Choose clinic')}</label></div>
         <div class="mode-pick">
           <label><input type="radio" name="ap-mode" value="clinic" ${v.mode === 'clinic' ? 'checked' : ''}><span class="mi">${svg('<path d="M3 21h18M5 21V8l7-5 7 5v13M10 21v-5h4v5M12 8v4M10 10h4"/>')}</span>Clinic visit</label>
           <label><input type="radio" name="ap-mode" value="online" ${v.mode === 'online' ? 'checked' : ''}><span class="mi">${svg('<rect x="3" y="6" width="13" height="12" rx="2"/><path d="M16 10l5-3v10l-5-3"/>')}</span>Online</label>
@@ -3019,23 +3250,25 @@ a.btn { text-decoration: none; }
         const input = {
           id: a ? a.id : undefined, patientName: $('#ap-name').value, mobile: $('#ap-mobile').value, date: $('#ap-date').value, time: $('#ap-time').value,
           mode, fee: $('#ap-fee').value, link: $('#ap-link').value, notes: $('#ap-notes').value, paid: $('#ap-paid').checked, service: $('#ap-service').value,
+          doctor: $('#ap-doctor').value === '__new__' ? '' : $('#ap-doctor').value, branch: $('#ap-branch').value === '__new__' ? '' : $('#ap-branch').value,
           payMethod: $('#ap-paid').checked ? $('#ap-method').value : '', by: a ? a.by : me.name,
         };
         // Booked from a lead: the lead is converted and linked to the appointment.
         const saved = pre && pre.leadId ? admin.convertLead(pre.leadId, input).appointment : admin.saveAppointment(input);
+        setPref('lastDoctor', input.doctor); setPref('lastBranch', input.branch);
         apptDay = saved.date;
         return a ? 'Appointment updated' : `Booked: ${saved.patientName}, ${fdate(saved.date)} ${time12(saved.time)}`;
       },
     });
     const body = $('#modal-body');
-    body.addEventListener('change', (e) => {
+    body.onchange = (e) => {
       if (e.target.name === 'ap-mode') $('#ap-link-wrap').hidden = e.target.value !== 'online';
       if (e.target.id === 'ap-paid') $('#ap-method-wrap').hidden = !e.target.checked;
       if (e.target.id === 'ap-name' && !$('#ap-mobile').value) {
         const p = S().patients.find((x) => x.name.toLowerCase() === e.target.value.trim().toLowerCase());
         if (p) $('#ap-mobile').value = p.mobile || '';
       }
-    });
+    };
   }
   function waLink(mobile, text) {
     const ph = String(mobile || '').replace(/\D/g, '');
@@ -3056,6 +3289,8 @@ a.btn { text-decoration: none; }
           <div><dt>Date & time</dt><dd>${fdate(a.date)} · ${time12(a.time)}</dd></div>
           <div><dt>Mobile</dt><dd>${a.mobile ? `<a href="tel:${esc(a.mobile)}">${esc(a.mobile)}</a>` : '—'}</dd></div>
           ${a.service ? `<div><dt>Treatment / service</dt><dd>${esc(a.service)}</dd></div>` : ''}
+          ${a.doctor ? `<div><dt>Doctor</dt><dd>${esc(a.doctor)}</dd></div>` : ''}
+          ${a.branch ? `<div><dt>Clinic</dt><dd>${esc(a.branch)}</dd></div>` : ''}
           <div><dt>Consultation fee</dt><dd>${inr(a.fee)}</dd></div>
           ${a.link ? `<div><dt>Meeting link</dt><dd><a href="${esc(a.link)}" target="_blank" rel="noopener">${esc(a.link)}</a></dd></div>` : ''}
           ${a.notes ? `<div><dt>Notes</dt><dd>${esc(a.notes)}</dd></div>` : ''}
@@ -3472,7 +3707,7 @@ a.btn { text-decoration: none; }
         { name: 'mobile', label: 'Mobile', type: 'tel', value: m ? m.mobile : '' },
         { name: 'salary', label: 'Monthly salary (₹)', type: 'number', value: m ? m.salary : '' },
         { name: 'joiningDate', label: 'Joining date', type: 'date', value: m ? m.joiningDate : admin.today() },
-        { name: 'incInjection', label: 'Incentive per injection (₹)', type: 'number', value: m && m.incInjection != null ? m.incInjection : '', placeholder: String(set().incentive.injection), hint: `Blank = default ${inr(set().incentive.injection)}` },
+        { name: 'incInjection', label: 'Incentive per injection (₹)', type: 'number', value: m && m.incInjection != null ? m.incInjection : '', placeholder: String(set().incentive.injection), hint: `Blank = default ${inr(set().incentive.injection)}. Product-wise amounts (Incentives) come first.` },
         { name: 'incProtein', label: 'Incentive per protein sale (₹)', type: 'number', value: m && m.incProtein != null ? m.incProtein : '', placeholder: String(set().incentive.protein), hint: `Blank = default ${inr(set().incentive.protein)}` },
         { name: 'payMode', label: 'Monthly pay counts', type: 'select', value: m ? m.payMode || 'both' : 'both', options: [['both', 'Salary + Incentive'], ['salary', 'Salary only'], ['incentive', 'Incentive only']] },
         { name: 'incentiveOn', label: 'Incentive status: On', type: 'checkbox', value: m ? m.incentiveOn !== false : true, span: true },
@@ -3494,14 +3729,34 @@ a.btn { text-decoration: none; }
         <label class="f">Protein (per sale, ₹)<input type="number" min="0" name="protein" value="${esc(inc.protein)}"></label>
         ${set().dietPlans.map((p) => `<label class="f">Diet support ${esc(p.name)} (₹)<input type="number" min="0" name="plan-${p.id}" value="${esc(p.incentive)}"></label>`).join('')}
       </div>
-      <p class="hint" style="margin:0">Single reference gets 100%. With a shared reference the incentive is split 50-50 or by the custom % on the sale, automatically. Per-product overrides are under <button type="button" class="link" data-go="products">Products</button>. New amounts apply to new sales.</p>
+      <p class="hint" style="margin:0">Single reference gets 100%. With a shared reference the incentive is split 50-50 or by the custom % on the sale, automatically. Set amounts per product and per person in <b>Product-wise incentive</b> below. New amounts apply to new sales.</p>
       <div class="actions"><button class="btn primary" type="submit">Save incentives</button></div></form>
+      ${rateMatrix()}
       <div class="toolbar">${periodBar()}<select data-filter="ledger" aria-label="Team member">${opt('', 'All team', ledgerMember)}${S().team.map((m) => opt(m.id, m.name, ledgerMember)).join('')}</select><span class="grow"></span>${exportBtns('incentives')}</div>
       <div class="card"><h2>Incentive ledger</h2>
       ${Object.keys(totals).length ? `<div class="kpis" style="margin-bottom:12px">${Object.entries(totals).sort((a, b) => b[1] - a[1]).map(([n, v]) => kpi(n, inr(v))).join('')}</div>` : ''}
       ${table(['Date', 'Team member', 'Sale', 'Patient', '>Share', '>Incentive'], ledger.map((l) => `<tr><td>${fdate(l.date)}</td><td>${esc(l.name)}</td><td>${typeBadge(l.type)} ${esc(l.product)}</td><td>${esc(l.patient)}</td><td class="r">${l.pct}%</td><td class="r">${inr(l.amount)}</td></tr>`),
         `<td colspan="5">Total</td><td class="r">${inr(ledger.reduce((a, l) => a + l.amount, 0))}</td>`)}</div>`;
   };
+  // Product-wise incentive: one row per product, one column for everyone plus one per team member.
+  function rateMatrix() {
+    const team = S().team.filter((m) => !m.disabled);
+    const inc = set().incentive;
+    const prods = [...admin.itemsOf('injection'), ...admin.itemsOf('protein')].map((it) => ({ id: it.id, name: it.name, type: it.kind, base: it.incentive, item: it }))
+      .concat(set().dietPlans.filter((p) => !p.disabled).map((p) => ({ id: p.id, name: `Diet ${p.name}`, type: 'diet', base: p.incentive, plan: p })));
+    const personal = (m, pr) => (pr.type === 'diet' ? pr.base : pr.base != null ? pr.base : (pr.type === 'injection' ? m.incInjection : m.incProtein) != null ? (pr.type === 'injection' ? m.incInjection : m.incProtein) : inc[pr.type]);
+    const cell = (pr, m) => {
+      const own = m.rates ? m.rates[pr.id] : null;
+      return `<td class="c"><input class="rate-in ${own != null ? 'own' : ''}" type="number" min="0" inputmode="numeric" data-rate-item="${pr.id}" data-rate-member="${m.id}" value="${own != null ? esc(own) : ''}" placeholder="${esc(personal(m, pr))}" aria-label="${esc(m.name)} · ${esc(pr.name)}"></td>`;
+    };
+    const rows = prods.map((pr) => `<tr><td><b>${esc(pr.name)}</b><span class="sub">${A.SALE_TYPES[pr.type]}${pr.type === 'injection' ? ' · per pen' : ''}</span></td>
+      <td class="c"><input class="rate-in base" type="number" min="0" inputmode="numeric" data-rate-item="${pr.id}" data-rate-member="" value="${pr.base != null && (pr.type === 'diet' || pr.base !== '') ? esc(pr.base) : ''}" placeholder="${esc(pr.type === 'diet' ? 0 : inc[pr.type])}" aria-label="${esc(pr.name)} for everyone"></td>
+      ${team.map((m) => cell(pr, m)).join('')}</tr>`);
+    return `<section class="card"><h2><span class="ic gold">${svg('<path d="M12 1v22M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>')}</span>Product-wise incentive<span class="sp"></span><button type="button" class="btn xs ghost" data-act="rates-clear">Clear personal amounts</button></h2>
+      <p class="hint" style="margin-top:0">Type an amount and it saves at once. <b>Everyone</b> = the product's incentive for all; a person's box overrides it for that person only. Empty boxes use the grey amount. Order: person + product → product → person's own rate → default.</p>
+      <div class="tbl-wrap rate-wrap"><table class="rate-table"><thead><tr><th>Product</th><th class="c">Everyone</th>${team.map((m) => `<th class="c">${esc(m.name)}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>
+      ${team.length ? '' : '<p class="hint">Add team members to set personal amounts.</p>'}</section>`;
+  }
   AFTER.incentives = () => {
     $('#inc-form').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -3648,12 +3903,31 @@ a.btn { text-decoration: none; }
     salary: () => { const m = salaryMonth || stamp().slice(0, 7); return { title: 'Salary', subtitle: fdate(m), sections: [R.salary(m)] }; },
     expenses: () => ({ title: 'Expenses', subtitle: periodLabel(), sections: [R.expenses(filteredExpenses())] }),
     report: () => REPORTS[reportTab].build(),
-    today: () => {
-      const d = todayDate || stamp(); const x = admin.daySummary(d);
-      const kp = [['Sales', inr(x.salesTotal)], ['Purchases', inr(x.purchaseTotal)], ['OPD appointments', num(x.appt.total - x.appt.cancelled)], ['OPD fees', inr(x.appt.fees)],
-        ['Expenses', inr(x.expenseTotal)], ['New leads', num(x.leads)], ['Items available', num(x.available.length)], ['Not available', num(x.notAvailable.length)]];
-      return { title: 'Today Summary', subtitle: fdate(d), kpis: kp, alertKpis: [7], sections: [
-        ...(x.order.length ? [R.dayStock('ORDER REQUIRED', x.order)] : []), R.daySales(x), R.dayRefs(x), R.dayAppts(x), R.dayPurchases(x), R.dayStock('Stock Available', x.available), R.dayStock('Stock Not Available', x.notAvailable)] };
+    today: (o) => {
+      const opt = { ...TODAY_EXPORT_DEFAULT, ...(o || todayExportOpts()) };
+      const d = todayDate || stamp(); const base = admin.daySummary(d);
+      // Filters: sale type, reference, new / renewal patient.
+      const sales = base.sales.filter((s) => (!opt.type || s.type === opt.type) && (!opt.ptype || s.patientType === opt.ptype)
+        && (!opt.ref || s.splits.some((y) => y.memberId === opt.ref)));
+      const x = { ...base, sales, salesTotal: sales.reduce((a, s) => a + (Number(s.amount) || 0), 0) };
+      const on = (k) => opt.secs.includes(k);
+      const cols = opt.cols || [];
+      const salesSec = () => {
+        const head = ['Patient', ...(cols.includes('mobile') ? ['Mobile'] : []), 'Product', ...(cols.includes('qty') ? ['>Qty'] : []), '>Amount', 'Type', 'Reference', ...(cols.includes('incentive') ? ['>Incentive'] : [])];
+        const rows = sales.map((s) => [s.patientName, ...(cols.includes('mobile') ? [s.mobile || ''] : []), s.product, ...(cols.includes('qty') ? [s.qty] : []), s.amount,
+          s.patientType === 'renewal' ? 'Renewal' : 'New', s.splits.map((y) => `${y.name}${s.splits.length > 1 ? ` ${y.pct}%` : ''}`).join(' + ') || '-',
+          ...(cols.includes('incentive') ? [s.incentive] : [])]);
+        const amt = head.indexOf('>Amount'); const inc = head.indexOf('>Incentive'); const qty = head.indexOf('>Qty');
+        return sec('Sales', head, rows, { money: [amt, inc].filter((i) => i >= 0), total: [amt, inc, qty].filter((i) => i >= 0) });
+      };
+      const filt = [opt.type ? A.SALE_TYPES[opt.type] : '', opt.ptype === 'renewal' ? 'Renewal patients' : opt.ptype === 'new' ? 'New patients' : '', opt.ref ? `Reference: ${(admin.member(opt.ref) || {}).name || ''}` : ''].filter(Boolean);
+      const kp = [['Sales', inr(x.salesTotal)], ['Orders', num(sales.length)], ['New patients', num(sales.filter((s) => s.patientType !== 'renewal').length)], ['Renewals', num(sales.filter((s) => s.patientType === 'renewal').length)],
+        ...(on('appts') ? [['OPD appointments', num(x.appt.total - x.appt.cancelled)], ['OPD fees', inr(x.appt.fees)]] : []),
+        ...(on('purchases') ? [['Purchases', inr(x.purchaseTotal)]] : [])];
+      return { title: 'Today Summary', subtitle: `${fdate(d)}${filt.length ? ` · ${filt.join(' · ')}` : ''}`, kpis: on('summary') ? kp : undefined, sections: [
+        ...(on('order') && x.order.length ? [R.dayStock('ORDER REQUIRED', x.order)] : []),
+        ...(on('sales') ? [salesSec()] : []), ...(on('refs') ? [R.dayRefs(x)] : []), ...(on('appts') ? [R.dayAppts(x)] : []), ...(on('purchases') ? [R.dayPurchases(x)] : []),
+        ...(on('available') ? [R.dayStock('Stock Available', x.available)] : []), ...(on('notavailable') ? [R.dayStock('Stock Not Available', x.notAvailable)] : [])] };
     },
     leads: () => { const list = filteredLeads(); return { title: 'Leads', subtitle: role === 'desk' ? `${me.name} · ${fdate(stamp())}` : fdate(stamp()), sections: [R.leads(list), ...(role !== 'desk' ? [R.leadOwners(list)] : [])] }; },
     activity: () => ({ title: 'Activity Log', subtitle: periodLabel(), sections: [R.activity(filteredLog())] }),
@@ -3673,7 +3947,7 @@ a.btn { text-decoration: none; }
   const repLeads = () => S().leads.filter((l) => inR(l.date, range()) && (!repF.source || l.source === repF.source) && (!repF.owner || l.assignedTo === repF.owner) && (!repF.status || l.status === repF.status));
   const REPORTS = {
     overview: { label: 'Overview', build: () => ({ title: 'Business Overview', subtitle: periodLabel(), kpis: dashKpis(range()), sections: R.financial(range()) }) },
-    today: { label: 'Today', build: () => EXPORTS.today() },
+    today: { label: 'Today', build: () => EXPORTS.today({ secs: TODAY_SECTIONS.map((x) => x[0]), cols: ['qty', 'incentive'], type: '', ref: '', ptype: '' }) },
     appointments: { label: 'OPD', filters: ['mode', 'apptStatus', 'service'], build: () => ({ title: 'OPD Appointments Report', subtitle: periodLabel(), sections: [R.appointments(repAppts())] }) },
     leads: { label: 'Leads', need: 'leads', filters: ['source', 'leadStatus', 'owner'], build: () => ({ title: 'Leads Report', subtitle: periodLabel(), sections: [R.leads(repLeads()), R.leadOwners(repLeads())] }) },
     sales: { label: 'Sales', filters: ['type', 'member'], build: () => ({ title: 'Sales Report', subtitle: periodLabel(), sections: [R.sales(repSales())] }) },
@@ -3701,8 +3975,46 @@ a.btn { text-decoration: none; }
     };
     return (list || []).length ? `<div class="filters"><div class="row">${list.map((k) => F[k]()).join('')}<button type="button" class="btn sm ghost" data-act="rfilter-clear">Clear filters</button></div></div>` : '';
   }
-  function runExport(what, fmt) {
-    const rep = EXPORTS[what]();
+  // Today Summary export: choose what goes in the file. Default = sales only (patient, product, amount, new / renewal, reference).
+  const TODAY_EXPORT_DEFAULT = { secs: ['sales'], cols: [], type: '', ref: '', ptype: '' };
+  const TODAY_SECTIONS = [['summary', 'Summary boxes'], ['sales', 'Sales'], ['refs', 'Sales by reference (all team)'], ['order', 'Order required'], ['appts', 'OPD appointments'],
+    ['purchases', 'Purchases'], ['available', 'Stock available'], ['notavailable', 'Stock not available']];
+  const TODAY_COLS = [['mobile', 'Mobile'], ['qty', 'Qty'], ['incentive', 'Incentive']];
+  const todayExportOpts = () => ({ ...TODAY_EXPORT_DEFAULT, ...(prefs().todayExport || {}) });
+  function todayExportForm(fmt) {
+    const o = todayExportOpts();
+    const team = S().team.filter((m) => !m.disabled);
+    const box = (name, val, label, list) => `<label class="opt-check"><input type="checkbox" name="${name}" value="${val}" ${list.includes(val) ? 'checked' : ''}><span>${label}</span></label>`;
+    const FMT = { pdf: 'PDF', jpeg: 'Image (JPEG)', xlsx: 'Excel' };
+    openForm({
+      title: 'Export Today Summary', submitLabel: `Export ${FMT[fmt] || 'PDF'}`,
+      html: `<div class="exp-fmt seg">${Object.entries(FMT).map(([k, l]) => `<button type="button" class="${k === fmt ? 'on' : ''}" data-expfmt="${k}">${l}</button>`).join('')}</div>
+        <h3 class="menu-h">Include</h3><div class="opt-grid">${TODAY_SECTIONS.map(([k, l]) => box('sec', k, l, o.secs)).join('')}</div>
+        <h3 class="menu-h">Sales columns</h3><p class="hint" style="margin:0 0 6px">Always: Patient · Product · Amount · Type (New / Renewal) · Reference</p>
+        <div class="opt-grid">${TODAY_COLS.map(([k, l]) => box('col', k, `+ ${l}`, o.cols)).join('')}</div>
+        <h3 class="menu-h">Filter sales</h3><div class="grid">
+          <label class="f">Sale type<select id="te-type">${opt('', 'All types', o.type)}${Object.entries(A.SALE_TYPES).map(([k, v]) => opt(k, v, o.type)).join('')}</select></label>
+          <label class="f">Patient<select id="te-ptype">${opt('', 'New + renewal', o.ptype)}${opt('new', 'New only', o.ptype)}${opt('renewal', 'Renewal only', o.ptype)}</select></label>
+          <label class="f span">Reference<select id="te-ref">${opt('', 'Everyone', o.ref)}${team.map((m) => opt(m.id, m.name, o.ref)).join('')}</select></label></div>
+        <button type="button" class="link" data-act="today-export-reset">Reset to default</button>`,
+      onSubmit: () => {
+        const pick = (n) => $$(`#modal-body input[name=${n}]:checked`).map((x) => x.value);
+        const next = { secs: pick('sec'), cols: pick('col'), type: $('#te-type').value, ptype: $('#te-ptype').value, ref: $('#te-ref').value };
+        if (!next.secs.length) throw new Error('Choose at least one part to include');
+        setPref('todayExport', next);
+        const f = ($('#modal-body .exp-fmt .on') || {}).dataset;
+        setTimeout(() => runExport('today', (f && f.expfmt) || fmt, next), 60);
+      },
+    });
+    $('#modal-body').onclick = (e) => {
+      const b = e.target.closest('[data-expfmt]');
+      if (!b) return;
+      $$('#modal-body [data-expfmt]').forEach((x) => x.classList.toggle('on', x === b));
+      $('#modal-foot .primary').textContent = `Export ${FMT[b.dataset.expfmt]}`;
+    };
+  }
+  function runExport(what, fmt, o) {
+    const rep = EXPORTS[what](o);
     rep.filename = `Hindivine-${rep.title.replace(/[^A-Za-z0-9]+/g, '-')}-${stamp()}`;
     rep.preparedBy = me ? me.name : '';
     try {
@@ -3752,6 +4064,8 @@ a.btn { text-decoration: none; }
       <h2><span class="ic">${svg('<path d="M3 21h18M5 21V8l7-5 7 5v13"/>')}</span>Clinic</h2>
       <div class="grid">
         <label class="f">Clinic name<input name="clinic" value="${esc(st.clinic)}"></label>
+        <label class="f">Clinic phone<input name="clinicPhone" type="tel" value="${esc(st.clinicPhone || '')}" placeholder="Shown on the OPD slip"></label>
+        <label class="f span">Clinic address<input name="clinicAddress" value="${esc(st.clinicAddress || '')}" placeholder="Shown on the OPD slip"></label>
         <label class="f">OPD consultation fee (₹)<input type="number" min="0" name="consultFee" value="${esc(st.consultFee)}"></label>
         <label class="f">Default injection incentive (₹)<input type="number" min="0" name="incInj" value="${esc(st.incentive.injection)}"></label>
         <label class="f">Default protein incentive (₹)<input type="number" min="0" name="incPro" value="${esc(st.incentive.protein)}"></label>
@@ -3768,6 +4082,8 @@ a.btn { text-decoration: none; }
         <label class="f">Web app URL<input name="sheetsUrl" value="${esc(st.sheetsUrl)}" placeholder="https://script.google.com/macros/s/…/exec"></label>
         <label class="f">Secret<input type="password" name="sheetsSecret" value="${esc(st.sheetsSecret)}"><span class="hint">Shown in the Apps Script log after running setup.</span></label>
       </div>
+      ${(() => { let info = null; try { info = JSON.parse(lsGet('hindivine.admin.sheetInfo', 'null')); } catch (_) { info = null; } return info ? `<p class="hint" style="margin:0">Data spreadsheet in use: <a href="${esc(info.url)}" target="_blank" rel="noopener"><b>${esc(info.name)}</b></a></p>` : ''; })()}
+      <p class="hint" style="margin:0">Use the current sheet (default) or a new one: in Apps Script run <b>useNewSpreadsheet</b> to copy all data into a brand-new spreadsheet and use it from now on, or <b>useCurrentSheet</b> to go back. Missing tabs are created automatically.</p>
       <p class="hint" style="margin:0" id="last-sync">${connected() ? (last ? `Connected · last saved ${new Date(last).toLocaleString('en-IN')}` : 'Connected') : 'Not connected: data is only on this device'}</p>
       <div class="actions"><button class="btn primary" type="submit">Save settings</button></div>
     </form>
@@ -3777,6 +4093,9 @@ a.btn { text-decoration: none; }
     <form class="card" id="perm-form"><h2><span class="ic violet">${svg('<path d="M12 2l8 4v6c0 5-3.4 8.7-8 10-4.6-1.3-8-5-8-10V6z"/>')}</span>Roles & permissions</h2>
       <p class="hint" style="margin-top:0">Choose what Admin, Manager and Front Desk can open. Super Admin always has everything.</p>
       ${permTable}<div class="actions" style="margin-top:12px"><button type="button" class="btn ghost" data-act="perm-reset">Reset to default</button><button class="btn primary" type="submit">Save permissions</button></div></form>` : ''}
+    <div class="card"><h2><span class="ic">${svg('<path d="M12 4v16M4 12h16"/><rect x="3" y="3" width="18" height="18" rx="5"/>')}</span>Doctors & clinics</h2>
+      <p class="hint" style="margin-top:0">Choose these when booking an OPD appointment; they print on the OPD slip. Add, rename (✎) or remove (✕).</p>
+      <div class="list-block"><b>Doctors</b>${chips('doctors')}</div><div class="list-block"><b>Clinics / branches</b>${chips('clinics')}</div></div>
     <div class="card"><h2><span class="ic teal">${svg('<path d="M4 6h16M4 12h16M4 18h10"/>')}</span>Choice lists</h2>
       <p class="hint" style="margin-top:0">Every drop-down with “+ Add new…” uses these lists. Rename (✎) updates existing records; built-in expense categories can't be removed.</p>
       ${Object.keys(LIST_LABELS).map((k) => `<div class="list-block"><b>${LIST_LABELS[k]}</b>${chips(k)}</div>`).join('')}
@@ -3795,7 +4114,7 @@ a.btn { text-decoration: none; }
       const r1 = Number(f.r1.value) || 75; const r2 = Number(f.r2.value) || 90;
       const wasConnected = connected();
       admin.updateSettings({
-        clinic: f.clinic.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
+        clinic: f.clinic.value.trim(), clinicPhone: f.clinicPhone.value.trim(), clinicAddress: f.clinicAddress.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         incentive: { injection: Number(f.incInj.value) || 0, protein: Number(f.incPro.value) || 0 },
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
         sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
@@ -3888,10 +4207,19 @@ a.btn { text-decoration: none; }
   function showSheetState() { syncState(''); }
   async function call(method, payload) {
     const url = set().sheetsUrl;
-    const res = method === 'GET'
-      ? await fetch(`${url}${url.includes('?') ? '&' : '?'}action=load&secret=${encodeURIComponent(set().sheetsSecret)}`)
-      : await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) });
+    // A slow or dead connection must never block syncing: give up after 25 s (saves get longer).
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    const timer = ctl && setTimeout(() => ctl.abort(), method === 'GET' ? 25000 : 45000);
+    let res;
+    try {
+      res = method === 'GET'
+        ? await fetch(`${url}${url.includes('?') ? '&' : '?'}action=load&secret=${encodeURIComponent(set().sheetsSecret)}`, { signal: ctl && ctl.signal })
+        : await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload), signal: ctl && ctl.signal });
+    } catch (err) {
+      throw new Error(err && err.name === 'AbortError' ? 'Google Sheet is not answering (slow internet). Your data is safe on this device.' : 'No internet: your data is safe on this device.');
+    } finally { clearTimeout(timer); }
     const out = await res.json().catch(() => null);
+    if (out && out.sheetUrl) lsSet('hindivine.admin.sheetInfo', JSON.stringify({ name: out.sheetName, url: out.sheetUrl }));
     if (!out) throw new Error(`Google Sheet replied ${res.status}. Check the web app URL and that it is deployed for "Anyone".`);
     if (!out.ok && !out.conflict) throw new Error(out.error || 'Google Sheet refused the request');
     return out;
@@ -3909,6 +4237,7 @@ a.btn { text-decoration: none; }
   }
   function choose(title, message, keepLabel, useLabel) {
     return new Promise((resolve) => {
+      if (modal.open) modal.close();
       $('#modal-title').textContent = title;
       $('#modal-body').innerHTML = `<p style="margin:0">${esc(message)}</p>`;
       $('#modal-err').textContent = '';
@@ -4105,6 +4434,7 @@ a.btn { text-decoration: none; }
     pop.innerHTML = `<div class="rp-ic">⏰</div><div class="rp-main"><small>Follow-up reminder${l.followTime ? ` · ${time12(l.followTime)}` : ''}</small><b>${esc(l.name)}</b><span>${esc(l.interest || '')}${l.notes ? ` · ${esc(l.notes.slice(0, 60))}` : ''}</span>
       <div class="rp-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs" data-act="snooze" data-id="${l.id}" data-m="15">Snooze 15 min</button><button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></div></div>
       <button type="button" class="rp-x" data-act="pop-close" aria-label="Close">✕</button>`;
+    onTop(pop);
     pop.hidden = false;
     requestAnimationFrame(() => pop.classList.add('show'));
   }
@@ -4170,7 +4500,13 @@ a.btn { text-decoration: none; }
   const randomPin = () => String(Math.floor(100000 + Math.random() * 900000));
   const ACTIONS = {
     refresh: () => refreshNow(),
-    export: (d) => runExport(d.what, d.fmt),
+    export: (d) => (d.what === 'today' && !d.quick ? todayExportForm(d.fmt) : runExport(d.what, d.fmt)),
+    'rates-clear': async () => {
+      if (!(await confirmBox('Clear personal amounts', 'Remove every person + product amount? Product and personal rates stay.', 'Clear'))) return;
+      S().team.forEach((m) => { Object.keys(m.rates || {}).forEach((k) => admin.setRate(m.id, k, '')); });
+      render(); toast('Personal product amounts cleared');
+    },
+    'today-export-reset': () => { setPref('todayExport', TODAY_EXPORT_DEFAULT); todayExportForm(($('#modal-body .exp-fmt .on') || { dataset: { expfmt: 'pdf' } }).dataset.expfmt); },
     'user-menu': () => {
       openForm({
         title: me.name, submitLabel: false,
@@ -4269,11 +4605,15 @@ a.btn { text-decoration: none; }
       if (!a) return;
       const day = S().appointments.filter((x) => x.date === a.date && x.status !== 'cancelled').sort((x, y) => (x.time || '').localeCompare(y.time || '') || x.created - y.created);
       const p = S().patients.find((x) => x.id === a.patientId) || {};
+      const visits = S().appointments.filter((x) => x.patientId === a.patientId && x.status !== 'cancelled').sort((x, y) => (x.date + (x.time || '')).localeCompare(y.date + (y.time || '')));
       try {
         X.opdSlip(a, {
           clinic: set().clinic, token: day.findIndex((x) => x.id === a.id) + 1 || '', date: fdate(a.date), time: time12(a.time),
           mode: A.APPT_MODES[a.mode] || a.mode, status: A.APPT_STATUS[a.status] || a.status, fee: inr(a.fee),
           ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city || '',
+          doctor: a.doctor || '', branch: a.branch || '', address: set().clinicAddress || '', phone: set().clinicPhone || '',
+          visitNo: String(visits.findIndex((x) => x.id === a.id) + 1 || visits.length), since: visits[0] ? fdate(visits[0].date) : fdate(a.date),
+          slipNo: `OPD-${a.date.replace(/-/g, '').slice(2)}-${String(day.findIndex((x) => x.id === a.id) + 1).padStart(2, '0')}`,
         });
         toast('OPD slip ready');
       } catch (err) { console.error(err); toast(`Could not make the slip: ${err.message}`, true); }
@@ -4430,6 +4770,10 @@ a.btn { text-decoration: none; }
   view.addEventListener('change', (e) => {
     const t = e.target;
     if (t.value === '__new__') return;
+    if (t.matches('[data-rate-item]')) {
+      try { admin.setRate(t.dataset.rateMember, t.dataset.rateItem, t.value); t.classList.toggle('own', t.value !== '' && !!t.dataset.rateMember); toast(t.value === '' ? 'Back to default' : `Incentive ₹${t.value} saved`); } catch (err) { toast(err.message, true); }
+      return;
+    }
     if (t.dataset.pdate) { period[t.dataset.pdate] = t.value; render(); return; }
     if (t.matches('[data-apptdate]')) { apptDay = t.value || admin.today(); render(); return; }
     if (t.matches('[data-todaydate]')) { todayDate = t.value || admin.today(); render(); return; }
@@ -4684,6 +5028,12 @@ a.btn { text-decoration: none; }
  * 4. In the admin app: Settings → Google Sheet → paste the web app URL and the secret → Save.
  *
  * Edit data in the app, not in the sheets: each save rewrites the 15 sheets.
+ *
+ * Which spreadsheet holds the data:
+ *  - By default the current Hindivine sheet (SHEET_ID below, or the sheet this script is attached to).
+ *  - Run `useNewSpreadsheet` to create a brand-new spreadsheet, copy all app data into it and use it from now on
+ *    (its link is in the log). Run `useCurrentSheet` to go back. Missing tabs are always created automatically.
+ *  The app's Settings → Google Sheet shows which spreadsheet is in use.
  */
 const SHEET_ID = '1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y';
 const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
@@ -4693,13 +5043,44 @@ const CHUNK = 40000; // a cell holds up to 50,000 characters
 const NAVY = '#0a2f55';
 
 function book() {
-  return SpreadsheetApp.openById(SHEET_ID);
+  const id = PropertiesService.getScriptProperties().getProperty('DATA_SHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  let active = null;
+  try { active = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { active = null; }
+  return active || SpreadsheetApp.openById(SHEET_ID);
+}
+
+function ensureTabs(ss) {
+  SHEETS.forEach((name, i) => { if (!ss.getSheetByName(name)) ss.insertSheet(name, Math.min(i, ss.getSheets().length)); });
+  dataSheet(ss);
+}
+
+/** Create a new spreadsheet, copy all app data into it and store everything there from now on. */
+function useNewSpreadsheet() {
+  const from = book();
+  const d = readData(from);
+  const ss = SpreadsheetApp.create('Hindivine Admin Data ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'));
+  ensureTabs(ss);
+  const blank = ss.getSheetByName('Sheet1');
+  if (blank && ss.getSheets().length > 1) ss.deleteSheet(blank);
+  if (d.state) writeData(ss, d.state, 'Moved from ' + from.getName());
+  PropertiesService.getScriptProperties().setProperty('DATA_SHEET_ID', ss.getId());
+  Logger.log('Now using the new spreadsheet: ' + ss.getUrl() + '. The 15 readable tabs fill in on the next save from the app.');
+  return ss.getUrl();
+}
+
+/** Go back to the current Hindivine sheet (SHEET_ID / the sheet this script is attached to). */
+function useCurrentSheet() {
+  PropertiesService.getScriptProperties().deleteProperty('DATA_SHEET_ID');
+  const ss = book();
+  ensureTabs(ss);
+  Logger.log('Now using: ' + ss.getUrl());
+  return ss.getUrl();
 }
 
 function setup() {
   const ss = book();
-  SHEETS.forEach((name, i) => { if (!ss.getSheetByName(name)) ss.insertSheet(name, i); });
-  dataSheet(ss);
+  ensureTabs(ss);
   const blank = ss.getSheetByName('Sheet1');
   if (blank && blank.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(blank);
   const props = PropertiesService.getScriptProperties();
@@ -4771,8 +5152,9 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.action !== 'load') return json({ ok: true, app: 'hindivine-admin-sheets', sheets: SHEETS });
   if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
-  const d = readData(book());
-  return json({ ok: true, updated: d.updated, by: d.by, state: d.state });
+  const ss = book();
+  const d = readData(ss);
+  return json({ ok: true, updated: d.updated, by: d.by, state: d.state, sheetName: ss.getName(), sheetUrl: ss.getUrl() });
 }
 
 /**
@@ -4810,9 +5192,9 @@ function json(o) {
 
 ===== BEGIN FILE: admin/sw.js =====
 /* Offline cache for Hindivine Admin (installed web app). */
-const CACHE = 'hindivine-admin-v4';
+const CACHE = 'hindivine-admin-v5';
 const ASSETS = [
-  './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js',
+  './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js', 'vendor/fonts/PlusJakartaSans-latin.woff2',
   '../img/logo.jpg', '../img/icon-192.png', '../img/icon-512.png',
 ];
 
@@ -5634,7 +6016,7 @@ test('OPD appointments: fee ₹1000, clinic or online, revenue once paid', () =>
   assert.equal(a.dashboard(A.rangeFor('month', '2026-09-15')).sales.consultation, 1000);
   const rows = a.sheetsData().Appointments;
   assert.equal(rows.length, 3);
-  assert.deepEqual(rows[2].slice(0, 10), ['2026-09-15', '10:30', 'Ravi', '9811111111', 'Clinic visit', '', 1000, 'Paid', 'UPI', 'Completed']);
+  assert.deepEqual(rows[2].slice(0, 12), ['2026-09-15', '10:30', 'Ravi', '9811111111', 'Clinic visit', '', '', '', 1000, 'Paid', 'UPI', 'Completed']);
   assert.equal(a.state.patients.length, 2);
 });
 
@@ -5832,6 +6214,43 @@ test('Google Sheet store: shared data leaves device settings behind and loads ba
   assert.equal(b.state.settings.sheetsSecret, 's2');
   assert.deepEqual(seen, ['remote']);
   assert.throws(() => b.loadState({}), /not readable/);
+});
+
+test('product-wise incentive: person + product, product, person, default', () => {
+  const a = setup();
+  const pen = byName(a, 'Mounjaro 15mg'); const pen5 = byName(a, 'Mounjaro 5mg');
+  const m = a.saveMember({ name: 'Riya', incInjection: 1200 });
+  const n = a.saveMember({ name: 'Sam' });
+  a.adjustStock(pen.id, 10, 'count'); a.adjustStock(pen5.id, 10, 'count');
+  const sale = (who, it) => a.saveSale({ type: 'injection', patientName: `P${Math.random()}`, mobile: String(9000000000 + Math.floor(Math.random() * 99999)), itemId: it.id, amount: 10000, refId: who.id }).incentive;
+  assert.equal(sale(m, pen), 1200, 'personal rate');
+  assert.equal(sale(n, pen), 1000, 'default');
+  a.setRate('', pen.id, 1500);
+  assert.equal(sale(m, pen), 1500, 'product rate beats personal rate');
+  assert.equal(sale(n, pen5), 1000, 'other products unchanged');
+  a.setRate(n.id, pen.id, 1800);
+  assert.equal(sale(n, pen), 1800, 'person + product wins');
+  a.setRate(n.id, pen.id, '');
+  assert.equal(sale(n, pen), 1500, 'cleared back to product rate');
+  const plan = a.state.settings.dietPlans[0];
+  a.setRate(m.id, plan.id, 1300);
+  assert.equal(a.saveSale({ type: 'diet', patientName: 'D1', mobile: '9555500001', planId: plan.id, amount: 5000, refId: m.id }).incentive, 1300);
+  assert.throws(() => a.setRate(m.id, pen.id, -5), /negative/);
+});
+
+test('appointments keep doctor and clinic; lists grow and rename', () => {
+  const a = setup();
+  assert.ok(a.state.settings.lists.doctors.length >= 1);
+  const ap = a.saveAppointment({ patientName: 'Kiran', mobile: '9800011111', date: '2026-09-15', time: '10:00', mode: 'clinic', doctor: 'Dr. Mehta', branch: 'Salt Lake' });
+  assert.equal(ap.doctor, 'Dr. Mehta'); assert.equal(ap.branch, 'Salt Lake');
+  assert.ok(a.state.settings.lists.doctors.includes('Dr. Mehta'));
+  assert.ok(a.state.settings.lists.clinics.includes('Salt Lake'));
+  a.renameListItem('doctors', 'Dr. Mehta', 'Dr. R. Mehta');
+  assert.equal(a.appointment(ap.id).doctor, 'Dr. R. Mehta');
+  a.removeListItem('clinics', 'Salt Lake');
+  assert.ok(!a.state.settings.lists.clinics.includes('Salt Lake'));
+  const rows = a.sheetsData().Appointments;
+  assert.equal(rows[0][6], 'Doctor'); assert.equal(rows[1][6], 'Dr. R. Mehta');
 });
 ===== END FILE: tests/admin.test.js =====
 

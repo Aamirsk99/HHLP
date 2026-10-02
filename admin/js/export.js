@@ -152,64 +152,110 @@
     return fname;
   }
 
-  /** OPD slip (A4): clinic header, token, patient and visit details, fee, notes / Rx space, signature. */
+  /** OPD slip (A4): clinic header, token, patient and visit details, doctor, clinic, payment, vitals, Rx space, signature. */
   function opdSlip(a, info) {
     const { jsPDF } = root.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
-    const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 14;
-    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 34, 'F');
-    doc.setFillColor(...BRAND); doc.rect(0, 34, W, 1.6, 'F');
-    doc.setFillColor(255, 255, 255); doc.roundedRect(M, 7, 56, 20, 3, 3, 'F');
-    try { doc.addImage(LOGO, 'JPEG', M + 2, 8, 52, 17.8); } catch (_) { /* optional */ }
-    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(20); doc.text('OPD SLIP', W - M, 17, { align: 'right' });
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.text(pdfText(info.clinic), W - M, 24, { align: 'right' });
-    doc.setFontSize(8.5); doc.text('www.hindivine.com', W - M, 29.5, { align: 'right' });
-    // Token + date strip
+    const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 12;
+    const clinicName = info.branch || info.clinic;
+    // Header
+    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 36, 'F');
+    doc.setFillColor(...BRAND); doc.rect(0, 36, W, 1.4, 'F');
+    doc.setFillColor(217, 154, 30); doc.rect(0, 37.4, W, 0.6, 'F');
+    doc.setFillColor(255, 255, 255); doc.roundedRect(M, 7, 58, 21, 3, 3, 'F');
+    try { doc.addImage(LOGO, 'JPEG', M + 2, 8.6, 54, 18.4); } catch (_) { /* optional */ }
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(19); doc.text('OPD SLIP', W - M, 14, { align: 'right' });
+    doc.setFontSize(10.5); doc.text(pdfText(clinicName), W - M, 21, { align: 'right' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2);
+    const contact = [info.address, info.phone ? `Phone ${info.phone}` : ''].filter(Boolean);
+    contact.forEach((t, i) => doc.text(pdfText(t), W - M, 26 + i * 4.3, { align: 'right', maxWidth: 110 }));
+    if (!contact.length) doc.text('www.hindivine.com', W - M, 26.5, { align: 'right' });
+    // Token strip
     let y = 44;
-    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 20, 3, 3, 'F');
-    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 40, 20, 3, 3, 'F');
-    doc.setTextColor(255, 255, 255); doc.setFontSize(8); doc.text('TOKEN NO.', M + 20, y + 6.5, { align: 'center' });
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(String(info.token || '-'), M + 20, y + 15.5, { align: 'center' });
-    const cell = (x, label, value) => {
-      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.8); doc.setTextColor(...MUTED); doc.text(label, x, y + 7);
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...INK); doc.text(pdfText(value), x, y + 14.5);
-    };
-    cell(M + 47, 'DATE', info.date); cell(M + 92, 'TIME', info.time || 'Walk-in'); cell(M + 128, 'VISIT', info.mode);
-    y += 28;
-    // Patient box
-    const box = (title, rows) => {
-      doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 7, 1, 1, 'F');
-      doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY); doc.text(title, M + 5, y + 5.2);
-      y += 9;
-      doc.setDrawColor(226, 233, 241); doc.setLineWidth(0.3);
+    doc.setFillColor(...ZEBRA); doc.roundedRect(M, y, W - 2 * M, 19, 3, 3, 'F');
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 34, 19, 3, 3, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.text('TOKEN NO.', M + 17, y + 6, { align: 'center' });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(18); doc.text(String(info.token || '-'), M + 17, y + 15, { align: 'center' });
+    const strip = [['DATE', info.date], ['TIME', info.time || 'Walk-in'], ['VISIT', info.mode], ['SLIP NO.', info.slipNo || '-']];
+    const sw = (W - 2 * M - 38) / strip.length;
+    strip.forEach(([l, v], i) => {
+      const x = M + 40 + i * sw;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(...MUTED); doc.text(l, x, y + 6.5);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(...INK); doc.text(pdfText(v), x, y + 13.5, { maxWidth: sw - 3 });
+    });
+    y += 25;
+    // Two panels: patient | visit
+    const colW = (W - 2 * M - 6) / 2;
+    const panel = (x, title, rows) => {
+      let yy = y;
+      doc.setFillColor(...BRAND); doc.roundedRect(x, yy, 2.2, 6.5, 1, 1, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text(title, x + 5, yy + 5);
+      yy += 9;
+      const top = yy;
       rows.forEach(([k, v], i) => {
-        if (i % 2 === 0) { doc.setFillColor(246, 249, 252); doc.rect(M, y, W - 2 * M, 8.5, 'F'); }
-        doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(...MUTED); doc.text(k, M + 3, y + 5.6);
-        doc.setFont('helvetica', 'bold'); doc.setTextColor(...INK); doc.text(pdfText(v || '-'), M + 52, y + 5.6, { maxWidth: W - 2 * M - 55 });
-        y += 8.5;
+        if (i % 2 === 0) { doc.setFillColor(246, 249, 252); doc.rect(x, yy, colW, 8.6, 'F'); }
+        doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(...MUTED); doc.text(k, x + 2.5, yy + 5.6);
+        doc.setFont('helvetica', 'bold'); doc.setFontSize(9.2); doc.setTextColor(...INK);
+        const t = doc.splitTextToSize(pdfText(v || '-'), colW - 36);
+        doc.text(t[0] + (t.length > 1 ? '...' : ''), x + 34, yy + 5.6);
+        yy += 8.6;
       });
-      y += 6;
+      doc.setDrawColor(222, 230, 240); doc.setLineWidth(0.3); doc.roundedRect(x, top, colW, yy - top, 1.5, 1.5);
+      return yy;
     };
-    box('Patient details', [['Patient name', a.patientName], ['Mobile', a.mobile], ['Age / Gender', info.ageGender], ['City', info.city]]);
-    box('Visit details', [['Treatment / service', a.service || 'Consultation'], ['Consultation mode', info.mode], ['Status', info.status], ...(a.link ? [['Online meeting link', a.link]] : []), ['Booked by', a.by || '']]);
-    box('Payment', [['Consultation fee', info.fee], ['Payment status', a.paid ? `Paid${a.payMethod ? ` (${a.payMethod})` : ''}` : 'Unpaid'], ['Notes', a.notes]]);
-    // Vitals + Rx
-    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 7, 1, 1, 'F');
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(11.5); doc.setTextColor(...NAVY); doc.text('Doctor / dietitian notes', M + 5, y + 5.2);
-    y += 10;
-    const vit = ['Weight (kg)', 'Height (cm)', 'BMI', 'BP', 'Sugar'];
-    const vw = (W - 2 * M) / vit.length;
-    vit.forEach((v, i) => { doc.setDrawColor(210, 220, 232); doc.roundedRect(M + i * vw + 1, y, vw - 2, 13, 2, 2); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text(v, M + i * vw + 4, y + 4.5); });
+    const y1 = panel(M, 'Patient details', [['Patient name', a.patientName], ['Mobile', a.mobile], ['Age / Gender', info.ageGender], ['City', info.city],
+      ['Patient visit no.', info.visitNo], ['Patient since', info.since]]);
+    const y2 = panel(M + colW + 6, 'Visit details', [['Doctor', info.doctor], ['Clinic / branch', clinicName], ['Treatment', a.service || 'Consultation'],
+      ['Visit type', info.mode], ['Status', info.status], ['Booked by', a.by || '']]);
+    y = Math.max(y1, y2) + 6;
+    // Payment strip
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 6.5, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text('Payment', M + 5, y + 5);
+    y += 9;
+    const paid = !!a.paid;
+    const pay = [['Consultation fee', info.fee], ['Payment status', paid ? 'PAID' : 'UNPAID'], ['Payment method', paid ? (a.payMethod || 'Cash') : '-']];
+    const pw = (W - 2 * M) / pay.length;
+    pay.forEach(([l, v], i) => {
+      const x = M + i * pw;
+      if (i === 1) doc.setFillColor(...(paid ? [228, 245, 237] : [253, 236, 234])); else doc.setFillColor(246, 249, 252);
+      doc.roundedRect(x + (i ? 1.5 : 0), y, pw - 1.5, 13, 2, 2, 'F');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(...MUTED); doc.text(l, x + 4, y + 5);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11);
+      if (i === 1) doc.setTextColor(...(paid ? [20, 138, 94] : RED)); else doc.setTextColor(...INK);
+      doc.text(pdfText(v), x + 4, y + 10.6);
+    });
     y += 18;
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...BRAND); doc.text('Rx', M, y + 6);
-    doc.setDrawColor(226, 233, 241);
-    for (let ly = y + 12; ly < H - 42; ly += 9) doc.line(M, ly, W - M, ly);
-    // Signature + footer
-    doc.setDrawColor(...MUTED); doc.line(W - M - 60, H - 30, W - M, H - 30);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.5); doc.setTextColor(...MUTED); doc.text('Doctor / dietitian signature', W - M - 30, H - 25, { align: 'center' });
-    doc.setFillColor(242, 246, 250); doc.rect(0, H - 14, W, 14, 'F');
-    doc.setFontSize(7.5); doc.text(pdfText(`${info.clinic} · Slip generated ${nowText()}`), M, H - 6);
-    doc.text('Developed by Aamir Sk · Hindivine Digital Marketing Team', W - M, H - 6, { align: 'right' });
+    if (a.link || a.notes) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6); doc.setTextColor(...INK);
+      const lines = [a.notes ? `Notes / complaint: ${a.notes}` : '', a.link ? `Online meeting link: ${a.link}` : ''].filter(Boolean);
+      lines.forEach((t) => { const l = doc.splitTextToSize(pdfText(t), W - 2 * M).slice(0, 2); doc.text(l, M, y + 3); y += l.length * 4.2 + 1.5; });
+      y += 2;
+    }
+    // Vitals
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, 6.5, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(...NAVY); doc.text('Vitals', M + 5, y + 5);
+    y += 9;
+    const vit = ['Weight (kg)', 'Height (cm)', 'BMI', 'BP', 'Pulse', 'Sugar'];
+    const vw = (W - 2 * M) / vit.length;
+    vit.forEach((v, i) => { doc.setDrawColor(210, 220, 232); doc.roundedRect(M + i * vw + (i ? 1 : 0), y, vw - 1, 13, 2, 2); doc.setFont('helvetica', 'normal'); doc.setFontSize(7.4); doc.setTextColor(...MUTED); doc.text(v, M + i * vw + 3.5, y + 4.5); });
+    y += 19;
+    // Rx
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(22); doc.setTextColor(...BRAND); doc.text('Rx', M, y + 5);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MUTED); doc.text('Advice / diet / medicines', M + 13, y + 5);
+    doc.setDrawColor(228, 235, 243); doc.setLineWidth(0.25);
+    for (let ly = y + 13; ly < H - 40; ly += 8.5) doc.line(M, ly, W - M, ly);
+    // Next visit + signature
+    doc.setDrawColor(...MUTED); doc.setLineWidth(0.3);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6); doc.setTextColor(...MUTED);
+    doc.text('Next visit:', M, H - 27); doc.line(M + 16, H - 27, M + 70, H - 27);
+    doc.line(W - M - 62, H - 29, W - M, H - 29);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(...INK); doc.text(pdfText(info.doctor || 'Doctor / dietitian'), W - M - 31, H - 24, { align: 'center' });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(...MUTED); doc.text('Signature', W - M - 31, H - 20, { align: 'center' });
+    // Footer: clinic details only
+    doc.setFillColor(...NAVY); doc.rect(0, H - 12, W, 12, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFontSize(7.8);
+    doc.text(pdfText([clinicName, info.phone, info.address].filter(Boolean).join('  |  ')), M, H - 5, { maxWidth: W - 2 * M - 50 });
+    doc.text(pdfText(`Printed ${nowText()}`), W - M, H - 5, { align: 'right' });
     const fname = `OPD-Slip-${String(a.patientName).replace(/[^A-Za-z0-9]+/g, '-')}-${a.date}.pdf`;
     const b64 = doc.output('datauristring').split(',')[1];
     save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));

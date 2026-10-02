@@ -13,6 +13,12 @@
  * 4. In the admin app: Settings → Google Sheet → paste the web app URL and the secret → Save.
  *
  * Edit data in the app, not in the sheets: each save rewrites the 15 sheets.
+ *
+ * Which spreadsheet holds the data:
+ *  - By default the current Hindivine sheet (SHEET_ID below, or the sheet this script is attached to).
+ *  - Run `useNewSpreadsheet` to create a brand-new spreadsheet, copy all app data into it and use it from now on
+ *    (its link is in the log). Run `useCurrentSheet` to go back. Missing tabs are always created automatically.
+ *  The app's Settings → Google Sheet shows which spreadsheet is in use.
  */
 const SHEET_ID = '1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y';
 const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
@@ -22,13 +28,44 @@ const CHUNK = 40000; // a cell holds up to 50,000 characters
 const NAVY = '#0a2f55';
 
 function book() {
-  return SpreadsheetApp.openById(SHEET_ID);
+  const id = PropertiesService.getScriptProperties().getProperty('DATA_SHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  let active = null;
+  try { active = SpreadsheetApp.getActiveSpreadsheet(); } catch (e) { active = null; }
+  return active || SpreadsheetApp.openById(SHEET_ID);
+}
+
+function ensureTabs(ss) {
+  SHEETS.forEach((name, i) => { if (!ss.getSheetByName(name)) ss.insertSheet(name, Math.min(i, ss.getSheets().length)); });
+  dataSheet(ss);
+}
+
+/** Create a new spreadsheet, copy all app data into it and store everything there from now on. */
+function useNewSpreadsheet() {
+  const from = book();
+  const d = readData(from);
+  const ss = SpreadsheetApp.create('Hindivine Admin Data ' + Utilities.formatDate(new Date(), Session.getScriptTimeZone(), 'yyyy-MM-dd'));
+  ensureTabs(ss);
+  const blank = ss.getSheetByName('Sheet1');
+  if (blank && ss.getSheets().length > 1) ss.deleteSheet(blank);
+  if (d.state) writeData(ss, d.state, 'Moved from ' + from.getName());
+  PropertiesService.getScriptProperties().setProperty('DATA_SHEET_ID', ss.getId());
+  Logger.log('Now using the new spreadsheet: ' + ss.getUrl() + '. The 15 readable tabs fill in on the next save from the app.');
+  return ss.getUrl();
+}
+
+/** Go back to the current Hindivine sheet (SHEET_ID / the sheet this script is attached to). */
+function useCurrentSheet() {
+  PropertiesService.getScriptProperties().deleteProperty('DATA_SHEET_ID');
+  const ss = book();
+  ensureTabs(ss);
+  Logger.log('Now using: ' + ss.getUrl());
+  return ss.getUrl();
 }
 
 function setup() {
   const ss = book();
-  SHEETS.forEach((name, i) => { if (!ss.getSheetByName(name)) ss.insertSheet(name, i); });
-  dataSheet(ss);
+  ensureTabs(ss);
   const blank = ss.getSheetByName('Sheet1');
   if (blank && blank.getLastRow() === 0 && ss.getSheets().length > 1) ss.deleteSheet(blank);
   const props = PropertiesService.getScriptProperties();
@@ -100,8 +137,9 @@ function doGet(e) {
   const p = (e && e.parameter) || {};
   if (p.action !== 'load') return json({ ok: true, app: 'hindivine-admin-sheets', sheets: SHEETS });
   if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
-  const d = readData(book());
-  return json({ ok: true, updated: d.updated, by: d.by, state: d.state });
+  const ss = book();
+  const d = readData(ss);
+  return json({ ok: true, updated: d.updated, by: d.by, state: d.state, sheetName: ss.getName(), sheetUrl: ss.getUrl() });
 }
 
 /**

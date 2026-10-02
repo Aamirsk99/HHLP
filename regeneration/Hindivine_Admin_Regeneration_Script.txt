@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.1)
+ HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.2)
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
  Hindivine Healthcare Pvt. Ltd. · www.hindivine.com
 ================================================================================
@@ -14,7 +14,7 @@ from scratch by a developer or by an AI coding assistant. It has three parts:
           rule, every screen, exports, Google Sheet storage, Android build.
   PART C  Step-by-step rebuild and release checklist.
 
-The exact source code of version 3.1 is in the companion file
+The exact source code of version 3.2 is in the companion file
 "Hindivine_Admin_Full_Source.txt" (every file, with an unpack script). If you
 want an identical app, use that file. If you want to regenerate or extend the
 app, use this file.
@@ -330,7 +330,7 @@ Reports, Admin.
     Roles & permissions matrix (Super Admin only); Choice lists (chips with
     rename/remove + add) incl. inventory categories; Backup (export/import
     JSON), All reports, Erase all data (Super Admin).
-20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1) and credits.
+20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2) and credits.
 Every drop-down backed by a list ends with "+ Add new…" which shows an
 inline input and saves the new option for everyone.
 Period options everywhere: Today, This month (auto), Choose month, Last
@@ -423,6 +423,40 @@ B15. VERSION 3.1 ADDITIONS
 * PDF: big header on page 1, slim header on the next pages, tinted KPI
   tiles, section bars with record counts, red/green status cells, totals,
   two-line footer (generated time and person, credit, page x of y).
+
+B16. VERSION 3.2 ADDITIONS
+--------------------------
+* Today Summary export dialog (PDF / JPEG / Excel): parts to include (summary
+  boxes, sales, sales by reference, order required, OPD, purchases, stock
+  available / not available), extra sales columns (mobile, qty, incentive)
+  and filters (sale type, reference, new / renewal). Default = sales only
+  with Patient, Product, Amount, Type (New / Renewal), Reference. Choices are
+  remembered per device (prefs.todayExport); "Reset to default".
+* Product-wise incentive (Incentives screen): matrix of products (injections,
+  protein, diet plans) x Everyone + each team member; typing saves at once
+  (setRate(memberId|'', itemId|planId, value)). Member overrides are stored
+  in member.rates{}. Per-unit rate order: person+product -> product ->
+  person's own rate -> default.
+* Doctors and clinics: lists.doctors and lists.clinics (add / rename /
+  remove in Settings -> Doctors & clinics, "+ Add new" in the form);
+  appointment.doctor and appointment.branch; the last choice is remembered.
+  Settings also hold clinicAddress and clinicPhone.
+* OPD slip: header with clinic/branch, address, phone; strip with token,
+  date, time, visit, slip no. (OPD-yymmdd-NN); two panels (patient: name,
+  mobile, age/gender, city, visit no., patient since | visit: doctor,
+  clinic, treatment, type, status, booked by); payment boxes (fee, PAID /
+  UNPAID, method); notes; vitals (weight, height, BMI, BP, pulse, sugar);
+  Rx lines; next visit; doctor signature; footer with clinic details only
+  (no developer line).
+* Themes: + Black & Gold (dark) and Rose Gold; gold hairlines; Plus Jakarta
+  Sans font bundled in admin/vendor/fonts.
+* Pop-ups: a dialog can replace an open one; toasts and the reminder card
+  move into the open dialog so they are never hidden; info sheets close on
+  a tap outside; phones do not auto-focus inputs (no keyboard jump).
+* Google Sheet: Code.gs uses DATA_SHEET_ID (script property) -> the bound
+  sheet -> SHEET_ID; useNewSpreadsheet() copies the data into a new
+  spreadsheet, useCurrentSheet() goes back; load returns sheetName/sheetUrl
+  and Settings shows it. Requests time out after 25 s (save 45 s).
 
 B14. TESTS (node --test tests/*.test.js)
 ----------------------------------------

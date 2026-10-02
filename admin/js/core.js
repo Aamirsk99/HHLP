@@ -25,6 +25,8 @@
     leadSources: ['Instagram', 'Facebook', 'Google', 'Website', 'WhatsApp', 'Walk-in', 'Referral', 'Phone call', 'Other'],
     leadStatuses: ['New', 'Contacted', 'Interested', 'Follow-up', 'Appointment booked', 'Converted', 'Not interested', 'Lost'],
     payMethods: ['Cash', 'UPI', 'Card', 'Bank transfer'],
+    doctors: ['Consulting Doctor'],
+    clinics: ['Hindivine Healthcare'],
     designations: ['Doctor', 'Dietitian', 'Counsellor', 'Front Desk', 'Manager', 'Nurse', 'Pharmacist'],
   };
   // Built-in expense categories the app books by itself; they can't be removed.
@@ -65,6 +67,7 @@
       version: 1,
       settings: {
         clinic: 'Hindivine Healthcare',
+        clinicAddress: '', clinicPhone: '',
         incentive: { injection: 1000, protein: 500 },
         dietPlans: [
           { id: 'd1', name: '1 Month', months: 1, price: 0, incentive: 1000, disabled: false },
@@ -253,11 +256,33 @@
       save();
     }
     /** Incentive rate for one person: their own rate, else the product's, else the clinic default. */
+    // Incentive per unit: this person for this product → this product → this person's rate → the default.
     function rateFor(m, type, it) {
+      const pp = m && it && m.rates ? m.rates[it.id] : null;
+      if (pp != null) return pp;
+      if (it && it.incentive != null) return it.incentive;
       const own = m && (type === 'injection' ? m.incInjection : type === 'protein' ? m.incProtein : null);
       if (own != null) return own;
-      if (it && it.incentive != null) return it.incentive;
       return S.settings.incentive[type] || 0;
+    }
+    /** Product-wise incentive: memberId '' sets the product's rate for everyone; value '' clears it. */
+    function setRate(memberId, itemId, value) {
+      const v = numOrNull(value);
+      if (v != null && v < 0) fail('Incentive cannot be negative');
+      const plan = S.settings.dietPlans.find((p) => p.id === itemId);
+      const it = item(itemId);
+      if (!plan && !it) fail('Product not found');
+      if (!memberId) {
+        if (plan) plan.incentive = v == null ? 0 : v; else it.incentive = v;
+        log('Incentive changed', `${(plan || it).name}: ${v == null ? 'default' : `₹${v}`}`);
+      } else {
+        const m = member(memberId);
+        if (!m) fail('Team member not found');
+        m.rates = m.rates || {};
+        if (v == null) delete m.rates[itemId]; else m.rates[itemId] = v;
+        log('Incentive changed', `${m.name} · ${(plan || it).name}: ${v == null ? 'default' : `₹${v}`}`);
+      }
+      save();
     }
 
     // Items, categories, stock
@@ -402,7 +427,8 @@
       const units = input.type === 'injection' ? (Number(input.qty) || 1) : 1;
       const plan = input.type === 'diet' ? S.settings.dietPlans.find((p) => p.id === input.planId) : null;
       const it = input.type === 'diet' ? null : item(input.itemId);
-      const bases = refs.map((r) => (input.type === 'diet' ? (plan ? Number(plan.incentive) || 0 : 0) : rateFor(member(r.memberId), input.type, it) * units));
+      const planRate = (m) => { const own = plan && m && m.rates ? m.rates[plan.id] : null; return own != null ? own : plan ? Number(plan.incentive) || 0 : 0; };
+      const bases = refs.map((r) => (input.type === 'diet' ? planRate(member(r.memberId)) : rateFor(member(r.memberId), input.type, it) * units));
       const same = bases.every((b) => b === bases[0]);
       // Same rate for everyone: split exactly (remainder to the first); otherwise each gets rate × share.
       const parts = same ? splitIncentive(bases[0], refs) : refs.map((r, i) => ({ memberId: r.memberId, pct: r.pct, amount: Math.round(bases[i] * r.pct / 100) }));
@@ -577,12 +603,15 @@
         date: input.date, time: input.time || '', patientId: patient.id, patientName: patient.name, mobile: patient.mobile,
         mode: input.mode, fee, link: String(input.link || '').trim(), notes: String(input.notes || '').trim(),
         service: String(input.service || '').trim(),
+        doctor: String(input.doctor || '').trim(), branch: String(input.branch || '').trim(),
       });
       ['status', 'paid', 'payMethod', 'by', 'leadId'].forEach((k) => { if (k in input) a[k] = input[k]; });
       if (!APPT_STATUS[a.status]) a.status = 'booked';
       a.paid = !!a.paid;
       if (a.service && !S.settings.lists.services.includes(a.service)) S.settings.lists.services.push(a.service);
-      log(input.id ? 'Appointment updated' : 'Appointment booked', `${a.patientName} · ${a.date} ${a.time}${a.service ? ` · ${a.service}` : ''}`);
+      if (a.doctor && !S.settings.lists.doctors.includes(a.doctor)) S.settings.lists.doctors.push(a.doctor);
+      if (a.branch && !S.settings.lists.clinics.includes(a.branch)) S.settings.lists.clinics.push(a.branch);
+      log(input.id ? 'Appointment updated' : 'Appointment booked', `${a.patientName} · ${a.date} ${a.time}${a.service ? ` · ${a.service}` : ''}${a.doctor ? ` · ${a.doctor}` : ''}`);
       save();
       return a;
     }
@@ -676,6 +705,8 @@
       if (list === 'expenseCategories') S.expenses.forEach((e) => { if (e.category === oldName) e.category = n; });
       if (list === 'leadSources') S.leads.forEach((x) => { if (x.source === oldName) x.source = n; });
       if (list === 'leadStatuses') S.leads.forEach((x) => { if (x.status === oldName) x.status = n; });
+      if (list === 'doctors') S.appointments.forEach((x) => { if (x.doctor === oldName) x.doctor = n; });
+      if (list === 'clinics') S.appointments.forEach((x) => { if (x.branch === oldName) x.branch = n; });
       if (list === 'services') { S.appointments.forEach((x) => { if (x.service === oldName) x.service = n; }); S.leads.forEach((x) => { if (x.interest === oldName) x.interest = n; }); }
       log('Option renamed', `${list}: ${oldName} → ${n}`);
       save();
@@ -997,8 +1028,8 @@
         ['Low Stock Alerts', db.stock.low.map((l) => `${l.item.name} (${l.stock})`).join(', '), ''],
         ['Updated', new Date(clock ? clock() : Date.now()).toISOString(), ''],
       ];
-      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Service', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
-      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], a.service || '', a.fee,
+      out.Appointments = [['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Service', 'Doctor', 'Clinic', 'Fee', 'Payment', 'Payment Method', 'Status', 'Online Link', 'Notes']];
+      appointmentsIn(null).forEach((a) => out.Appointments.push([a.date, a.time, a.patientName, a.mobile, APPT_MODES[a.mode], a.service || '', a.doctor || '', a.branch || '', a.fee,
         a.paid ? 'Paid' : 'Unpaid', a.payMethod || '', APPT_STATUS[a.status], a.link || '', a.notes || '']));
       const accName = (id) => (account(id) || {}).name || '';
       out.Leads = [['Date', 'Name', 'Mobile', 'Alt Mobile', 'Age', 'Gender', 'City', 'Source', 'Interested In', 'Priority', 'Status', 'Assigned To', 'Next Follow-up', 'Weight (kg)', 'Target (kg)', 'Height (cm)', 'Budget', 'Last Note', 'Added By']];
@@ -1030,10 +1061,11 @@
       out.Inventory = [['Category', 'Item', 'Opening Stock', 'Purchased Stock', 'Sold Stock', 'Used (injection kit)', 'Adjusted', 'Available Stock', 'Low Stock At', 'Status', 'Order Required']];
       stockReport(null).forEach((r) => out.Inventory.push([r.category, r.name, r.opening, r.purchased, r.sold, r.used, r.adjusted, r.current, r.lowAt,
         r.disabled ? 'Disabled' : r.alertOff || S.settings.stockAlerts === false ? 'Alert off' : r.current <= r.lowAt ? 'LOW' : 'OK', r.orderAt != null && r.current < r.orderAt ? 'ORDER REQUIRED' : '']));
-      out.Team = [['Name', 'Designation', 'Mobile', 'Salary', 'Incentive Status', 'Injection Incentive', 'Protein Incentive', 'Pay Counts', 'Joining Date', 'Status']];
+      out.Team = [['Name', 'Designation', 'Mobile', 'Salary', 'Incentive Status', 'Injection Incentive', 'Protein Incentive', 'Product-wise Incentive', 'Pay Counts', 'Joining Date', 'Status']];
       const PAY = { both: 'Salary + Incentive', salary: 'Salary only', incentive: 'Incentive only' };
       S.team.forEach((m) => out.Team.push([m.name, m.designation || '', m.mobile || '', m.salary, m.incentiveOn === false ? 'Off' : 'On',
-        rateFor(m, 'injection', null), rateFor(m, 'protein', null), PAY[m.payMode || 'both'], m.joiningDate || '', m.disabled ? 'Disabled' : 'Active']));
+        rateFor(m, 'injection', null), rateFor(m, 'protein', null),
+        Object.entries(m.rates || {}).map(([k, v]) => `${(item(k) || S.settings.dietPlans.find((p) => p.id === k) || { name: k }).name} ₹${v}`).join(', '), PAY[m.payMode || 'both'], m.joiningDate || '', m.disabled ? 'Disabled' : 'Active']));
       out.Incentives = [['Date', 'Team Member', 'Sale Type', 'Patient', 'Product', 'Share %', 'Incentive']];
       incentiveLedger(null).reverse().forEach((l) => out.Incentives.push([l.date, l.name, SALE_TYPES[l.type], l.patient, l.product, l.pct, l.amount]));
       out.Salary = [['Month', 'Name', 'Designation', 'Salary', 'Incentive', 'Total Pay', 'Booked as Expense']];
@@ -1117,7 +1149,7 @@
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
       account, saveAccount, setAccountPin, deleteAccount, setActor,
-      addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
+      addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
