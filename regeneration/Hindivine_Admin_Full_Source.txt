@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN 3.9 — COMPLETE SOURCE CODE
+ HINDIVINE ADMIN 4.0 — COMPLETE SOURCE CODE
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
 ================================================================================
 
@@ -28,7 +28,7 @@ Then:
   3. chmod +x android/build.sh
   4. npm test                      (unit tests, Node 18+)
   5. npx serve .   → open /admin/  (try it in a browser)
-  6. APP=admin VERSION_CODE=13 VERSION_NAME=3.9 ./android/build.sh
+  6. APP=admin VERSION_CODE=14 VERSION_NAME=4.0 ./android/build.sh
                                    (Android APK → dist/HindivineAdmin.apk)
 See "Hindivine_Admin_Regeneration_Script.txt" for the full explanation.
 
@@ -1050,6 +1050,12 @@ td b { font-variant-numeric: tabular-nums; }
 @keyframes toast-in { from { transform: translateX(-50%) translateY(18px) scale(.96); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ripple { display: none; } }
 .inv-btn { margin-left: 6px; min-height: 26px; padding: 0 8px; }
+.btn.wa { background: linear-gradient(135deg, #1fa855, #25d366); border-color: transparent; color: #fff; box-shadow: 0 6px 16px -6px rgba(37, 211, 102, .55); }
+.btn.wa .wa-ic { width: 18px; height: 18px; }
+.iv-preview { display: flex; flex-direction: column; gap: 2px; justify-content: center; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1.5px dashed color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.iv-preview span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.iv-preview b { font-size: 16px; color: var(--text); }
+.iv-preview small { color: var(--muted); }
 ===== END FILE: admin/css/admin.css =====
 
 ===== BEGIN FILE: admin/js/config.js =====
@@ -1134,7 +1140,8 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       settings: {
         clinic: 'Hindivine Healthcare',
         clinicAddress: '', clinicPhone: '', clinicEmail: '',
-        invoicePrefix: 'HV', // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
+        invoicePrefix: 'HV',
+        invoiceItemName: 'Weight Loss Program', // what purchase invoices call the item (instead of the product name) // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
         legalNote: DEFAULT_LEGAL_NOTE, // terms printed on invoices
         docNote: 'This is a computer-generated document and does not require a signature. Confidential: for clinic use only.', // on reports and slips
         incentive: { injection: 1000, protein: 500 },
@@ -1572,7 +1579,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
         itemId: type === 'diet' ? null : input.itemId, planId: type === 'diet' ? input.planId : null,
         product, qty, amount,
         refId: input.refId, sharedId: refs[1] ? refs[1].memberId : '', sharePct: refs[1] ? refs[1].pct : 0,
-        dietitianId: input.dietitianId || '', notes: String(input.notes || '').trim(), payMethod: String(input.payMethod || '').trim(),
+        dietitianId: input.dietitianId || '', notes: String(input.notes || '').trim(), payMethod: String(input.payMethod || '').trim(), programMonths: Number(input.programMonths) > 0 ? Number(input.programMonths) : (existingMonths(id) || ''),
         incentive: sum(splits, (x) => x.amount), splits, created: Date.now(),
       };
     }
@@ -1781,6 +1788,17 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
      * Invoice number for a sale or an OPD appointment, given once and kept: PREFIX/INV/26-27/0001.
      * The next number is one more than the highest already used (so numbers survive syncing).
      */
+    /** What a purchase invoice shows: description (default "Weight Loss Program") and program months, kept on the sale. */
+    const existingMonths = (id) => { const x = S.sales.find((y) => y.id === id); return x ? x.programMonths : ''; };
+    function setInvoiceInfo(id, info) {
+      const rec = S.sales.find((x) => x.id === id);
+      if (!rec) fail('Sale not found');
+      rec.invoiceDesc = String(info.desc || '').trim();
+      const m = Number(info.months);
+      rec.programMonths = m > 0 ? Math.round(m * 10) / 10 : '';
+      save();
+      return rec;
+    }
     function invoiceFor(kind, id) {
       const rec = kind === 'opd' ? appointment(id) : S.sales.find((x) => x.id === id);
       if (!rec) fail('Record not found');
@@ -2266,7 +2284,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
-      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor,
+      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,
@@ -2368,6 +2386,25 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     a.download = filename;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
+  }
+  // Save the file, or share it (WhatsApp on Android; the phone's share sheet in a browser).
+  async function share(fname, mime, b64, o) {
+    if (root.AndroidBridge && root.AndroidBridge.shareFile) { root.AndroidBridge.shareFile(fname, mime, b64, o.phone || '', o.text || ''); return 'shared'; }
+    const blob = b64ToBlob(b64, mime);
+    try {
+      const file = new File([blob], fname, { type: mime });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: o.text || '' }); return 'shared'; }
+    } catch (err) { if (err && err.name === 'AbortError') return 'cancelled'; }
+    // No file sharing here: save the PDF and open WhatsApp with the message so it can be attached.
+    save(fname, mime, b64, blob);
+    const d = String(o.phone || '').replace(/\D/g, '').slice(-10);
+    root.open(`https://wa.me/${d ? `91${d}` : ''}?text=${encodeURIComponent(o.text || '')}`, '_blank');
+    return 'saved';
+  }
+  function deliver(fname, mime, b64, opts) {
+    if (opts && opts.share) { share(fname, mime, b64, opts); return fname; }
+    save(fname, mime, b64, b64ToBlob(b64, mime));
+    return fname;
   }
   const b64ToBlob = (b64, mime) => {
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
@@ -2518,7 +2555,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
   }
 
   /** OPD slip (A4): clinic header, token, patient and visit details, doctor, clinic, payment, vitals, Rx space, signature. */
-  function opdSlip(a, info) {
+  function opdSlip(a, info, opts) {
     const { jsPDF } = root.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
     const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 12;
@@ -2632,7 +2669,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     doc.text(pdfText(`Printed ${nowText()}`), W - M, H - 5, { align: 'right' });
     const fname = `OPD-Slip-${String(a.patientName).replace(/[^A-Za-z0-9]+/g, '-')}-${a.date}.pdf`;
     const b64 = doc.output('datauristring').split(',')[1];
-    save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
+    deliver(fname, 'application/pdf', b64, opts);
     return fname;
   }
 
@@ -2870,7 +2907,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
    * inv = { title, no, date, clinic:{name,address,phone,email}, patient:{name,mobile,ageGender,city,id},
    *         details:[[label,value]], items:[{desc,sub,qty,rate,amount}], total, paid, payMethod, note, preparedBy, filename }
    */
-  function invoice(inv) {
+  function invoice(inv, opts) {
     const { jsPDF } = root.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
     const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 14;
@@ -2973,7 +3010,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     doc.text(pdfText(`${inv.preparedBy ? `Prepared by ${inv.preparedBy} · ` : ''}${nowText()}`), W - M, H - 4.4, { align: 'right' });
     const fname = `${inv.filename || inv.no.replace(/[^A-Za-z0-9-]+/g, '-')}.pdf`;
     const b64 = doc.output('datauristring').split(',')[1];
-    save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
+    deliver(fname, 'application/pdf', b64, opts);
     return fname;
   }
 
@@ -2990,7 +3027,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.9';
+  const APP_VERSION = '4.0';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -3748,6 +3785,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.0', 'Share invoices and OPD slips on WhatsApp: the PDF opens straight in the patient\'s WhatsApp chat with a short message (Share invoice / Share slip in the appointment, Share on WhatsApp in the invoice options); purchase invoices no longer show the product: the item reads "Weight Loss Program" or "Weight Loss Program (3 Months)", with the months entered on the sale or when making the invoice and the name editable (default in Settings).'],
     ['3.9', 'Premium non-GST invoices for patient purchases (Sales and Today) and OPD consultations: invoice numbers per financial year (HV/INV/26-27/0001, HV/OPD/26-27/0001), patient details, amount in words, paid / due, terms and "no signature required"; payment method on every sale; reports, images and slips print a note (computer-generated, no signature required), editable in Settings with the invoice terms and prefix; every sign-in, sign-out, wrong PIN and auto-lock is recorded in the activity log with a Sign-ins filter and last sign-in per person.'],
     ['3.8', 'No more "Data changed on another device" question: when two phones change data at the same time the app joins both automatically (newest version of every sale, patient, appointment, lead and setting wins, deletions stay deleted, nothing is lost).'],
     ['3.7', 'Built for Android 15 so Google Play Protect no longer blocks the install as an app for an older Android version; screens stay clear of the status bar, navigation bar and keyboard on Android 15; fixed a crash when the app was sent to the background with a lot of data; safer recovery if Android stops the page to save memory; smoother animations.'],
@@ -3923,6 +3961,8 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
           ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
           ${b('appt-slip', '🧾 OPD slip (PDF)', 'gold')}
           ${b('opd-invoice', '₹ OPD invoice', 'gold')}
+          <button type="button" class="btn wa" data-act="appt-slip" data-id="${a.id}" data-share="1">${WA_ICON}Share slip</button>
+          <button type="button" class="btn wa" data-act="opd-invoice" data-id="${a.id}" data-share="1">${WA_ICON}Share invoice</button>
           ${b('appt-edit', 'Edit')}
           ${canDelete() ? b('appt-del', 'Delete', 'danger') : ''}
         </div>`,
@@ -3958,6 +3998,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
         <label class="f">Sale amount (₹)<input name="amount" type="number" min="0" step="any" required value="${esc(pre.amount != null ? pre.amount : '')}"></label>
         <label class="f">${t === 'injection' ? 'Purchase date' : 'Date'}<input name="date" type="date" required value="${esc(pre.date || admin.today())}"></label>
         <label class="f">Payment method${listSelect('payMethods', 'name="payMethod"', pre.payMethod || 'Cash')}</label>
+        <label class="f">Program months (optional)<input name="programMonths" type="number" min="0" step="1" inputmode="numeric" value="${esc(pre.programMonths || '')}" placeholder="For the invoice"></label>
       </div>
       <div class="split-row">
         <label class="f">Reference team<select name="refId" required>${memberOptions(pre.refId, 'Choose…')}</select></label>
@@ -4736,6 +4777,46 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     };
   }
   const clinicCard = () => ({ name: set().clinic, address: set().clinicAddress || '', phone: set().clinicPhone || '', email: set().clinicEmail || '', note: set().docNote == null ? undefined : set().docNote });
+  const WA_ICON = '<svg viewBox="0 0 24 24" class="wa-ic"><path fill="currentColor" stroke="none" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.1 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a.9.9 0 0 0-.7.3 2.8 2.8 0 0 0-.9 2.1 4.9 4.9 0 0 0 1 2.6 11.2 11.2 0 0 0 4.3 3.8c1.6.7 2.2.7 3 .6a2.6 2.6 0 0 0 1.7-1.2 2.1 2.1 0 0 0 .2-1.2c-.1-.1-.3-.2-.5-.3z"/></svg>';
+  // Purchase invoice: choose what the item is called (default "Weight Loss Program") and the program months.
+  function invoiceDialog(id) {
+    const s = S().sales.find((x) => x.id === id);
+    if (!s) return;
+    const plan = s.type === 'diet' ? set().dietPlans.find((x) => x.id === s.planId) : null;
+    const desc = s.invoiceDesc || set().invoiceItemName || 'Weight Loss Program';
+    const months = s.programMonths || (plan && plan.months) || '';
+    openForm({
+      title: `Invoice · ${s.patientName}`, submitLabel: 'Download PDF',
+      html: `<div class="grid">
+        <label class="f span">Item on the invoice<input id="iv-desc" value="${esc(desc)}" list="iv-names" autocomplete="off"><span class="hint">The product name (${esc(s.product)}) is not printed.</span></label>
+        <datalist id="iv-names">${['Weight Loss Program', 'Weight Management Program', 'Diet & Nutrition Program', 'Wellness Program'].map((x) => `<option value="${x}">`).join('')}</datalist>
+        <label class="f">Program months<input id="iv-months" type="number" min="0" step="1" inputmode="numeric" value="${esc(months)}" placeholder="e.g. 3"><span class="hint">Leave empty to print no months</span></label>
+        <div class="f iv-preview" id="iv-preview"></div></div>
+        <div class="quick"><button type="button" class="btn wa" id="iv-share">${WA_ICON}Share on WhatsApp</button></div>`,
+      onSubmit: () => { makeSaleInvoice(id, false); },
+    });
+    const prev = () => { $('#iv-preview').innerHTML = `<span>On the invoice</span><b>${esc(itemLabel($('#iv-desc').value, $('#iv-months').value))}</b><small>${inr(s.amount)}</small>`; };
+    prev();
+    $('#modal-body').oninput = prev;
+    $('#iv-share').onclick = () => { makeSaleInvoice(id, true); modal.close(); };
+  }
+  const itemLabel = (desc, months) => { const m = Number(months); const d = String(desc || '').trim() || 'Weight Loss Program'; return m > 0 ? `${d} (${m} Month${m === 1 ? '' : 's'})` : d; };
+  function makeSaleInvoice(id, shareIt) {
+    const s = S().sales.find((x) => x.id === id);
+    try {
+      admin.setInvoiceInfo(id, { desc: $('#iv-desc').value, months: $('#iv-months').value });
+      const no = admin.invoiceFor('sale', s.id);
+      const p = S().patients.find((x) => x.id === s.patientId) || {};
+      const amount = Number(s.amount) || 0;
+      X.invoice({
+        title: 'INVOICE', no, date: fdate(s.date), clinic: clinicCard(), note: set().legalNote || '', preparedBy: me ? me.name : '',
+        patient: { name: s.patientName, mobile: s.mobile, ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city },
+        items: [{ desc: itemLabel(s.invoiceDesc, s.programMonths), sub: '', qty: 1, rate: amount, amount }],
+        total: amount, paid: true, payMethod: s.payMethod || '', filename: `Invoice-${no.replace(/[^A-Za-z0-9-]+/g, '-')}-${String(s.patientName).replace(/[^A-Za-z0-9]+/g, '-')}`,
+      }, shareIt ? { share: true, phone: s.mobile, text: `Namaste ${s.patientName}, here is your invoice ${no} from ${set().clinic} for ${inr(amount)}. Thank you!` } : null);
+      toast(shareIt ? 'Opening WhatsApp…' : `Invoice ${no} ready`);
+    } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
+  }
   function runExport(what, fmt, o, opts) {
     const x = opts || {};
     const keep = period;
@@ -4815,6 +4896,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
         <label class="f span">Clinic address<input name="clinicAddress" value="${esc(st.clinicAddress || '')}" placeholder="Shown on slips and reports"></label>
         <label class="f">Clinic email<input name="clinicEmail" type="email" value="${esc(st.clinicEmail || '')}" placeholder="Shown on invoices"></label>
         <label class="f">Invoice number prefix<input name="invoicePrefix" value="${esc(st.invoicePrefix || 'HV')}" maxlength="8"><span class="hint">e.g. ${esc(st.invoicePrefix || 'HV')}/INV/26-27/0001 · ${esc(st.invoicePrefix || 'HV')}/OPD/26-27/0001</span></label>
+        <label class="f">Item name on purchase invoices<input name="invoiceItemName" value="${esc(st.invoiceItemName || 'Weight Loss Program')}"><span class="hint">Printed instead of the product name</span></label>
         <label class="f span">Invoice terms & legal notes<textarea name="legalNote" rows="3">${esc(st.legalNote || '')}</textarea><span class="hint">Printed on every invoice (non-GST).</span></label>
         <label class="f span">Note on reports and slips<textarea name="docNote" rows="2">${esc(st.docNote || '')}</textarea><span class="hint">e.g. computer-generated, no signature required. Leave empty to print nothing.</span></label></div>${saveBtn}`)}
       ${sec('general', `${head('general')}<div class="grid">
@@ -4870,7 +4952,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       const wasConnected = connected();
       admin.updateSettings({
         clinic: f.clinic.value.trim(), clinicPhone: f.clinicPhone.value.trim(), clinicAddress: f.clinicAddress.value.trim(), clinicEmail: f.clinicEmail.value.trim(),
-        invoicePrefix: f.invoicePrefix.value.trim() || 'HV', legalNote: f.legalNote.value.trim(), docNote: f.docNote.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
+        invoicePrefix: f.invoicePrefix.value.trim() || 'HV', invoiceItemName: f.invoiceItemName.value.trim() || 'Weight Loss Program', legalNote: f.legalNote.value.trim(), docNote: f.docNote.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         incentive: { injection: Number(f.incInj.value) || 0, protein: Number(f.incPro.value) || 0 },
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
         sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
@@ -5310,27 +5392,10 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       render(); toast('Connecting to the clinic sheet…'); await pull(true); render();
     },
     'act-more': () => { actLimit += 200; render(); },
-    'sale-invoice': (d) => {
-      const s = S().sales.find((x) => x.id === d.id);
-      if (!s) return;
-      try {
-        const no = admin.invoiceFor('sale', s.id);
-        const p = S().patients.find((x) => x.id === s.patientId) || {};
-        const plan = s.type === 'diet' ? set().dietPlans.find((x) => x.id === s.planId) : null;
-        const sub = [A.SALE_TYPES[s.type], plan && plan.months ? `${plan.months} month${plan.months > 1 ? 's' : ''} plan` : '', s.type === 'injection' ? 'Pen' : ''].filter(Boolean).join(' · ');
-        const qty = Number(s.qty) || 1;
-        X.invoice({
-          title: 'INVOICE', no, date: fdate(s.date), clinic: clinicCard(), note: set().legalNote || '', preparedBy: me ? me.name : '',
-          patient: { name: s.patientName, mobile: s.mobile, ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city },
-          details: [['Patient type', ptText(s) === '-' ? '' : ptText(s)]],
-          items: [{ desc: s.product, sub, qty, rate: (Number(s.amount) || 0) / qty, amount: Number(s.amount) || 0 }],
-          total: Number(s.amount) || 0, paid: true, payMethod: s.payMethod || '', filename: `Invoice-${no.replace(/[^A-Za-z0-9-]+/g, '-')}-${String(s.patientName).replace(/[^A-Za-z0-9]+/g, '-')}`,
-        });
-        toast(`Invoice ${no} ready`);
-      } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
-    },
+    'sale-invoice': (d) => invoiceDialog(d.id),
     'opd-invoice': (d) => {
       const a = admin.appointment(d.id);
+      const shareIt = !!d.share;
       if (!a) return;
       try {
         const no = admin.invoiceFor('opd', a.id);
@@ -5342,8 +5407,8 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
           metaExtra: [['Visit type', A.APPT_MODES[a.mode] || a.mode]],
           items: [{ desc: 'OPD consultation', sub: [a.service, a.doctor ? `with ${a.doctor}` : '', A.APPT_MODES[a.mode]].filter(Boolean).join(' · '), qty: 1, rate: Number(a.fee) || 0, amount: Number(a.fee) || 0 }],
           total: Number(a.fee) || 0, paid: !!a.paid, payMethod: a.payMethod || '', filename: `OPD-Invoice-${no.replace(/[^A-Za-z0-9-]+/g, '-')}-${String(a.patientName).replace(/[^A-Za-z0-9]+/g, '-')}`,
-        });
-        toast(`Invoice ${no} ready`);
+        }, shareIt ? { share: true, phone: a.mobile, text: `Namaste ${a.patientName}, here is your OPD invoice ${no} from ${a.branch || set().clinic} for ${inr(a.fee)}. Thank you!` } : null);
+        toast(shareIt ? 'Opening WhatsApp…' : `Invoice ${no} ready`);
       } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
     },
     'gf-clear': (d) => { GF[d.sc] = {}; render(); },
@@ -5448,6 +5513,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       const p = S().patients.find((x) => x.id === a.patientId) || {};
       const visits = S().appointments.filter((x) => x.patientId === a.patientId && x.status !== 'cancelled').sort((x, y) => (x.date + (x.time || '')).localeCompare(y.date + (y.time || '')));
       try {
+        const shareIt = !!d.share;
         X.opdSlip(a, {
           clinic: set().clinic, token: day.findIndex((x) => x.id === a.id) + 1 || '', date: fdate(a.date), time: time12(a.time),
           mode: A.APPT_MODES[a.mode] || a.mode, status: A.APPT_STATUS[a.status] || a.status, fee: inr(a.fee),
@@ -5455,8 +5521,8 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
           note: set().docNote || '', doctor: a.doctor || '', branch: a.branch || '', vitals: { ...(a.vitals || {}), bmi: A.bmi((a.vitals || {}).weight, (a.vitals || {}).height), bmiLabel: A.bmiLabel(Number(A.bmi((a.vitals || {}).weight, (a.vitals || {}).height))) }, address: set().clinicAddress || '', phone: set().clinicPhone || '',
           visitNo: String(visits.findIndex((x) => x.id === a.id) + 1 || visits.length), since: visits[0] ? fdate(visits[0].date) : fdate(a.date),
           slipNo: `OPD-${a.date.replace(/-/g, '').slice(2)}-${String(day.findIndex((x) => x.id === a.id) + 1).padStart(2, '0')}`,
-        });
-        toast('OPD slip ready');
+        }, shareIt ? { share: true, phone: a.mobile, text: `Namaste ${a.patientName}, here is your OPD slip for ${fdate(a.date)}${a.time ? ` at ${time12(a.time)}` : ''} from ${a.branch || set().clinic}.` } : null);
+        toast(shareIt ? 'Opening WhatsApp…' : 'OPD slip ready');
       } catch (err) { console.error(err); toast(`Could not make the slip: ${err.message}`, true); }
     },
     reminders: () => { openMenu(false); remindersSheet(); },
@@ -6081,7 +6147,7 @@ function json(o) {
 
 ===== BEGIN FILE: admin/sw.js =====
 /* Offline cache for Hindivine Admin (installed web app). */
-const CACHE = 'hindivine-admin-v12';
+const CACHE = 'hindivine-admin-v13';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/config.js', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js', 'vendor/fonts/PlusJakartaSans-latin.woff2',
   '../img/logo.jpg', '../img/icon-192.png', '../img/icon-512.png',
@@ -6156,6 +6222,12 @@ self.addEventListener('fetch', (e) => {
             </intent-filter>
         </activity>
         <receiver android:name="com.hindivine.diet.ReminderReceiver" android:exported="false" />
+        <!-- PDFs shared to WhatsApp: read access only through the share intent's grant. -->
+        <provider
+            android:name="com.hindivine.diet.ShareProvider"
+            android:authorities="com.hindivine.admin.files"
+            android:exported="false"
+            android:grantUriPermissions="true" />
     </application>
 </manifest>
 ===== END FILE: android/admin/AndroidManifest.xml =====
@@ -6422,6 +6494,40 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    private void shareNow(String fileName, String mimeType, byte[] bytes, String phone, String text) {
+        try {
+            java.io.File dir = new java.io.File(getCacheDir(), "share");
+            if (!dir.exists()) dir.mkdirs();
+            java.io.File[] old = dir.listFiles();
+            if (old != null) for (java.io.File f : old) if (System.currentTimeMillis() - f.lastModified() > 3600000L) f.delete();
+            String safe = fileName.replaceAll("[^A-Za-z0-9._-]+", "-");
+            java.io.File file = new java.io.File(dir, safe);
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) { out.write(bytes); }
+            Uri uri = Uri.parse("content://" + getPackageName() + ".files/" + Uri.encode(safe));
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType(mimeType);
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            if (text != null && !text.isEmpty()) send.putExtra(Intent.EXTRA_TEXT, text);
+            send.setClipData(android.content.ClipData.newRawUri(safe, uri));
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            String digits = phone == null ? "" : phone.replaceAll("[^0-9]", "");
+            if (digits.length() == 10) digits = "91" + digits;
+            for (String pkg : new String[] { "com.whatsapp", "com.whatsapp.w4b" }) {
+                try {
+                    Intent w = new Intent(send);
+                    w.setPackage(pkg);
+                    if (digits.length() >= 11) w.putExtra("jid", digits + "@s.whatsapp.net"); // opens this patient's chat
+                    startActivity(w);
+                    return;
+                } catch (Exception ignored) {
+                }
+            }
+            startActivity(Intent.createChooser(send, "Share " + safe));
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not share the file", Toast.LENGTH_LONG).show();
+        }
+    }
+
     /** Called from JavaScript; WebView has no window.print() or blob downloads. */
     private class Bridge {
         @JavascriptInterface
@@ -6448,6 +6554,21 @@ public class MainActivity extends Activity {
         }
 
         /** Binary files (PDF, Excel, JPEG) arrive base64-encoded from JavaScript. */
+        @JavascriptInterface
+        /** Share a PDF straight to WhatsApp (the patient's chat when the number is known), else the share menu. */
+        public void shareFile(final String fileName, final String mimeType, final String base64, final String phone, final String text) {
+            final byte[] bytes;
+            try {
+                bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+            } catch (Exception e) {
+                return;
+            }
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() { shareNow(fileName, mimeType, bytes, phone, text); }
+            });
+        }
+
         @JavascriptInterface
         public void saveBase64(final String fileName, final String mimeType, final String base64) {
             final byte[] bytes;
@@ -6615,6 +6736,90 @@ public class ReminderReceiver extends BroadcastReceiver {
     }
 }
 ===== END FILE: android/src/com/hindivine/diet/ReminderReceiver.java =====
+
+===== BEGIN FILE: android/src/com/hindivine/diet/ShareProvider.java =====
+package com.hindivine.diet;
+
+import android.content.ContentProvider;
+import android.content.ContentValues;
+import android.database.Cursor;
+import android.database.MatrixCursor;
+import android.net.Uri;
+import android.os.ParcelFileDescriptor;
+import android.provider.OpenableColumns;
+
+import java.io.File;
+import java.io.FileNotFoundException;
+import java.io.IOException;
+
+/**
+ * Lets WhatsApp (or any app chosen in the share menu) read one PDF the app just wrote to
+ * cache/share. Not exported: other apps only get access through the share intent's grant.
+ */
+public class ShareProvider extends ContentProvider {
+    private File dir() {
+        return new File(getContext().getCacheDir(), "share");
+    }
+
+    private File fileFor(Uri uri) throws FileNotFoundException {
+        String name = uri.getLastPathSegment();
+        if (name == null) throw new FileNotFoundException();
+        try {
+            File f = new File(dir(), name).getCanonicalFile();
+            if (!f.getParentFile().equals(dir().getCanonicalFile()) || !f.exists()) throw new FileNotFoundException();
+            return f;
+        } catch (IOException e) {
+            throw new FileNotFoundException();
+        }
+    }
+
+    @Override
+    public boolean onCreate() {
+        return true;
+    }
+
+    @Override
+    public ParcelFileDescriptor openFile(Uri uri, String mode) throws FileNotFoundException {
+        return ParcelFileDescriptor.open(fileFor(uri), ParcelFileDescriptor.MODE_READ_ONLY);
+    }
+
+    @Override
+    public Cursor query(Uri uri, String[] projection, String selection, String[] args, String sort) {
+        try {
+            File f = fileFor(uri);
+            MatrixCursor c = new MatrixCursor(new String[] { OpenableColumns.DISPLAY_NAME, OpenableColumns.SIZE });
+            c.addRow(new Object[] { f.getName(), f.length() });
+            return c;
+        } catch (FileNotFoundException e) {
+            return null;
+        }
+    }
+
+    @Override
+    public String getType(Uri uri) {
+        String n = String.valueOf(uri.getLastPathSegment()).toLowerCase();
+        if (n.endsWith(".pdf")) return "application/pdf";
+        if (n.endsWith(".jpg") || n.endsWith(".jpeg")) return "image/jpeg";
+        if (n.endsWith(".png")) return "image/png";
+        return "application/octet-stream";
+    }
+
+    @Override
+    public Uri insert(Uri uri, ContentValues values) {
+        return null;
+    }
+
+    @Override
+    public int delete(Uri uri, String selection, String[] args) {
+        return 0;
+    }
+
+    @Override
+    public int update(Uri uri, ContentValues values, String selection, String[] args) {
+        return 0;
+    }
+}
+===== END FILE: android/src/com/hindivine/diet/ShareProvider.java =====
 
 ===== BEGIN FILE: android/tools/SignApk.java =====
 import com.android.apksig.ApkSigner;
@@ -7265,6 +7470,20 @@ test('invoice numbers per financial year, kept once given; login activity logged
   const last = a.state.log.slice(-2);
   assert.deepEqual(last.map((x) => [x.action, x.by]), [['Signed in', 'Super Admin'], ['Wrong PIN', 'Front Desk']]);
   assert.ok(a.state.settings.legalNote.includes('does not require a signature'));
+});
+
+test('purchase invoice item: description and program months kept on the sale', () => {
+  const a = setup('2026-10-02');
+  const m = a.saveMember({ name: 'Riya' });
+  const pen = byName(a, 'Mounjaro 10mg'); a.adjustStock(pen.id, 2, 'count');
+  const s = a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9000000001', itemId: pen.id, amount: 17000, refId: m.id, programMonths: 3 });
+  assert.equal(s.programMonths, 3);
+  assert.equal(a.state.settings.invoiceItemName, 'Weight Loss Program');
+  a.setInvoiceInfo(s.id, { desc: 'Weight Loss Program', months: '6' });
+  assert.equal(a.state.sales[0].programMonths, 6);
+  assert.equal(a.state.sales[0].invoiceDesc, 'Weight Loss Program');
+  a.saveSale({ ...a.state.sales[0], id: s.id, refId: m.id, programMonths: '' });
+  assert.equal(a.state.sales[0].programMonths, 6, 'editing the sale keeps the months');
 });
 ===== END FILE: tests/admin.test.js =====
 

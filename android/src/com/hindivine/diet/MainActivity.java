@@ -197,6 +197,40 @@ public class MainActivity extends Activity {
         super.onDestroy();
     }
 
+    private void shareNow(String fileName, String mimeType, byte[] bytes, String phone, String text) {
+        try {
+            java.io.File dir = new java.io.File(getCacheDir(), "share");
+            if (!dir.exists()) dir.mkdirs();
+            java.io.File[] old = dir.listFiles();
+            if (old != null) for (java.io.File f : old) if (System.currentTimeMillis() - f.lastModified() > 3600000L) f.delete();
+            String safe = fileName.replaceAll("[^A-Za-z0-9._-]+", "-");
+            java.io.File file = new java.io.File(dir, safe);
+            try (java.io.FileOutputStream out = new java.io.FileOutputStream(file)) { out.write(bytes); }
+            Uri uri = Uri.parse("content://" + getPackageName() + ".files/" + Uri.encode(safe));
+            Intent send = new Intent(Intent.ACTION_SEND);
+            send.setType(mimeType);
+            send.putExtra(Intent.EXTRA_STREAM, uri);
+            if (text != null && !text.isEmpty()) send.putExtra(Intent.EXTRA_TEXT, text);
+            send.setClipData(android.content.ClipData.newRawUri(safe, uri));
+            send.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            String digits = phone == null ? "" : phone.replaceAll("[^0-9]", "");
+            if (digits.length() == 10) digits = "91" + digits;
+            for (String pkg : new String[] { "com.whatsapp", "com.whatsapp.w4b" }) {
+                try {
+                    Intent w = new Intent(send);
+                    w.setPackage(pkg);
+                    if (digits.length() >= 11) w.putExtra("jid", digits + "@s.whatsapp.net"); // opens this patient's chat
+                    startActivity(w);
+                    return;
+                } catch (Exception ignored) {
+                }
+            }
+            startActivity(Intent.createChooser(send, "Share " + safe));
+        } catch (Exception e) {
+            Toast.makeText(this, "Could not share the file", Toast.LENGTH_LONG).show();
+        }
+    }
+
     /** Called from JavaScript; WebView has no window.print() or blob downloads. */
     private class Bridge {
         @JavascriptInterface
@@ -223,6 +257,21 @@ public class MainActivity extends Activity {
         }
 
         /** Binary files (PDF, Excel, JPEG) arrive base64-encoded from JavaScript. */
+        @JavascriptInterface
+        /** Share a PDF straight to WhatsApp (the patient's chat when the number is known), else the share menu. */
+        public void shareFile(final String fileName, final String mimeType, final String base64, final String phone, final String text) {
+            final byte[] bytes;
+            try {
+                bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT);
+            } catch (Exception e) {
+                return;
+            }
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() { shareNow(fileName, mimeType, bytes, phone, text); }
+            });
+        }
+
         @JavascriptInterface
         public void saveBase64(final String fileName, final String mimeType, final String base64) {
             final byte[] bytes;

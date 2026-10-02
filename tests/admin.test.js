@@ -501,3 +501,17 @@ test('invoice numbers per financial year, kept once given; login activity logged
   assert.deepEqual(last.map((x) => [x.action, x.by]), [['Signed in', 'Super Admin'], ['Wrong PIN', 'Front Desk']]);
   assert.ok(a.state.settings.legalNote.includes('does not require a signature'));
 });
+
+test('purchase invoice item: description and program months kept on the sale', () => {
+  const a = setup('2026-10-02');
+  const m = a.saveMember({ name: 'Riya' });
+  const pen = byName(a, 'Mounjaro 10mg'); a.adjustStock(pen.id, 2, 'count');
+  const s = a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9000000001', itemId: pen.id, amount: 17000, refId: m.id, programMonths: 3 });
+  assert.equal(s.programMonths, 3);
+  assert.equal(a.state.settings.invoiceItemName, 'Weight Loss Program');
+  a.setInvoiceInfo(s.id, { desc: 'Weight Loss Program', months: '6' });
+  assert.equal(a.state.sales[0].programMonths, 6);
+  assert.equal(a.state.sales[0].invoiceDesc, 'Weight Loss Program');
+  a.saveSale({ ...a.state.sales[0], id: s.id, refId: m.id, programMonths: '' });
+  assert.equal(a.state.sales[0].programMonths, 6, 'editing the sale keeps the months');
+});

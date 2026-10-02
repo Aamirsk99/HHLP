@@ -70,7 +70,8 @@
       settings: {
         clinic: 'Hindivine Healthcare',
         clinicAddress: '', clinicPhone: '', clinicEmail: '',
-        invoicePrefix: 'HV', // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
+        invoicePrefix: 'HV',
+        invoiceItemName: 'Weight Loss Program', // what purchase invoices call the item (instead of the product name) // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
         legalNote: DEFAULT_LEGAL_NOTE, // terms printed on invoices
         docNote: 'This is a computer-generated document and does not require a signature. Confidential: for clinic use only.', // on reports and slips
         incentive: { injection: 1000, protein: 500 },
@@ -508,7 +509,7 @@
         itemId: type === 'diet' ? null : input.itemId, planId: type === 'diet' ? input.planId : null,
         product, qty, amount,
         refId: input.refId, sharedId: refs[1] ? refs[1].memberId : '', sharePct: refs[1] ? refs[1].pct : 0,
-        dietitianId: input.dietitianId || '', notes: String(input.notes || '').trim(), payMethod: String(input.payMethod || '').trim(),
+        dietitianId: input.dietitianId || '', notes: String(input.notes || '').trim(), payMethod: String(input.payMethod || '').trim(), programMonths: Number(input.programMonths) > 0 ? Number(input.programMonths) : (existingMonths(id) || ''),
         incentive: sum(splits, (x) => x.amount), splits, created: Date.now(),
       };
     }
@@ -717,6 +718,17 @@
      * Invoice number for a sale or an OPD appointment, given once and kept: PREFIX/INV/26-27/0001.
      * The next number is one more than the highest already used (so numbers survive syncing).
      */
+    /** What a purchase invoice shows: description (default "Weight Loss Program") and program months, kept on the sale. */
+    const existingMonths = (id) => { const x = S.sales.find((y) => y.id === id); return x ? x.programMonths : ''; };
+    function setInvoiceInfo(id, info) {
+      const rec = S.sales.find((x) => x.id === id);
+      if (!rec) fail('Sale not found');
+      rec.invoiceDesc = String(info.desc || '').trim();
+      const m = Number(info.months);
+      rec.programMonths = m > 0 ? Math.round(m * 10) / 10 : '';
+      save();
+      return rec;
+    }
     function invoiceFor(kind, id) {
       const rec = kind === 'opd' ? appointment(id) : S.sales.find((x) => x.id === id);
       if (!rec) fail('Record not found');
@@ -1202,7 +1214,7 @@
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
-      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor,
+      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,

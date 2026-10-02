@@ -904,3 +904,9 @@ td b { font-variant-numeric: tabular-nums; }
 @keyframes toast-in { from { transform: translateX(-50%) translateY(18px) scale(.96); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ripple { display: none; } }
 .inv-btn { margin-left: 6px; min-height: 26px; padding: 0 8px; }
+.btn.wa { background: linear-gradient(135deg, #1fa855, #25d366); border-color: transparent; color: #fff; box-shadow: 0 6px 16px -6px rgba(37, 211, 102, .55); }
+.btn.wa .wa-ic { width: 18px; height: 18px; }
+.iv-preview { display: flex; flex-direction: column; gap: 2px; justify-content: center; padding: 10px 12px; border-radius: 12px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); border: 1.5px dashed color-mix(in srgb, var(--accent) 35%, var(--border)); }
+.iv-preview span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.iv-preview b { font-size: 16px; color: var(--text); }
+.iv-preview small { color: var(--muted); }

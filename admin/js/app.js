@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.9';
+  const APP_VERSION = '4.0';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -764,6 +764,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.0', 'Share invoices and OPD slips on WhatsApp: the PDF opens straight in the patient\'s WhatsApp chat with a short message (Share invoice / Share slip in the appointment, Share on WhatsApp in the invoice options); purchase invoices no longer show the product: the item reads "Weight Loss Program" or "Weight Loss Program (3 Months)", with the months entered on the sale or when making the invoice and the name editable (default in Settings).'],
     ['3.9', 'Premium non-GST invoices for patient purchases (Sales and Today) and OPD consultations: invoice numbers per financial year (HV/INV/26-27/0001, HV/OPD/26-27/0001), patient details, amount in words, paid / due, terms and "no signature required"; payment method on every sale; reports, images and slips print a note (computer-generated, no signature required), editable in Settings with the invoice terms and prefix; every sign-in, sign-out, wrong PIN and auto-lock is recorded in the activity log with a Sign-ins filter and last sign-in per person.'],
     ['3.8', 'No more "Data changed on another device" question: when two phones change data at the same time the app joins both automatically (newest version of every sale, patient, appointment, lead and setting wins, deletions stay deleted, nothing is lost).'],
     ['3.7', 'Built for Android 15 so Google Play Protect no longer blocks the install as an app for an older Android version; screens stay clear of the status bar, navigation bar and keyboard on Android 15; fixed a crash when the app was sent to the background with a lot of data; safer recovery if Android stops the page to save memory; smoother animations.'],
@@ -939,6 +940,8 @@
           ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
           ${b('appt-slip', '🧾 OPD slip (PDF)', 'gold')}
           ${b('opd-invoice', '₹ OPD invoice', 'gold')}
+          <button type="button" class="btn wa" data-act="appt-slip" data-id="${a.id}" data-share="1">${WA_ICON}Share slip</button>
+          <button type="button" class="btn wa" data-act="opd-invoice" data-id="${a.id}" data-share="1">${WA_ICON}Share invoice</button>
           ${b('appt-edit', 'Edit')}
           ${canDelete() ? b('appt-del', 'Delete', 'danger') : ''}
         </div>`,
@@ -974,6 +977,7 @@
         <label class="f">Sale amount (₹)<input name="amount" type="number" min="0" step="any" required value="${esc(pre.amount != null ? pre.amount : '')}"></label>
         <label class="f">${t === 'injection' ? 'Purchase date' : 'Date'}<input name="date" type="date" required value="${esc(pre.date || admin.today())}"></label>
         <label class="f">Payment method${listSelect('payMethods', 'name="payMethod"', pre.payMethod || 'Cash')}</label>
+        <label class="f">Program months (optional)<input name="programMonths" type="number" min="0" step="1" inputmode="numeric" value="${esc(pre.programMonths || '')}" placeholder="For the invoice"></label>
       </div>
       <div class="split-row">
         <label class="f">Reference team<select name="refId" required>${memberOptions(pre.refId, 'Choose…')}</select></label>
@@ -1752,6 +1756,46 @@
     };
   }
   const clinicCard = () => ({ name: set().clinic, address: set().clinicAddress || '', phone: set().clinicPhone || '', email: set().clinicEmail || '', note: set().docNote == null ? undefined : set().docNote });
+  const WA_ICON = '<svg viewBox="0 0 24 24" class="wa-ic"><path fill="currentColor" stroke="none" d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm0 18.2a8.2 8.2 0 0 1-4.2-1.2l-.3-.2-3 .8.8-2.9-.2-.3A8.2 8.2 0 1 1 12 20.2zm4.5-6.1c-.2-.1-1.5-.7-1.7-.8s-.4-.1-.6.1-.7.8-.8 1-.3.2-.5.1a6.7 6.7 0 0 1-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.1 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.6-.4h-.5a.9.9 0 0 0-.7.3 2.8 2.8 0 0 0-.9 2.1 4.9 4.9 0 0 0 1 2.6 11.2 11.2 0 0 0 4.3 3.8c1.6.7 2.2.7 3 .6a2.6 2.6 0 0 0 1.7-1.2 2.1 2.1 0 0 0 .2-1.2c-.1-.1-.3-.2-.5-.3z"/></svg>';
+  // Purchase invoice: choose what the item is called (default "Weight Loss Program") and the program months.
+  function invoiceDialog(id) {
+    const s = S().sales.find((x) => x.id === id);
+    if (!s) return;
+    const plan = s.type === 'diet' ? set().dietPlans.find((x) => x.id === s.planId) : null;
+    const desc = s.invoiceDesc || set().invoiceItemName || 'Weight Loss Program';
+    const months = s.programMonths || (plan && plan.months) || '';
+    openForm({
+      title: `Invoice · ${s.patientName}`, submitLabel: 'Download PDF',
+      html: `<div class="grid">
+        <label class="f span">Item on the invoice<input id="iv-desc" value="${esc(desc)}" list="iv-names" autocomplete="off"><span class="hint">The product name (${esc(s.product)}) is not printed.</span></label>
+        <datalist id="iv-names">${['Weight Loss Program', 'Weight Management Program', 'Diet & Nutrition Program', 'Wellness Program'].map((x) => `<option value="${x}">`).join('')}</datalist>
+        <label class="f">Program months<input id="iv-months" type="number" min="0" step="1" inputmode="numeric" value="${esc(months)}" placeholder="e.g. 3"><span class="hint">Leave empty to print no months</span></label>
+        <div class="f iv-preview" id="iv-preview"></div></div>
+        <div class="quick"><button type="button" class="btn wa" id="iv-share">${WA_ICON}Share on WhatsApp</button></div>`,
+      onSubmit: () => { makeSaleInvoice(id, false); },
+    });
+    const prev = () => { $('#iv-preview').innerHTML = `<span>On the invoice</span><b>${esc(itemLabel($('#iv-desc').value, $('#iv-months').value))}</b><small>${inr(s.amount)}</small>`; };
+    prev();
+    $('#modal-body').oninput = prev;
+    $('#iv-share').onclick = () => { makeSaleInvoice(id, true); modal.close(); };
+  }
+  const itemLabel = (desc, months) => { const m = Number(months); const d = String(desc || '').trim() || 'Weight Loss Program'; return m > 0 ? `${d} (${m} Month${m === 1 ? '' : 's'})` : d; };
+  function makeSaleInvoice(id, shareIt) {
+    const s = S().sales.find((x) => x.id === id);
+    try {
+      admin.setInvoiceInfo(id, { desc: $('#iv-desc').value, months: $('#iv-months').value });
+      const no = admin.invoiceFor('sale', s.id);
+      const p = S().patients.find((x) => x.id === s.patientId) || {};
+      const amount = Number(s.amount) || 0;
+      X.invoice({
+        title: 'INVOICE', no, date: fdate(s.date), clinic: clinicCard(), note: set().legalNote || '', preparedBy: me ? me.name : '',
+        patient: { name: s.patientName, mobile: s.mobile, ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city },
+        items: [{ desc: itemLabel(s.invoiceDesc, s.programMonths), sub: '', qty: 1, rate: amount, amount }],
+        total: amount, paid: true, payMethod: s.payMethod || '', filename: `Invoice-${no.replace(/[^A-Za-z0-9-]+/g, '-')}-${String(s.patientName).replace(/[^A-Za-z0-9]+/g, '-')}`,
+      }, shareIt ? { share: true, phone: s.mobile, text: `Namaste ${s.patientName}, here is your invoice ${no} from ${set().clinic} for ${inr(amount)}. Thank you!` } : null);
+      toast(shareIt ? 'Opening WhatsApp…' : `Invoice ${no} ready`);
+    } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
+  }
   function runExport(what, fmt, o, opts) {
     const x = opts || {};
     const keep = period;
@@ -1831,6 +1875,7 @@
         <label class="f span">Clinic address<input name="clinicAddress" value="${esc(st.clinicAddress || '')}" placeholder="Shown on slips and reports"></label>
         <label class="f">Clinic email<input name="clinicEmail" type="email" value="${esc(st.clinicEmail || '')}" placeholder="Shown on invoices"></label>
         <label class="f">Invoice number prefix<input name="invoicePrefix" value="${esc(st.invoicePrefix || 'HV')}" maxlength="8"><span class="hint">e.g. ${esc(st.invoicePrefix || 'HV')}/INV/26-27/0001 · ${esc(st.invoicePrefix || 'HV')}/OPD/26-27/0001</span></label>
+        <label class="f">Item name on purchase invoices<input name="invoiceItemName" value="${esc(st.invoiceItemName || 'Weight Loss Program')}"><span class="hint">Printed instead of the product name</span></label>
         <label class="f span">Invoice terms & legal notes<textarea name="legalNote" rows="3">${esc(st.legalNote || '')}</textarea><span class="hint">Printed on every invoice (non-GST).</span></label>
         <label class="f span">Note on reports and slips<textarea name="docNote" rows="2">${esc(st.docNote || '')}</textarea><span class="hint">e.g. computer-generated, no signature required. Leave empty to print nothing.</span></label></div>${saveBtn}`)}
       ${sec('general', `${head('general')}<div class="grid">
@@ -1886,7 +1931,7 @@
       const wasConnected = connected();
       admin.updateSettings({
         clinic: f.clinic.value.trim(), clinicPhone: f.clinicPhone.value.trim(), clinicAddress: f.clinicAddress.value.trim(), clinicEmail: f.clinicEmail.value.trim(),
-        invoicePrefix: f.invoicePrefix.value.trim() || 'HV', legalNote: f.legalNote.value.trim(), docNote: f.docNote.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
+        invoicePrefix: f.invoicePrefix.value.trim() || 'HV', invoiceItemName: f.invoiceItemName.value.trim() || 'Weight Loss Program', legalNote: f.legalNote.value.trim(), docNote: f.docNote.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         incentive: { injection: Number(f.incInj.value) || 0, protein: Number(f.incPro.value) || 0 },
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
         sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
@@ -2326,27 +2371,10 @@
       render(); toast('Connecting to the clinic sheet…'); await pull(true); render();
     },
     'act-more': () => { actLimit += 200; render(); },
-    'sale-invoice': (d) => {
-      const s = S().sales.find((x) => x.id === d.id);
-      if (!s) return;
-      try {
-        const no = admin.invoiceFor('sale', s.id);
-        const p = S().patients.find((x) => x.id === s.patientId) || {};
-        const plan = s.type === 'diet' ? set().dietPlans.find((x) => x.id === s.planId) : null;
-        const sub = [A.SALE_TYPES[s.type], plan && plan.months ? `${plan.months} month${plan.months > 1 ? 's' : ''} plan` : '', s.type === 'injection' ? 'Pen' : ''].filter(Boolean).join(' · ');
-        const qty = Number(s.qty) || 1;
-        X.invoice({
-          title: 'INVOICE', no, date: fdate(s.date), clinic: clinicCard(), note: set().legalNote || '', preparedBy: me ? me.name : '',
-          patient: { name: s.patientName, mobile: s.mobile, ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city },
-          details: [['Patient type', ptText(s) === '-' ? '' : ptText(s)]],
-          items: [{ desc: s.product, sub, qty, rate: (Number(s.amount) || 0) / qty, amount: Number(s.amount) || 0 }],
-          total: Number(s.amount) || 0, paid: true, payMethod: s.payMethod || '', filename: `Invoice-${no.replace(/[^A-Za-z0-9-]+/g, '-')}-${String(s.patientName).replace(/[^A-Za-z0-9]+/g, '-')}`,
-        });
-        toast(`Invoice ${no} ready`);
-      } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
-    },
+    'sale-invoice': (d) => invoiceDialog(d.id),
     'opd-invoice': (d) => {
       const a = admin.appointment(d.id);
+      const shareIt = !!d.share;
       if (!a) return;
       try {
         const no = admin.invoiceFor('opd', a.id);
@@ -2358,8 +2386,8 @@
           metaExtra: [['Visit type', A.APPT_MODES[a.mode] || a.mode]],
           items: [{ desc: 'OPD consultation', sub: [a.service, a.doctor ? `with ${a.doctor}` : '', A.APPT_MODES[a.mode]].filter(Boolean).join(' · '), qty: 1, rate: Number(a.fee) || 0, amount: Number(a.fee) || 0 }],
           total: Number(a.fee) || 0, paid: !!a.paid, payMethod: a.payMethod || '', filename: `OPD-Invoice-${no.replace(/[^A-Za-z0-9-]+/g, '-')}-${String(a.patientName).replace(/[^A-Za-z0-9]+/g, '-')}`,
-        });
-        toast(`Invoice ${no} ready`);
+        }, shareIt ? { share: true, phone: a.mobile, text: `Namaste ${a.patientName}, here is your OPD invoice ${no} from ${a.branch || set().clinic} for ${inr(a.fee)}. Thank you!` } : null);
+        toast(shareIt ? 'Opening WhatsApp…' : `Invoice ${no} ready`);
       } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
     },
     'gf-clear': (d) => { GF[d.sc] = {}; render(); },
@@ -2464,6 +2492,7 @@
       const p = S().patients.find((x) => x.id === a.patientId) || {};
       const visits = S().appointments.filter((x) => x.patientId === a.patientId && x.status !== 'cancelled').sort((x, y) => (x.date + (x.time || '')).localeCompare(y.date + (y.time || '')));
       try {
+        const shareIt = !!d.share;
         X.opdSlip(a, {
           clinic: set().clinic, token: day.findIndex((x) => x.id === a.id) + 1 || '', date: fdate(a.date), time: time12(a.time),
           mode: A.APPT_MODES[a.mode] || a.mode, status: A.APPT_STATUS[a.status] || a.status, fee: inr(a.fee),
@@ -2471,8 +2500,8 @@
           note: set().docNote || '', doctor: a.doctor || '', branch: a.branch || '', vitals: { ...(a.vitals || {}), bmi: A.bmi((a.vitals || {}).weight, (a.vitals || {}).height), bmiLabel: A.bmiLabel(Number(A.bmi((a.vitals || {}).weight, (a.vitals || {}).height))) }, address: set().clinicAddress || '', phone: set().clinicPhone || '',
           visitNo: String(visits.findIndex((x) => x.id === a.id) + 1 || visits.length), since: visits[0] ? fdate(visits[0].date) : fdate(a.date),
           slipNo: `OPD-${a.date.replace(/-/g, '').slice(2)}-${String(day.findIndex((x) => x.id === a.id) + 1).padStart(2, '0')}`,
-        });
-        toast('OPD slip ready');
+        }, shareIt ? { share: true, phone: a.mobile, text: `Namaste ${a.patientName}, here is your OPD slip for ${fdate(a.date)}${a.time ? ` at ${time12(a.time)}` : ''} from ${a.branch || set().clinic}.` } : null);
+        toast(shareIt ? 'Opening WhatsApp…' : 'OPD slip ready');
       } catch (err) { console.error(err); toast(`Could not make the slip: ${err.message}`, true); }
     },
     reminders: () => { openMenu(false); remindersSheet(); },

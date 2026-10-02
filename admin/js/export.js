@@ -28,6 +28,25 @@
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(() => URL.revokeObjectURL(a.href), 3000);
   }
+  // Save the file, or share it (WhatsApp on Android; the phone's share sheet in a browser).
+  async function share(fname, mime, b64, o) {
+    if (root.AndroidBridge && root.AndroidBridge.shareFile) { root.AndroidBridge.shareFile(fname, mime, b64, o.phone || '', o.text || ''); return 'shared'; }
+    const blob = b64ToBlob(b64, mime);
+    try {
+      const file = new File([blob], fname, { type: mime });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], text: o.text || '' }); return 'shared'; }
+    } catch (err) { if (err && err.name === 'AbortError') return 'cancelled'; }
+    // No file sharing here: save the PDF and open WhatsApp with the message so it can be attached.
+    save(fname, mime, b64, blob);
+    const d = String(o.phone || '').replace(/\D/g, '').slice(-10);
+    root.open(`https://wa.me/${d ? `91${d}` : ''}?text=${encodeURIComponent(o.text || '')}`, '_blank');
+    return 'saved';
+  }
+  function deliver(fname, mime, b64, opts) {
+    if (opts && opts.share) { share(fname, mime, b64, opts); return fname; }
+    save(fname, mime, b64, b64ToBlob(b64, mime));
+    return fname;
+  }
   const b64ToBlob = (b64, mime) => {
     const bin = atob(b64); const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -177,7 +196,7 @@
   }
 
   /** OPD slip (A4): clinic header, token, patient and visit details, doctor, clinic, payment, vitals, Rx space, signature. */
-  function opdSlip(a, info) {
+  function opdSlip(a, info, opts) {
     const { jsPDF } = root.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
     const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 12;
@@ -291,7 +310,7 @@
     doc.text(pdfText(`Printed ${nowText()}`), W - M, H - 5, { align: 'right' });
     const fname = `OPD-Slip-${String(a.patientName).replace(/[^A-Za-z0-9]+/g, '-')}-${a.date}.pdf`;
     const b64 = doc.output('datauristring').split(',')[1];
-    save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
+    deliver(fname, 'application/pdf', b64, opts);
     return fname;
   }
 
@@ -529,7 +548,7 @@
    * inv = { title, no, date, clinic:{name,address,phone,email}, patient:{name,mobile,ageGender,city,id},
    *         details:[[label,value]], items:[{desc,sub,qty,rate,amount}], total, paid, payMethod, note, preparedBy, filename }
    */
-  function invoice(inv) {
+  function invoice(inv, opts) {
     const { jsPDF } = root.jspdf;
     const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
     const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 14;
@@ -632,7 +651,7 @@
     doc.text(pdfText(`${inv.preparedBy ? `Prepared by ${inv.preparedBy} · ` : ''}${nowText()}`), W - M, H - 4.4, { align: 'right' });
     const fname = `${inv.filename || inv.no.replace(/[^A-Za-z0-9-]+/g, '-')}.pdf`;
     const b64 = doc.output('datauristring').split(',')[1];
-    save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
+    deliver(fname, 'application/pdf', b64, opts);
     return fname;
   }
 
