@@ -479,10 +479,11 @@
       }
       const splits = splitsFor({ ...input, type, qty }, refs);
       const patient = findOrCreatePatient(input.patientName, input.mobile, input);
-      const earlier = S.sales.some((s) => s.patientId === patient.id && s.id !== id && s.date <= date);
+      // New / Renewal: injections count earlier injections; protein has no new / renewal.
+      const earlier = S.sales.some((s) => s.patientId === patient.id && s.id !== id && s.date <= date && (type !== 'injection' || s.type === 'injection'));
       return {
         id, type, date, patientId: patient.id, patientName: patient.name, mobile: patient.mobile,
-        patientType: input.patientType || (earlier ? 'renewal' : 'new'),
+        patientType: type === 'protein' ? '' : input.patientType || (earlier ? 'renewal' : 'new'),
         itemId: type === 'diet' ? null : input.itemId, planId: type === 'diet' ? input.planId : null,
         product, qty, amount,
         refId: input.refId, sharedId: refs[1] ? refs[1].memberId : '', sharePct: refs[1] ? refs[1].pct : 0,
@@ -1057,7 +1058,7 @@
       out['Diet Support'] = [['Date', 'Patient', 'Mobile', 'Plan', 'Amount', 'Reference', 'Shared Reference', 'Split', 'Incentive', 'Notes']];
       byDate.forEach((s) => {
         const [ref, shared] = refNames(s);
-        if (s.type === 'injection') out['Injection Sales'].push([s.date, s.patientName, s.mobile, s.patientType === 'new' ? 'New' : 'Renewal', s.product, s.qty, s.amount, ref, shared, split(s), s.dietitianId ? memberName(s.dietitianId) : '', s.incentive, s.notes]);
+        if (s.type === 'injection') out['Injection Sales'].push([s.date, s.patientName, s.mobile, s.patientType === 'renewal' ? 'Renewal' : 'New', s.product, s.qty, s.amount, ref, shared, split(s), s.dietitianId ? memberName(s.dietitianId) : '', s.incentive, s.notes]);
         else if (s.type === 'protein') out['Protein Sales'].push([s.date, s.patientName, s.mobile, s.product, s.qty, s.amount, ref, shared, split(s), s.incentive, s.notes]);
         else out['Diet Support'].push([s.date, s.patientName, s.mobile, s.product.replace('Diet Support ', ''), s.amount, ref, shared, split(s), s.incentive, s.notes]);
       });

@@ -435,3 +435,16 @@ test('patient age with sales, vitals and BMI with appointments', () => {
   const row = a.sheetsData().Patients[1];
   assert.deepEqual(row.slice(-6), ['42', 'Female', 'Salt Lake', '82', '160', '32.0']);
 });
+
+test('protein sales have no new / renewal; injections count earlier injections only', () => {
+  const a = setup();
+  const m = a.saveMember({ name: 'Riya' });
+  const pen = byName(a, 'Mounjaro 15mg'); const pro = byName(a, 'Protein Sachets');
+  a.adjustStock(pen.id, 3, 'count'); a.adjustStock(pro.id, 5, 'count');
+  const p1 = a.saveSale({ type: 'protein', patientName: 'Asha', mobile: '9876543210', itemId: pro.id, amount: 2500, refId: m.id, date: '2026-09-01', patientType: 'renewal' });
+  assert.equal(p1.patientType, '');
+  const i1 = a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9876543210', itemId: pen.id, amount: 17000, refId: m.id, date: '2026-09-02' });
+  assert.equal(i1.patientType, 'new', 'earlier protein does not make the first injection a renewal');
+  const i2 = a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9876543210', itemId: pen.id, amount: 17000, refId: m.id, date: '2026-09-10' });
+  assert.equal(i2.patientType, 'renewal');
+});

@@ -322,9 +322,68 @@
     const tint = (a, k) => rgb(a.map((c) => Math.round(c + (255 - c) * k)));
     const kpis = report.kpis || [];
     const sections = report.sections.map((s) => ({ ...s, rows: s.rows.length ? s.rows : [['No records for this selection']] }));
-    // Measure first so the canvas has the right size.
-    let H = 210 + (report.subtitle ? 50 : 0) + (kpis.length ? Math.ceil(kpis.length / 4) * 112 + 16 : 0) + 100;
-    sections.forEach((s) => { H += 60 + (s.rows.length + 1 + (s.foot ? 1 : 0)) * ROW + 30; });
+    // Lay the tables out first (column widths, wrapped lines, row heights) so the canvas gets the right size.
+    const mc = document.createElement('canvas').getContext('2d');
+    const mfont = (w, px) => { mc.font = `${w} ${px}px Helvetica, Arial, sans-serif`; };
+    const wrap = (text, width, maxLines) => {
+      const words = String(text == null ? '' : text).split(/\s+/).filter(Boolean);
+      const lines = []; let cur = '';
+      const push = (w) => {
+        if (mc.measureText(w).width <= width) return w;
+        let part = ''; // a single word longer than the column: break it
+        for (const ch of w) { if (mc.measureText(part + ch).width > width) { lines.push(part); part = ch; } else part += ch; }
+        return part;
+      };
+      words.forEach((w) => {
+        const t = cur ? `${cur} ${w}` : w;
+        if (mc.measureText(t).width <= width) cur = t; else { if (cur) lines.push(cur); cur = push(w); }
+      });
+      if (cur || !lines.length) lines.push(cur);
+      if (lines.length > maxLines) { const keep = lines.slice(0, maxLines); let last = keep[maxLines - 1]; while (last.length > 1 && mc.measureText(last + '…').width > width) last = last.slice(0, -1); keep[maxLines - 1] = last + '…'; return keep; }
+      return lines;
+    };
+    const RIGID = /mobile|phone|age|qty|date|time|fee|status|type|invoice|batch|expiry|share|days|%/i;
+    const layout = (s) => {
+      const cols = s.head.length;
+      const fs = cols <= 5 ? 21 : cols <= 7 ? 19 : cols <= 9 ? 17 : cols <= 10 ? 16 : 15;
+      const lineH = Math.round(fs * 1.28); const pad = cols > 8 ? 8 : 11; const vpad = 11;
+      const avail = W - 2 * M;
+      const right = (k) => (s.right || []).includes(k);
+      const nat = s.head.map((h, i) => {
+        mfont('bold', fs); let w = mc.measureText(String(h)).width;
+        mfont('normal', fs); s.rows.forEach((r) => { if (r.length === cols) w = Math.max(w, mc.measureText(String(r[i] == null ? '' : r[i])).width); });
+        if (s.foot) { mfont('bold', fs); w = Math.max(w, mc.measureText(String(s.foot[i] == null ? '' : s.foot[i])).width); }
+        return Math.ceil(w) + pad * 2 + 2;
+      });
+      const rigid = s.head.map((h, i) => right(i) || RIGID.test(String(h)));
+      let cw;
+      const total = nat.reduce((a, b) => a + b, 0);
+      if (total <= avail) cw = nat.map((w) => w * avail / total);
+      else {
+        const rigidSum = nat.reduce((a, w, i) => a + (rigid[i] ? Math.min(w, 300) : 0), 0);
+        const flexIdx = nat.map((_, i) => i).filter((i) => !rigid[i]);
+        const flexNat = flexIdx.reduce((a, i) => a + nat[i], 0);
+        const flexAvail = avail - rigidSum;
+        if (flexIdx.length && flexAvail >= flexIdx.length * 96) {
+          cw = nat.map((w, i) => (rigid[i] ? Math.min(w, 300) : Math.max(96, (w / flexNat) * flexAvail)));
+          const over = cw.reduce((a, b) => a + b, 0) - avail; // min widths may overshoot a little
+          if (over > 0) { const big = flexIdx.filter((i) => cw[i] > 96); big.forEach((i) => { cw[i] -= over / big.length; }); }
+        } else cw = nat.map((w) => Math.max(60, (w / total) * avail));
+        const sum = cw.reduce((a, b) => a + b, 0); cw = cw.map((w) => w * avail / sum);
+      }
+      const mk = (cells, weight) => {
+        mfont(weight, fs);
+        const full = cells.length === 1 && cols > 1;
+        const lines = full ? [wrap(cells[0], avail - pad * 2, 2)] : cells.slice(0, cols).map((v, k) => wrap(v, cw[k] - pad * 2, 3));
+        return { cells: full ? [cells[0]] : cells, lines, full, h: Math.max(...lines.map((l) => l.length)) * lineH + vpad * 2 };
+      };
+      const head = mk(s.head, 'bold');
+      const rows = s.rows.map((r) => mk(r, 'normal'));
+      const foot = s.foot ? mk(s.foot, 'bold') : null;
+      return { fs, lineH, pad, vpad, cw, head, rows, foot, height: 50 + head.h + rows.reduce((a, r) => a + r.h, 0) + (foot ? foot.h : 0) + 34 };
+    };
+    const layouts = sections.map(layout);
+    let H = 210 + (report.subtitle ? 50 : 0) + (kpis.length ? Math.ceil(kpis.length / 4) * 112 + 16 : 0) + 100 + layouts.reduce((a, l) => a + l.height, 0);
     H = Math.min(Math.max(H, 600), MAX_H);
     const ci = clinicOf(clinic);
     const contact = [ci.address, ci.phone ? `Phone ${ci.phone}` : ''].filter(Boolean).join('  |  ');
@@ -375,39 +434,32 @@
       g.fillStyle = tint(ac, 0.85); rr(M + 34 + tw, y + 4, 60, 28, 14); g.fill();
       font('bold', 18); g.fillStyle = rgb(ac); g.textAlign = 'center'; g.fillText(String(report.sections[si].rows.length), M + 64 + tw, y + 24); g.textAlign = 'left';
       y += 50;
-      font('normal', 21);
-      const cols = s.head.length;
-      const widths = s.head.map((h, i) => Math.min(520, Math.max(g.measureText(String(h)).width, ...s.rows.map((r) => g.measureText(String(r[i] == null ? '' : r[i])).width)) + 30));
-      const scale = (W - 2 * M) / widths.reduce((a, b) => a + b, 0);
-      const cw = widths.map((w) => w * scale);
-      const drawRow = (cells, style, i) => {
-        if (y + ROW > H - 80) { cut = true; return; }
+      const L = layouts[si];
+      const drawRow = (row, style, i) => {
+        if (y + row.h > H - 80) { cut = true; return; }
         g.fillStyle = style === 'head' ? rgb(NAVY) : style === 'foot' ? tint(ac, 0.85) : i % 2 ? 'rgb(246,249,252)' : '#fff';
-        if (style === 'head') { rr(M, y, W - 2 * M, ROW, 10); g.fill(); } else g.fillRect(M, y, W - 2 * M, ROW);
-        g.fillStyle = 'rgb(226,233,241)'; g.fillRect(M, y + ROW - 1, W - 2 * M, 1);
+        if (style === 'head') { rr(M, y, W - 2 * M, row.h, 10); g.fill(); } else g.fillRect(M, y, W - 2 * M, row.h);
+        g.fillStyle = 'rgb(226,233,241)'; g.fillRect(M, y + row.h - 1, W - 2 * M, 1);
         let x = M;
-        const full = cells.length === 1 && cols > 1;
-        cells.forEach((v, k) => {
-          if (k >= cols) return;
-          const right = (s.right || []).includes(k);
-          const txt = String(v == null ? '' : v);
-          const hot = style === 'body' && /ORDER REQUIRED|Not available|Overdue/i.test(txt);
+        row.lines.forEach((lines, k) => {
+          const width = row.full ? W - 2 * M : L.cw[k];
+          const txt = String(row.cells[k] == null ? '' : row.cells[k]);
+          const right = !row.full && (s.right || []).includes(k);
+          const hot = style === 'body' && /ORDER REQUIRED|Not available|Overdue|UNPAID/i.test(txt);
           const good = style === 'body' && /^(Paid|Completed|Available|Converted)/.test(txt);
-          g.fillStyle = style === 'head' ? '#fff' : hot ? rgb(RED) : good ? 'rgb(20,138,94)' : style === 'foot' ? rgb(NAVY) : rgb(INK);
-          font(style === 'body' && !hot && !good ? 'normal' : 'bold', 21);
-          const width = full ? W - 2 * M : cw[k];
-          const t = fit(txt, width - 24);
+          g.fillStyle = style === 'head' ? '#fff' : hot ? rgb(RED) : good ? 'rgb(20,138,94)' : style === 'foot' ? rgb(NAVY) : row.full ? rgb(MUTED) : rgb(INK);
+          font(style === 'body' && !hot && !good ? 'normal' : 'bold', L.fs);
           g.textAlign = right ? 'right' : 'left';
-          g.fillText(t, right ? x + width - 12 : x + 12, y + 29);
+          lines.forEach((ln, j) => g.fillText(ln, right ? x + width - L.pad : x + L.pad, y + L.vpad + L.fs * 0.92 + j * L.lineH));
           g.textAlign = 'left';
-          x += cw[k];
+          x += width;
         });
-        y += ROW;
+        y += row.h;
       };
-      drawRow(s.head, 'head', 0);
-      s.rows.forEach((r, i) => drawRow(r, 'body', i));
-      if (s.foot) drawRow(s.foot, 'foot', 0);
-      y += 30;
+      drawRow(L.head, 'head', 0);
+      L.rows.forEach((r, i) => drawRow(r, 'body', i));
+      if (L.foot) drawRow(L.foot, 'foot', 0);
+      y += 34;
     });
     if (cut) { font('bold', 22); g.fillStyle = rgb(RED); g.fillText('More rows in the PDF / Excel export…', M, H - 92); }
     // Footer

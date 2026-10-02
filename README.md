@@ -44,7 +44,7 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 - **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
 - **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
 
-## Hindivine Admin app (`admin/`) — version 3.4
+## Hindivine Admin app (`admin/`) — version 3.5
 
 A separate app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*.
 
@@ -62,7 +62,7 @@ The app logs out after 15 minutes without use. On Android, back goes to the prev
 | Area | What it does |
 | --- | --- |
 | **Dashboard** | **Customize** which sections show (per login); tap almost any box to open that screen already filtered (e.g. Injection sales → Sales filtered to injections, Unpaid → unpaid appointments, Low stock → low items). Today's OPD, revenue, profit and renewals; *Order required* banner; sales, OPD, patients, leads, team and stock summaries (available stock first); revenue vs expenses by month. Periods: today, this month (updates automatically), any chosen month, last month, year, all time or custom dates. |
-| **Today Summary** | Sales with the **reference (team member) on every sale**, sales by reference for the whole team, purchases, OPD, expenses, stock available and not available for any day. **Protein and Mounjaro 10mg / 15mg below 2 show “Order required”** (the limit is editable per item). Export as A4 **PDF**, one A4 **JPEG** image or **Excel**, with options: choose the parts to include and filter by sale type, reference and new / renewal patients. Patient details (mobile, age / gender, city) can be added. The default export is the sales list only: patient, product, amount, type (New / Renewal) and reference. |
+| **Today Summary** | Injection, protein and diet sales in separate boxes (protein has no New / Renewal), sales with the **reference (team member) on every sale**, sales by reference for the whole team, purchases, OPD, expenses, stock available and not available for any day. **Protein and Mounjaro 10mg / 15mg below 2 show “Order required”** (the limit is editable per item). Export as A4 **PDF**, one A4 **JPEG** image or **Excel**, with options: choose the parts to include and filter by sale type, reference and new / renewal patients. Patient details (mobile, age / gender, city) can be added. The default export is the sales list only: patient, product, amount, type (New / Renewal) and reference. |
 | **OPD Appointments** | Clinic visit or online, fee ₹1000 (editable), optional **treatment / service**, patient age / gender and vitals (weight, height, BMI calculated, BP, pulse, sugar), day view and filtered list, complete / paid / no-show / cancel, WhatsApp confirmation, **doctor** and **clinic / branch** for every appointment (add, rename, delete in Settings → Doctors & clinics), **OPD slip PDF** (token and slip number, clinic address and phone, vitals with automatic **BMI**, patient details and visit number, doctor, clinic, treatment, payment, vitals, Rx space, next visit and signature). |
 | **Leads (CRM)** | Name, mobiles, age, gender, city, source, interest, priority (hot / warm / cold), stage, assigned person, follow-up date and time, weight / target / height (BMI), budget, notes. Pipeline by stage, due-today and overdue follow-ups, call / WhatsApp, update history (who and when), book an OPD appointment from the lead (converts it), conversion rate, leads per person. |
 | **Filters & exports** | Search and filters on almost every screen (Today, Sales, OPD, Leads, Patients by gender / age / city, Renewals, Products, Inventory, Purchases by vendor / product, Team, Incentives, Salary, Expenses, Activity) with one-tap Clear. Every PDF / image / Excel export opens options: format, a different period for that file, summary boxes on or off; the file follows the screen's filters. |
@@ -105,7 +105,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 
 ```sh
 VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
-APP=admin VERSION_CODE=8 VERSION_NAME=3.4 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
+APP=admin VERSION_CODE=9 VERSION_NAME=3.5 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.

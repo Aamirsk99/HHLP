@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.4';
+  const APP_VERSION = '3.5';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -290,6 +290,9 @@
     'New patients': '<circle cx="10" cy="8" r="3.5"/><path d="M4 20c0-3.5 2.7-6 6-6M18 14v6M15 17h6"/>', 'Renewal patients': '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>',
     'Active patients': '<path d="M3 12h4l3-8 4 16 3-8h4"/>',
   };
+  // New / Renewal applies to injections (and diet plans); protein sales show none.
+  const ptText = (s) => (s.type === 'protein' || !s.patientType ? '-' : s.patientType === 'renewal' ? 'Renewal' : 'New');
+  const ptBadge = (s) => (s.type === 'protein' || !s.patientType ? '' : s.patientType === 'renewal' ? '<span class="badge gold">Renewal</span>' : '<span class="badge ok">New</span>');
   const kpi = (label, value, sub, cls, link) => `<div class="kpi ${cls || ''}${KPI_IC[label] ? ' has-ic' : ''}${link ? ' tap' : ''}"${link ? ` data-act="dash-go" data-k="${link}" role="button" tabindex="0"` : ''}>${KPI_IC[label] ? `<i class="kpi-ic">${svg(KPI_IC[label])}</i>` : ''}<small>${esc(label)}</small><b title="${esc(value)}">${esc(value)}</b>${sub ? `<span>${esc(sub)}</span>` : ''}</div>`;
   // Header prefixes: ">" right-aligned number, "~" hidden on phones (details stay in exports).
   const th = (h) => {
@@ -496,6 +499,24 @@
     }));
     return [...by.values()].sort((a, b) => b.credited - a.credited || a.name.localeCompare(b.name));
   }
+  // Today: injection, protein and diet sales in their own boxes.
+  const TODAY_TYPES = [['injection', 'Injection sales', '<path d="M18 2l4 4M20 4l-9 9M11 7l6 6M7 11l-4 4 2 2 4-4M5 17l-3 3"/>', ''], ['protein', 'Protein sales', '<path d="M8 3h8l-1 4H9zM7 7h10v14H7zM10 12h4"/>', 'teal'],
+    ['diet', 'Diet support', '<path d="M12 21c-5-3-8-7-8-11a4 4 0 0 1 8-1 4 4 0 0 1 8 1c0 4-3 8-8 11z"/>', 'violet']];
+  function todaySalesCards(sales) {
+    const refs = (s) => `<span class="ref-chips">${s.splits.map((y) => `<span class="ref-chip">${esc(y.name)}${s.splits.length > 1 ? ` · ${y.pct}%` : ''}</span>`).join('')}</span>`;
+    const pinfo = (s) => { const p = S().patients.find((q) => q.id === s.patientId) || {}; return [s.mobile, p.age ? `${p.age} y` : '', p.gender ? p.gender.charAt(0) : ''].filter(Boolean).map(esc).join(' · '); };
+    const cards = TODAY_TYPES.map(([t, title, ic, cls]) => {
+      const list = sales.filter((s) => s.type === t);
+      if (!list.length && t === 'diet') return '';
+      const total = list.reduce((a, s) => a + (Number(s.amount) || 0), 0);
+      const head = t === 'protein' ? ['Patient', 'Product', '>Qty', '>Amount', 'Reference', '>Incentive'] : ['Patient', t === 'diet' ? 'Plan' : 'Product', '>Amount', 'Type', 'Reference', '>Incentive'];
+      const rows = list.map((s) => `<tr><td><b>${esc(s.patientName)}</b><span class="sub">${pinfo(s)}</span></td><td>${esc(s.product)}${t !== 'protein' && s.qty > 1 ? ` × ${s.qty}` : ''}</td>
+        ${t === 'protein' ? `<td class="r">${num(s.qty)}</td>` : ''}<td class="r"><b>${inr(s.amount)}</b></td>${t !== 'protein' ? `<td>${ptBadge(s)}</td>` : ''}<td>${refs(s)}</td><td class="r">${inr(s.incentive)}</td></tr>`);
+      return `<section class="card sale-card ${t}"><h2><span class="ic ${cls}">${svg(ic)}</span>${title}<span class="sp"></span><span class="badge">${plural(list.length, 'sale')}</span><span class="badge ok">${inr(total)}</span></h2>
+        ${table(head, rows)}</section>`;
+    });
+    return cards.join('');
+  }
   SCREENS.today = () => {
     const d = todayDate || admin.today();
     const x0 = admin.daySummary(d);
@@ -507,7 +528,8 @@
     return `<div class="toolbar"><div class="day-nav"><button type="button" class="btn sm" data-day="-1" aria-label="Previous day">‹</button><input type="date" data-todaydate value="${esc(d)}" aria-label="Date"><button type="button" class="btn sm" data-day="1" aria-label="Next day">›</button>${d !== admin.today() ? '<button type="button" class="btn sm" data-day="0">Today</button>' : ''}</div>
         <span class="grow"></span><span class="btn-group"><button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="pdf">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}PDF</button>${imgBtn}<button type="button" class="btn sm" data-act="export" data-what="today" data-fmt="xlsx">${svg('<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M9 8l6 8M15 8l-6 8"/>')}Excel</button></span></div>
       <section class="hero"><div><small>${esc(set().clinic)} · ${fdate(d)}</small></div><div class="hero-row">
-        <div class="hk"><small>Sales</small><b>${inr(x.salesTotal)}</b><small>${plural(x.sales.length, 'sale')}</small></div>
+        ${(() => { const l = (t) => x.sales.filter((s) => s.type === t); const a = (t) => l(t).reduce((n, s) => n + (Number(s.amount) || 0), 0); return `<div class="hk"><small>Injection sales</small><b>${inr(a('injection'))}</b><small>${plural(l('injection').length, 'sale')}</small></div>
+        <div class="hk"><small>Protein sales</small><b>${inr(a('protein'))}</b><small>${plural(l('protein').length, 'sale')}</small></div>`; })()}
         <div class="hk"><small>Purchases</small><b>${inr(x.purchaseTotal)}</b><small>${plural(x.purchases.length, 'invoice')}</small></div>
         <div class="hk"><small>OPD</small><b>${num(x.appt.total - x.appt.cancelled)}</b><small>fees ${inr(x.appt.fees)}</small></div>
         <div class="hk"><small>Expenses</small><b>${inr(x.expenseTotal)}</b><small>${plural(x.leads, 'new lead')}</small></div>
@@ -517,8 +539,7 @@
       ${x.order.length ? `<section class="card order-card"><h2><span class="ic bad">${svg('<path d="M12 9v4M12 17h.01M10.3 3.9L1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/>')}</span>Order required</h2>
         <div class="alerts">${x.order.map((o) => `<div class="alert bad"><b>${esc(o.item.name)}</b><span class="badge bad">${num(o.stock)} left · below ${o.item.orderAt}</span></div>`).join('')}</div></section>` : ''}
       <div>
-        <section class="card"><h2><span class="ic">${svg('<path d="M4 19h16M7 16V9M12 16V5M17 16v-4"/>')}</span>Sales<span class="sp"></span><span class="badge">${inr(x.salesTotal)}</span></h2>
-          ${table(['Patient', 'Product', '>Amount', 'Type', 'Reference', '>Incentive'], x.sales.map((s) => `<tr><td>${esc(s.patientName)}</td><td>${typeBadge(s.type)} ${esc(s.product)}${s.qty > 1 ? ` × ${s.qty}` : ''}</td><td class="r"><b>${inr(s.amount)}</b></td><td>${s.patientType === 'renewal' ? '<span class="badge gold">Renewal</span>' : '<span class="badge ok">New</span>'}</td><td><span class="ref-chips">${s.splits.map((y) => `<span class="ref-chip">${esc(y.name)}${s.splits.length > 1 ? ` · ${y.pct}%` : ''}</span>`).join('')}</span></td><td class="r">${inr(s.incentive)}</td></tr>`))}</section>
+        ${todaySalesCards(x.sales)}
         <section class="card"><h2><span class="ic gold">${svg('<path d="M6 3h9l4 4v14H6zM14 3v5h5"/>')}</span>Purchases<span class="sp"></span><span class="badge">${inr(x.purchaseTotal)}</span></h2>
           ${table(['Vendor', 'Stock in', '>Total'], x.purchases.map((p) => `<tr><td>${esc(p.vendor || 'Vendor')}<span class="sub">${esc(p.invoiceNo)}</span></td><td>${p.lines.map((l) => `${esc(l.name)} +${num(l.qty)}`).join('<br>')}</td><td class="r">${inr(p.total)}</td></tr>`))}</section>
       </div>
@@ -730,6 +751,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.5', 'Protein sales no longer ask New / Renewal (new / renewal now follows earlier injections); Today shows injection, protein and diet sales in separate boxes with patient mobile, age and gender, and exports them as separate sections; image export fixed: phone numbers, ages and amounts always show in full, long names wrap instead of being cut; more premium tables, filter plates and colours.'],
     ['3.4', 'Customize dashboard: choose which sections show; almost every dashboard box opens the matching screen with the right filter; Top performer removed from the team summary; richer dashboard plates; filters on Today, Patients (gender, age, city, buyers / OPD only), Renewals, Products, Inventory, Purchases (vendor, product), Team, Incentives, Salary and Expenses, with one-tap Clear; every export opens options (PDF, image or Excel, period for the file, summary boxes) and follows the screen filters; smoother typing in search boxes; safer image export on low-memory phones.'],
     ['3.3', 'Patient age, gender and city on every sale (filled in automatically for known patients); Today export can add patient details (mobile, age / gender, city); vitals with automatic BMI on OPD appointments and the OPD slip; luxury dashboard with greeting, revenue and margin, icon plates and quick actions; Settings in clear sections (Clinic & doctors, Fees & rules, Google Sheet, Logins, Permissions, Choice lists, Backup); redesigned PDF and image reports with clinic address and phone, report details strip and page badges, without the developer line; bug fixes.'],
     ['3.2', 'Today Summary export options: choose what goes in the PDF / image / Excel and filter by sale type, reference and new or renewal patients (default: patient, product, amount, new / renewal and reference only); product-wise incentive for everyone or per person; doctors and clinics to choose in OPD appointments (add, rename, delete in Settings); new OPD slip with every detail (token, slip no., doctor, clinic, address, phone, patient visit no., payment, vitals, Rx) and no developer line; Black & Gold and Rose Gold luxury themes, premium font and refined design; pop-ups always on top and no keyboard jumping up on phones; Google Sheet: keep the current sheet or move to a new one; sync never hangs on slow internet.'],
@@ -928,7 +950,7 @@
         <label class="f">Age<input name="age" type="number" min="0" max="120" inputmode="numeric" value="${esc(pt.age || '')}" placeholder="Years"></label>
         <label class="f">Gender<select name="gender">${['', 'Female', 'Male', 'Other'].map((g) => opt(g, g || 'Select', pt.gender || '')).join('')}</select></label>
         <label class="f">City / area<input name="city" value="${esc(pt.city || '')}"></label>
-        ${t !== 'diet' ? `<label class="f">New / Renewal<select name="patientType">${opt('new', 'New', pre.patientType || 'new')}${opt('renewal', 'Renewal', pre.patientType)}</select></label>` : ''}
+        ${t === 'injection' ? `<label class="f">New / Renewal<select name="patientType">${opt('new', 'New', pre.patientType || 'new')}${opt('renewal', 'Renewal', pre.patientType)}</select></label>` : ''}
         <label class="f">${t === 'diet' ? 'Plan' : t === 'protein' ? 'Protein type' : 'Product'}<select name="${t === 'diet' ? 'planId' : 'itemId'}" required>${opt('', 'Choose…', '')}${products.map(([v, l]) => opt(v, l, t === 'diet' ? pre.planId : pre.itemId)).join('')}</select></label>
         ${t !== 'diet' ? `<label class="f">Quantity<input name="qty" type="number" min="1" step="1" value="${esc(pre.qty || 1)}"></label>` : ''}
         <label class="f">Sale amount (₹)<input name="amount" type="number" min="0" step="any" required value="${esc(pre.amount != null ? pre.amount : '')}"></label>
@@ -978,7 +1000,7 @@
       const digits = (s) => String(s || '').replace(/\D/g, '').slice(-10);
       const p = S().patients.find((x) => (digits(v.mobile) && digits(x.mobile) === digits(v.mobile)) || (x.name.toLowerCase() === v.patientName.trim().toLowerCase() && !digits(v.mobile)));
       if (changed.name === 'patientName' && p && !v.mobile) f.mobile.value = p.mobile || '';
-      f.patientType.value = p && admin.patientSales(p.id).length ? 'renewal' : 'new';
+      f.patientType.value = p && admin.patientSales(p.id).some((x) => x.type === 'injection') ? 'renewal' : 'new';
     }
     if (changed && changed.name === 'patientType') f.patientType.dataset.touched = '1';
     f.sharePct.disabled = !v.sharedId;
@@ -1039,7 +1061,7 @@
   SCREENS.sales = () => {
     const list = filteredSales();
     const rows = list.map((s) => `<tr><td>${esc(s.patientName)}<span class="sub">${fdate(s.date)}${s.mobile ? ` · ${esc(s.mobile)}` : ''}</span></td>
-      <td>${typeBadge(s.type)} ${s.patientType === 'renewal' ? '<span class="badge">Renewal</span>' : '<span class="badge ok">New</span>'}</td>
+      <td>${typeBadge(s.type)} ${ptBadge(s)}</td>
       <td>${esc(s.product)}${s.qty > 1 ? ` × ${s.qty}` : ''}</td>
       <td class="r"><b>${inr(s.amount)}</b></td><td data-hm>${splitText(s)}</td><td class="r">${inr(s.incentive)}</td>
       <td class="acts"><button class="btn xs" data-act="edit-sale" data-id="${s.id}">Edit</button> <button class="btn xs danger" data-act="del-sale" data-id="${s.id}">Delete</button></td></tr>`);
@@ -1460,7 +1482,7 @@
     appointments: (list) => sec('OPD Appointments', ['Date', 'Time', 'Patient', 'Mobile', 'Mode', 'Status', 'Payment', '>Fee'],
       list.map((a) => [a.date, time12(a.time), a.patientName, a.mobile, A.APPT_MODES[a.mode], A.APPT_STATUS[a.status], a.status === 'cancelled' ? '—' : a.paid ? `Paid ${a.payMethod || ''}`.trim() : 'Unpaid', a.fee]), { money: [7], total: [7] }),
     sales: (list) => sec('Sales', ['Date', 'Patient', 'Mobile', 'Type', 'New/Renewal', 'Product', '>Qty', '>Amount', 'Reference', '>Incentive'],
-      list.map((s) => [s.date, s.patientName, s.mobile, A.SALE_TYPES[s.type], s.patientType === 'new' ? 'New' : 'Renewal', s.product, s.qty, s.amount, s.splits.map((x) => `${x.name}${s.splits.length > 1 ? ` ${x.pct}%` : ''}`).join(' + '), s.incentive]), { money: [7, 9], total: [7, 9] }),
+      list.map((s) => [s.date, s.patientName, s.mobile, A.SALE_TYPES[s.type], ptText(s), s.product, s.qty, s.amount, s.splits.map((x) => `${x.name}${s.splits.length > 1 ? ` ${x.pct}%` : ''}`).join(' + '), s.incentive]), { money: [7, 9], total: [7, 9] }),
     patients: (list) => sec('Patients', ['Patient', 'Mobile', 'Age / Sex', 'City', '>Visits', '>Total Spent', 'Last Visit', 'Status'],
       list.map((x) => [x.p.name, x.p.mobile, [x.p.age ? `${x.p.age} y` : '', x.p.gender ? x.p.gender.charAt(0) : ''].filter(Boolean).join(' / ') || '-', x.p.city || '-', x.sales.length + x.appts.length, x.spent, x.lastAny, x.active ? 'Active' : 'Inactive']), { money: [5], total: [4, 5] }),
     renewals: (list) => sec('Renewals', ['Patient', 'Mobile', 'Product', 'Last Purchase', '>Days', 'Reminder', 'Reference Team', 'Contacted'],
@@ -1545,23 +1567,33 @@
       const x = { ...base, sales, salesTotal: sales.reduce((a, s) => a + (Number(s.amount) || 0), 0) };
       const on = (k) => opt.secs.includes(k);
       const cols = opt.cols || [];
-      const salesSec = () => {
+      // One section per sale type: injections, protein (no new / renewal), diet support.
+      const salesSec = (type, list, title) => {
         const pat = (s) => S().patients.find((p) => p.id === s.patientId) || {};
         const ag = (p) => [p.age ? `${p.age} y` : '', p.gender ? p.gender.charAt(0) : ''].filter(Boolean).join(' / ') || '-';
-        const head = ['Patient', ...(cols.includes('mobile') ? ['Mobile'] : []), ...(cols.includes('age') ? ['Age / Sex'] : []), ...(cols.includes('city') ? ['City'] : []), 'Product', ...(cols.includes('qty') ? ['>Qty'] : []), '>Amount', 'Type', 'Reference', ...(cols.includes('incentive') ? ['>Incentive'] : [])];
-        const rows = sales.map((s) => [s.patientName, ...(cols.includes('mobile') ? [s.mobile || ''] : []), ...(cols.includes('age') ? [ag(pat(s))] : []), ...(cols.includes('city') ? [pat(s).city || '-'] : []), s.product, ...(cols.includes('qty') ? [s.qty] : []), s.amount,
-          s.patientType === 'renewal' ? 'Renewal' : 'New', s.splits.map((y) => `${y.name}${s.splits.length > 1 ? ` ${y.pct}%` : ''}`).join(' + ') || '-',
+        const withType = type !== 'protein'; const withQty = cols.includes('qty') || type === 'protein';
+        const head = ['Patient', ...(cols.includes('mobile') ? ['Mobile'] : []), ...(cols.includes('age') ? ['Age / Sex'] : []), ...(cols.includes('city') ? ['City'] : []), type === 'diet' ? 'Plan' : 'Product', ...(withQty ? ['>Qty'] : []), '>Amount', ...(withType ? ['Type'] : []), 'Reference', ...(cols.includes('incentive') ? ['>Incentive'] : [])];
+        const rows = list.map((s) => [s.patientName, ...(cols.includes('mobile') ? [s.mobile || '-'] : []), ...(cols.includes('age') ? [ag(pat(s))] : []), ...(cols.includes('city') ? [pat(s).city || '-'] : []), s.product, ...(withQty ? [s.qty] : []), s.amount,
+          ...(withType ? [ptText(s)] : []), s.splits.map((y) => `${y.name}${s.splits.length > 1 ? ` ${y.pct}%` : ''}`).join(' + ') || '-',
           ...(cols.includes('incentive') ? [s.incentive] : [])]);
         const amt = head.indexOf('>Amount'); const inc = head.indexOf('>Incentive'); const qty = head.indexOf('>Qty');
-        return sec('Sales', head, rows, { money: [amt, inc].filter((i) => i >= 0), total: [amt, inc, qty].filter((i) => i >= 0) });
+        return sec(title, head, rows, { money: [amt, inc].filter((i) => i >= 0), total: [amt, inc, qty].filter((i) => i >= 0) });
+      };
+      const TYPE_TITLES = { injection: 'Injection Sales', protein: 'Protein Sales', diet: 'Diet Support' };
+      const salesSecs = () => {
+        const parts = Object.keys(TYPE_TITLES).map((t) => [t, sales.filter((s) => s.type === t)]).filter(([, l]) => l.length);
+        return parts.length ? parts.map(([t, l]) => salesSec(t, l, TYPE_TITLES[t])) : [salesSec('injection', [], 'Sales')];
       };
       const filt = [opt.type ? A.SALE_TYPES[opt.type] : '', opt.ptype === 'renewal' ? 'Renewal patients' : opt.ptype === 'new' ? 'New patients' : '', opt.ref ? `Reference: ${(admin.member(opt.ref) || {}).name || ''}` : ''].filter(Boolean);
-      const kp = [['Sales', inr(x.salesTotal)], ['Orders', num(sales.length)], ['New patients', num(sales.filter((s) => s.patientType !== 'renewal').length)], ['Renewals', num(sales.filter((s) => s.patientType === 'renewal').length)],
+      const amt = (t) => sales.filter((s) => s.type === t).reduce((a, s) => a + (Number(s.amount) || 0), 0);
+      const inj = sales.filter((s) => s.type === 'injection');
+      const kp = [['Total sales', inr(x.salesTotal)], ['Injection sales', inr(amt('injection'))], ['Protein sales', inr(amt('protein'))], ...(amt('diet') ? [['Diet support', inr(amt('diet'))]] : []),
+        ['Orders', num(sales.length)], ['New (injection)', num(inj.filter((s) => s.patientType !== 'renewal').length)], ['Renewals', num(inj.filter((s) => s.patientType === 'renewal').length)],
         ...(on('appts') ? [['OPD appointments', num(x.appt.total - x.appt.cancelled)], ['OPD fees', inr(x.appt.fees)]] : []),
         ...(on('purchases') ? [['Purchases', inr(x.purchaseTotal)]] : [])];
       return { title: 'Today Summary', subtitle: `${fdate(d)}${filt.length ? ` · ${filt.join(' · ')}` : ''}`, kpis: on('summary') ? kp : undefined, sections: [
         ...(on('order') && x.order.length ? [R.dayStock('ORDER REQUIRED', x.order)] : []),
-        ...(on('sales') ? [salesSec()] : []), ...(on('refs') ? [R.dayRefs(x)] : []), ...(on('appts') ? [R.dayAppts(x)] : []), ...(on('purchases') ? [R.dayPurchases(x)] : []),
+        ...(on('sales') ? salesSecs() : []), ...(on('refs') ? [R.dayRefs(x)] : []), ...(on('appts') ? [R.dayAppts(x)] : []), ...(on('purchases') ? [R.dayPurchases(x)] : []),
         ...(on('available') ? [R.dayStock('Stock Available', x.available)] : []), ...(on('notavailable') ? [R.dayStock('Stock Not Available', x.notAvailable)] : [])] };
     },
     leads: () => { const list = filteredLeads(); return { title: 'Leads', subtitle: role === 'desk' ? `${me.name} · ${fdate(stamp())}` : fdate(stamp()), sections: [R.leads(list), ...(role !== 'desk' ? [R.leadOwners(list)] : [])] }; },
