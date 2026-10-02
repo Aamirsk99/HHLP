@@ -394,6 +394,14 @@
   }
 
   // ── Router ───────────────────────────────────────────────────────
+  // Android back button (MainActivity asks the page first): close an open dialog or the menu;
+  // otherwise 'none' lets the app go back a page, and on Home back leaves the app.
+  window.hdvBack = () => {
+    const open = $$('dialog[open]');
+    if (open.length) { open[open.length - 1].close(); return true; }
+    if (document.body.classList.contains('drawer-open')) { closeDrawer(); return true; }
+    return current === 'home' ? false : 'none';
+  };
   const TITLES = { home: 'Dashboard' };
   function show(name) {
     if (!SCREENS.includes(name)) name = 'home';
@@ -402,6 +410,8 @@
     if (name === 'recipe' && !viewRecipe) name = 'recipes';
     current = name;
     closeDrawer();
+    // A dialog left open would cover the new screen.
+    $$('dialog[open]').forEach((d) => { try { d.close(); } catch (_) { /* already closed */ } });
     $$('.screen').forEach((s) => { s.hidden = s.dataset.screen !== name; });
     const sec = $(`.screen[data-screen="${name}"]`);
     const stepIdx = STEPS.indexOf(name);
@@ -844,7 +854,7 @@
         <label>Language<select id="chart-lang-quick">${options(I.LANGS, L())}</select></label>
         <label>2nd language<select id="chart-lang2-quick"><option value="">None</option>${options(I.LANGS, L2())}</select></label>
         <label>Starts on<select id="start-day-quick">${P.DAY_NAMES.map((x) => `<option${x === profile.startDay ? ' selected' : ''}>${x}</option>`).join('')}</select></label>
-        <label>Water / day<select id="water-quick">${['', 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((w) => `<option value="${w}"${String(w) === String(profile.waterL || '') ? ' selected' : ''}>${w ? w + ' L' : `Auto (${P.computeTargets({ ...profile, waterL: 0 }).waterL} L)`}</option>`).join('')}</select></label>
+        <label>Water / day<select id="water-quick">${['', 1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5].map((w) => `<option value="${w}"${String(w) === String(profile.waterL || '') ? ' selected' : ''}>${w ? w + ' L' : `Auto ${P.computeTargets({ ...profile, waterL: 0 }).waterL} L`}</option>`).join('')}</select></label>
       </div>
 
       <div class="tiles">

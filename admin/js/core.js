@@ -797,16 +797,22 @@
       .map((i) => ({ item: i, stock: stockOf(i.id) }));
 
     // Patients
-    function findOrCreatePatient(name, mobile) {
+    // A patient is the same person only when name and mobile both match (family members often
+    // share one phone). `draft` = don't add a new patient yet (the caller adds it once the record is accepted).
+    /** Local date and time "2026-10-02 19:05" (India time on an Indian phone), not UTC. */
+    const stamp = (ms) => { const d = new Date(ms); const z = (n) => String(n).padStart(2, '0'); return `${d.getFullYear()}-${z(d.getMonth() + 1)}-${z(d.getDate())} ${z(d.getHours())}:${z(d.getMinutes())}`; };
+    function findOrCreatePatient(name, mobile, draft) {
       const nm = String(name || '').trim();
       if (!nm) fail('Patient name is required');
       const ph = digits(mobile);
       let p = (ph && S.patients.find((x) => digits(x.mobile) === ph && low(x.name) === low(nm)))
-        || (ph && S.patients.find((x) => digits(x.mobile) === ph))
         || (!ph && S.patients.find((x) => low(x.name) === low(nm) && !digits(x.mobile)));
-      if (!p) { p = { id: uid('p'), name: nm, mobile: String(mobile || '').trim(), created: today() }; S.patients.push(p); }
+      if (!p) { p = { id: uid('p'), name: nm, mobile: String(mobile || '').trim(), created: today() }; if (draft) newPatients.set(p.id, p); else S.patients.push(p); }
       return p;
     }
+    const newPatients = new Map();
+    /** Add a patient made as a draft, once its sale or appointment is saved. */
+    const keepPatient = (id) => { const p = newPatients.get(id); if (p) { S.patients.push(p); newPatients.delete(id); } };
     // Sales grouped by patient, built once and rebuilt after any save (lists with thousands of patients stay fast).
     let salesIdx = null; let salesIdxOf = null; let salesIdxLen = -1;
     function salesByPatient() {
@@ -924,7 +930,7 @@
         refs.push({ memberId: input.sharedId, pct });
       }
       const splits = splitsFor({ ...input, type, qty }, refs);
-      const patient = findOrCreatePatient(input.patientName, input.mobile);
+      const patient = findOrCreatePatient(input.patientName, input.mobile, true);
       const earlier = S.sales.some((s) => s.patientId === patient.id && s.id !== id && s.date <= date);
       return {
         id, type, date, patientId: patient.id, patientName: patient.name, mobile: patient.mobile,
@@ -948,26 +954,27 @@
           fail(`Only ${available} ${item(sale.itemId).unit} of ${sale.product} in stock`);
         }
       }
+      keepPatient(sale.patientId);
       if (existing) {
         S.moves = S.moves.filter((m) => m.ref !== existing.id);
         Object.assign(existing, sale, { created: existing.created, invoiceNo: existing.invoiceNo });
-      } else { sale.invoiceNo = nextInvoiceNo(); S.sales.push(sale); }
+      } else { sale.invoiceNo = nextInvoiceNo(sale.date); S.sales.push(sale); }
       if (sale.itemId) S.moves.push({ id: uid('v'), itemId: sale.itemId, qty: -sale.qty, type: 'sale', ref: sale.id, date: sale.date });
       kitFor(sale).forEach((k) => S.moves.push({ id: uid('v'), itemId: k.itemId, qty: -k.qty, type: 'kit', ref: sale.id, date: sale.date }));
       log(existing ? 'Sale updated' : 'Sale added', `${sale.product} × ${sale.qty} · ${sale.patientName} · ₹${sale.amount}`);
       save();
       return existing || sale;
     }
-    // Patient invoices: TPF-2026-0001, numbered in order of saving.
-    function nextInvoiceNo() {
+    // Patient invoices: TPF-2026-0001, numbered in order of saving; the year is the sale's own year.
+    function nextInvoiceNo(date) {
       S.settings.invoiceSeq = (Number(S.settings.invoiceSeq) || 0) + 1;
-      return `${S.settings.invoicePrefix || 'INV'}-${today().slice(0, 4)}-${String(S.settings.invoiceSeq).padStart(4, '0')}`;
+      return `${S.settings.invoicePrefix || 'TPF'}-${String(date || today()).slice(0, 4)}-${String(S.settings.invoiceSeq).padStart(4, '0')}`;
     }
     /** Everything the invoice PDF needs; older sales get their number the first time. */
     function invoiceFor(id) {
       const x = S.sales.find((s) => s.id === id);
       if (!x) fail('Sale not found');
-      if (!x.invoiceNo) { x.invoiceNo = nextInvoiceNo(); save(); }
+      if (!x.invoiceNo) { x.invoiceNo = nextInvoiceNo(x.date); save(); }
       const it = x.itemId ? item(x.itemId) : null;
       const gst = Number(S.settings.invoiceGst) || 0; // GST % included in the amount
       const taxable = r2(x.amount / (1 + gst / 100));
@@ -992,7 +999,7 @@
       let r = list.find((x) => x.key === key);
       if (!r) {
         let no;
-        if (k === 'invoice') no = ids.length === 1 ? v.nos[0] : nextInvoiceNo();
+        if (k === 'invoice') no = ids.length === 1 ? v.nos[0] : nextInvoiceNo(v.date);
         else { const [code, seq] = SLIP_KINDS[k]; S.settings[seq] = (Number(S.settings[seq]) || 0) + 1; no = `${S.settings.invoicePrefix || 'TPF'}-${code}-${String(S.settings[seq]).padStart(4, '0')}`; }
         r = { id: uid('sl'), key, no, kind: k, saleIds: [...ids], at: clock ? clock().getTime() : Date.now(), by: actor };
         list.push(r);
@@ -1273,11 +1280,11 @@
     function saveAppointment(input) {
       if (!input.date) fail('Choose the appointment date');
       if (!APPT_MODES[input.mode]) fail('Choose clinic visit or online');
+      const fee = input.fee === '' || input.fee == null ? S.settings.consultFee : Number(input.fee);
+      if (!(fee >= 0)) fail('Enter the consultation fee');
       const patient = findOrCreatePatient(input.patientName, input.mobile);
       let a = input.id && appointment(input.id);
       if (!a) { a = { id: uid('a'), created: Date.now(), status: 'booked', paid: false }; S.appointments.push(a); }
-      const fee = input.fee === '' || input.fee == null ? S.settings.consultFee : Number(input.fee);
-      if (!(fee >= 0)) fail('Enter the consultation fee');
       Object.assign(a, {
         date: input.date, time: input.time || '', patientId: patient.id, patientName: patient.name, mobile: patient.mobile,
         mode: input.mode, fee, link: String(input.link || '').trim(), notes: String(input.notes || '').trim(),
@@ -1921,11 +1928,11 @@
       out.Founders.push([]); out.Founders.push(['Capital entries', 'Date', 'Type', 'Amount', 'Note']);
       listFix('capital').forEach((c) => out.Founders.push([(founder(c.founderId) || {}).name || '', c.date, c.type === 'invest' ? 'Invested' : 'Withdrawn', c.amount, c.note]));
       out['Founder Notes'] = [['Date', 'Time', 'Mode', 'Type', 'Title', 'Details', 'With', 'Minutes', 'Outcome / Decision', 'Next Step', 'Due', 'Pinned', 'Status', 'By']];
-      listFix('notes').forEach((n) => out['Founder Notes'].push([n.date || new Date(n.at).toISOString().slice(0, 10), n.time || '', n.mode || '', n.tag || '', n.title || '', n.text || '', (n.with || []).map((x) => (founder(x) || {}).name || x).join(', '), n.mins || '', n.outcome || '', n.nextStep || '', n.due || '', n.pinned ? 'Yes' : '', n.done ? 'Done' : 'Open', n.by || '']));
+      listFix('notes').forEach((n) => out['Founder Notes'].push([n.date || stamp(n.at).slice(0, 10), n.time || '', n.mode || '', n.tag || '', n.title || '', n.text || '', (n.with || []).map((x) => (founder(x) || {}).name || x).join(', '), n.mins || '', n.outcome || '', n.nextStep || '', n.due || '', n.pinned ? 'Yes' : '', n.done ? 'Done' : 'Open', n.by || '']));
       out.Slips = [['Slip No.', 'Type', 'Date', 'Patient', 'Mobile', 'Items', 'Total', 'Payment', 'Made By', 'Made On', 'Sale Invoice Nos.']];
-      [...listFix('slips')].sort((a, b) => a.at - b.at).forEach((x) => out.Slips.push([x.no, (SLIP_KINDS[x.kind] || SLIP_KINDS.slip)[2], x.date || '', x.patient || '', x.mobile || '', x.items || '', x.total || 0, x.payMethod ? (x.unpaid ? `Part paid · ${x.payMethod}` : `Paid · ${x.payMethod}`) : 'Due', x.by || '', new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.invoices || '']));
+      [...listFix('slips')].sort((a, b) => a.at - b.at).forEach((x) => out.Slips.push([x.no, (SLIP_KINDS[x.kind] || SLIP_KINDS.slip)[2], x.date || '', x.patient || '', x.mobile || '', x.items || '', x.total || 0, x.payMethod ? (x.unpaid ? `Part paid · ${x.payMethod}` : `Paid · ${x.payMethod}`) : 'Due', x.by || '', stamp(x.at), x.invoices || '']));
       out['Activity Log'] = [['Date & Time', 'By', 'Action', 'Details']];
-      S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([new Date(x.at).toISOString().replace('T', ' ').slice(0, 16), x.by, x.action, x.detail]));
+      S.log.slice(-1500).reverse().forEach((x) => out['Activity Log'].push([stamp(x.at), x.by, x.action, x.detail]));
       return out;
     }
 

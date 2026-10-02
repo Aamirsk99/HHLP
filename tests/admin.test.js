@@ -411,3 +411,17 @@ test('mergeStates drops a record deleted on one side and unchanged on the other'
   assert.deepStrictEqual(A.mergeStates(base, { sales: [{ id: 's1' }] }, base).sales, [{ id: 's1' }]);
   assert.deepStrictEqual(A.mergeStates(base, base, { sales: [{ id: 's2' }] }).sales, [{ id: 's2' }]);
 });
+
+test('a refused sale adds no patient; a shared mobile with another name is a new patient', () => {
+  const a = stocked();
+  const it = a.state.items.find((x) => x.name === 'Mounjaro 2.5mg');
+  const m = a.saveMember({ name: 'Asha' });
+  assert.throws(() => a.saveSale({ type: 'injection', itemId: it.id, qty: 1, amount: 1000, patientName: 'Ghost', mobile: '9811111111', refId: m.id }));
+  assert.strictEqual(a.state.patients.length, 0);
+  a.adjustStock(it.id, 5, 'in');
+  const s1 = a.saveSale({ type: 'injection', itemId: it.id, qty: 1, amount: 1000, patientName: 'Sunita', mobile: '9811111111', refId: m.id });
+  const s2 = a.saveSale({ type: 'injection', itemId: it.id, qty: 1, amount: 1000, patientName: 'Riya', mobile: '9811111111', refId: m.id });
+  assert.notStrictEqual(s1.patientId, s2.patientId);
+  assert.strictEqual(s2.patientName, 'Riya');
+  assert.strictEqual(a.state.patients.length, 2);
+});

@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.4';
+  const APP_VERSION = '4.5';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1567,6 +1567,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.5', 'Medico-legal wording written for Indian law on slips, invoices, OPD slips and diet charts; new patient consent & terms form (Settings and each patient) with grievance contact; more premium look (ivory, gold hairlines, serif numbers, frosted bottom bar). Fixes: a refused sale no longer leaves a stray patient; family members sharing one mobile stay separate patients; Patient → New sale closes the patient sheet; PDFs download once; invoice year follows the sale date; no "stock" note for services; Back from Edit sale returns to Sales; "Cancel appointment" clearly named; injection kit preview matches the product kit; sheet times in India time; diet app Back closes open dialogs first.'],
     ['4.4', 'No more "Data changed on another device" popups: saves from one phone run one at a time (two saves at once made the phone conflict with itself), and when two phones change data at the same time both sets of changes are merged and kept. Dialog buttons no longer run off the screen.'],
     ['4.3', 'Google Sheet connects reliably: the Android app now talks to Google itself, the pasted web app link is tidied automatically (a /dev link or extra text is fixed), and a failed connection says exactly what to change (sign-in needed, wrong secret, setup not run, editor or sheet link pasted, no internet). Code.gs version 10 returns its own errors and works even when created outside the sheet.'],
     ['4.2', 'Slips, receipts and invoices numbered in series (TPF-SL-0001, TPF-RC-0001, invoices TPF-2026-0001) and printing the same sales again keeps the number; digital documents say no signature is required; new Slips sheet in the Google Sheet and Excel template, and a Slip register in the Sales export.'],
@@ -1790,7 +1791,7 @@
           ${a.status !== 'completed' ? b('appt-complete', '✓ Completed', 'success') : ''}
           ${!a.paid && a.status !== 'cancelled' ? b('appt-pay', '₹ Mark paid', 'primary') : ''}
           ${a.status === 'booked' ? b('appt-noshow', 'No-show') : ''}
-          ${a.status !== 'cancelled' ? b('appt-cancel', 'Cancel', 'danger') : b('appt-restore', 'Restore booking')}
+          ${a.status !== 'cancelled' ? b('appt-cancel', 'Cancel appointment', 'danger') : b('appt-restore', 'Restore booking')}
           ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
           ${b('opd-slip', 'OPD slip (PDF)')}
           ${b('appt-edit', 'Edit')}
@@ -1883,9 +1884,10 @@
       });
       parts.push(`Incentive ${inr(total)}: ${split.join(' · ')}`);
     }
-    if (saleType === 'injection' && v.itemId && set().kitOn !== false && set().kit.length) {
+    const kit = v.itemId ? admin.kitOf(admin.item(v.itemId)) : [];
+    if (v.itemId && set().kitOn !== false && kit.length) {
       const qty = Number(v.qty) || 1;
-      parts.push(`Kit out: ${set().kit.filter((k) => admin.item(k.itemId)).map((k) => `${esc(admin.item(k.itemId).name)} −${k.qty * qty}`).join(', ')}`);
+      parts.push(`Kit out: ${kit.filter((k) => admin.item(k.itemId)).map((k) => `${esc(admin.item(k.itemId).name)} −${k.qty * qty}`).join(', ')}`);
     }
     if (v.amount !== '') parts.push(`Revenue: <b>${inr(v.amount)}</b>`);
     $('#sale-summary').innerHTML = parts.join('<span>·</span>') || 'Choose a product and reference to see stock and incentive.';
@@ -1901,7 +1903,7 @@
         const editing = !!params.edit;
         const sale = admin.saveSale(saleValues());
         const bits = [`${sale.product} · ${inr(sale.amount)}`];
-        if (sale.itemId) bits.push(`stock −${sale.qty}`);
+        if (sale.itemId && (admin.item(sale.itemId) || {}).track !== false) bits.push(`stock −${sale.qty}`);
         bits.push(`incentive ${inr(sale.incentive)}`);
         toast(`${editing ? 'Updated' : 'Saved'}: ${bits.join(', ')}`);
         if (editing) go('sales'); else { params = {}; render(); setTimeout(() => saleDone(sale), 60); }
@@ -3427,6 +3429,7 @@
       const p = S().patients.find((x) => x.id === d.id);
       const last = admin.patientSales(p.id).filter((s) => saleTypes().some(([k]) => k === s.type)).at(-1);
       saleType = last ? last.type : (saleTypes()[0] || ['service'])[0];
+      if (modal.open) modal.close();
       go('sell', { prefill: { type: saleType, patientName: p.name, mobile: p.mobile, patientType: last ? 'renewal' : 'new', itemId: last && d.renew ? last.itemId : '', refId: last ? last.refId : '', sharedId: last ? last.sharedId : '', sharePct: last ? last.sharePct : 50, dietitianId: last ? last.dietitianId : '' } });
     },
     patient: (d) => {
@@ -3970,6 +3973,8 @@
     if (modal.open) { modal.close(); return true; }
     if ($('#side').classList.contains('open')) { openMenu(false); return true; }
     // Back always returns to the admin dashboard (never the Home page); on the dashboard it leaves the app.
+    // Editing a sale goes back to Sales, where it was opened from.
+    if (role && screen === 'sell' && params.edit) { go('sales'); return true; }
     if (role && screen !== adminHome()) { go(adminHome()); return true; }
     return false;
   };

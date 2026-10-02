@@ -35,6 +35,8 @@ The Prime Fit is a **new app** (Android `com.theprimefit.app`, iOS `com.theprime
 
 **Round 16 (APK 2.4):** Google Sheet saves are queued one at a time and changes from two devices are merged (three-way, record by record) instead of asking which to keep.
 
+**Round 17 (APK 2.5):** Indian-law medico-legal wording and patient consent form, luxe UI layer, and fixes from a full bug sweep (stray patients, shared mobiles, double PDF downloads, invoice year, Back handling in both apps).
+
 The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
 ## Features
