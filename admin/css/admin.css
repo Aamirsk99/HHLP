@@ -1191,3 +1191,6 @@ body.ui-still *, body.ui-still *::before, body.ui-still *::after { animation: no
 #nav .nav-group i.ng-ic svg { width: 15px; height: 15px; padding: 0; background: none; border-radius: 0; box-shadow: none; fill: none; stroke: var(--gc, #d4af37); stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 #nav .nav-group i.ng-ic svg :is(rect, circle) { fill: color-mix(in srgb, var(--gc, #d4af37) 25%, transparent); }
 #nav .nav-group { font-size: 11px; color: color-mix(in srgb, var(--side-ink, #fff) 80%, transparent); }
+/* Two-choice dialogs: equal buttons whose labels wrap instead of running off the screen. */
+.choice-row { display: flex; gap: 10px; width: 100%; }
+.choice-row .btn { flex: 1 1 0; min-width: 0; white-space: normal; line-height: 1.25; padding-top: 12px; padding-bottom: 12px; text-align: center; justify-content: center; }

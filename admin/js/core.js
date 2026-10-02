@@ -2021,13 +2021,59 @@
     };
   }
 
+  /**
+   * Three-way merge of the shared data: `base` is what this device last saved to / loaded from the
+   * Google Sheet, `local` is this device now, `remote` is the sheet now. Changes made on both sides
+   * are kept: records (objects with an id) are merged one by one, so a sale added on one phone and a
+   * lead added on another both survive. When both sides changed the same value, the larger number
+   * wins for numbers (serial counters never go back) and this device wins otherwise.
+   */
+  function mergeStates(base, local, remote) {
+    const same = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
+    const isObj = (x) => x && typeof x === 'object' && !Array.isArray(x);
+    const keyed = (a) => Array.isArray(a) && a.every((x) => isObj(x) && x.id != null);
+    function m(b, l, r) {
+      if (same(l, b)) return r;
+      if (same(r, b) || same(l, r)) return l;
+      if (l === undefined) return same(r, b) ? undefined : r; // deleted here, untouched there
+      if (r === undefined) return same(l, b) ? undefined : l;
+      if (Array.isArray(l) && Array.isArray(r) && keyed(l) && keyed(r) && (b === undefined || keyed(b))) {
+        const B = new Map((b || []).map((x) => [x.id, x])); const L = new Map(l.map((x) => [x.id, x])); const R = new Map(r.map((x) => [x.id, x]));
+        const out = [];
+        r.forEach((x) => { const v = L.has(x.id) ? m(B.get(x.id), L.get(x.id), x) : m(B.get(x.id), undefined, x); if (v !== undefined) out.push(v); });
+        // Records only this device has: new here (keep, in place) or deleted on the sheet (keep only if edited here).
+        l.forEach((x, i) => {
+          if (R.has(x.id)) return;
+          if (B.has(x.id) && same(B.get(x.id), x)) return;
+          const prev = i > 0 ? out.findIndex((y) => y.id === l[i - 1].id) : -1;
+          out.splice(prev + 1, 0, x);
+        });
+        return out;
+      }
+      if (Array.isArray(l) && Array.isArray(r)) {
+        const bb = Array.isArray(b) ? b : [];
+        const k = (x) => JSON.stringify(x);
+        const lk = new Set(l.map(k)); const rk = new Set(r.map(k)); const bk = new Set(bb.map(k));
+        return [...r.filter((x) => !(bk.has(k(x)) && !lk.has(k(x)))), ...l.filter((x) => !rk.has(k(x)) && !bk.has(k(x)))];
+      }
+      if (isObj(l) && isObj(r)) {
+        const bo = isObj(b) ? b : {}; const out = {};
+        new Set([...Object.keys(r), ...Object.keys(l)]).forEach((key) => { const v = m(bo[key], l[key], r[key]); if (v !== undefined) out[key] = v; });
+        return out;
+      }
+      if (typeof l === 'number' && typeof r === 'number') return Math.max(l, r);
+      return l;
+    }
+    return m(base, local, remote);
+  }
+
   function memoryStorage() {
     const m = new Map();
     return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
   }
 
   const api = {
-    createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
+    createAdmin, memoryStorage, mergeStates, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
     SALARY_TYPES: { monthly: 'Monthly fixed', daily: 'Per working day', none: 'No salary' }, INCENTIVE_TYPES: { product: 'Fixed ₹ per product / package', percent: '% of sale amount', none: 'No incentive' }, PACKAGES, KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, CONTENT_STATUS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

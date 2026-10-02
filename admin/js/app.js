@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.3';
+  const APP_VERSION = '4.4';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1567,6 +1567,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.4', 'No more "Data changed on another device" popups: saves from one phone run one at a time (two saves at once made the phone conflict with itself), and when two phones change data at the same time both sets of changes are merged and kept. Dialog buttons no longer run off the screen.'],
     ['4.3', 'Google Sheet connects reliably: the Android app now talks to Google itself, the pasted web app link is tidied automatically (a /dev link or extra text is fixed), and a failed connection says exactly what to change (sign-in needed, wrong secret, setup not run, editor or sheet link pasted, no internet). Code.gs version 10 returns its own errors and works even when created outside the sheet.'],
     ['4.2', 'Slips, receipts and invoices numbered in series (TPF-SL-0001, TPF-RC-0001, invoices TPF-2026-0001) and printing the same sales again keeps the number; digital documents say no signature is required; new Slips sheet in the Google Sheet and Excel template, and a Slip register in the Sales export.'],
     ['4.1', 'Back button always returns to the admin dashboard (never the Home page) and leaves the app from there; icons on every menu section; logo and app icon back in the original charcoal and teal colours.'],
@@ -3025,7 +3026,16 @@
   const dataHash = (a) => hashOf(JSON.stringify(a.exportState()));
   const EMPTY_HASH = dataHash(A.createAdmin(A.memoryStorage()));
   const isDirty = () => dataHash(admin) !== (storage.getItem(DIRTY_KEY) || EMPTY_HASH);
-  const setDirty = (on) => { if (!on) storage.setItem(DIRTY_KEY, dataHash(admin)); };
+  // The shared data as last saved to / loaded from the sheet: the common base when two devices both
+  // changed something, so their changes can be merged instead of one replacing the other.
+  const SNAP_KEY = 'primefit.admin.syncedState';
+  function markSynced(state) {
+    const text = JSON.stringify(state);
+    storage.setItem(DIRTY_KEY, hashOf(text));
+    try { storage.setItem(SNAP_KEY, text); } catch (_) { /* storage full: merging falls back to asking */ }
+  }
+  const syncedState = () => { try { return JSON.parse(storage.getItem(SNAP_KEY) || 'null'); } catch (_) { return null; } };
+  const setDirty = (on) => { if (!on) markSynced(admin.exportState()); };
   const device = () => (/Android/i.test(navigator.userAgent) ? 'Android' : /iPhone|iPad/i.test(navigator.userAgent) ? 'iPhone/iPad' : 'Computer');
   let saveTimer = null;
   let busy = false;
@@ -3099,10 +3109,11 @@
     if (!out.ok && !out.conflict) throw new Error(out.error || 'Google Sheet refused the request');
     return out;
   }
-  function applyRemote(out) {
-    admin.loadState(out.state);
+  /** Load the sheet's data (or `data`, the sheet's data merged with this device's changes). */
+  function applyRemote(out, data) {
+    admin.loadState(data || out.state);
     setBase(out.updated);
-    setDirty(false);
+    markSynced(out.state);
     // Signed-in login removed or disabled on another device: back to sign-in.
     const acc = me && admin.account(me.id);
     if (!role || !acc || !acc.hash || acc.disabled) { if (role) lock(); else if (!$('#lock').hidden) showLock(); return; }
@@ -3115,7 +3126,7 @@
       $('#modal-title').textContent = title;
       $('#modal-body').innerHTML = `<p style="margin:0">${esc(message)}</p>`;
       $('#modal-err').textContent = '';
-      $('#modal-foot').innerHTML = `<button type="button" class="btn" data-choice="use">${esc(useLabel)}</button><button type="button" class="btn primary" data-choice="keep">${esc(keepLabel)}</button>`;
+      $('#modal-foot').innerHTML = `<div class="choice-row"><button type="button" class="btn" data-choice="use">${esc(useLabel)}</button><button type="button" class="btn primary" data-choice="keep">${esc(keepLabel)}</button></div>`;
       const onClick = (e) => {
         const c = e.target.closest('[data-choice]');
         if (!c) return;
@@ -3140,24 +3151,49 @@
     toast('Loaded the latest data from the Google Sheet');
     return null;
   }
-  /** Save this device's data to the sheet. force = overwrite even if another device saved since. */
-  async function push(force) {
+  /** Merge the sheet's newer data with this device's unsaved changes. false = no common base to merge from. */
+  async function mergeFromSheet(remote) {
+    const base = syncedState();
+    if (!base || !remote || !remote.state) return false;
+    applyRemote(remote, A.mergeStates(base, admin.exportState(), remote.state));
+    return true;
+  }
+  /**
+   * Save this device's data to the sheet. force = overwrite even if another device saved since.
+   * Only one save runs at a time; a save asked for meanwhile runs right after it. If another device
+   * (or an earlier save of this one whose answer was lost) saved first, both sets of changes are
+   * merged and saved together, without asking.
+   */
+  let saving = null;
+  function push(force) {
+    if (saving) return saving.catch(() => {}).then(() => (force || isDirty() ? push(force) : undefined));
+    saving = savePass(force, 0).finally(() => { saving = null; });
+    return saving;
+  }
+  async function savePass(force, tries) {
     if (!connected()) return;
     clearTimeout(saveTimer);
     busy = true;
     syncState('Saving…');
     try {
-      const out = await call('POST', { action: 'save', secret: set().sheetsSecret, state: admin.exportState(), sheets: admin.sheetsData(), base: getBase(), by: device(), force: !!force });
-      if (out.conflict) { busy = false; await resolveConflict(out); return; }
+      const state = admin.exportState();
+      const out = await call('POST', { action: 'save', secret: set().sheetsSecret, state, sheets: admin.sheetsData(), base: getBase(), by: device(), force: !!force });
+      if (out.conflict) {
+        if (tries < 3 && await mergeFromSheet(await call('GET'))) return savePass(false, tries + 1);
+        // Can't merge (no saved base): ask, once this save has finished.
+        setTimeout(() => resolveConflict(out), 0); return;
+      }
       setBase(out.updated);
-      setDirty(false);
+      markSynced(state);
       storage.setItem(SYNC_KEY, String(Date.now()));
       showSheetState();
       const ls = $('#last-sync'); if (ls) ls.textContent = `Connected · last saved ${new Date().toLocaleString('en-IN')}`;
+      // Changes made while this save was on its way go in the next one.
+      if (isDirty()) { clearTimeout(saveTimer); saveTimer = setTimeout(() => push().catch(() => {}), 1500); }
     } catch (err) {
       syncState('Offline: saved on this device');
       clearTimeout(saveTimer);
-      saveTimer = setTimeout(() => push(), 60000); // retry
+      saveTimer = setTimeout(() => push().catch(() => {}), 60000); // retry
       throw err;
     } finally { busy = false; }
   }
@@ -3184,7 +3220,11 @@
         if (manual) toast('Up to date with the Google Sheet');
         return;
       }
-      if (isDirty() && getBase()) { await resolveConflict(out); return; }
+      if (isDirty() && getBase()) {
+        // Both this device and another one changed data: keep both, then save the result.
+        if (await mergeFromSheet(out)) { showSheetState(); await push(); return; }
+        await resolveConflict(out); return;
+      }
       if (isDirty() && !getBase()) {
         // First connection of a device that already has data, to a sheet that has data too.
         const pick = await choose('Google Sheet already has data',

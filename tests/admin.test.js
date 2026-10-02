@@ -392,3 +392,22 @@ test('slips get serial numbers per kind, reprints keep the number, and the Slips
   const sheet = admin.sheetsData().Slips;
   assert.strictEqual(sheet.length, 5); assert.strictEqual(sheet[2][0], 'TPF-SL-0002'); assert.strictEqual(sheet[2][6], 300);
 });
+
+test('mergeStates keeps changes made on two devices', () => {
+  const base = { sales: [{ id: 's1', amount: 100 }], leads: [{ id: 'l1', name: 'A', status: 'New' }], settings: { slipSeq: 3, tags: ['x'] }, notes: [] };
+  const local = { sales: [{ id: 's2', amount: 50 }, { id: 's1', amount: 100 }], leads: [{ id: 'l1', name: 'A', status: 'Contacted' }], settings: { slipSeq: 4, tags: ['x', 'y'] }, notes: [] };
+  const remote = { sales: [{ id: 's3', amount: 70 }, { id: 's1', amount: 120 }], leads: [], settings: { slipSeq: 5, tags: ['x', 'z'] }, notes: [{ id: 'n1' }] };
+  const out = A.mergeStates(base, local, remote);
+  assert.deepStrictEqual(out.sales.map((x) => x.id).sort(), ['s1', 's2', 's3']);
+  assert.strictEqual(out.sales.find((x) => x.id === 's1').amount, 120); // edited only on the sheet
+  assert.strictEqual(out.leads.length, 1); // deleted on the sheet but edited here: kept
+  assert.strictEqual(out.settings.slipSeq, 5); // counters never go back
+  assert.deepStrictEqual(out.settings.tags.sort(), ['x', 'y', 'z']);
+  assert.strictEqual(out.notes.length, 1);
+});
+
+test('mergeStates drops a record deleted on one side and unchanged on the other', () => {
+  const base = { sales: [{ id: 's1' }, { id: 's2' }] };
+  assert.deepStrictEqual(A.mergeStates(base, { sales: [{ id: 's1' }] }, base).sales, [{ id: 's1' }]);
+  assert.deepStrictEqual(A.mergeStates(base, base, { sales: [{ id: 's2' }] }).sales, [{ id: 's2' }]);
+});
