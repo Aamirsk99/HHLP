@@ -1234,3 +1234,48 @@ input:focus, select:focus, textarea:focus { outline: none; border-color: color-m
 #nav .nav-group { color: color-mix(in srgb, var(--gold) 70%, var(--side-muted)); }
 .legal-hint { margin: 2px 0 10px; padding: 9px 12px; border-radius: 12px; background: color-mix(in srgb, var(--gold) 9%, var(--surface)); border: 1px solid color-mix(in srgb, var(--gold) 28%, var(--border)); font-size: 12.5px; }
 @media (prefers-reduced-motion: reduce) { .tabs button.fab { animation: none; } }
+
+/* ── Round 19: first-launch splash ── */
+.lk-connecting { display: grid; justify-items: center; gap: 8px; padding: 14px 4px 6px; text-align: center; }
+.lk-connecting h1 { font-size: 22px; margin: 6px 0 0; }
+.lk-connecting p { margin: 0; color: var(--muted); }
+.lk-connecting small { color: color-mix(in srgb, var(--gold) 70%, var(--muted)); font-weight: 600; letter-spacing: .02em; min-height: 1.2em; }
+.lk-connecting .btn { margin-top: 10px; min-width: 180px; }
+.lk-ring { width: 58px; height: 58px; border-radius: 50%; display: grid; place-items: center;
+  background: conic-gradient(from 0deg, var(--gold), color-mix(in srgb, var(--brand) 80%, transparent), transparent 70%, var(--gold));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px)); mask: radial-gradient(farthest-side, transparent calc(100% - 5px), #000 calc(100% - 4px));
+  animation: lk-spin 1.1s linear infinite; }
+.lk-ring.still { animation: none; -webkit-mask: none; mask: none; background: color-mix(in srgb, var(--gold) 14%, var(--surface)); box-shadow: inset 0 0 0 1.5px color-mix(in srgb, var(--gold) 60%, transparent); }
+.lk-ring.still svg { width: 26px; height: 26px; fill: none; stroke: var(--warn); stroke-width: 2; stroke-linecap: round; }
+@keyframes lk-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .lk-ring { animation-duration: 3s; } }
+
+/* ── Round 19: luxe menu ──────────────────────────────────────── */
+.side { background:
+  radial-gradient(420px 260px at 110% -6%, color-mix(in srgb, var(--gold) 22%, transparent), transparent 70%),
+  radial-gradient(380px 300px at -20% 108%, color-mix(in srgb, var(--brand-2) 22%, transparent), transparent 70%),
+  linear-gradient(180deg, #0b1716 0%, var(--side-b) 62%, #062b27 100%);
+  box-shadow: inset -1px 0 0 color-mix(in srgb, var(--gold) 35%, transparent); }
+.side-head { padding: 20px 16px 16px; border-bottom: 0; position: relative; }
+.side-head::after { content: ""; position: absolute; left: 16px; right: 16px; bottom: 0; height: 1px; background: linear-gradient(90deg, transparent, color-mix(in srgb, var(--gold) 70%, transparent), transparent); }
+.side-head img { width: 46px; height: 46px; border-radius: 14px; background: #fbf8f1; padding: 3px; box-shadow: 0 0 0 1.5px color-mix(in srgb, var(--gold) 80%, transparent), 0 8px 18px -8px rgba(0, 0, 0, .6); }
+.side-head b { font-family: "Prime Serif", Georgia, serif; font-size: 18px; letter-spacing: .01em; }
+.side-head small { color: color-mix(in srgb, var(--gold) 75%, #fff); letter-spacing: .02em; }
+.side-quick { gap: 8px; padding: 14px 14px 4px; }
+.side-quick button { border: 1px solid color-mix(in srgb, var(--gold) 30%, rgba(255, 255, 255, .1)); background: linear-gradient(160deg, rgba(255, 255, 255, .1), rgba(255, 255, 255, .03)); border-radius: 16px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08); font-weight: 650; }
+.side-quick svg { stroke: color-mix(in srgb, var(--gold) 85%, #fff); }
+.side-search input { background: rgba(255, 255, 255, .06); border: 1px solid rgba(255, 255, 255, .1); color: #fff; border-radius: 14px; }
+.side-search input:focus { border-color: color-mix(in srgb, var(--gold) 70%, transparent); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 16%, transparent); }
+#nav { padding: 8px 10px 12px; }
+#nav .nav-group { color: color-mix(in srgb, var(--gold) 82%, #fff); letter-spacing: .14em; font-size: 10.5px; }
+#nav .nav-sec + .nav-sec { border-top: 1px solid rgba(255, 255, 255, .05); }
+#nav button:not(.nav-group) { font-size: 14.5px; color: color-mix(in srgb, var(--side-ink) 92%, #fff); }
+#nav button:not(.nav-group):hover { background: rgba(255, 255, 255, .06); }
+#nav button.on { background: linear-gradient(110deg, color-mix(in srgb, var(--gold) 26%, transparent), rgba(255, 255, 255, .05) 70%); color: #fff;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--gold) 45%, transparent), 0 10px 22px -14px rgba(0, 0, 0, .8); }
+#nav button.on::before { background: linear-gradient(180deg, #f3d48b, var(--gold)); width: 3px; }
+#nav button.on svg { stroke: #f3d48b; }
+.side-lock { border-color: color-mix(in srgb, var(--gold) 35%, rgba(255, 255, 255, .12)); border-radius: 14px; font-weight: 650; }
+.side-diet { background: linear-gradient(120deg, color-mix(in srgb, var(--gold) 30%, transparent), rgba(255, 255, 255, .04)); color: #fff; }
+.side-diet svg { stroke: #f3d48b; }
+.side-credit { color: color-mix(in srgb, var(--side-muted) 80%, transparent); text-align: center; }

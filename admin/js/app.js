@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.6';
+  const APP_VERSION = '4.7';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1567,6 +1567,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.7', 'First opening shows a calm "Getting your clinic ready" screen while the Google Sheet loads, then Sign in (or Create Super Admin for an empty sheet); it never hangs: after 45 s it shows Try again or Set up without the sheet. More premium menu: deep emerald and gold, serif title, gold section labels and active item.'],
     ['4.6', 'The Prime Fit Google Sheet is built into the app: on first opening it connects by itself and loads the logins and data, no link or secret to type. Change it any time in Settings → Data & Google Sheet, or switch back with "Use The Prime Fit Google Sheet".'],
     ['4.5', 'Medico-legal wording written for Indian law on slips, invoices, OPD slips and diet charts; new patient consent & terms form (Settings and each patient) with grievance contact; more premium look (ivory, gold hairlines, serif numbers, frosted bottom bar). Fixes: a refused sale no longer leaves a stray patient; family members sharing one mobile stay separate patients; Patient → New sale closes the patient sheet; PDFs download once; invoice year follows the sale date; no "stock" note for services; Back from Edit sale returns to Sales; "Cancel appointment" clearly named; injection kit preview matches the product kit; sheet times in India time; diet app Back closes open dialogs first.'],
     ['4.4', 'No more "Data changed on another device" popups: saves from one phone run one at a time (two saves at once made the phone conflict with itself), and when two phones change data at the same time both sets of changes are merged and kept. Dialog buttons no longer run off the screen.'],
@@ -3817,18 +3818,28 @@
     });
   }
 
-  let lockMode = 'login'; // login | setup | connect
+  let lockMode = 'login'; // login | setup | connect | connecting | offline
+  let lockNote = '';
   const lastUser = () => { try { return localStorage.getItem('primefit.admin.lastUser') || ''; } catch (_) { return ''; } };
   const passField = (id, label, ac) => `<label class="f" style="text-align:left">${label}<span class="pass-wrap"><input id="${id}" type="password" autocomplete="${ac}" autocapitalize="none" spellcheck="false"><button type="button" class="pass-eye" data-lock="eye" data-for="${id}" aria-label="Show password">${svg('<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>')}</button></span></label>`;
   function lockHtml() {
+    // Built-in Google Sheet loading on first opening: a calm splash instead of the set-up form.
+    if (lockMode === 'connecting') {
+      return `<div class="lk-connecting"><span class="lk-ring" aria-hidden="true"></span><h1>Getting your clinic ready</h1><p>Connecting securely to The Prime Fit Google Sheet…</p><small>${lockNote ? esc(lockNote) : 'This takes a few seconds the first time.'}</small></div>`;
+    }
+    if (lockMode === 'offline') {
+      return `<div class="lk-connecting off"><span class="lk-ring still" aria-hidden="true">${svg('<path d="M2 8.8a15 15 0 0 1 20 0M5 12.5a10 10 0 0 1 14 0M8.5 16a5 5 0 0 1 7 0M12 20h.01M3 3l18 18"/>')}</span><h1>Couldn't reach Google</h1><p>${esc(lockNote || 'Check the internet connection and try again.')}</p>
+        <button class="btn primary" data-lock="retry">Try again</button>
+        <div class="lock-links"><button class="link" data-lock="setup-local">Set up without the sheet</button></div></div>`;
+    }
     if (!S().accounts.some((a) => a.role === 'super' && a.hash) && lockMode === 'login') lockMode = 'setup';
     if (lockMode === 'setup') {
-      return `<h1>Welcome to The Prime Fit</h1><p>First time on this device? Create the Super Admin login, or connect to The Prime Fit Google Sheet to use the logins already set up there.</p>
+      return `<h1>Welcome to The Prime Fit</h1><p>${connected() ? 'Your Google Sheet is connected and has no logins yet. Create the Super Admin login to start; your team then signs in on their phones.' : 'First time on this device? Create the Super Admin login, or connect to The Prime Fit Google Sheet to use the logins already set up there.'}</p>
         <label class="f" style="text-align:left">Super Admin user ID<input id="lk-user" value="superadmin" autocapitalize="none" autocomplete="username" spellcheck="false"></label>
         ${passField('lk-pin', 'Password (at least 4 characters)', 'new-password')}
         ${passField('lk-pin2', 'Repeat password', 'new-password')}
         <button class="btn primary" data-lock="create">Create Super Admin</button>
-        <div class="lock-links"><button class="link" data-lock="connect-mode">Connect Google Sheet instead</button></div>
+        ${connected() ? '' : '<div class="lock-links"><button class="link" data-lock="connect-mode">Connect Google Sheet instead</button></div>'}
         <small class="err" id="lk-err"></small>`;
     }
     if (lockMode === 'connect') {
@@ -3935,6 +3946,8 @@
     const a = b.dataset.lock;
     if (a === 'eye') { const i = $(`#${b.dataset.for}`); i.type = i.type === 'password' ? 'text' : 'password'; b.classList.toggle('on', i.type === 'text'); return; }
     if (a === 'connect-mode') { lockMode = 'connect'; showLock(); return; }
+    if (a === 'retry') { loadFirstTime(); return; }
+    if (a === 'setup-local') { lockMode = 'setup'; showLock(); return; }
     if (a === 'back') { lockMode = 'login'; showLock(); return; }
     if (a === 'create') {
       const pin = $('#lk-pin').value;
@@ -3988,29 +4001,37 @@
   const DEF_SHEET = window.PRIMEFIT_SHEET || {};
   const DEF_KEY = 'primefit.admin.defaultSheet';
   const defSheet = () => ({ url: cleanSheetUrl(DEF_SHEET.url).url || '', secret: cleanSecret(DEF_SHEET.secret) });
-  async function autoConnect() {
-    const d = defSheet();
-    if (!d.url || !d.secret || set().sheetsUrl || storage.getItem(DEF_KEY) === d.url) return;
-    storage.setItem(DEF_KEY, d.url);
-    admin.updateSettings({ sheetsUrl: d.url, sheetsSecret: d.secret });
-    // A device with its own logins merges on sign-in (pull); a new device loads the sheet now.
-    if (S().accounts.some((a) => a.role === 'super' && a.hash)) return;
-    const msg = $('#lk-err'); if (msg) msg.textContent = 'Connecting to The Prime Fit Google Sheet…';
+  /** Load logins and data from the Google Sheet on a phone that has none yet (splash, then Sign in). */
+  async function loadFirstTime() {
+    lockMode = 'connecting'; lockNote = ''; if (!role) showLock();
+    const slow = setTimeout(() => { if (lockMode === 'connecting') { lockNote = 'Google is waking the sheet up; almost there…'; if (!role) showLock(); } }, 8000);
     try {
-      const out = await call('GET');
+      // Give up after 45 s so the screen never hangs; the app keeps trying in the background later.
+      const out = await Promise.race([call('GET'), new Promise((_, no) => setTimeout(() => no(new Error('Google did not answer in time. Check the internet connection and try again.')), 45000))]);
       if (out.state) { admin.loadState(out.state); setBase(out.updated); setDirty(false); }
-      lockMode = 'login';
+      lockMode = out.state ? 'login' : 'setup';
       if (!role) showLock();
-      toast(out.state ? 'Connected to the Google Sheet. Sign in with your user ID and password.' : 'Connected. The Google Sheet is empty: create the Super Admin login.');
+      toast(out.state ? 'Connected. Sign in with your user ID and password.' : 'Connected. Create the Super Admin login to start.');
     } catch (err) {
+      lockMode = 'offline'; lockNote = err.message;
       if (!role) showLock();
-      const m = $('#lk-err'); if (m) m.textContent = `Google Sheet: ${err.message}`;
+    } finally { clearTimeout(slow); }
+  }
+  function autoConnect() {
+    const d = defSheet();
+    const hasLogins = S().accounts.some((a) => a.role === 'super' && a.hash);
+    if (d.url && d.secret && !set().sheetsUrl && storage.getItem(DEF_KEY) !== d.url) {
+      storage.setItem(DEF_KEY, d.url);
+      admin.updateSettings({ sheetsUrl: d.url, sheetsSecret: d.secret });
     }
+    // Connected but nothing on this phone yet: load the sheet first (a phone with its own logins merges on sign-in).
+    if (connected() && !hasLogins && !role) loadFirstTime();
   }
   $('.side-credit').textContent = CREDIT;
   let saved = null;
   try { saved = sessionStorage.getItem(ROLE_KEY); } catch (_) { saved = null; }
   const savedAcc = saved && admin.account(saved);
-  if (savedAcc && savedAcc.hash && !savedAcc.disabled) enter(saved); else showLock();
+  if (savedAcc && savedAcc.hash && !savedAcc.disabled) enter(saved);
+  else { if (connected() && !S().accounts.some((a) => a.role === 'super' && a.hash)) lockMode = 'connecting'; showLock(); }
   autoConnect();
 })();

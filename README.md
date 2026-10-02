@@ -39,6 +39,8 @@ The Prime Fit is a **new app** (Android `com.theprimefit.app`, iOS `com.theprime
 
 **Round 18 (APK 2.6):** built-in Google Sheet: the APK build reads android/sheet.local.json (not in git) into admin/js/sheet-default.js, and the app connects by itself on first launch.
 
+**Round 19 (APK 2.7):** first-launch splash while the sheet loads (45 s limit, Try again), premium emerald-and-gold menu.
+
 The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
 ## Features
