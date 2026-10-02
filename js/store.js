@@ -27,7 +27,7 @@
     const packItem = (i) => {
       if (userFoodOf(i)) return { c: i.name, q: i.qty, u: i.unit, k: i.per.kcal, p: i.per.p, pq: i.per.qty, cc: i.per.c, ff: i.per.f, uf: 1 };
       return i.custom || i.fid == null
-        ? { c: i.name, q: i.qty, u: i.unit, k: i.per.kcal, p: i.per.p, pq: i.per.qty }
+        ? { c: i.name, q: i.qty, u: i.unit, k: i.per.kcal, p: i.per.p, pq: i.per.qty, ...(i.per.c ? { cc: i.per.c } : {}), ...(i.per.f ? { ff: i.per.f } : {}) }
         : [i.name, i.qty];
     };
 

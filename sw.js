@@ -1,10 +1,10 @@
 /* Offline cache for The Prime Fit (installed web app on iPhone / Android). */
-const CACHE = 'primefit-v13';
+const CACHE = 'primefit-v14';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
   'js/foodnames.js', 'js/ingredients.js', 'js/recipes.js', 'js/fooddb.js', 'js/i18n.js', 'js/icons.js',
-  'js/planner.js', 'js/store.js', 'js/app.js', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js',
-  'img/logo.jpg', 'img/icon-192.png', 'img/icon-512.png',
+  'js/planner.js', 'js/store.js', 'js/app.js', 'js/library.js', 'js/foodlib.js', 'js/recipegen.js', 'vendor/pdfjs/pdf.min.js', 'vendor/pdfjs/pdf.worker.min.js',
+  'img/logo.jpg', 'img/icon-192.png', 'img/icon-512.png', 'fonts/playfair-display-latin-600-normal.woff2', 'fonts/playfair-display-latin-700-normal.woff2',
   // Clinic admin (admin/), part of the same app.
   'admin/', 'admin/index.html', 'admin/manifest.webmanifest', 'admin/css/admin.css', 'admin/js/core.js', 'admin/js/export.js', 'admin/js/app.js',
   'admin/vendor/jspdf.umd.min.js', 'admin/vendor/jspdf.plugin.autotable.min.js', 'admin/vendor/xlsx.mini.min.js',

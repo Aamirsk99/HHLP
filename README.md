@@ -21,6 +21,8 @@ The Prime Fit is a **new app** (Android `com.theprimefit.app`, iOS `com.theprime
 
 **Round 9 (APK 1.7):** several founder profiles with profit share, monthly limits and capital in / out; Founder Hub discussions saved with date, time and mode, who was there, outcome and next step, plus a PDF of all discussions; more Founder Hub numbers; easier leads (quick add, one-tap call outcome, next-stage button); scrolling fixed on Settings and every screen; more luxury styling.
 
+**Round 10 (APK 1.8):** founders can be disabled and enabled again with more profile details; a Data Explorer for every data sheet (search, filters, sort, group, columns, saved views, PDF / Excel); Super Admin branding & menu controls; faster screens on large data; luxury serif headings. Diet charts: a Foods & Recipes library with 9,070 foods (IFCT 2017, USDA SR Legacy via TempoLife, CC-BY-4.0) and 11,018 recipes with full method and nutrition calculated from the ingredients, plus protein powder shakes in diet charts.
+
 The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
 ## Features

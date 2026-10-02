@@ -117,6 +117,12 @@
   I('cream', 'Fresh cream', 'क्रीम', 340, 2, 3, 36, 'dairy', 'dairy');
   I('whey', 'Whey protein powder', 'व्हे प्रोटीन', 400, 80, 8, 5, 'dairy', 'dairy');
   I('plantp', 'Plant (pea) protein powder', 'प्लांट प्रोटीन', 380, 73, 13, 6.5, 'pulse');
+  // Protein powders: typical label values (unflavoured / plain), per 100 g. Brands differ — check the pack.
+  // Scoop sizes (PROTEIN_POWDERS in planner.js): whey isolate 30 g, whey concentrate 33 g, pea 33 g, soy isolate 30 g, casein 34 g.
+  I('wheyiso', 'Whey protein isolate powder', 'व्हे आइसोलेट प्रोटीन', 370, 88, 3, 1.5, 'dairy', 'dairy');
+  I('wheyconc', 'Whey protein concentrate powder', 'व्हे कॉन्सन्ट्रेट प्रोटीन', 400, 75, 10, 6, 'dairy', 'dairy');
+  I('soyiso', 'Soy protein isolate powder', 'सोया प्रोटीन आइसोलेट', 340, 85, 4, 3.4, 'pulse', 'soy');
+  I('casein', 'Micellar casein protein powder', 'केसीन प्रोटीन', 360, 75, 9, 2.5, 'dairy', 'dairy');
   I('proteinbar', 'Protein bar', 'प्रोटीन बार', 380, 33, 40, 11, 'other', 'dairy nuts');
 
   // Eggs, meat & fish (raw, edible portion)

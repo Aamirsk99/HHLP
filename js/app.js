@@ -16,7 +16,7 @@
   const PROTEIN_PRESETS = [40, 50, 60, 70, 80, 100, 120, 150];
   const WATER_PRESETS = [2, 2.5, 3, 3.5, 4];
   const STEPS = ['s1', 's2', 's3', 's4', 's5'];
-  const TOP = ['home', 'patients', 'charts', 'recipes', 'library', 'upload', 'settings'];
+  const TOP = ['home', 'patients', 'charts', 'recipes', 'library', 'explore', 'upload', 'settings'];
   const SCREENS = [...TOP, ...STEPS, 'chart', 'patient', 'recipe'];
 
   let storage;
@@ -66,6 +66,7 @@
     table: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/>',
     copy: '<rect x="8" y="8" width="13" height="13" rx="2"/><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h3"/>',
     user: '<circle cx="12" cy="8" r="4"/><path d="M4 21a8 8 0 0 1 16 0"/>',
+    search: '<circle cx="11" cy="11" r="6.5"/><path d="M20.5 20.5l-4.8-4.8M8.5 11h5M11 8.5v5"/>',
   };
   const ui = (k) => svg(UI[k]);
   const ICON = {
@@ -103,6 +104,17 @@
     if ($('#my-foods-count')) $('#my-foods-count').textContent = mine;
   }
   const myFoods = () => DB.FOODS.slice(DB.BUILTIN);
+  // Generated library recipes (recipegen.js) opened or printed from the Foods & Recipes library.
+  const extraDish = {};
+  const dishOf = (name) => dishByName[name] || extraDish[name] || null;
+  /** A food-like record for a generated recipe, so the recipe view and A4 recipe pages can show it. */
+  function genDish(r) {
+    if (!extraDish[r.name]) {
+      const m = String(r.serving).match(/^(\d+(?:\.\d+)?)\s+(.*)$/);
+      extraDish[r.name] = { id: null, name: r.name, hi: '', qty: m ? Number(m[1]) : 1, unit: m ? m[2] : r.serving, kcal: r.kcal, p: r.p, c: r.c, f: r.f, diet: r.diet, region: r.region, roles: [], allergens: r.allergens, flags: [], gen: r };
+    }
+    return extraDish[r.name];
+  }
   const iconOf = (item) => IC.foodIcon(foodById(item.fid) || { name: item.name, roles: [] });
 
   // ── Build controls ───────────────────────────────────────────────
@@ -117,6 +129,9 @@
   $('#protein-chips').innerHTML = chip('', 'Auto', true) + PROTEIN_PRESETS.map((g) => chip(g, `${g} g`)).join('');
   $('#water-chips').innerHTML = chip('', 'Auto', true) + WATER_PRESETS.map((l) => chip(l, `${l} L`)).join('');
   $('#mix-chips').innerHTML = chip('', 'None', true) + Object.entries(P.MIXES).map(([k, v]) => chip(k, v.label)).join('');
+  $('#shake-powder').innerHTML = options(P.PROTEIN_POWDERS, 'whey_iso');
+  $('#shake-with').innerHTML = options(P.SHAKE_WITH, 'water');
+  $('#shake-slot').innerHTML = options(P.SHAKE_SLOTS, 'auto');
   $('#days-chips').innerHTML = [1, 2, 3, 4, 5, 6, 7].map((n) => chip(n, n === 1 ? '1 day' : `${n} days`, n === 7)).join('');
   $('#condition-chips').innerHTML = Object.entries(P.CONDITIONS).map(([k, v]) => chip(k, v)).join('');
   $('#region-chips').innerHTML = Object.entries(P.REGIONS).map(([k, v]) => chip(k, v.label)).join('');
@@ -222,6 +237,8 @@
       regions: multi('regions'), excludes: multi('excludes'), allergies: multi('allergies'),
       likes: [...tagState.likes], dislikes: [...tagState.dislikes],
       preferWl: fd.get('preferWl') === 'on',
+      shakeOn: fd.get('shakeOn') === 'on', shakePowder: fd.get('shakePowder') || 'whey_iso', shakeScoops: Number(fd.get('shakeScoops')) || 1,
+      shakeWith: fd.get('shakeWith') || 'water', shakeSlot: fd.get('shakeSlot') || 'auto',
       days: Number(fd.get('days')) || 7,
       chartLang: lang, chartLang2: lang2 === lang ? '' : lang2, startDay: fd.get('startDay') || 'Monday',
       meals: Number(fd.get('meals')), earlyDrink: fd.get('earlyDrink') === 'on', times,
@@ -248,7 +265,28 @@
     setSingleChip('mixKey', p.mixKey || '');
     setSingleChip('days', p.days || 7);
     if (!p.days) form.elements.days.value = 7;
+    $('#shake-opts').hidden = !form.elements.shakeOn.checked;
   }
+
+  // ── Protein shake option (step 3) ───────────────────────────────
+  const shakeSlotsOf = (p) => [...(p.earlyDrink ? ['early'] : []), ...Object.keys(P.SPLITS[p.meals] || P.SPLITS[5])];
+  function shakeText(p, sh) {
+    const s = sh || P.planShake(DB, p, shakeSlotsOf(p));
+    if (!s || !s.powder) return 'Not suitable for this patient';
+    const scoops = s.scoops === 1 ? '1 scoop' : `${P.formatQty(s.scoops)} scoops`;
+    return `${P.PROTEIN_POWDERS[s.powder].label} · ${scoops} in ${P.SHAKE_WITH[s.with].label.toLowerCase()} · ${(P.SLOTS[s.slot] || {}).label || s.slot}`;
+  }
+  function syncShake() {
+    const p = readForm();
+    $('#shake-opts').hidden = !p.shakeOn;
+    if (!p.shakeOn) return;
+    const sh = P.planShake(DB, p, shakeSlotsOf(p));
+    const food = sh && sh.powder ? DB.FOODS.find((f) => f.name === P.PROTEIN_POWDERS[sh.powder].food) : null;
+    $('#shake-note').innerHTML = (food ? `<b>${esc(shakeText(p, sh))}</b><br>1 scoop (${P.PROTEIN_POWDERS[sh.powder].scoopG} g) ≈ ${food.kcal} kcal · ${food.p} g protein — typical label values; check the brand.` : '')
+      + (sh && sh.note ? `<br><span class="warn-text">${esc(sh.note)}</span>` : '')
+      + '<br>The shake\'s calories come out of its meal; veg / vegan diets and milk or soy allergy are respected.';
+  }
+
 
   function clearPatientFields() {
     PATIENT_KEYS.forEach((k) => { if (k !== 'sex' && form.elements[k]) form.elements[k].value = ''; });
@@ -272,6 +310,7 @@
     const p = readForm();
     if (current === 's1') liveBmi(p);
     if (current === 's2') liveTargets(p);
+    if (current === 's3') syncShake();
   }
   form.addEventListener('input', onFormChange);
   form.addEventListener('submit', (e) => e.preventDefault());
@@ -310,6 +349,7 @@
       ${row('Target', `${num(t.calories)} kcal · ${t.protein} g protein · ${t.waterL} L water`)}
       ${row('Food type', dietText(p))}
       ${row('Likes', likes)}
+      ${p.shakeOn ? row('Protein shake', shakeText(p)) : ''}
       ${row('Avoid', avoid)}
       ${row('Language', I.LANGS[p.chartLang].name + (p.chartLang2 ? ' + ' + I.LANGS[p.chartLang2].name : ''))}
       ${row('Days', days.length === 1 ? `1 day · ${days[0].day}` : `${days.length} days · ${days[0].day} → ${days[days.length - 1].day}`)}
@@ -345,15 +385,17 @@
     $('#create-bar').hidden = name !== 's5';
     $('#chart-bar').hidden = name !== 'chart';
     $('#tab-bar').hidden = !top;
-    $('#go-library').hidden = name === 'library';
+    $('#go-library').hidden = name === 'explore';
     $('#step-back').textContent = stepIdx === 0 ? 'Home' : 'Back';
     document.body.dataset.screen = name;
     animateIn(sec);
     renderTabs();
     if (name === 's1') { renderPatientPick(); liveBmi(readForm()); }
     if (name === 's2') liveTargets(readForm());
+    if (name === 's3') syncShake();
     if (name === 's5') review();
     if (name === 'library') renderLibrary();
+    if (name === 'explore') lib.render();
     if (name === 'chart') render();
     if (name === 'home') renderHome();
     if (name === 'patients') renderPatients();
@@ -381,7 +423,7 @@
   window.addEventListener('hashchange', () => show(location.hash.slice(1)));
 
   $('#back').addEventListener('click', () => (history.length > 1 ? history.back() : go('home')));
-  $('#go-library').addEventListener('click', () => go('library'));
+  $('#go-library').addEventListener('click', () => go('explore'));
   document.addEventListener('click', (e) => {
     const b = e.target.closest('[data-go]');
     if (!b) return;
@@ -408,7 +450,7 @@
   const NAV_GROUPS = [
     ['Diet charts', [['home', 'home', 'Dashboard'], ['s1', 'plus', 'New diet chart'], ['charts', 'charts', 'Saved charts'], ['upload', 'upload', 'Upload previous chart']]],
     ['Patients', [['patients', 'users', 'Patients']]],
-    ['Kitchen', [['recipes', 'recipes', 'Recipes'], ['library', 'foods', 'Food library']]],
+    ['Kitchen', [['explore', 'search', 'Foods & recipes library'], ['recipes', 'recipes', 'Recipes'], ['library', 'foods', 'Diet-chart foods']]],
     ['App', [['settings', 'settings', 'Settings & theme'], ['admin', 'clinic', 'Clinic admin']]],
   ];
   // Which menu entry is highlighted for screens that are not in the menu.
@@ -456,7 +498,7 @@
     ['patients', 'users', 'Patients', 'History & follow-up', 'q-purple'],
     ['charts', 'charts', 'Saved charts', 'Edit or reprint', 'q-teal'],
     ['recipes', 'recipes', 'Recipes', `${DISHES.length} dishes`, 'q-red'],
-    ['library', 'foods', 'Food library', `${num(DB.FOODS.length)} foods`, 'q-lime'],
+    ['explore', 'search', 'Library', '9,000+ foods · 10k recipes', 'q-purple'],
     ['act:addfood', 'plus', 'Add food', 'Your own foods', 'q-green'],
     ['act:addrecipe', 'book', 'Add recipe', 'Step by step', 'q-orange'],
     ['act:myfoods', 'foods', 'My foods', 'Edit or delete', 'q-teal'],
@@ -895,6 +937,7 @@
     pendingAvoid = null;
     persistNewChart();
     go('chart');
+    if (plan.shake && plan.shake.note) toast(plan.shake.note);
   }
   $('#generate').addEventListener('click', () => start(false));
   $('#manual-start').addEventListener('click', () => start(true));
@@ -1102,6 +1145,14 @@
         ing: own.ing.map((x) => ({ name: x.name, qty: scaleText(x.qty, k) })), steps: own.steps.slice(),
       };
     }
+    if (f.gen) {
+      const g = f.gen;
+      return {
+        f, own: false, n, prep: `${g.prep} min`, cook: g.cook ? `${g.cook} min` : '',
+        ing: g.ing.filter(([, x]) => x > 0).map(([key, x]) => ({ x: ING[key], name: ING[key].name, hi: ING[key].hi, qty: gText(ING[key], Math.round(x * k * 10) / 10) })),
+        steps: window.RECIPEGEN.fullSteps(g, k),
+      };
+    }
     if (!f.recipe) return { f, own: false, n, ing: [], steps: [] };
     return {
       f, own: false, n,
@@ -1138,7 +1189,7 @@
       <button type="button" class="recipe-card${ownRecipes[f.name] ? ' mine' : ''}" data-open-recipe="${esc(f.name)}">
         <span class="rcard-ico">${IC.foodIcon(f)}</span>
         <span class="rcard-text"><b>${esc(f.name)}</b><small>${esc(f.hi)}${ownRecipes[f.name] ? `${f.hi ? ' · ' : ''}<i class="badge mine">Your recipe</i>` : ''}</small>
-          <span class="rcard-meta"><i class="diet-dot ${f.diet}"></i>${f.kcal} kcal · P ${f.p} g · ${ingCount(f)} ingredients</span></span>
+          <span class="rcard-meta"><i class="diet-dot ${f.diet}"></i>${f.kcal} kcal · P ${f.p} g · ${ingCount(f)} ingredient${ingCount(f) === 1 ? '' : 's'}</span></span>
       </button>`).join('') : `<div class="empty">${rcState.own || rcState.mine ? 'No recipes of your own yet. Tap <b>Add recipe</b> to write one step by step.' : 'No recipe matches your search.'}</div>`;
   }
   $('#rc-search').addEventListener('input', debounce(() => renderRecipes(), 140));
@@ -1290,6 +1341,7 @@
       try { plan = store.unpackPlan(store.packPlan(plan), profile); } catch (_) { /* keep the plan as it is */ }
       saveCurrent();
     }
+    lib.foodsChanged();
     if (current === 'library') renderLibrary();
     else if (current === 'recipes') renderRecipes();
     else if (current === 'recipe') renderRecipe();
@@ -1668,8 +1720,10 @@
       <div><span>Chart languages</span><b>${I.CODES.length}</b></div>
       <div><span>Saved patients · charts</span><b>${store.listPatients().length} · ${store.listCharts().length}</b></div>
       <div><span>My foods · my recipes</span><b>${myFoods().length} · ${Object.keys(ownRecipes).length}</b></div>
-      <div><span>Version</span><b>6.0</b></div>
-    </div>`;
+      <div><span>Foods &amp; Recipes library</span><b>${lib.counts() ? `${num(lib.counts().foods)} foods · ${num(lib.counts().recipes)} recipes` : '9,000+ foods · 10,000+ recipes'}</b></div>
+      <div><span>Version</span><b>6.1</b></div>
+    </div>
+    <p class="muted credits">Food nutrition data from TempoLife (tempolife.app), CC-BY-4.0. USDA FoodData Central SR Legacy (public domain). Indian Food Composition Tables 2017 (NIN-ICMR; ifct2017 package, MIT). Recipe nutrition is calculated from ingredients; protein powders use typical label values.</p>`;
     renderTheme();
   }
 
@@ -1887,7 +1941,7 @@
    * first repeat only the title and continue the numbering.
    */
   function recipeCard(name, serves, big, part) {
-    const f = dishByName[name];
+    const f = dishOf(name);
     if (!f) return '';
     const lang = L() || 'en';
     const lang2 = L2();
@@ -1954,7 +2008,7 @@
    */
   function layoutRecipes(names, serves, big) {
     const lang = L();
-    const list = names.filter((n) => dishByName[n]);
+    const list = names.filter((n) => dishOf(n));
     if (!list.length) return [];
     const head = recipeHead(lang);
     const tail = promo(lang, L2());
@@ -1978,7 +2032,7 @@
       blocks.forEach((b, i) => {
         if (m.cards[i] <= room) { out.push(b); return; }
         const name = list[i];
-        const total = recipeData(dishByName[name], serves).steps.length;
+        const total = recipeData(dishOf(name), serves).steps.length;
         let from = 0;
         while (from < total) {
           let to = total;
@@ -2122,6 +2176,50 @@
     const csv = '﻿' + rows.map((r) => r.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(',')).join('\r\n');
     saveFile(fileTitle('named') + '.csv', 'text/csv', csv);
   }
+
+  // ── Foods & Recipes library (js/library.js; its data loads on first open) ──
+  /** Add a library food or recipe to a meal of the current chart (one day or every day). */
+  function addToChart(item, di, slot) {
+    if (!plan) { toast('Open or create a diet chart first.'); return false; }
+    const days = di == null ? plan.days.map((_, i) => i) : [di];
+    let n = 0;
+    days.forEach((d) => {
+      const entry = plan.days[d].meals.find((m) => m.slot === slot);
+      if (!entry) return;
+      let it;
+      if (item.fid != null) it = P.makeItem(DB.FOODS[item.fid], item.qty);
+      else {
+        it = P.customItem(item.name, item.per, item.unit, item.kcal, item.p);
+        it.per.c = item.c; it.per.f = item.f;
+        P.setItemQty(it, item.qty);
+      }
+      const meal = entry.meal || { name: '', items: [] };
+      meal.items.push(it);
+      meal.name = meal.items.map((i) => i.name).join(' + ');
+      entry.meal = P.recalcMeal(meal);
+      entry.locked = true;
+      P.refreshDay(plan.days[d]);
+      n++;
+    });
+    if (!n) { toast('That meal is not in this chart.'); return false; }
+    savePlan();
+    return true;
+  }
+  /** Print ready-made A4 pages (the library list). */
+  function printPages(pages, title) {
+    sheet.classList.add('measuring');
+    sheet.innerHTML = pages.map((h) => pageHtml(h, 'lx-page')).join('');
+    fitPages(0.55);
+    sheet.classList.remove('measuring');
+    setPageStyle(pages.length);
+    doPrint(title);
+  }
+  const lib = window.LIBRARY.init({
+    $, $$, esc, num, toast, debounce, P, DB, IC, ING, ICON, loadScript, saveFile, openDialog, closeDialog, recipeBody, genDish, addToChart, printPages,
+    getPlan: () => plan,
+    isCurrent: () => current === 'explore',
+    printDish: (f, serves) => { if (f) printRecipes([f.name], serves || 1); },
+  });
 
   // ── Persistence & start ──────────────────────────────────────────
   function save(key, value) {
