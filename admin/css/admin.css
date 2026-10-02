@@ -903,3 +903,4 @@ td b { font-variant-numeric: tabular-nums; }
 .toast.show { animation: toast-in .32s cubic-bezier(.2, .9, .25, 1.2); }
 @keyframes toast-in { from { transform: translateX(-50%) translateY(18px) scale(.96); opacity: 0; } to { transform: translateX(-50%); opacity: 1; } }
 @media (prefers-reduced-motion: reduce) { .ripple { display: none; } }
+.inv-btn { margin-left: 6px; min-height: 26px; padding: 0 8px; }

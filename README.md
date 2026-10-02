@@ -44,7 +44,7 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 - **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
 - **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
 
-## Hindivine Admin app (`admin/`) — version 3.8
+## Hindivine Admin app (`admin/`) — version 3.9
 
 A separate app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+, built for Android 15 so Play Protect accepts it; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*.
 
@@ -66,6 +66,8 @@ The app logs out after 15 minutes without use. On Android, back goes to the prev
 | **OPD Appointments** | Clinic visit or online, fee ₹1000 (editable), optional **treatment / service**, patient age / gender and vitals (weight, height, BMI calculated, BP, pulse, sugar), day view and filtered list, complete / paid / no-show / cancel, WhatsApp confirmation, **doctor** and **clinic / branch** for every appointment (add, rename, delete in Settings → Doctors & clinics), **OPD slip PDF** (token and slip number, clinic address and phone, vitals with automatic **BMI**, patient details and visit number, doctor, clinic, treatment, payment, vitals, Rx space, next visit and signature). |
 | **Leads (CRM)** | Name, mobiles, age, gender, city, source, interest, priority (hot / warm / cold), stage, assigned person, follow-up date and time, weight / target / height (BMI), budget, notes. Pipeline by stage, due-today and overdue follow-ups, call / WhatsApp, update history (who and when), book an OPD appointment from the lead (converts it), conversion rate, leads per person. |
 | **Filters & exports** | Search and filters on almost every screen (Today, Sales, OPD, Leads, Patients by gender / age / city, Renewals, Products, Inventory, Purchases by vendor / product, Team, Incentives, Salary, Expenses, Activity) with one-tap Clear. Every PDF / image / Excel export opens options: format, a different period for that file, summary boxes on or off; the file follows the screen's filters. |
+| **Invoices (non-GST)** | Premium A4 invoice for every patient purchase (Sales list and Today) and every OPD consultation (appointment sheet): number per financial year (HV/INV/26-27/0001, HV/OPD/26-27/0001; prefix editable), clinic and patient details, items, total, amount in words, paid / due and payment method, terms & legal notes, "computer-generated, no signature required". Reports, images and OPD slips print the note set in Settings → Clinic & doctors. |
+| **Sign-in records** | Every sign-in, sign-out, wrong PIN and auto-lock is saved in the activity log (and the Google Sheet) with the device; Activity → "Sign-ins & security" filter and last sign-in per person. |
 | **Follow-up reminders** | Bell in the top bar with the number due; reminder list (overdue and today's follow-ups, OPD waiting, order required, renewals) shown once a day at sign-in; pop-up when a follow-up time arrives; on Android a phone notification at the follow-up time even when the app is closed; snooze (+1 h, 15 min, tomorrow). Front Desk get their own follow-ups; others choose all or only theirs (account menu). Leads have a **Follow-ups** tab (overdue / today / tomorrow / this week / later) and one-tap times (in 1 hour, today 6 PM, tomorrow 11 AM, in 3 days, next week). |
 | **Look & feel** | Seven colour themes (Royal Blue, Black & Gold, Rose Gold, Emerald, Royal Purple, Sunset, dark Midnight) with the Plus Jakarta Sans font chosen per device from the side menu or account menu; side menu with profile, search and quick + Sale / + OPD / + Lead; animated menus and cards; screens behave like an app (text is not selectable, inputs still are). |
 | **Sales** | Injection, protein and diet support, with the patient's age, gender and city (filled in automatically for known patients). Incentive per unit: person + product amount → product amount → person's own rate → default (₹1000 per injection, ₹500 per protein sale); set them all in Incentives → **Product-wise incentive**, split single / 50-50 / custom %. Every injection pen also takes its **kit** out of stock: travel bag 1, ice gel 1, alcohol swabs 16, needles 2 (editable, can be switched off). |
@@ -107,7 +109,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 
 ```sh
 VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
-APP=admin VERSION_CODE=12 VERSION_NAME=3.8 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
+APP=admin VERSION_CODE=13 VERSION_NAME=3.9 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.

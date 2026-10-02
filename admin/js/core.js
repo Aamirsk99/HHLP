@@ -40,6 +40,8 @@
   };
   const KIT_DEFAULTS = [['Travel Bags', 1], ['Ice Gel Packs', 1], ['Alcohol Swabs', 16], ['Needles', 2]];
   const LOG_MAX = 3000;
+  const DEFAULT_LEGAL_NOTE = 'This is a computer-generated document and does not require a signature. GST is not applicable on this invoice (non-GST). '
+    + 'Medicines and products once sold are not returnable. All treatment is given on the advice of the consulting doctor. Subject to local jurisdiction.';
   const APPT_MODES = { clinic: 'Clinic visit', online: 'Online' };
   const APPT_STATUS = { booked: 'Booked', completed: 'Completed', cancelled: 'Cancelled', noshow: 'No-show' };
   const PAY_METHODS = ['Cash', 'UPI', 'Card', 'Bank transfer'];
@@ -67,7 +69,10 @@
       version: 1,
       settings: {
         clinic: 'Hindivine Healthcare',
-        clinicAddress: '', clinicPhone: '',
+        clinicAddress: '', clinicPhone: '', clinicEmail: '',
+        invoicePrefix: 'HV', // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
+        legalNote: DEFAULT_LEGAL_NOTE, // terms printed on invoices
+        docNote: 'This is a computer-generated document and does not require a signature. Confidential: for clinic use only.', // on reports and slips
         incentive: { injection: 1000, protein: 500 },
         dietPlans: [
           { id: 'd1', name: '1 Month', months: 1, price: 0, incentive: 1000, disabled: false },
@@ -503,7 +508,7 @@
         itemId: type === 'diet' ? null : input.itemId, planId: type === 'diet' ? input.planId : null,
         product, qty, amount,
         refId: input.refId, sharedId: refs[1] ? refs[1].memberId : '', sharePct: refs[1] ? refs[1].pct : 0,
-        dietitianId: input.dietitianId || '', notes: String(input.notes || '').trim(),
+        dietitianId: input.dietitianId || '', notes: String(input.notes || '').trim(), payMethod: String(input.payMethod || '').trim(),
         incentive: sum(splits, (x) => x.amount), splits, created: Date.now(),
       };
     }
@@ -699,6 +704,32 @@
       save();
     }
     const setActor = (name) => { actor = name || ''; };
+    /** Sign-in, sign-out, wrong PIN… recorded in the activity log (and the Google Sheet). */
+    function logEvent(action, detail, by) {
+      const keep = actor; if (by) actor = by;
+      log(action, detail);
+      actor = keep;
+      save();
+    }
+    // Indian financial year (April – March) of a date, e.g. 2026-10-02 → "26-27".
+    const finYear = (d) => { const [y, m] = String(d).split('-').map(Number); const a = m >= 4 ? y : y - 1; return `${String(a).slice(2)}-${String(a + 1).slice(2)}`; };
+    /**
+     * Invoice number for a sale or an OPD appointment, given once and kept: PREFIX/INV/26-27/0001.
+     * The next number is one more than the highest already used (so numbers survive syncing).
+     */
+    function invoiceFor(kind, id) {
+      const rec = kind === 'opd' ? appointment(id) : S.sales.find((x) => x.id === id);
+      if (!rec) fail('Record not found');
+      if (rec.invoiceNo) return rec.invoiceNo;
+      const prefix = String(S.settings.invoicePrefix || 'HV').trim().replace(/\//g, '-') || 'HV';
+      const head = `${prefix}/${kind === 'opd' ? 'OPD' : 'INV'}/${finYear(rec.date)}/`;
+      const used = [...S.sales, ...S.appointments].map((x) => x.invoiceNo).filter((n) => n && n.startsWith(head)).map((n) => Number(n.slice(head.length)) || 0);
+      rec.invoiceNo = `${head}${String((used.length ? Math.max(...used) : 0) + 1).padStart(4, '0')}`;
+      rec.invoiceDate = rec.invoiceDate || today();
+      log('Invoice created', `${rec.invoiceNo} · ${rec.patientName}`);
+      save();
+      return rec.invoiceNo;
+    }
 
     // Choice lists ("+ Add new" everywhere)
     function addListItem(list, name) {
@@ -1171,7 +1202,7 @@
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
-      account, saveAccount, setAccountPin, deleteAccount, setActor,
+      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,

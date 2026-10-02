@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.8)
+ HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.9)
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
  Hindivine Healthcare Pvt. Ltd. · www.hindivine.com
 ================================================================================
@@ -14,7 +14,7 @@ from scratch by a developer or by an AI coding assistant. It has three parts:
           rule, every screen, exports, Google Sheet storage, Android build.
   PART C  Step-by-step rebuild and release checklist.
 
-The exact source code of version 3.8 is in the companion file
+The exact source code of version 3.9 is in the companion file
 "Hindivine_Admin_Full_Source.txt" (every file, with an unpack script). If you
 want an identical app, use that file. If you want to regenerate or extend the
 app, use this file.
@@ -330,7 +330,7 @@ Reports, Admin.
     Roles & permissions matrix (Super Admin only); Choice lists (chips with
     rename/remove + add) incl. inventory categories; Backup (export/import
     JSON), All reports, Erase all data (Super Admin).
-20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8) and credits.
+20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9) and credits.
 Every drop-down backed by a list ends with "+ Add new…" which shows an
 inline input and saves the new option for everyone.
 Period options everywhere: Today, This month (auto), Choose month, Last
@@ -553,6 +553,26 @@ B22. VERSION 3.8 ADDITIONS
   deleted), takes the newer settings, unions renewalsDone and the log.
   On a save conflict, or when the sheet changed while this device had
   unsaved changes, the app loads the merge and saves it (no dialog).
+
+B23. VERSION 3.9 ADDITIONS
+--------------------------
+* Settings: clinicEmail, invoicePrefix (default HV), legalNote (invoice
+  terms, default says computer-generated / no signature / non-GST / not
+  returnable / local jurisdiction), docNote (printed on reports, images and
+  OPD slips; empty = none). Sales keep payMethod.
+* admin.invoiceFor('sale'|'opd', id) gives a number once and keeps it on the
+  record: PREFIX/INV|OPD/<financial year 26-27>/0001, next = highest used + 1.
+* EXPORT.invoice(inv): A4 non-GST invoice: navy header with logo, "NON-GST
+  INVOICE" chip, From (clinic) + invoice number / date / payment box, Billed
+  to (patient, mobile, age/gender, city, extra details), items table (#,
+  description, qty, rate, amount), totals box (sub total, GST not
+  applicable, Total, paid, balance due), amount in words (Indian lakh /
+  crore), terms & notes, "Computer-generated invoice. No signature
+  required.", thank-you footer. Buttons: Sales list "Invoice", Today ₹,
+  appointment sheet "OPD invoice".
+* admin.logEvent(action, detail, by): Signed in (real sign-in, not reload),
+  Signed out, Wrong PIN, Auto-locked; Activity filter "Sign-ins & security"
+  and sign-in count / last sign-in per person.
 
 B14. TESTS (node --test tests/*.test.js)
 ----------------------------------------

@@ -479,3 +479,25 @@ test('two devices editing at once are merged: newest record wins, deletions stay
   // Merging again changes nothing.
   assert.deepEqual(A.mergeStates(merged, merged).sales.length, 1);
 });
+
+test('invoice numbers per financial year, kept once given; login activity logged', () => {
+  const a = setup('2026-10-02');
+  const m = a.saveMember({ name: 'Riya' });
+  const pen = byName(a, 'Mounjaro 15mg'); a.adjustStock(pen.id, 5, 'count');
+  const s1 = a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9000000001', itemId: pen.id, amount: 17000, refId: m.id, payMethod: 'UPI' });
+  const s2 = a.saveSale({ type: 'injection', patientName: 'Ravi', mobile: '9000000002', itemId: pen.id, amount: 17000, refId: m.id, date: '2026-03-20' });
+  assert.equal(s1.payMethod, 'UPI');
+  assert.equal(a.invoiceFor('sale', s1.id), 'HV/INV/26-27/0001');
+  assert.equal(a.invoiceFor('sale', s1.id), 'HV/INV/26-27/0001', 'same number again');
+  assert.equal(a.invoiceFor('sale', s2.id), 'HV/INV/25-26/0001', 'March belongs to the previous financial year');
+  const ap = a.saveAppointment({ patientName: 'Asha', mobile: '9000000001', date: '2026-10-02', mode: 'clinic' });
+  assert.equal(a.invoiceFor('opd', ap.id), 'HV/OPD/26-27/0001');
+  a.updateSettings({ invoicePrefix: 'HDV' });
+  const s3 = a.saveSale({ type: 'injection', patientName: 'Nusrat', mobile: '9000000003', itemId: pen.id, amount: 17000, refId: m.id });
+  assert.equal(a.invoiceFor('sale', s3.id), 'HDV/INV/26-27/0001');
+  a.logEvent('Signed in', 'Super Admin · Android', 'Super Admin');
+  a.logEvent('Wrong PIN', 'Sign-in attempt', 'Front Desk');
+  const last = a.state.log.slice(-2);
+  assert.deepEqual(last.map((x) => [x.action, x.by]), [['Signed in', 'Super Admin'], ['Wrong PIN', 'Front Desk']]);
+  assert.ok(a.state.settings.legalNote.includes('does not require a signature'));
+});

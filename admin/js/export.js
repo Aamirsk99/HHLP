@@ -35,7 +35,8 @@
   };
   const GOLD = [217, 154, 30];
   // Clinic for headers and footers: a name, or { name, address, phone }.
-  const clinicOf = (c) => (c && typeof c === 'object' ? { name: c.name || 'Hindivine Healthcare', address: c.address || '', phone: c.phone || '' } : { name: c || 'Hindivine Healthcare', address: '', phone: '' });
+  const DOC_NOTE = 'This is a computer-generated document and does not require a signature.';
+  const clinicOf = (c) => (c && typeof c === 'object' ? { name: c.name || 'Hindivine Healthcare', address: c.address || '', phone: c.phone || '', note: c.note == null ? DOC_NOTE : c.note } : { name: c || 'Hindivine Healthcare', address: '', phone: '', note: DOC_NOTE });
   const nowText = () => new Date().toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 
   /**
@@ -158,6 +159,15 @@
     });
 
     if (y < H - 24) { doc.setFont('helvetica', 'italic'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text('- End of report -', W / 2, y - 2, { align: 'center' }); }
+    // Note (no signature required / legal) under the last table.
+    if (ci.note) {
+      const nl = doc.splitTextToSize(pdfText(ci.note), W - 2 * M - 10);
+      const nh = 6 + nl.length * 3.6;
+      if (y + nh > H - 20) { doc.addPage(); header(false); y = 28; }
+      doc.setFillColor(246, 249, 252); doc.roundedRect(M, y + 1, W - 2 * M, nh, 2, 2, 'F');
+      doc.setFillColor(...GOLD); doc.roundedRect(M, y + 1, 1.4, nh, 0.7, 0.7, 'F');
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(...MUTED); doc.text(nl, M + 5, y + 5.4);
+    }
     const total = doc.getNumberOfPages();
     for (let i = 1; i <= total; i++) { doc.setPage(i); footer(i, total); }
     const fname = `${report.filename}.pdf`;
@@ -273,6 +283,7 @@
     doc.line(W - M - 62, H - 29, W - M, H - 29);
     doc.setFont('helvetica', 'bold'); doc.setTextColor(...INK); doc.text(pdfText(info.doctor || 'Doctor / dietitian'), W - M - 31, H - 24, { align: 'center' });
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(...MUTED); doc.text('Signature', W - M - 31, H - 20, { align: 'center' });
+    if (info.note) { doc.setFont('helvetica', 'italic'); doc.setFontSize(7.2); doc.setTextColor(...MUTED); doc.text(doc.splitTextToSize(pdfText(info.note), W - 2 * M).slice(0, 2), M, H - 16.5); }
     // Footer: clinic details only
     doc.setFillColor(...NAVY); doc.rect(0, H - 12, W, 12, 'F');
     doc.setTextColor(255, 255, 255); doc.setFontSize(7.8);
@@ -383,7 +394,7 @@
       return { fs, lineH, pad, vpad, cw, head, rows, foot, height: 50 + head.h + rows.reduce((a, r) => a + r.h, 0) + (foot ? foot.h : 0) + 34 };
     };
     const layouts = sections.map(layout);
-    let H = 210 + (report.subtitle ? 50 : 0) + (kpis.length ? Math.ceil(kpis.length / 4) * 112 + 16 : 0) + 100 + layouts.reduce((a, l) => a + l.height, 0);
+    let H = 210 + (report.subtitle ? 50 : 0) + (kpis.length ? Math.ceil(kpis.length / 4) * 112 + 16 : 0) + 124 + layouts.reduce((a, l) => a + l.height, 0);
     H = Math.min(Math.max(H, 600), MAX_H);
     const ci = clinicOf(clinic);
     const contact = [ci.address, ci.phone ? `Phone ${ci.phone}` : ''].filter(Boolean).join('  |  ');
@@ -436,7 +447,7 @@
       y += 50;
       const L = layouts[si];
       const drawRow = (row, style, i) => {
-        if (y + row.h > H - 80) { cut = true; return; }
+        if (y + row.h > H - 100) { cut = true; return; }
         g.fillStyle = style === 'head' ? rgb(NAVY) : style === 'foot' ? tint(ac, 0.85) : i % 2 ? 'rgb(246,249,252)' : '#fff';
         if (style === 'head') { rr(M, y, W - 2 * M, row.h, 10); g.fill(); } else g.fillRect(M, y, W - 2 * M, row.h);
         g.fillStyle = 'rgb(226,233,241)'; g.fillRect(M, y + row.h - 1, W - 2 * M, 1);
@@ -463,6 +474,7 @@
     });
     if (cut) { font('bold', 22); g.fillStyle = rgb(RED); g.fillText('More rows in the PDF / Excel export…', M, H - 92); }
     // Footer
+    if (ci.note) { font('italic', 16); g.fillStyle = rgb(MUTED); g.fillText(fit(ci.note, W - 2 * M), M, H - 74); }
     g.fillStyle = '#fff'; g.fillRect(0, H - 64, W, 64);
     g.fillStyle = rgb(GOLD); g.fillRect(M, H - 62, W - 2 * M, 2);
     font('bold', 19); g.fillStyle = rgb(NAVY); g.fillText(fit(ci.name, 420), M, H - 26);
@@ -490,5 +502,139 @@
     return fname;
   }
 
-  root.EXPORT = { pdf, xlsx, jpeg, opdSlip, pdfText };
+  // Rupees in words, Indian style: 1,25,000 → "One Lakh Twenty Five Thousand Rupees Only".
+  function inWords(amount) {
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten', 'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const two = (n) => (n < 20 ? ones[n] : `${tens[Math.floor(n / 10)]}${n % 10 ? ` ${ones[n % 10]}` : ''}`);
+    const three = (n) => `${n >= 100 ? `${ones[Math.floor(n / 100)]} Hundred${n % 100 ? ' ' : ''}` : ''}${n % 100 ? two(n % 100) : ''}`;
+    let n = Math.floor(Math.abs(Number(amount) || 0));
+    const paise = Math.round((Math.abs(Number(amount) || 0) - Math.floor(Math.abs(Number(amount) || 0))) * 100);
+    if (!n && !paise) return 'Zero Rupees Only';
+    const parts = [];
+    const crore = Math.floor(n / 10000000); n %= 10000000;
+    const lakh = Math.floor(n / 100000); n %= 100000;
+    const thousand = Math.floor(n / 1000); n %= 1000;
+    if (crore) parts.push(`${three(crore)} Crore`);
+    if (lakh) parts.push(`${two(lakh)} Lakh`);
+    if (thousand) parts.push(`${two(thousand)} Thousand`);
+    if (n) parts.push(three(n));
+    if (!parts.length) return `${two(paise)} Paise Only`;
+    return `${parts.join(' ')} Rupees${paise ? ` and ${two(paise)} Paise` : ''} Only`;
+  }
+  const money = (v) => `Rs ${Number(v || 0).toLocaleString('en-IN', { maximumFractionDigits: 2 })}`;
+
+  /**
+   * Premium A4 invoice for a patient purchase or an OPD consultation (non-GST).
+   * inv = { title, no, date, clinic:{name,address,phone,email}, patient:{name,mobile,ageGender,city,id},
+   *         details:[[label,value]], items:[{desc,sub,qty,rate,amount}], total, paid, payMethod, note, preparedBy, filename }
+   */
+  function invoice(inv) {
+    const { jsPDF } = root.jspdf;
+    const doc = new jsPDF({ unit: 'mm', format: 'a4', compress: true });
+    const W = doc.internal.pageSize.getWidth(); const H = doc.internal.pageSize.getHeight(); const M = 14;
+    const c = clinicOf(inv.clinic);
+    // Header band
+    doc.setFillColor(...NAVY); doc.rect(0, 0, W, 40, 'F');
+    doc.setFillColor(...BRAND); doc.rect(0, 40, W, 1.2, 'F');
+    doc.setFillColor(...GOLD); doc.rect(0, 41.2, W, 0.6, 'F');
+    doc.setFillColor(255, 255, 255); doc.roundedRect(M, 9, 60, 22, 3, 3, 'F');
+    try { doc.addImage(LOGO, 'JPEG', M + 2.2, 10.4, 55.6, 19); } catch (_) { /* logo optional */ }
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(24);
+    doc.text(pdfText(inv.title || 'INVOICE'), W - M, 20, { align: 'right' });
+    doc.setFontSize(8); const chip = 'NON-GST INVOICE'; const cw = doc.getTextWidth(chip) + 8;
+    doc.setFillColor(...GOLD); doc.roundedRect(W - M - cw, 25, cw, 6.5, 3.2, 3.2, 'F');
+    doc.setTextColor(40, 26, 0); doc.text(chip, W - M - cw / 2, 29.4, { align: 'center' });
+    // Clinic (from) and invoice details
+    let y = 52;
+    doc.setTextColor(...MUTED); doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.text('FROM', M, y);
+    doc.setTextColor(...NAVY); doc.setFontSize(12.5); doc.text(pdfText(c.name), M, y + 6);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8.8); doc.setTextColor(...INK);
+    let cy = y + 11.5;
+    [c.address, c.phone ? `Phone: ${c.phone}` : '', inv.clinic && inv.clinic.email ? `Email: ${inv.clinic.email}` : ''].filter(Boolean).forEach((t) => {
+      const lines = doc.splitTextToSize(pdfText(t), 92); doc.text(lines, M, cy); cy += lines.length * 4.4;
+    });
+    const bx = W - M - 78; const meta = [['Invoice No.', inv.no], ['Invoice date', inv.date], ['Payment', inv.paid ? `Paid${inv.payMethod ? ` · ${inv.payMethod}` : ''}` : 'Due'], ...(inv.metaExtra || [])];
+    doc.setFillColor(...ZEBRA); doc.roundedRect(bx, y - 4, 78, 7 + meta.length * 7, 2.5, 2.5, 'F');
+    meta.forEach(([l, v], i) => {
+      const yy = y + 2 + i * 7;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(...MUTED); doc.text(l, bx + 4, yy);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.2);
+      if (l === 'Payment') doc.setTextColor(...(inv.paid ? [20, 138, 94] : RED)); else doc.setTextColor(...NAVY);
+      doc.text(pdfText(v), bx + 74, yy, { align: 'right' });
+    });
+    y = Math.max(cy, y + 7 + meta.length * 7) + 6;
+    // Billed to
+    doc.setDrawColor(222, 230, 240); doc.setLineWidth(0.3);
+    const pat = inv.patient || {};
+    const pRows = [['Patient', pat.name], ['Mobile', pat.mobile], ['Age / Gender', pat.ageGender], ['City', pat.city], ...(inv.details || [])].filter(([, v]) => v);
+    const half = Math.ceil(pRows.length / 2); const colW = (W - 2 * M - 8) / 2;
+    const boxH = 11 + half * 6.6;
+    doc.roundedRect(M, y, W - 2 * M, boxH, 2.5, 2.5, 'S');
+    doc.setFillColor(...BRAND); doc.roundedRect(M, y, 2.2, boxH, 1, 1, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text('BILLED TO', M + 6, y + 6);
+    pRows.forEach(([l, v], i) => {
+      const x = M + 6 + (i < half ? 0 : colW + 4); const yy = y + 12.5 + (i % half) * 6.6;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8.4); doc.setTextColor(...MUTED); doc.text(pdfText(l), x, yy);
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(9.4); doc.setTextColor(...INK); doc.text(pdfText(v), x + 30, yy, { maxWidth: colW - 34 });
+    });
+    y += boxH + 7;
+    // Items
+    doc.autoTable({
+      startY: y,
+      head: [['#', 'Description', 'Qty', 'Rate', 'Amount']],
+      body: inv.items.map((it, i) => [String(i + 1), pdfText(it.sub ? `${it.desc}\n${it.sub}` : it.desc), String(it.qty), money(it.rate), money(it.amount)]),
+      theme: 'plain',
+      margin: { left: M, right: M },
+      styles: { font: 'helvetica', fontSize: 9.4, textColor: INK, cellPadding: { top: 3.4, bottom: 3.4, left: 3, right: 3 }, lineColor: [226, 233, 241], lineWidth: { bottom: 0.25 } },
+      headStyles: { fillColor: NAVY, textColor: 255, fontStyle: 'bold', fontSize: 8.6 },
+      columnStyles: { 0: { cellWidth: 10, halign: 'center' }, 2: { cellWidth: 16, halign: 'right' }, 3: { cellWidth: 30, halign: 'right' }, 4: { cellWidth: 34, halign: 'right', fontStyle: 'bold' } },
+      didParseCell: (d) => { if (d.section === 'head' && d.column.index >= 2) d.cell.styles.halign = 'right'; if (d.section === 'head' && d.column.index === 0) d.cell.styles.halign = 'center'; },
+    });
+    y = doc.lastAutoTable.finalY + 6;
+    // Totals (right) and amount in words (left)
+    const tw = 82; const tx = W - M - tw;
+    const lines = [['Sub total', money(inv.total)], ['GST', 'Not applicable'], ['Total', money(inv.total)], ['Paid', money(inv.paid ? inv.total : 0)], ['Balance due', money(inv.paid ? 0 : inv.total)]];
+    doc.setFillColor(...ZEBRA); doc.roundedRect(tx, y, tw, 8 + lines.length * 7.2, 2.5, 2.5, 'F');
+    lines.forEach(([l, v], i) => {
+      const yy = y + 7 + i * 7.2;
+      const big = l === 'Total';
+      if (big) { doc.setFillColor(...NAVY); doc.roundedRect(tx + 2, yy - 5, tw - 4, 7.6, 2, 2, 'F'); }
+      doc.setFont('helvetica', big ? 'bold' : 'normal'); doc.setFontSize(big ? 10.5 : 9);
+      doc.setTextColor(...(big ? [255, 255, 255] : MUTED)); doc.text(l, tx + 5, yy);
+      doc.setFont('helvetica', 'bold');
+      doc.setTextColor(...(big ? [255, 255, 255] : l === 'Balance due' && !inv.paid ? RED : INK)); doc.text(pdfText(v), tx + tw - 5, yy, { align: 'right' });
+    });
+    const ww = W - 2 * M - tw - 6;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text('AMOUNT IN WORDS', M, y + 5);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9.6); doc.setTextColor(...NAVY);
+    const words = doc.splitTextToSize(inWords(inv.total), ww); doc.text(words, M, y + 11);
+    let ly = y + 11 + words.length * 4.8 + 3;
+    if (inv.payMethod || inv.paid) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6); doc.setTextColor(...INK); doc.text(pdfText(inv.paid ? `Received with thanks${inv.payMethod ? ` by ${inv.payMethod}` : ''}.` : 'Payment pending.'), M, ly); ly += 6; }
+    y = Math.max(y + 8 + lines.length * 7.2, ly) + 8;
+    // Notes / terms
+    if (y > H - 62) { doc.addPage(); y = 20; }
+    doc.setDrawColor(...GOLD); doc.setLineWidth(0.4); doc.line(M, y, W - M, y);
+    y += 6;
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8); doc.setTextColor(...NAVY); doc.text('TERMS & NOTES', M, y);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(...MUTED);
+    const note = doc.splitTextToSize(pdfText(inv.note || ''), W - 2 * M); doc.text(note, M, y + 5);
+    y += 5 + note.length * 3.8 + 4;
+    doc.setFillColor(232, 245, 238); doc.roundedRect(M, y, W - 2 * M, 9, 2, 2, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(8.4); doc.setTextColor(20, 110, 76);
+    doc.text('Computer-generated invoice. No signature required.', W / 2, y + 5.9, { align: 'center' });
+    // Footer
+    doc.setFillColor(...NAVY); doc.rect(0, H - 16, W, 16, 'F');
+    doc.setFillColor(...GOLD); doc.rect(0, H - 16, W, 0.6, 'F');
+    doc.setTextColor(255, 255, 255); doc.setFont('helvetica', 'bold'); doc.setFontSize(9.5); doc.text('Thank you for choosing us. Wishing you good health!', M, H - 9);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(7.6); doc.setTextColor(200, 216, 234);
+    doc.text(pdfText([c.name, c.phone].filter(Boolean).join('  |  ')), M, H - 4.4);
+    doc.text(pdfText(`${inv.preparedBy ? `Prepared by ${inv.preparedBy} · ` : ''}${nowText()}`), W - M, H - 4.4, { align: 'right' });
+    const fname = `${inv.filename || inv.no.replace(/[^A-Za-z0-9-]+/g, '-')}.pdf`;
+    const b64 = doc.output('datauristring').split(',')[1];
+    save(fname, 'application/pdf', b64, b64ToBlob(b64, 'application/pdf'));
+    return fname;
+  }
+
+  root.EXPORT = { pdf, xlsx, jpeg, opdSlip, invoice, inWords, pdfText };
 })(window);

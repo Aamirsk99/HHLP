@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.8';
+  const APP_VERSION = '3.9';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -517,7 +517,7 @@
       const total = list.reduce((a, s) => a + (Number(s.amount) || 0), 0);
       const head = t === 'protein' ? ['Patient', 'Product', '>Qty', '>Amount', 'Reference', '>Incentive'] : ['Patient', t === 'diet' ? 'Plan' : 'Product', '>Amount', 'Type', 'Reference', '>Incentive'];
       const rows = list.map((s) => `<tr><td><b>${esc(s.patientName)}</b><span class="sub">${pinfo(s)}</span></td><td>${esc(s.product)}${t !== 'protein' && s.qty > 1 ? ` × ${s.qty}` : ''}</td>
-        ${t === 'protein' ? `<td class="r">${num(s.qty)}</td>` : ''}<td class="r"><b>${inr(s.amount)}</b></td>${t !== 'protein' ? `<td>${ptBadge(s)}</td>` : ''}<td>${refs(s)}</td><td class="r">${inr(s.incentive)}</td></tr>`);
+        ${t === 'protein' ? `<td class="r">${num(s.qty)}</td>` : ''}<td class="r"><b>${inr(s.amount)}</b></td>${t !== 'protein' ? `<td>${ptBadge(s)}</td>` : ''}<td>${refs(s)}</td><td class="r">${inr(s.incentive)} <button type="button" class="btn xs gold inv-btn" data-act="sale-invoice" data-id="${s.id}" title="Invoice">₹</button></td></tr>`);
       return `<section class="card sale-card ${t}"><h2><span class="ic ${cls}">${svg(ic)}</span>${title}<span class="sp"></span><span class="badge">${plural(list.length, 'sale')}</span><span class="badge ok">${inr(total)}</span></h2>
         ${table(head, rows)}</section>`;
     });
@@ -723,13 +723,17 @@
   });
 
   // ── Activity log: every change, who made it and when ─────────
-  const actF = { by: '', q: '' };
+  const actF = { by: '', q: '', kind: '' };
+  // Activity kinds for the filter, matched on the action text.
+  const ACT_KINDS = [['login', 'Sign-ins & security', /^(Signed in|Signed out|Wrong PIN|Auto-locked|PIN|Login)/], ['sale', 'Sales & invoices', /^(Sale|Invoice)/], ['opd', 'OPD appointments', /^Appointment/],
+    ['lead', 'Leads', /^Lead/], ['stock', 'Stock & purchases', /^(Purchase|Stock|Item|Product|Kit)/], ['settings', 'Settings & team', /^(Settings|Option|Category|Member|Team|Permission|Backup|Incentive)/]];
   function filteredLog() {
     const r = range();
     const q = actF.q.toLowerCase();
     return S().log.filter((x) => {
       const day = A.isoDate(new Date(x.at));
-      return inR(day, r) && (!actF.by || x.by === actF.by) && (!q || `${x.action} ${x.detail}`.toLowerCase().includes(q));
+      const kind = actF.kind && ACT_KINDS.find((k) => k[0] === actF.kind);
+      return inR(day, r) && (!actF.by || x.by === actF.by) && (!kind || kind[2].test(x.action)) && (!q || `${x.action} ${x.detail}`.toLowerCase().includes(q));
     }).slice().reverse();
   }
   SUBS.activity = () => periodLabel();
@@ -739,7 +743,8 @@
     const people = [...new Set(S().log.map((x) => x.by))];
     const per = {};
     list.forEach((x) => {
-      const p = per[x.by] || (per[x.by] = { total: 0, leads: 0, updates: 0, appts: 0, sales: 0 });
+      const p = per[x.by] || (per[x.by] = { total: 0, leads: 0, updates: 0, appts: 0, sales: 0, logins: 0, last: 0 });
+      if (x.action === 'Signed in') { p.logins++; p.last = Math.max(p.last, x.at); }
       p.total++;
       if (x.action === 'Lead added') p.leads++;
       if (x.action === 'Lead activity' || x.action === 'Lead status') p.updates++;
@@ -748,9 +753,10 @@
     });
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('activity')}</div>
       <div class="filters"><div class="row"><input type="search" data-actfilter="q" placeholder="Search actions and details" value="${esc(actF.q)}">
-        <select data-actfilter="by" aria-label="Person">${opt('', 'Everyone', actF.by)}${people.map((p) => opt(p, p, actF.by)).join('')}</select></div></div>
+        <select data-actfilter="by" aria-label="Person">${opt('', 'Everyone', actF.by)}${people.map((p) => opt(p, p, actF.by)).join('')}</select>
+        <select data-actfilter="kind" aria-label="Kind">${opt('', 'All activity', actF.kind)}${ACT_KINDS.map(([k, l]) => opt(k, l, actF.kind)).join('')}</select></div></div>
       <section class="card"><h2><span class="ic violet">${svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>')}</span>By person</h2>
-        ${table(['Person', '>Changes', '>Leads added', '>Lead updates', '>Appointments', '>Sales'], Object.entries(per).map(([n, p]) => `<tr><td><b>${esc(n)}</b></td><td class="r">${p.total}</td><td class="r">${p.leads}</td><td class="r">${p.updates}</td><td class="r">${p.appts}</td><td class="r">${p.sales}</td></tr>`))}</section>
+        ${table(['Person', '>Sign-ins', 'Last sign-in', '>Changes', '>Leads added', '>Lead updates', '>Appointments', '>Sales'], Object.entries(per).map(([n, p]) => `<tr><td><b>${esc(n)}</b></td><td class="r">${p.logins}</td><td>${p.last ? ftime(p.last) : '—'}</td><td class="r">${p.total}</td><td class="r">${p.leads}</td><td class="r">${p.updates}</td><td class="r">${p.appts}</td><td class="r">${p.sales}</td></tr>`))}</section>
       <section class="card"><h2><span class="ic">${svg('<path d="M3 12h4l3-8 4 16 3-8h4"/>')}</span>All changes<span class="sp"></span><span class="badge">${list.length}</span></h2>
         <ol class="timeline big">${list.slice(0, actLimit).map((x) => `<li><span class="t-ic">${esc(x.by.charAt(0).toUpperCase())}</span><div><b>${esc(x.action)}</b>${x.detail ? `<span>${esc(x.detail)}</span>` : ''}<small>${ftime(x.at)} · ${esc(x.by)}</small></div></li>`).join('') || '<li class="empty">No changes in this period.</li>'}</ol>
         ${list.length > actLimit ? `<div class="more-row"><span class="hint">Showing the latest ${actLimit} of ${list.length}</span><button type="button" class="btn sm" data-act="act-more">Show more</button></div>` : ''}</section>`;
@@ -758,6 +764,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.9', 'Premium non-GST invoices for patient purchases (Sales and Today) and OPD consultations: invoice numbers per financial year (HV/INV/26-27/0001, HV/OPD/26-27/0001), patient details, amount in words, paid / due, terms and "no signature required"; payment method on every sale; reports, images and slips print a note (computer-generated, no signature required), editable in Settings with the invoice terms and prefix; every sign-in, sign-out, wrong PIN and auto-lock is recorded in the activity log with a Sign-ins filter and last sign-in per person.'],
     ['3.8', 'No more "Data changed on another device" question: when two phones change data at the same time the app joins both automatically (newest version of every sale, patient, appointment, lead and setting wins, deletions stay deleted, nothing is lost).'],
     ['3.7', 'Built for Android 15 so Google Play Protect no longer blocks the install as an app for an older Android version; screens stay clear of the status bar, navigation bar and keyboard on Android 15; fixed a crash when the app was sent to the background with a lot of data; safer recovery if Android stops the page to save memory; smoother animations.'],
     ['3.6', 'Connects to the clinic Google Sheet by itself: first launch shows "Connecting…" and then the sign-in screen with the logins from the sheet (no Create Super Admin or Connect Google Sheet screens); clear retry screen when offline; Settings → Google Sheet: test connection, sync now, disconnect, reconnect to the clinic sheet or change the link; sign-in screen refreshes logins in the background; more premium side menu.'],
@@ -931,6 +938,7 @@
           ${a.status !== 'cancelled' ? b('appt-cancel', 'Cancel', 'danger') : b('appt-restore', 'Restore booking')}
           ${wa ? `<a class="btn" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}
           ${b('appt-slip', '🧾 OPD slip (PDF)', 'gold')}
+          ${b('opd-invoice', '₹ OPD invoice', 'gold')}
           ${b('appt-edit', 'Edit')}
           ${canDelete() ? b('appt-del', 'Delete', 'danger') : ''}
         </div>`,
@@ -965,6 +973,7 @@
         ${t !== 'diet' ? `<label class="f">Quantity<input name="qty" type="number" min="1" step="1" value="${esc(pre.qty || 1)}"></label>` : ''}
         <label class="f">Sale amount (₹)<input name="amount" type="number" min="0" step="any" required value="${esc(pre.amount != null ? pre.amount : '')}"></label>
         <label class="f">${t === 'injection' ? 'Purchase date' : 'Date'}<input name="date" type="date" required value="${esc(pre.date || admin.today())}"></label>
+        <label class="f">Payment method${listSelect('payMethods', 'name="payMethod"', pre.payMethod || 'Cash')}</label>
       </div>
       <div class="split-row">
         <label class="f">Reference team<select name="refId" required>${memberOptions(pre.refId, 'Choose…')}</select></label>
@@ -1074,7 +1083,7 @@
       <td>${typeBadge(s.type)} ${ptBadge(s)}</td>
       <td>${esc(s.product)}${s.qty > 1 ? ` × ${s.qty}` : ''}</td>
       <td class="r"><b>${inr(s.amount)}</b></td><td data-hm>${splitText(s)}</td><td class="r">${inr(s.incentive)}</td>
-      <td class="acts"><button class="btn xs" data-act="edit-sale" data-id="${s.id}">Edit</button> <button class="btn xs danger" data-act="del-sale" data-id="${s.id}">Delete</button></td></tr>`);
+      <td class="acts"><button class="btn xs gold" data-act="sale-invoice" data-id="${s.id}">Invoice</button> <button class="btn xs" data-act="edit-sale" data-id="${s.id}">Edit</button> <button class="btn xs danger" data-act="del-sale" data-id="${s.id}">Delete</button></td></tr>`);
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('sales')}</div>
       <div class="filters"><div class="row"><input type="search" placeholder="Search patient, mobile, product" data-filter="q" value="${esc(salesFilter.q)}">
         <select data-filter="type" aria-label="Sale type">${opt('', 'All sale types', salesFilter.type)}${Object.entries(A.SALE_TYPES).map(([k, l]) => opt(k, l, salesFilter.type)).join('')}</select>
@@ -1742,7 +1751,7 @@
       $('#ex-from-w').hidden = !c; $('#ex-to-w').hidden = !c;
     };
   }
-  const clinicCard = () => ({ name: set().clinic, address: set().clinicAddress || '', phone: set().clinicPhone || '' });
+  const clinicCard = () => ({ name: set().clinic, address: set().clinicAddress || '', phone: set().clinicPhone || '', email: set().clinicEmail || '', note: set().docNote == null ? undefined : set().docNote });
   function runExport(what, fmt, o, opts) {
     const x = opts || {};
     const keep = period;
@@ -1819,7 +1828,11 @@
       ${sec('clinic', `${head('clinic')}<div class="grid">
         <label class="f">Clinic name<input name="clinic" value="${esc(st.clinic)}"></label>
         <label class="f">Clinic phone<input name="clinicPhone" type="tel" value="${esc(st.clinicPhone || '')}" placeholder="Shown on slips and reports"></label>
-        <label class="f span">Clinic address<input name="clinicAddress" value="${esc(st.clinicAddress || '')}" placeholder="Shown on slips and reports"></label></div>${saveBtn}`)}
+        <label class="f span">Clinic address<input name="clinicAddress" value="${esc(st.clinicAddress || '')}" placeholder="Shown on slips and reports"></label>
+        <label class="f">Clinic email<input name="clinicEmail" type="email" value="${esc(st.clinicEmail || '')}" placeholder="Shown on invoices"></label>
+        <label class="f">Invoice number prefix<input name="invoicePrefix" value="${esc(st.invoicePrefix || 'HV')}" maxlength="8"><span class="hint">e.g. ${esc(st.invoicePrefix || 'HV')}/INV/26-27/0001 · ${esc(st.invoicePrefix || 'HV')}/OPD/26-27/0001</span></label>
+        <label class="f span">Invoice terms & legal notes<textarea name="legalNote" rows="3">${esc(st.legalNote || '')}</textarea><span class="hint">Printed on every invoice (non-GST).</span></label>
+        <label class="f span">Note on reports and slips<textarea name="docNote" rows="2">${esc(st.docNote || '')}</textarea><span class="hint">e.g. computer-generated, no signature required. Leave empty to print nothing.</span></label></div>${saveBtn}`)}
       ${sec('general', `${head('general')}<div class="grid">
         <label class="f">OPD consultation fee (₹)<input type="number" min="0" name="consultFee" value="${esc(st.consultFee)}"></label>
         <label class="f">Default injection incentive (₹)<input type="number" min="0" name="incInj" value="${esc(st.incentive.injection)}"></label>
@@ -1872,7 +1885,8 @@
       const r1 = Number(f.r1.value) || 75; const r2 = Number(f.r2.value) || 90;
       const wasConnected = connected();
       admin.updateSettings({
-        clinic: f.clinic.value.trim(), clinicPhone: f.clinicPhone.value.trim(), clinicAddress: f.clinicAddress.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
+        clinic: f.clinic.value.trim(), clinicPhone: f.clinicPhone.value.trim(), clinicAddress: f.clinicAddress.value.trim(), clinicEmail: f.clinicEmail.value.trim(),
+        invoicePrefix: f.invoicePrefix.value.trim() || 'HV', legalNote: f.legalNote.value.trim(), docNote: f.docNote.value.trim(), consultFee: Number(f.consultFee.value) || 0, renewalDays: [Math.min(r1, r2), Math.max(r1, r2)], activeDays: Number(f.activeDays.value) || 90,
         incentive: { injection: Number(f.incInj.value) || 0, protein: Number(f.incPro.value) || 0 },
         purchaseExpense: f.purchaseExpense.checked, stockAlerts: f.stockAlerts.checked, kitOn: f.kitOn.checked,
         sheetsUrl: f.sheetsUrl.value.trim(), sheetsSecret: f.sheetsSecret.value.trim(),
@@ -2312,6 +2326,42 @@
       render(); toast('Connecting to the clinic sheet…'); await pull(true); render();
     },
     'act-more': () => { actLimit += 200; render(); },
+    'sale-invoice': (d) => {
+      const s = S().sales.find((x) => x.id === d.id);
+      if (!s) return;
+      try {
+        const no = admin.invoiceFor('sale', s.id);
+        const p = S().patients.find((x) => x.id === s.patientId) || {};
+        const plan = s.type === 'diet' ? set().dietPlans.find((x) => x.id === s.planId) : null;
+        const sub = [A.SALE_TYPES[s.type], plan && plan.months ? `${plan.months} month${plan.months > 1 ? 's' : ''} plan` : '', s.type === 'injection' ? 'Pen' : ''].filter(Boolean).join(' · ');
+        const qty = Number(s.qty) || 1;
+        X.invoice({
+          title: 'INVOICE', no, date: fdate(s.date), clinic: clinicCard(), note: set().legalNote || '', preparedBy: me ? me.name : '',
+          patient: { name: s.patientName, mobile: s.mobile, ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city },
+          details: [['Patient type', ptText(s) === '-' ? '' : ptText(s)]],
+          items: [{ desc: s.product, sub, qty, rate: (Number(s.amount) || 0) / qty, amount: Number(s.amount) || 0 }],
+          total: Number(s.amount) || 0, paid: true, payMethod: s.payMethod || '', filename: `Invoice-${no.replace(/[^A-Za-z0-9-]+/g, '-')}-${String(s.patientName).replace(/[^A-Za-z0-9]+/g, '-')}`,
+        });
+        toast(`Invoice ${no} ready`);
+      } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
+    },
+    'opd-invoice': (d) => {
+      const a = admin.appointment(d.id);
+      if (!a) return;
+      try {
+        const no = admin.invoiceFor('opd', a.id);
+        const p = S().patients.find((x) => x.id === a.patientId) || {};
+        X.invoice({
+          title: 'OPD INVOICE', no, date: fdate(a.date), clinic: { ...clinicCard(), name: a.branch || set().clinic }, note: set().legalNote || '', preparedBy: me ? me.name : '',
+          patient: { name: a.patientName, mobile: a.mobile, ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city },
+          details: [['Doctor', a.doctor || ''], ['Visit', `${fdate(a.date)}${a.time ? ` · ${time12(a.time)}` : ''}`]],
+          metaExtra: [['Visit type', A.APPT_MODES[a.mode] || a.mode]],
+          items: [{ desc: 'OPD consultation', sub: [a.service, a.doctor ? `with ${a.doctor}` : '', A.APPT_MODES[a.mode]].filter(Boolean).join(' · '), qty: 1, rate: Number(a.fee) || 0, amount: Number(a.fee) || 0 }],
+          total: Number(a.fee) || 0, paid: !!a.paid, payMethod: a.payMethod || '', filename: `OPD-Invoice-${no.replace(/[^A-Za-z0-9-]+/g, '-')}-${String(a.patientName).replace(/[^A-Za-z0-9]+/g, '-')}`,
+        });
+        toast(`Invoice ${no} ready`);
+      } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
+    },
     'gf-clear': (d) => { GF[d.sc] = {}; render(); },
     'today-export-reset': () => { setPref('todayExport', TODAY_EXPORT_DEFAULT); todayExportForm(($('#modal-body .exp-fmt .on') || { dataset: { expfmt: 'pdf' } }).dataset.expfmt); },
     'user-menu': () => {
@@ -2418,7 +2468,7 @@
           clinic: set().clinic, token: day.findIndex((x) => x.id === a.id) + 1 || '', date: fdate(a.date), time: time12(a.time),
           mode: A.APPT_MODES[a.mode] || a.mode, status: A.APPT_STATUS[a.status] || a.status, fee: inr(a.fee),
           ageGender: [p.age ? `${p.age} yrs` : '', p.gender].filter(Boolean).join(' · '), city: p.city || '',
-          doctor: a.doctor || '', branch: a.branch || '', vitals: { ...(a.vitals || {}), bmi: A.bmi((a.vitals || {}).weight, (a.vitals || {}).height), bmiLabel: A.bmiLabel(Number(A.bmi((a.vitals || {}).weight, (a.vitals || {}).height))) }, address: set().clinicAddress || '', phone: set().clinicPhone || '',
+          note: set().docNote || '', doctor: a.doctor || '', branch: a.branch || '', vitals: { ...(a.vitals || {}), bmi: A.bmi((a.vitals || {}).weight, (a.vitals || {}).height), bmiLabel: A.bmiLabel(Number(A.bmi((a.vitals || {}).weight, (a.vitals || {}).height))) }, address: set().clinicAddress || '', phone: set().clinicPhone || '',
           visitNo: String(visits.findIndex((x) => x.id === a.id) + 1 || visits.length), since: visits[0] ? fdate(visits[0].date) : fdate(a.date),
           slipNo: `OPD-${a.date.replace(/-/g, '').slice(2)}-${String(day.findIndex((x) => x.id === a.id) + 1).padStart(2, '0')}`,
         });
@@ -2537,7 +2587,7 @@
       fields: [{ name: 'confirm', label: 'Type ERASE to confirm', required: true }],
       onSubmit: (v) => { if (v.confirm !== 'ERASE') throw new Error('Type ERASE in capitals'); admin.resetAll(); return 'All data erased'; },
     }),
-    lock: () => lock(),
+    lock: () => lock('Signed out'),
   };
 
   document.addEventListener('click', (e) => {
@@ -2740,7 +2790,8 @@
   async function tryLogin() {
     const u = admin.account(lockId);
     if (!u || !u.hash || lockPin.length < 4) return;
-    if ((await hashPin(lockPin, u.salt)) === u.hash) { enter(u.id); return; }
+    if ((await hashPin(lockPin, u.salt)) === u.hash) { signedIn(u.id); return; }
+    try { admin.logEvent('Wrong PIN', `Sign-in attempt · ${devName()}`, u.name); } catch (_) { /* ignore */ }
     lockPin = '';
     refreshDots();
     const dots = $('#lk-dots'); dots.classList.remove('shake'); void dots.offsetWidth; dots.classList.add('shake');
@@ -2751,7 +2802,7 @@
     const u = admin.account(lockId);
     if (!u || !u.hash || lockPin.length < 4) return;
     if (u.len) { if (lockPin.length === u.len) tryLogin(); return; }
-    if ((await hashPin(lockPin, u.salt)) === u.hash) enter(u.id);
+    if ((await hashPin(lockPin, u.salt)) === u.hash) signedIn(u.id);
     else if (lockPin.length === 6) tryLogin();
   }
   function enter(id) {
@@ -2778,7 +2829,15 @@
       } catch (err) { console.error(err); }
     }, 900);
   }
-  function lock() {
+  const devName = () => `${device()}${navigator.userAgent.match(/Android [\d.]+/) ? ` (${navigator.userAgent.match(/Android [\d.]+/)[0]})` : ''}`;
+  // A real sign-in (not a page reload with the session kept) goes into the activity log.
+  function signedIn(id) {
+    const u = admin.account(id);
+    if (u) { try { admin.logEvent('Signed in', `${A.ROLES[u.role]} · ${devName()}`, u.name); } catch (_) { /* ignore */ } }
+    enter(id);
+  }
+  function lock(reason) {
+    if (me && reason) { try { admin.logEvent(reason, `${A.ROLES[role] || ''} · ${devName()}`, me.name); } catch (_) { /* never block locking */ } }
     try { sessionStorage.removeItem(ROLE_KEY); } catch (_) { /* ignore */ }
     admin.setActor('');
     showLock();
@@ -2808,7 +2867,7 @@
       const sup = S().accounts.find((x) => x.role === 'super');
       await savePin(sup.id, pin);
       lockMode = 'login';
-      enter(sup.id);
+      signedIn(sup.id);
       toast('Welcome! Add logins for your team in Settings → Logins.');
       return;
     }
@@ -2837,7 +2896,7 @@
   });
   let idle = Date.now();
   ['click', 'keydown', 'touchstart'].forEach((ev) => document.addEventListener(ev, () => { idle = Date.now(); }, { passive: true }));
-  setInterval(() => { if (role && Date.now() - idle > IDLE_LOCK_MS) lock(); }, 30000);
+  setInterval(() => { if (role && Date.now() - idle > IDLE_LOCK_MS) lock('Auto-locked (15 min idle)'); }, 30000);
 
   // Android back button: the app asks the page first (see MainActivity).
   window.hdvBack = () => {
