@@ -90,11 +90,13 @@
   let dishByName = {};
   let DISHES = [];
   let ownRecipes = {};
+  let rcDishItems = null; // Recipes-screen rows of DISHES, rebuilt when foods / recipes change
   function refreshFoods() {
     ownRecipes = store.listRecipes();
     dishByName = {};
     DB.FOODS.forEach((f) => { if (!f.ingKey && (f.recipe || ownRecipes[f.name])) dishByName[f.name] = f; });
     DISHES = DB.FOODS.filter((f) => dishByName[f.name] === f);
+    rcDishItems = null;
     // Local names typed for the dietitian's foods are used on non-English charts.
     if (window.FOOD_HI) DB.FOODS.slice(DB.BUILTIN).forEach((f) => { if (f.hi && !window.FOOD_HI[f.name]) window.FOOD_HI[f.name] = f.hi; });
     const sug = $('#food-suggest');
@@ -106,7 +108,11 @@
   const myFoods = () => DB.FOODS.slice(DB.BUILTIN);
   // Generated library recipes (recipegen.js) opened or printed from the Foods & Recipes library.
   const extraDish = {};
-  const dishOf = (name) => dishByName[name] || extraDish[name] || null;
+  const dishOf = (name) => {
+    if (dishByName[name] || extraDish[name]) return dishByName[name] || extraDish[name];
+    const r = window.RECIPEGEN && window.RECIPEGEN.find(name); // a generated recipe chosen for the chart PDF
+    return r ? genDish(r) : null;
+  };
   /** A food-like record for a generated recipe, so the recipe view and A4 recipe pages can show it. */
   function genDish(r) {
     if (!extraDish[r.name]) {
@@ -145,10 +151,8 @@
   const DIET_OPTIONS = '<option value="">All</option><option value="vegan">Vegan</option><option value="veg">Vegetarian</option><option value="egg">Egg</option><option value="nonveg">Non-veg</option>';
   $('#lib-category').innerHTML = CAT_OPTIONS;
   $('#editor-category').innerHTML = CAT_OPTIONS;
-  $('#rc-category').innerHTML = CAT_OPTIONS.replace(/<option value="ingredients">[^<]*<\/option>/, '');
   $('#lib-region').innerHTML = '<option value="">All cuisines</option>' + Object.entries(REGION_LABEL).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
   $('#lib-diet').innerHTML = DIET_OPTIONS;
-  $('#rc-diet').innerHTML = DIET_OPTIONS;
 
   function setSeg(name, value) {
     const seg = $(`.seg[data-name="${name}"]`);
@@ -488,17 +492,29 @@
     if (b.dataset.act === 'addfood') openFoodForm(null);
     else if (b.dataset.act === 'addrecipe') openRecipeChooser();
     else if (b.dataset.act === 'myfoods') { libState.own = true; go('library'); }
+    else if (b.dataset.act === 'libfoods') { lib.state.type = 'f'; lib.state.page = 0; go('explore'); }
   });
 
   // ── Dashboard ────────────────────────────────────────────────────
+  // Full counts without loading the big files at start (sizes kept in library.js, checked by a test).
+  const TOTALS = window.LIBRARY.TOTALS;
+  const recipeTotal = () => DISHES.length + TOTALS.genRecipes;
+  const foodTotal = () => DB.FOODS.length + TOTALS.libFoods;
+  function renderTotals() {
+    $('#lib-banner-sub').textContent = `${num(foodTotal())} Indian & world foods · ${num(recipeTotal())} recipes · filters & export`;
+    $('#rc-lib-sub').textContent = `${num(foodTotal())} foods per 100 g · more filters · Excel & PDF export`;
+    const q = (k) => $(`#quick-grid [data-go="${k}"] small`);
+    if (q('recipes')) q('recipes').textContent = `${num(recipeTotal())} recipes`;
+    if (q('explore')) q('explore').textContent = `${num(foodTotal())} foods`;
+  }
   const QUICK = [
     ['s1', 'plus', 'New chart', 'Step by step', 'q-blue'],
     ['nextweek', 'calendar', 'Next week', 'Full food change', 'q-green'],
     ['upload', 'upload', 'Upload PDF', 'Read last chart', 'q-orange'],
     ['patients', 'users', 'Patients', 'History & follow-up', 'q-purple'],
     ['charts', 'charts', 'Saved charts', 'Edit or reprint', 'q-teal'],
-    ['recipes', 'recipes', 'Recipes', `${DISHES.length} dishes`, 'q-red'],
-    ['explore', 'search', 'Library', '9,000+ foods · 10k recipes', 'q-purple'],
+    ['recipes', 'recipes', 'Recipes', `${num(recipeTotal())} recipes`, 'q-red'],
+    ['explore', 'search', 'Library', `${num(foodTotal())} foods`, 'q-purple'],
     ['act:addfood', 'plus', 'Add food', 'Your own foods', 'q-green'],
     ['act:addrecipe', 'book', 'Add recipe', 'Step by step', 'q-orange'],
     ['act:myfoods', 'foods', 'My foods', 'Edit or delete', 'q-teal'],
@@ -536,10 +552,12 @@
     $('#dash-name').textContent = dt.dietitian || 'The Prime Fit';
     const patients = store.listPatients();
     const charts = store.listCharts();
+    renderTotals();
+    // Every stat opens its screen: patients, saved charts, all recipes, the foods library.
     $('#kpis').innerHTML = [
-      ['users', num(patients.length), 'Patients'], ['charts', num(charts.length), 'Charts'],
-      ['recipes', num(DISHES.length), 'Recipes'], ['foods', num(DB.FOODS.length), 'Foods'],
-    ].map(([i, v, l]) => `<div class="kpi"><span>${ui(i)}</span><b>${v}</b><small>${l}</small></div>`).join('');
+      ['patients', 'users', num(patients.length), 'Patients'], ['charts', 'charts', num(charts.length), 'Charts'],
+      ['recipes', 'recipes', num(recipeTotal()), 'Recipes'], ['foods', 'foods', num(foodTotal()), 'Foods'],
+    ].map(([go, i, v, l]) => `<button type="button" class="kpi" ${go === 'foods' ? 'data-act="libfoods"' : `data-go="${go}"`} aria-label="${v} ${l} — open"><span>${ui(i)}</span><b>${v}</b><small>${l}</small></button>`).join('');
     $('#continue-chart').hidden = !plan;
     if (plan) {
       $('#continue-title').textContent = profile.name || 'Generic chart';
@@ -1163,37 +1181,141 @@
   }
   /** "First", "Then", …, "Finally" for step i of n, in the chart language. */
   const connective = (lang, i, n) => I.t(lang, i === 0 ? 'first' : i === n - 1 && n > 1 ? 'finally' : 'then');
-  const ingCount = (f) => (ownRecipes[f.name] ? ownRecipes[f.name].ing.length : f.recipe ? f.recipe.ing.length : 0);
+  const ingCount = (f) => (ownRecipes[f.name] ? ownRecipes[f.name].ing.length : f.recipe ? f.recipe.ing.length : f.gen ? f.gen.ing.length : 0);
+  const GEN_REGION = { CON: 'Continental', MED: 'Mediterranean', ASIA: 'Asian', MEX: 'Mexican', WORLD: 'World', IN: 'Pan-Indian', N: 'North Indian', S: 'South Indian', W: 'West Indian', E: 'East Indian' };
 
-  const rcState = {};
-  $('#rc-filters').innerHTML = chip('own', 'My recipes') + chip('mine', 'My foods');
-  $('#rc-filters').addEventListener('click', (e) => {
-    const c = e.target.closest('.chip');
-    if (!c) return;
-    rcState[c.dataset.value] = !rcState[c.dataset.value];
-    c.setAttribute('aria-pressed', String(rcState[c.dataset.value]));
+  // Recipes screen: every recipe — the diet-chart dishes (and the dietitian's own) plus the 10,000+
+  // generated recipes, loaded from js/recipegen.js the first time the screen opens. 40 cards at a time.
+  const RC_PAGE = 40;
+  const rcState = { q: '', diet: '', meal: '', cat: '', hp: false, quick: false, own: false, mine: false, shown: RC_PAGE };
+  let rcGenItems = null;
+  let rcGenById = {};
+  let rcLoading = null;
+  let rcResult = [];
+  const RC_DIETS = [['', 'All'], ['veg', 'Veg'], ['vegan', 'Vegan'], ['egg', 'Egg'], ['nonveg', 'Non-veg']];
+  const RC_TOGGLES = [['hp', 'High protein'], ['quick', '≤ 20 min'], ['own', 'My recipes'], ['mine', 'My foods']];
+  const catKeysOf = (f) => Object.entries(P.CATEGORIES).filter(([k, c]) => k !== 'ingredients' && f.roles.some((r) => c.roles.includes(r))).map(([k]) => 'c:' + k);
+  function dishItems() {
+    if (rcDishItems) return rcDishItems;
+    const items = DISHES.map((f) => {
+      const cats = catKeysOf(f);
+      const cat = cats.length ? P.CATEGORIES[cats[0].slice(2)].label : 'Dish';
+      return {
+        f, name: f.name, nl: f.name.toLowerCase(), diet: f.diet, kcal: f.kcal, p: f.p, cat, cats,
+        meal: [...new Set(f.roles.flatMap((r) => window.LIBRARY.ROLE_MEALS[r] || []))], time: 0, n: ingCount(f),
+        own: !!ownRecipes[f.name], mine: !!f.user, txt: `${f.name} ${f.hi || ''} ${cat}`.toLowerCase(),
+      };
+    });
+    items.sort((a, b) => (b.own ? 1 : 0) - (a.own ? 1 : 0)); // the dietitian's own recipes first
+    rcDishItems = items;
+    rcAllItems = null;
+    return items;
+  }
+  /** Default order of every recipe: the dietitian's own first, then one of each dish / recipe type in turn. */
+  let rcAllItems = null;
+  function allRecipeItems() {
+    const dishes = dishItems();
+    if (!rcAllItems) rcAllItems = dishes.filter((x) => x.own).concat(window.LIBRARY.interleave(dishes.filter((x) => !x.own).concat(rcGenItems)));
+    return rcAllItems;
+  }
+  function loadGenRecipes() {
+    if (rcGenItems) return Promise.resolve(rcGenItems);
+    if (!rcLoading) {
+      rcLoading = (window.RECIPEGEN ? Promise.resolve() : loadScript('js/recipegen.js'))
+        .then(() => new Promise((res) => setTimeout(res, 16)))
+        .then(() => {
+          const all = window.RECIPEGEN.all();
+          rcGenById = {};
+          all.forEach((r) => { rcGenById[r.id] = r; });
+          rcGenItems = window.LIBRARY.interleave(all.map((r) => window.LIBRARY.genRecipeItem(r, ING)));
+          buildRcCategories();
+          return rcGenItems;
+        })
+        .catch((e) => { rcLoading = null; throw e; });
+    }
+    return rcLoading;
+  }
+  function buildRcCategories() {
+    const cur = rcState.cat;
+    const built = Object.entries(P.CATEGORIES).filter(([k]) => k !== 'ingredients').map(([k, v]) => `<option value="c:${k}">${esc(v.label)}</option>`).join('');
+    const gen = rcGenItems ? [...new Set(rcGenItems.map((x) => x.cat))].sort().map((c) => `<option value="g:${esc(c)}">${esc(c)}</option>`).join('') : '';
+    $('#rc-category').innerHTML = `<option value="">All dish types</option><optgroup label="Diet-chart dishes">${built}</optgroup>${gen ? `<optgroup label="Recipe types">${gen}</optgroup>` : ''}`;
+    $('#rc-category').value = cur;
+    if ($('#rc-category').value !== cur) { $('#rc-category').value = ''; if (!rcGenItems || !cur.startsWith('g:')) rcState.cat = ''; }
+  }
+  $('#rc-meal').innerHTML = '<option value="">Any meal</option>' + Object.entries(window.LIBRARY.MEALS).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+  buildRcCategories();
+  function syncRcControls() {
+    $('#rc-diets').innerHTML = RC_DIETS.map(([k, v]) => `<button type="button" class="chip${k ? '' : ' all'}" data-rc-diet="${k}" aria-pressed="${rcState.diet === k}">${k ? `<i class="diet-dot ${k}"></i>` : ''}${esc(v)}</button>`).join('');
+    $('#rc-filters').innerHTML = RC_TOGGLES.map(([k, v]) => `<button type="button" class="chip" data-rc-tog="${k}" aria-pressed="${!!rcState[k]}">${esc(v)}</button>`).join('');
+  }
+  $('[data-screen="recipes"] .library-head').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-rc-diet],[data-rc-tog]');
+    if (!b) return;
+    if (b.dataset.rcTog) rcState[b.dataset.rcTog] = !rcState[b.dataset.rcTog];
+    else rcState.diet = rcState.diet === b.dataset.rcDiet ? '' : b.dataset.rcDiet;
     renderRecipes();
   });
   $('#rc-add').addEventListener('click', () => openRecipeChooser());
   $('#rc-add-food').addEventListener('click', () => openFoodForm(null, { thenRecipe: true }));
+  $('#rc-more').addEventListener('click', () => { rcState.shown += RC_PAGE; renderRcList(true); });
 
-  function renderRecipes() {
-    let list = P.searchFoods(DISHES, $('#rc-search').value, { category: $('#rc-category').value, dietExact: $('#rc-diet').value });
-    if (rcState.own) list = list.filter((f) => ownRecipes[f.name]);
-    if (rcState.mine) list = list.filter((f) => f.user);
-    if (!$('#rc-search').value.trim()) list.sort((a, b) => (ownRecipes[b.name] ? 1 : 0) - (ownRecipes[a.name] ? 1 : 0));
-    const shown = list.slice(0, 200);
-    const nOwn = Object.keys(ownRecipes).length;
-    $('#rc-count').textContent = `${num(list.length)} of ${num(DISHES.length)} recipes${nOwn ? ` · ${nOwn} written by you` : ''}${list.length > shown.length ? ` · showing first ${shown.length}` : ''}`;
-    $('#rc-list').innerHTML = shown.length ? shown.map((f) => `
-      <button type="button" class="recipe-card${ownRecipes[f.name] ? ' mine' : ''}" data-open-recipe="${esc(f.name)}">
-        <span class="rcard-ico">${IC.foodIcon(f)}</span>
-        <span class="rcard-text"><b>${esc(f.name)}</b><small>${esc(f.hi)}${ownRecipes[f.name] ? `${f.hi ? ' · ' : ''}<i class="badge mine">Your recipe</i>` : ''}</small>
-          <span class="rcard-meta"><i class="diet-dot ${f.diet}"></i>${f.kcal} kcal · P ${f.p} g · ${ingCount(f)} ingredient${ingCount(f) === 1 ? '' : 's'}</span></span>
-      </button>`).join('') : `<div class="empty">${rcState.own || rcState.mine ? 'No recipes of your own yet. Tap <b>Add recipe</b> to write one step by step.' : 'No recipe matches your search.'}</div>`;
+  function rcCard(x) {
+    const f = x.f;
+    const mine = x.own;
+    const open = x.r ? `data-open-gen="${esc(x.r.id)}"` : `data-open-recipe="${esc(x.name)}"`;
+    const sub = x.r ? `${x.cat}${x.time ? ` · ${x.time} min` : ''}` : f.hi || x.cat;
+    return `<button type="button" class="recipe-card${mine ? ' mine' : ''}" ${open}>
+        <span class="rcard-ico">${IC.foodIcon(f || { name: x.name, roles: [] })}</span>
+        <span class="rcard-text"><b>${esc(x.name)}</b><small>${esc(sub)}${mine ? ' <i class="badge mine">Your recipe</i>' : ''}</small>
+          <span class="rcard-meta"><i class="diet-dot ${x.diet}"></i>${Math.round(x.kcal)} kcal · P ${x.p} g · ${x.n} ingredient${x.n === 1 ? '' : 's'}${window.LIBRARY.isHighProtein(x) ? ' <em class="rc-hp">High protein</em>' : ''}</span></span>
+      </button>`;
   }
-  $('#rc-search').addEventListener('input', debounce(() => renderRecipes(), 140));
-  ['#rc-category', '#rc-diet'].forEach((s) => $(s).addEventListener('change', renderRecipes));
+  function renderRcList(more) {
+    const shown = rcResult.slice(more ? rcState.shown - RC_PAGE : 0, rcState.shown);
+    const total = rcGenItems ? recipeTotal() : DISHES.length;
+    const filtered = rcState.q || rcState.diet || rcState.meal || rcState.cat || RC_TOGGLES.some(([k]) => rcState[k]);
+    const nOwn = Object.keys(ownRecipes).length;
+    $('#rc-count').innerHTML = `${filtered ? `<b>${num(rcResult.length)}</b> of ` : ''}<b>${num(total)}</b> recipes${nOwn ? ` · ${nOwn} written by you` : ''}${rcLoading && !rcGenItems ? ` · <span class="rc-loading">loading ${num(TOTALS.genRecipes)} more…</span>` : ''}${rcResult.length > rcState.shown ? ` · showing ${num(Math.min(rcState.shown, rcResult.length))}` : ''}`;
+    const html = shown.map(rcCard).join('');
+    if (more) $('#rc-list').insertAdjacentHTML('beforeend', html);
+    else $('#rc-list').innerHTML = html || `<div class="empty">${rcState.own || rcState.mine ? 'No recipes of your own yet. Tap <b>Add recipe</b> to write one step by step.' : 'No recipe matches your search.'}${filtered ? '<br><button type="button" class="btn" id="rc-clear">Clear search &amp; filters</button>' : ''}</div>`;
+    const left = rcResult.length - rcState.shown;
+    $('#rc-more').hidden = left <= 0;
+    $('#rc-more').textContent = `Show ${num(Math.min(RC_PAGE, left))} more · ${num(left)} left`;
+  }
+  function renderRecipes() {
+    rcState.q = $('#rc-search').value;
+    rcState.meal = $('#rc-meal').value;
+    rcState.cat = $('#rc-category').value || (rcGenItems ? '' : rcState.cat);
+    rcState.shown = RC_PAGE;
+    syncRcControls();
+    const items = rcGenItems ? allRecipeItems() : dishItems();
+    rcResult = window.LIBRARY.recipeQuery(items, rcState);
+    renderRcList(false);
+    $('#rc-headline').innerHTML = `<b>${num(recipeTotal())}</b> recipes`;
+    if (!rcGenItems) {
+      loadGenRecipes().then(() => { if (current === 'recipes') renderRecipes(); })
+        .catch(() => { $('#rc-count').textContent = `${num(DISHES.length)} recipes — the other recipes could not be loaded; please reopen the app.`; });
+    }
+  }
+  $('#rc-search').addEventListener('input', debounce(() => renderRecipes(), 160));
+  $('#rc-search').addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } });
+  ['#rc-category', '#rc-meal'].forEach((sel) => $(sel).addEventListener('change', renderRecipes));
+  $('#rc-list').addEventListener('click', (e) => {
+    if (e.target.closest('#rc-clear')) {
+      Object.assign(rcState, { diet: '', meal: '', cat: '', hp: false, quick: false, own: false, mine: false });
+      $('#rc-search').value = ''; $('#rc-meal').value = ''; $('#rc-category').value = '';
+      return renderRecipes();
+    }
+    const g = e.target.closest('[data-open-gen]');
+    if (!g) return;
+    const r = rcGenById[g.dataset.openGen];
+    if (!r) return;
+    viewRecipe = genDish(r).name;
+    servings = 1;
+    go('recipe');
+  });
 
   function recipeBody(f, serves) {
     const r = recipeData(f, serves);
@@ -1222,13 +1344,14 @@
   }
 
   function renderRecipe() {
-    const f = dishByName[viewRecipe];
+    const f = dishOf(viewRecipe);
     if (!f) { $('#rc-detail').innerHTML = '<div class="empty">Recipe not found.</div>'; return; }
+    const gen = f.gen; // a generated recipe (read-only: no "write my own version")
     $('#screen-title').textContent = f.name;
     const inChart = plan && (profile.recipes || []).includes(f.name);
     const own = !!ownRecipes[f.name];
     $('#rc-detail').innerHTML = `
-      <div class="rd-hero"><span class="rd-ico">${IC.foodIcon(f)}</span><div><h2>${esc(f.name)}</h2><p>${esc([f.hi, REGION_LABEL[f.region] || ''].filter(Boolean).join(' · '))}</p>${own ? '<i class="badge mine">Your recipe</i>' : ''}${f.user ? ' <i class="badge mine">My food</i>' : ''}</div></div>
+      <div class="rd-hero"><span class="rd-ico">${IC.foodIcon(f)}</span><div><h2>${esc(f.name)}</h2><p>${esc((gen ? [gen.cat, GEN_REGION[gen.region] || REGION_LABEL[gen.region] || '', `${gen.prep + gen.cook} min`] : [f.hi, REGION_LABEL[f.region] || '']).filter(Boolean).join(' · '))}</p>${own ? '<i class="badge mine">Your recipe</i>' : ''}${f.user ? ' <i class="badge mine">My food</i>' : ''}</div></div>
       <div class="card">
         <div class="serv"><span>Servings</span>
           <div class="stepper"><button type="button" class="icon-btn" id="sv-dec" aria-label="Fewer servings">${ICON.minus}</button><span>${servings}</span><button type="button" class="icon-btn" id="sv-inc" aria-label="More servings">${ICON.plus}</button></div>
@@ -1236,9 +1359,9 @@
         ${recipeBody(f, servings)}
       </div>
       <div class="btn-row">
-        <button type="button" class="btn primary" id="rd-print">${ICON.print} Print A4</button>
+        <button type="button" class="btn primary" id="rd-print">${ICON.print} Recipe PDF</button>
         ${plan ? `<button type="button" class="btn" id="rd-add">${inChart ? '✓ In chart PDF' : '📖 Add to chart PDF'}</button>` : ''}
-        <button type="button" class="btn" data-edit-recipe="${esc(f.name)}">${ICON.edit} ${own ? 'Edit recipe' : 'Write my own version'}</button>
+        ${gen ? '' : `<button type="button" class="btn" data-edit-recipe="${esc(f.name)}">${ICON.edit} ${own ? 'Edit recipe' : 'Write my own version'}</button>`}
         ${own ? `<button type="button" class="btn ghost" id="rd-reset">${f.recipe ? 'Use original recipe' : 'Delete recipe'}</button>` : ''}
       </div>`;
     $('#sv-dec').addEventListener('click', () => { servings = Math.max(1, servings - 1); renderRecipe(); });
@@ -1283,7 +1406,7 @@
     const extra = [...chosen].filter((n) => !dishes.includes(n));
     $('#rd-body').innerHTML = `
       <div class="btn-row"><button type="button" class="chip" data-pick-all>Select all (${dishes.length})</button><button type="button" class="chip" data-pick-none>Clear</button></div>
-      <div class="pick-list">${[...dishes, ...extra].map((n) => `<label class="pick"><input type="checkbox" value="${esc(n)}"${chosen.has(n) ? ' checked' : ''}><span>${IC.foodIcon(dishByName[n])} ${esc(n)}</span><small>${dishByName[n] ? dishByName[n].kcal + ' kcal' : ''}</small></label>`).join('')}</div>
+      <div class="pick-list">${[...dishes, ...extra].map((n) => `<label class="pick"><input type="checkbox" value="${esc(n)}"${chosen.has(n) ? ' checked' : ''}><span>${IC.foodIcon(dishOf(n))} ${esc(n)}</span><small>${dishOf(n) ? dishOf(n).kcal + ' kcal' : ''}</small></label>`).join('')}</div>
       <p class="muted">Any other recipe can be added from the Recipes screen.</p>`;
     $('#rd-foot').innerHTML = '<button type="button" class="btn ghost" data-close>Cancel</button><button type="button" class="btn primary" data-pick-save>Save</button>';
     if (rdialog.showModal) rdialog.showModal(); else rdialog.setAttribute('open', '');
@@ -1606,14 +1729,18 @@
   fdialog.addEventListener('close', () => { if (fdialog.dataset.kind === 'recipe') rform = null; });
 
   // ── Upload previous chart (PDF) ─────────────────────────────────
+  /** Inject a script once (the Recipes screen and the library share js/recipegen.js). */
+  const scriptLoads = {};
   function loadScript(src) {
-    return new Promise((resolve, reject) => {
+    if (scriptLoads[src]) return scriptLoads[src];
+    scriptLoads[src] = new Promise((resolve, reject) => {
       const s = document.createElement('script');
       s.src = src;
       s.onload = resolve;
-      s.onerror = () => reject(new Error('Could not load ' + src));
+      s.onerror = () => { delete scriptLoads[src]; s.remove(); reject(new Error('Could not load ' + src)); };
       document.head.appendChild(s);
     });
+    return scriptLoads[src];
   }
   let pdfjsReady = null;
   function pdfjs() {
@@ -1741,9 +1868,18 @@
     plum: ['Plum', '#6B2147', '#D18FB5'],
     sapphire: ['Sapphire', '#0F2A5F', '#60A5FA'],
     forest: ['Forest', '#14532D', '#84CC16'],
+    // Multi-colour themes: three colours each (hero gradient c1 → c2 → c3, buttons c1 → c2, accent c3).
+    aurora: ['Aurora', '#0F766E', '#7C3AED', '#DB2777'],
+    peacock: ['Peacock', '#0B4F6C', '#1D4ED8', '#D4AF37'],
+    sunrise: ['Sunrise', '#BE123C', '#F97316', '#F59E0B'],
+    galaxy: ['Galaxy', '#312E81', '#9333EA', '#06B6D4'],
+    tropical: ['Tropical', '#047857', '#0891B2', '#84CC16'],
+    maharaja: ['Maharaja', '#7F1D1D', '#D4AF37', '#065F46'],
   };
   const root = document.documentElement;
-  $('#theme-swatches').innerHTML = Object.entries(THEMES).map(([k, [label, a, b]]) => `<button type="button" class="swatch" data-theme-pick="${k}" role="radio" aria-label="${esc(label)}"><span class="sw" style="background:linear-gradient(135deg, ${a} 0 55%, ${b} 55% 100%)"></span><small>${esc(label)}</small></button>`).join('');
+  const swatch = ([k, [label, a, b, c]]) => `<button type="button" class="swatch${c ? ' multi' : ''}" data-theme-pick="${k}" role="radio" aria-label="${esc(label)}"><span class="sw" style="background:${c ? `conic-gradient(from 210deg, ${a} 0 33.3%, ${b} 0 66.6%, ${c} 0)` : `linear-gradient(135deg, ${a} 0 55%, ${b} 55% 100%)`}"></span><small>${esc(label)}</small></button>`;
+  const themeList = Object.entries(THEMES);
+  $('#theme-swatches').innerHTML = `<small class="sw-group">Multi-colour</small>${themeList.filter(([, v]) => v[3]).map(swatch).join('')}<small class="sw-group">Classic</small>${themeList.filter(([, v]) => !v[3]).map(swatch).join('')}`;
   function themeColor() {
     const meta = document.querySelector('meta[name="theme-color"]');
     if (meta) meta.setAttribute('content', root.dataset.scheme === 'dark' ? '#0b1213' : (THEMES[root.dataset.theme] || THEMES.teal)[1]);
@@ -2095,7 +2231,7 @@
       }
     }
     if (!pages) pages = best.list;
-    const recipes = (profile.recipes || []).filter((r) => dishByName[r]);
+    const recipes = (profile.recipes || []).filter((r) => dishOf(r));
     const rpages = layoutRecipes(recipes, 1, false);
     sheet.innerHTML = pages.map((h) => pageHtml(h)).join('') + rpages.map((h) => pageHtml(h, 'rp')).join('');
     fitPages(minScale);
@@ -2267,6 +2403,8 @@
     }
   } catch (_) { plan = null; profile = null; }
   show(location.hash.slice(1) || 'home');
+  // Generated recipes chosen for the chart PDF: load their data in the background (not at start-up otherwise).
+  if (profile && (profile.recipes || []).some((n) => !dishByName[n])) setTimeout(() => loadGenRecipes().catch(() => { /* retried when Recipes opens */ }), 1500);
 
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {
     navigator.serviceWorker.register('sw.js').catch(() => { /* offline support is optional */ });

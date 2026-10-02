@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.8';
+  const APP_VERSION = '3.9';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1473,6 +1473,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.9', 'Every dashboard box opens its screen; founders kept to the Founder Hub; WhatsApp today with tabs and options (which messages, how many, inactive patients, your own wording); menu in colour-coded sections that fold away; Settings as tiles with a Google Sheet connection status; saved PDFs and images open automatically; six multi-colour themes (Aurora, Peacock, Sunrise, Galaxy, Tropical, Maharaja); more luxury dashboard. Diet: all 11,018 recipes in Recipes with search and filters, clickable home boxes, multi-colour themes. Data Explorer removed.'],
     ['3.8', 'Founders can be edited, disabled and enabled again (data kept) with more profile details; Data Explorer for every data sheet with search, column filters, sort, group-by, column picker, saved views and PDF / Excel export; Super Admin branding & menu (rename or switch off menu items, app name, brand and gold colours, serif or modern headings, spacing, corners, animations); much faster on big data (lists show 50 at a time, quicker search); luxury serif headings. Diet charts: 9,070 foods and 11,018 recipes with full method and nutrition, a Foods & Recipes library with filters and exports, and protein powder shakes in diet charts.'],
     ['3.7', 'Several founder profiles (profit share, monthly limit, capital in / out, profit share per founder); Founder Hub discussions saved with date, time and mode (in person, call, WhatsApp, video…), who was there, outcome and next step, with a quick note box, search and a PDF of all discussions; more Founder Hub numbers (this month vs last, money by payment mode, top products and team); easier leads: quick add, one-tap call outcome after each call, next-stage button; scrolling fixed on Settings and every screen; more luxury styling.'],
     ['3.6', 'Founder Hub (founder profile, founder vs common expenses, monthly limit, all alerts, discussions & notes, key numbers); expenses split into Common and Founder; alerts bell on every screen; Ads report (spend, leads from sources or typed in, cost per lead, ROI); leads board view, bulk select, paste import, tags, lead score, WhatsApp templates, lost reason, auto-assign; Settings in tabs with lead, reminder, auto sign-out and message options; quick Admin / Super Admin login buttons; 7 more themes; no zoom or sideways scroll; luxury cards and new dashboard; Follow us handles on every PDF and image.'],

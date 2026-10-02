@@ -465,7 +465,69 @@
     };
   }
 
-  const api = { init, parseFoodLib, fromDb, fromGen, prepare, query, isHighProtein, isLowCarb, PAGE };
+  // ───────────────────────────────────────────────────────────────────
+  // Recipes screen (diet app): every recipe — the diet-chart dishes plus the generated ones.
+
+  /**
+   * Sizes of the big lazy-loaded files, so the dashboard can show the full counts without
+   * loading them at start (tests/library.test.js checks these match js/recipegen.js and js/foodlib.js).
+   */
+  const TOTALS = { genRecipes: 10342, libFoods: 8196 };
+
+  /** Generated recipes in a varied order: one of each recipe type in turn (bowl, wrap, curry …). */
+  function interleave(list) {
+    const groups = new Map();
+    list.forEach((x) => { if (!groups.has(x.cat)) groups.set(x.cat, []); groups.get(x.cat).push(x); });
+    const gs = [...groups.values()];
+    const out = [];
+    for (let i = 0; out.length < list.length; i++) gs.forEach((g) => { if (i < g.length) out.push(g[i]); });
+    return out;
+  }
+
+  /** A generated recipe as a Recipes-screen row. */
+  function genRecipeItem(r, ING) {
+    const ingTxt = r.ing.map(([k]) => (ING[k] ? ING[k].name + ' ' + ING[k].hi : '')).join(' ');
+    return {
+      r, name: r.name, nl: r.name.toLowerCase(), diet: r.diet, kcal: r.kcal, p: r.p, cat: r.cat, cats: ['g:' + r.cat], meal: r.meal,
+      time: r.prep + r.cook, n: r.ing.length, gen: true, txt: (r.name + ' ' + r.cat + ' ' + ingTxt).toLowerCase(),
+    };
+  }
+
+  /**
+   * Filter + rank the Recipes screen. `s`: q, diet (veg = veg + vegan; vegan / egg / nonveg exact),
+   * meal, cat ('c:<planner category>' or 'g:<recipe type>'), hp, quick (≤ 20 min), own, mine.
+   * Without a search the list keeps its given order.
+   */
+  function recipeQuery(items, s) {
+    const words = String(s.q || '').toLowerCase().split(/\s+/).filter(Boolean);
+    const out = [];
+    for (let i = 0; i < items.length; i++) {
+      const x = items[i];
+      if (s.diet && (s.diet === 'veg' ? x.diet !== 'veg' && x.diet !== 'vegan' : x.diet !== s.diet)) continue;
+      if (s.meal && !x.meal.includes(s.meal)) continue;
+      if (s.cat && !x.cats.includes(s.cat)) continue;
+      if (s.hp && !isHighProtein(x)) continue;
+      if (s.quick && !(x.time > 0 && x.time <= 20)) continue;
+      if (s.own && !x.own) continue;
+      if (s.mine && !x.mine) continue;
+      if (words.length) {
+        let ok = true;
+        for (let w = 0; w < words.length; w++) if (x.txt.indexOf(words[w]) < 0) { ok = false; break; }
+        if (!ok) continue;
+      }
+      out.push(x);
+    }
+    if (words.length) {
+      const w0 = words[0];
+      const re = new RegExp('(^|[^a-z])' + w0.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+      const rank = (x) => (x.own ? 0 : 1) + (x.nl.startsWith(w0) ? 0 : re.test(x.nl) ? 1 : x.nl.indexOf(w0) >= 0 ? 2 : 3) * 10 + (x.gen ? 1 : 0) * 2;
+      out.forEach((x) => { x._r = rank(x) * 1000 + Math.min(x.nl.length, 999); });
+      out.sort((a, b) => a._r - b._r);
+    }
+    return out;
+  }
+
+  const api = { init, parseFoodLib, fromDb, fromGen, prepare, query, isHighProtein, isLowCarb, PAGE, TOTALS, MEALS, ROLE_MEALS, interleave, genRecipeItem, recipeQuery };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.LIBRARY = api;
 })(typeof window !== 'undefined' ? window : globalThis);

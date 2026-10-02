@@ -1,5 +1,6 @@
 /* The Prime Fit — app themes (shared with the clinic admin through localStorage):
-   html[data-theme] = teal (default) | midnight | royal | emerald | charcoal
+   html[data-theme] = teal (default) | midnight | royal | emerald | charcoal | … | forest, plus the multi-colour
+   aurora | peacock | sunrise | galaxy | tropical | maharaja (see "v9 · Multi-colour themes")
    html[data-scheme] = light | dark  (from primefit.mode = auto | light | dark, set in index.html's head)
    The printed A4 chart (.ps-*) keeps fixed brand colours and ignores the theme. */
 :root {
@@ -1064,7 +1065,7 @@ body.drawer-open, :root:has(body.drawer-open) { overflow: hidden; }
 :root[data-theme="onyx"] .card > h3:first-child::before { background: linear-gradient(#f3dc8a, #b8932a); }
 :root[data-theme="onyx"]:not([data-scheme="dark"]) .tab-new span { box-shadow: inset 0 0 0 2px rgba(212, 175, 55, .7), 0 8px 18px -6px rgba(0, 0, 0, .5); }
 
-/* Theme picker: 12 themes */
+/* Theme picker: 18 themes */
 .swatches { grid-template-columns: repeat(6, minmax(0, 1fr)); }
 @media (max-width: 520px) { .swatches { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
 .swatch small { overflow-wrap: anywhere; }
@@ -1208,3 +1209,113 @@ body.drawer-open, :root:has(body.drawer-open) { overflow: hidden; }
 @font-face { font-family: "Prime Serif"; src: url("../fonts/playfair-display-latin-600-normal.woff2") format("woff2"); font-weight: 600; font-display: swap; }
 @font-face { font-family: "Prime Serif"; src: url("../fonts/playfair-display-latin-700-normal.woff2") format("woff2"); font-weight: 700; font-display: swap; }
 h1, h2 { font-family: "Prime Serif", Georgia, "Times New Roman", serif; letter-spacing: .005em; }
+
+/* ══ v9 · Multi-colour themes (aurora · peacock · sunrise · galaxy · tropical · maharaja) ══
+   Three colours each: --m1 (brand), --m2, --m3 (accent). Hero / banners: c1 → c2 → c3 with a soft dark veil
+   so white text stays readable on the light end; primary buttons c1 → c2; icons, chips and tiles cycle the three. */
+:root { --m1: var(--brand); --m2: var(--navy-2); --m3: var(--accent2); }
+:root[data-theme="aurora"] { --m1: #0f766e; --m2: #7c3aed; --m3: #db2777; --brand: #0f766e; --accent2: #db2777; --accent-dark: #f472b6; --navy: #042f2c; --navy-2: #7c3aed; }
+:root[data-theme="peacock"] { --m1: #0b4f6c; --m2: #1d4ed8; --m3: #d4af37; --brand: #0b4f6c; --accent2: #d4af37; --accent-dark: #e6c65a; --navy: #04202d; --navy-2: #1d4ed8; }
+:root[data-theme="sunrise"] { --m1: #be123c; --m2: #f97316; --m3: #f59e0b; --brand: #be123c; --accent2: #f59e0b; --accent-dark: #fbbf24; --navy: #3b0614; --navy-2: #f97316; }
+:root[data-theme="galaxy"] { --m1: #312e81; --m2: #9333ea; --m3: #06b6d4; --brand: #312e81; --accent2: #06b6d4; --accent-dark: #22d3ee; --navy: #110f33; --navy-2: #9333ea; }
+:root[data-theme="tropical"] { --m1: #047857; --m2: #0891b2; --m3: #84cc16; --brand: #047857; --accent2: #84cc16; --accent-dark: #a3e635; --navy: #022c20; --navy-2: #0891b2; }
+:root[data-theme="maharaja"] { --m1: #7f1d1d; --m2: #d4af37; --m3: #065f46; --brand: #7f1d1d; --accent2: #065f46; --accent-dark: #e6c65a; --navy: #2a0808; --navy-2: #d4af37; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) {
+  --m2-btn: var(--m2); /* button end colour: c2, deepened where white text would be too faint */
+  --m1-ink: color-mix(in srgb, var(--m1) 82%, #0b0b10); --m2-ink: color-mix(in srgb, var(--m2) 72%, #0b0b10); --m3-ink: color-mix(in srgb, var(--m3) 62%, #0b0b10);
+  --m1-soft: color-mix(in srgb, var(--m1) 13%, var(--surface)); --m2-soft: color-mix(in srgb, var(--m2) 13%, var(--surface)); --m3-soft: color-mix(in srgb, var(--m3) 15%, var(--surface));
+  --hero-ink: #ffffff;
+  --hero: linear-gradient(165deg, rgba(0, 0, 0, 0) 28%, rgba(0, 0, 0, .3)),
+    radial-gradient(420px 200px at 108% -24%, rgba(255, 255, 255, .2), transparent 62%),
+    linear-gradient(135deg, var(--m1), var(--m2) 55%, var(--m3));
+  --plate-edge: linear-gradient(150deg, color-mix(in srgb, var(--m3) 50%, var(--border)), var(--border) 30%, color-mix(in srgb, var(--m2) 22%, var(--border)) 60%, color-mix(in srgb, var(--m1) 34%, var(--border)));
+  --brand-glow: color-mix(in srgb, var(--m2) 40%, transparent);
+}
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"])[data-scheme="dark"] {
+  --m1-ink: color-mix(in srgb, var(--m1) 45%, #ffffff); --m2-ink: color-mix(in srgb, var(--m2) 50%, #ffffff); --m3-ink: color-mix(in srgb, var(--m3) 55%, #ffffff);
+  --m1-soft: color-mix(in srgb, var(--m1) 30%, var(--surface)); --m2-soft: color-mix(in srgb, var(--m2) 24%, var(--surface)); --m3-soft: color-mix(in srgb, var(--m3) 22%, var(--surface));
+  --hero: linear-gradient(165deg, rgba(0, 0, 0, .08) 20%, rgba(0, 0, 0, .38)),
+    radial-gradient(420px 200px at 108% -24%, rgba(255, 255, 255, .14), transparent 62%),
+    linear-gradient(135deg, var(--m1), var(--m2) 55%, var(--m3));
+}
+:root[data-theme="sunrise"] { --m2-btn: color-mix(in srgb, #f97316 74%, #000); }
+:root[data-theme="maharaja"] { --m2-btn: color-mix(in srgb, #d4af37 60%, #000); }
+:root[data-theme="tropical"] { --m2-btn: color-mix(in srgb, #0891b2 85%, #000); }
+/* Hero, summary, drawer head, library banners: three-colour gradient, white text with a soft shadow. */
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) :is(.dash-hero, .summary, .drawer-head, .lx-hero, .lx-banner, .rc-hero) { background: var(--hero); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) :is(.dash-hero, .summary, .lx-hero, .lx-banner, .rc-hero, .drawer-head) :is(h1, h2, p, b, small) { text-shadow: 0 1px 2px rgba(0, 0, 0, .3); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .kpi { background: rgba(0, 0, 0, .2); border-color: rgba(255, 255, 255, .22); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .kpi:hover { background: rgba(0, 0, 0, .28); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .kpi:nth-child(1) span { color: color-mix(in srgb, var(--m3) 40%, #fff); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .kpi:nth-child(2) span { color: color-mix(in srgb, var(--m2) 35%, #fff); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .kpi:nth-child(3) span { color: color-mix(in srgb, var(--m3) 55%, #fff); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .kpi:nth-child(4) span { color: color-mix(in srgb, var(--m1) 30%, #fff); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .dash-hello small, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .lx-kicker, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .eyebrow { color: color-mix(in srgb, var(--m3) 35%, #fff); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .hero-cta { color: var(--m1-ink); background: #fff; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"])[data-scheme="dark"] .hero-cta { color: color-mix(in srgb, var(--m1) 88%, #000); }
+/* Buttons: c1 → c2. Dark mode: light tints of the same two colours with dark ink. */
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) :is(.btn.primary, .tile-btn.primary, .icon-btn.on, .tab-new span, .days button[aria-selected="true"]) { background: linear-gradient(135deg, var(--m1), var(--m2-btn)); color: #fff; border-color: transparent; text-shadow: 0 1px 1px rgba(0, 0, 0, .3); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .chip[aria-pressed="true"] { background: linear-gradient(135deg, var(--m1), color-mix(in srgb, var(--m2-btn) 70%, var(--m1))); color: #fff; border-color: transparent; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"])[data-scheme="dark"] :is(.btn.primary, .lib-actions .btn.primary, .tile-btn.primary, .icon-btn.on, .tab-new span, .days button[aria-selected="true"], .chip[aria-pressed="true"]) {
+  background: linear-gradient(135deg, color-mix(in srgb, var(--m1) 50%, #fff), color-mix(in srgb, var(--m2) 55%, #fff)); color: #0b0f14; text-shadow: none; border-color: transparent;
+}
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"])[data-scheme="dark"] .days button[aria-selected="true"] :is(b, small) { color: #0b0f14; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"])[data-scheme="dark"] .tab-new span svg { stroke: #0b0f14; }
+/* Accents: progress, section bars, avatars, step numbers. */
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .progress span { background: linear-gradient(90deg, var(--m1), var(--m2), var(--m3)); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .card > h3:first-child::before { background: linear-gradient(var(--m1), var(--m2), var(--m3)); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .sec-title::after { background: linear-gradient(90deg, color-mix(in srgb, var(--m2) 55%, transparent), color-mix(in srgb, var(--m3) 35%, transparent), transparent); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]):not([data-scheme="dark"]) :is(.step-no, .rc-avatar, .drawer-quick span) { background: linear-gradient(135deg, var(--m1), var(--m2)); color: #fff; }
+/* Tiles and icons cycle through the three colours. */
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .quick:not(.q-brand):nth-child(3n+1) .q-ico, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .recipe-card:nth-child(3n+1) .rcard-ico, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .nav-group:nth-child(3n+1) .nav-ico { background: var(--m1-soft) !important; color: var(--m1-ink) !important; filter: none; box-shadow: none; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .quick:not(.q-brand):nth-child(3n+2) .q-ico, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .recipe-card:nth-child(3n+2) .rcard-ico, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .nav-group:nth-child(3n+2) .nav-ico { background: var(--m2-soft) !important; color: var(--m2-ink) !important; filter: none; box-shadow: none; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .quick:not(.q-brand):nth-child(3n+3) .q-ico, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .recipe-card:nth-child(3n+3) .rcard-ico, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .nav-group:nth-child(3n+3) .nav-ico { background: var(--m3-soft) !important; color: var(--m3-ink) !important; filter: none; box-shadow: none; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .q-brand .q-ico { background: linear-gradient(135deg, var(--m1), var(--m2), var(--m3)) !important; color: #fff !important; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .drawer-nav button[aria-current="true"] .nav-ico { background: linear-gradient(135deg, var(--m1), var(--m2)) !important; color: #fff !important; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"])[data-scheme="dark"] .drawer-nav button[aria-current="true"] .nav-ico { background: linear-gradient(135deg, color-mix(in srgb, var(--m1) 50%, #fff), color-mix(in srgb, var(--m2) 55%, #fff)) !important; color: #0b0f14 !important; }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .rd-nutri > div:nth-child(1) b, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .tile:nth-child(3n+1) .tile-value { color: var(--m1-ink); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .rd-nutri > div:nth-child(2) b, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .tile:nth-child(3n+2) .tile-value { color: var(--m2-ink); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .rd-nutri > div:nth-child(3) b, :root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .tile:nth-child(3n+3) .tile-value { color: var(--m3-ink); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .tile:nth-child(3n+1)::after { background: color-mix(in srgb, var(--m1) 16%, transparent); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .tile:nth-child(3n+2)::after { background: color-mix(in srgb, var(--m2) 16%, transparent); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .tile:nth-child(3n+3)::after { background: color-mix(in srgb, var(--m3) 20%, transparent); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .feature-list > :nth-child(4n+1)::before { color: var(--m1-ink); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .feature-list > :nth-child(4n+2)::before { color: var(--m2-ink); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .feature-list > :nth-child(4n+3)::before { color: var(--m3-ink); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) .rc-hp { background: var(--m3-soft); color: var(--m3-ink); }
+:root:is([data-theme="aurora"], [data-theme="peacock"], [data-theme="sunrise"], [data-theme="galaxy"], [data-theme="tropical"], [data-theme="maharaja"]) body { background: radial-gradient(700px 300px at 0% -140px, color-mix(in srgb, var(--m2) 12%, transparent), transparent 70%), radial-gradient(700px 300px at 100% -140px, color-mix(in srgb, var(--m3) 12%, transparent), transparent 70%), var(--bg); background-repeat: no-repeat; background-color: var(--bg); }
+
+/* Theme picker: grouped (6 multi-colour + 12 classic); multi-colour swatches show all three colours. */
+.sw-group { grid-column: 1 / -1; font-size: .7rem; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: var(--muted); margin: 4px 2px -2px; }
+.swatch.multi .sw { box-shadow: inset 0 0 0 2px rgba(255, 255, 255, .6), 0 6px 14px -6px rgba(0, 0, 0, .45); }
+
+/* Dashboard: every stat box is a button. */
+.kpi { display: block; width: 100%; min-width: 0; font: inherit; color: #fff; cursor: pointer; transition: transform .15s var(--ease), background .2s; }
+.kpi:hover { background: rgba(255, 255, 255, .18); }
+.kpi:active { transform: scale(.96); }
+.kpi:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.feature-list > * { display: block; width: 100%; text-align: left; font: inherit; font-weight: 600; font-size: .84rem; color: var(--text); background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 10px 12px 10px 32px; position: relative; cursor: pointer; min-width: 0; transition: transform .15s var(--ease), border-color .2s; }
+.feature-list > *::before { content: "✓"; position: absolute; left: 12px; color: var(--ok); font-weight: 800; }
+.feature-list > *:hover { border-color: color-mix(in srgb, var(--accent) 45%, var(--border)); }
+.feature-list > *:active { transform: scale(.98); }
+.feature-list { margin-top: 14px; }
+
+/* Recipes screen: all recipes, 40 at a time. */
+.rc-hero { position: relative; overflow: hidden; color: #fff; border-radius: 24px; padding: 16px 16px 14px; margin-bottom: 12px; background: var(--hero); box-shadow: 0 14px 30px -14px var(--brand-glow); }
+.rc-hero h2 { margin: 2px 0 2px; font-size: 1.3rem; font-weight: 800; line-height: 1.2; }
+.rc-hero h2 b { font-variant-numeric: tabular-nums; }
+.rc-hero p { margin: 0; color: var(--hero-ink); font-size: .82rem; }
+.rc-diets { margin: 0 0 10px; }
+.rc-diets .chip { display: inline-flex; align-items: center; gap: 6px; }
+.rc-diets .diet-dot { margin-top: 0; }
+#rc-count b { color: var(--text); font-variant-numeric: tabular-nums; }
+.rc-loading { color: var(--accent); font-weight: 700; }
+.rc-more-row { margin: 12px 0; }
+.rc-more-row .btn { width: 100%; font-weight: 800; color: var(--accent); }
+.rc-hp { font-style: normal; font-size: .64rem; font-weight: 800; padding: 1px 7px; border-radius: 999px; background: color-mix(in srgb, var(--brand) 13%, var(--surface)); color: var(--accent); white-space: nowrap; }
+.rcard-meta { flex-wrap: wrap; }
+.rc-lib-banner { margin-top: 4px; }
+.recipe-grid .empty .btn { margin-top: 10px; }
+.rc-diets { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; padding-bottom: 2px; -webkit-overflow-scrolling: touch; }
+.rc-diets::-webkit-scrollbar { display: none; }
+.rc-diets .chip { flex: none; }

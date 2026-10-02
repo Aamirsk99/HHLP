@@ -10,11 +10,12 @@
   </script>
   <script>
     // Theme shared with the clinic admin (set before the page draws, so there is no flash):
-    // primefit.theme = teal | midnight | royal | emerald | charcoal | rose | ocean | sunset | onyx | plum | sapphire | forest, primefit.mode = auto | light | dark.
+    // primefit.theme = teal | midnight | royal | emerald | charcoal | rose | ocean | sunset | onyx | plum | sapphire | forest
+    // | aurora | peacock | sunrise | galaxy | tropical | maharaja (multi-colour), primefit.mode = auto | light | dark.
     (function () {
       var d = document.documentElement, t = 'teal', m = 'auto';
       try { t = localStorage.getItem('primefit.theme') || t; m = localStorage.getItem('primefit.mode') || m; } catch (_) { /* private mode */ }
-      d.dataset.theme = /^(teal|midnight|royal|emerald|charcoal|rose|ocean|sunset|onyx|plum|sapphire|forest)$/.test(t) ? t : 'teal';
+      d.dataset.theme = /^(teal|midnight|royal|emerald|charcoal|rose|ocean|sunset|onyx|plum|sapphire|forest|aurora|peacock|sunrise|galaxy|tropical|maharaja)$/.test(t) ? t : 'teal';
       d.dataset.mode = /^(auto|light|dark)$/.test(m) ? m : 'auto';
       var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
       function apply() {
@@ -98,12 +99,12 @@
         <div class="quick-grid" id="quick-grid"></div>
         <div class="sec-row"><h2 class="sec-title">Recent charts</h2><button type="button" class="link-btn" data-go="charts">See all</button></div>
         <div class="list" id="recent-charts"></div>
-        <ul class="feature-list">
-          <li>Recipe for every dish</li>
-          <li>Kcal &amp; protein from ingredients</li>
-          <li>Next-week charts in one tap</li>
-          <li>1–7 days · 2 languages</li>
-        </ul>
+        <div class="feature-list">
+          <button type="button" data-go="recipes">Recipe for every dish</button>
+          <button type="button" data-go="explore">Kcal &amp; protein from ingredients</button>
+          <button type="button" data-go="charts">Next-week charts in one tap</button>
+          <button type="button" data-go="s1">1–7 days · 2 languages</button>
+        </div>
       </section>
 
       <!-- ── Step 1: Patient ──────────────────────────── -->
@@ -362,7 +363,7 @@
           <button type="button" class="btn primary" id="lib-add-food"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add food</button>
           <button type="button" class="btn" id="lib-my-foods">My foods <span class="count-pill" id="my-foods-count">0</span></button>
         </div>
-        <button type="button" class="lx-banner" data-go="explore"><span class="lx-banner-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></span><span><b>Foods &amp; Recipes library</b><small class="lx-banner-sub">9,000+ Indian &amp; world foods · 10,000+ recipes · filters &amp; export</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
+        <button type="button" class="lx-banner" data-go="explore"><span class="lx-banner-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></span><span><b>Foods &amp; Recipes library</b><small class="lx-banner-sub" id="lib-banner-sub">9,070 Indian &amp; world foods · 11,018 recipes · filters &amp; export</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
         <p class="lib-count" id="lib-count"></p>
         <div class="food-grid" id="lib-list"></div>
       </section>
@@ -385,11 +386,17 @@
 
     <!-- ── Recipes ──────────────────────────────────── -->
     <section class="screen" data-screen="recipes" data-title="Recipes" hidden>
+      <div class="rc-hero">
+        <small class="lx-kicker">The Prime Fit kitchen</small>
+        <h2 id="rc-headline"><b>11,018</b> recipes</h2>
+        <p>Indian &amp; world dishes with ingredients in grams, full method, kcal &amp; protein</p>
+      </div>
       <div class="card library-head">
-        <input type="search" id="rc-search" placeholder="Search recipes — English or हिन्दी, e.g. poha, dal, पनीर" aria-label="Search recipes">
+        <input type="search" id="rc-search" placeholder="Search recipes — e.g. paneer bowl, poha, dal, पनीर" aria-label="Search recipes" autocomplete="off" enterkeyhint="search">
+        <div class="chips rc-diets" id="rc-diets" role="group" aria-label="Food type"></div>
         <div class="row">
-          <label>Category<select id="rc-category"></select></label>
-          <label>Food type<select id="rc-diet"></select></label>
+          <label>Meal<select id="rc-meal"></select></label>
+          <label>Dish type<select id="rc-category"></select></label>
         </div>
         <div class="chips" id="rc-filters"></div>
       </div>
@@ -397,9 +404,10 @@
         <button type="button" class="btn primary" id="rc-add"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add recipe</button>
         <button type="button" class="btn" id="rc-add-food">New dish + recipe</button>
       </div>
-      <button type="button" class="lx-banner" data-go="explore"><span class="lx-banner-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11h18a9 9 0 0 1-18 0z"/><path d="M8 7c0-1.5 1-1.5 1-3M12 7c0-1.5 1-1.5 1-3M16 7c0-1.5 1-1.5 1-3"/></svg></span><span><b>10,000+ more recipes</b><small class="lx-banner-sub">Bowls, curries, chillas, shakes &amp; more — with full steps</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
-      <p class="lib-count" id="rc-count"></p>
+      <p class="lib-count" id="rc-count" aria-live="polite"></p>
       <div class="recipe-grid" id="rc-list"></div>
+      <div class="rc-more-row"><button type="button" class="btn wide" id="rc-more" hidden>Show more</button></div>
+      <button type="button" class="lx-banner rc-lib-banner" data-go="explore"><span class="lx-banner-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></span><span><b>Foods &amp; Recipes library</b><small class="lx-banner-sub" id="rc-lib-sub">9,070 foods per 100 g · more filters · Excel &amp; PDF export</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
     </section>
     <section class="screen" data-screen="recipe" data-title="Recipe" hidden>
       <div id="rc-detail"></div>
