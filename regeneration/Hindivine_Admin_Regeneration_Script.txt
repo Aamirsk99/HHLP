@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.7)
+ HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 3.8)
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
  Hindivine Healthcare Pvt. Ltd. · www.hindivine.com
 ================================================================================
@@ -14,7 +14,7 @@ from scratch by a developer or by an AI coding assistant. It has three parts:
           rule, every screen, exports, Google Sheet storage, Android build.
   PART C  Step-by-step rebuild and release checklist.
 
-The exact source code of version 3.7 is in the companion file
+The exact source code of version 3.8 is in the companion file
 "Hindivine_Admin_Full_Source.txt" (every file, with an unpack script). If you
 want an identical app, use that file. If you want to regenerate or extend the
 app, use this file.
@@ -330,7 +330,7 @@ Reports, Admin.
     Roles & permissions matrix (Super Admin only); Choice lists (chips with
     rename/remove + add) incl. inventory categories; Backup (export/import
     JSON), All reports, Erase all data (Super Admin).
-20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7) and credits.
+20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8) and credits.
 Every drop-down backed by a list ends with "+ Add new…" which shows an
 inline input and saves the new option for everyone.
 Period options everywhere: Today, This month (auto), Choose month, Last
@@ -541,6 +541,18 @@ B21. VERSION 3.7 ADDITIONS
   the dead WebView before recreating; onDestroy and print guard null.
 * Faster screens with large data (patients grouped once; activity log shows
   120 entries with "Show more"); tap ripple animation; toast pop-in.
+
+B22. VERSION 3.8 ADDITIONS
+--------------------------
+* Automatic merge instead of "Data changed on another device": every save
+  stamps changed records with _t (time) by comparing a hash of each record
+  with the last known one; records that disappear are kept in S.deleted
+  ("collection:id" → time, kept 90 days). A.mergeStates(local, remote) joins
+  categories, items, team, patients, sales, purchases, expenses, moves,
+  appointments, leads and accounts by id (newest _t wins, deleted stays
+  deleted), takes the newer settings, unions renewalsDone and the log.
+  On a save conflict, or when the sheet changed while this device had
+  unsaved changes, the app loads the merge and saves it (no dialog).
 
 B14. TESTS (node --test tests/*.test.js)
 ----------------------------------------

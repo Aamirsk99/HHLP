@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.7';
+  const APP_VERSION = '3.8';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -758,6 +758,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.8', 'No more "Data changed on another device" question: when two phones change data at the same time the app joins both automatically (newest version of every sale, patient, appointment, lead and setting wins, deletions stay deleted, nothing is lost).'],
     ['3.7', 'Built for Android 15 so Google Play Protect no longer blocks the install as an app for an older Android version; screens stay clear of the status bar, navigation bar and keyboard on Android 15; fixed a crash when the app was sent to the background with a lot of data; safer recovery if Android stops the page to save memory; smoother animations.'],
     ['3.6', 'Connects to the clinic Google Sheet by itself: first launch shows "Connecting…" and then the sign-in screen with the logins from the sheet (no Create Super Admin or Connect Google Sheet screens); clear retry screen when offline; Settings → Google Sheet: test connection, sync now, disconnect, reconnect to the clinic sheet or change the link; sign-in screen refreshes logins in the background; more premium side menu.'],
     ['3.5', 'Protein sales no longer ask New / Renewal (new / renewal now follows earlier injections); Today shows injection, protein and diet sales in separate boxes with patient mobile, age and gender, and exports them as separate sections; image export fixed: phone numbers, ages and amounts always show in full, long names wrap instead of being cut; more premium tables, filter plates and colours.'],
@@ -1993,36 +1994,27 @@
     const editing = modal.open || screen === 'sell' || screen === 'purchase-new' || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName));
     if (!editing && !$('#shell').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
   }
-  function choose(title, message, keepLabel, useLabel) {
-    return new Promise((resolve) => {
-      if (modal.open) modal.close();
-      $('#modal-title').textContent = title;
-      $('#modal-body').innerHTML = `<p style="margin:0">${esc(message)}</p>`;
-      $('#modal-err').textContent = '';
-      $('#modal-foot').innerHTML = `<button type="button" class="btn" data-choice="use">${esc(useLabel)}</button><button type="button" class="btn primary" data-choice="keep">${esc(keepLabel)}</button>`;
-      const onClick = (e) => {
-        const c = e.target.closest('[data-choice]');
-        if (!c) return;
-        modal.removeEventListener('click', onClick);
-        modal.close();
-        resolve(c.dataset.choice);
-      };
-      modal.addEventListener('click', onClick);
-      modal.addEventListener('close', () => { modal.removeEventListener('click', onClick); resolve('use'); }, { once: true });
-      modal.showModal();
-    });
-  }
+  // Another device saved while this one had unsaved changes: join both (newest version of every
+  // record wins, deletions stay deleted) and save the result. Nothing to ask.
+  let mergeDepth = 0;
   async function resolveConflict(out) {
-    const who = out.by ? ` on ${out.by}` : '';
-    const when = out.updated ? new Date(out.updated).toLocaleString('en-IN') : '';
-    const pick = await choose('Data changed on another device',
-      `The Google Sheet was updated${who} (${when}) while this device had changes that were not saved yet. Which data should be kept? The other version is replaced.`,
-      "Keep this device's data", 'Use Google Sheet data');
-    if (pick === 'keep') return push(true);
-    const remote = await call('GET');
-    if (remote.state) applyRemote(remote);
-    toast('Loaded the latest data from the Google Sheet');
-    return null;
+    const remote = out && out.state !== undefined ? out : await call('GET');
+    if (!remote.state) return push(true);
+    const merged = A.mergeStates(admin.exportState(), remote.state);
+    admin.loadState(merged);
+    setBase(remote.updated);
+    refreshAfterSync();
+    if (mergeDepth > 2) return null; // still racing another device: the next save tries again
+    mergeDepth++;
+    try { return await push(); } finally { mergeDepth--; }
+  }
+  // After new data arrives: keep the signed-in person valid and redraw unless they are typing.
+  function refreshAfterSync() {
+    const acc = me && admin.account(me.id);
+    if (!role || !acc || !acc.hash || acc.disabled) { if (role) lock(); else if (!$('#lock').hidden && !lockPin && lockMode === 'login') showLock(); return; }
+    me = acc; role = acc.role;
+    const editing = modal.open || screen === 'sell' || screen === 'purchase-new' || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName));
+    if (!editing && !$('#shell').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
   }
   /** Save this device's data to the sheet. force = overwrite even if another device saved since. */
   async function push(force) {
@@ -2032,7 +2024,7 @@
     syncState('Saving…');
     try {
       const out = await call('POST', { action: 'save', secret: set().sheetsSecret, state: admin.exportState(), sheets: admin.sheetsData(), base: getBase(), by: device(), force: !!force });
-      if (out.conflict) { busy = false; await resolveConflict(out); return; }
+      if (out.conflict) { busy = false; await resolveConflict(null); return; }
       setBase(out.updated);
       setDirty(false);
       storage.setItem(SYNC_KEY, String(Date.now()));
@@ -2068,14 +2060,9 @@
         if (manual) toast('Up to date with the Google Sheet');
         return;
       }
-      if (isDirty() && getBase()) { await resolveConflict(out); return; }
-      if (isDirty() && !getBase()) {
-        // First connection of a device that already has data, to a sheet that has data too.
-        const pick = await choose('Google Sheet already has data',
-          'This device and the Google Sheet both have data. Which should be kept? The other is replaced.',
-          "Keep this device's data", 'Use Google Sheet data');
-        if (pick === 'keep') { await push(true); return; }
-      }
+      // This device has unsaved changes and the sheet changed too (or this is the first connection
+      // of a device that already has data): join both and save.
+      if (isDirty()) { await resolveConflict(out); if (manual) toast('Up to date with the Google Sheet'); return; }
       applyRemote(out);
       showSheetState();
       if (manual) toast('Loaded the latest data from the Google Sheet');

@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN 3.7 — COMPLETE SOURCE CODE
+ HINDIVINE ADMIN 3.8 — COMPLETE SOURCE CODE
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
 ================================================================================
 
@@ -28,7 +28,7 @@ Then:
   3. chmod +x android/build.sh
   4. npm test                      (unit tests, Node 18+)
   5. npx serve .   → open /admin/  (try it in a browser)
-  6. APP=admin VERSION_CODE=11 VERSION_NAME=3.7 ./android/build.sh
+  6. APP=admin VERSION_CODE=12 VERSION_NAME=3.8 ./android/build.sh
                                    (Android APK → dist/HindivineAdmin.apk)
 See "Hindivine_Admin_Regeneration_Script.txt" for the full explanation.
 
@@ -1249,6 +1249,21 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     const today = () => isoDate(clock ? clock() : new Date());
     let S = load();
     const listeners = [];
+    // Change tracking for merging with other devices: every record that changes gets _t (time);
+    // every record that disappears is remembered in S.deleted so a merge can drop it everywhere.
+    let seen = new Map();
+    const remember = () => { seen = new Map(); eachRecord(S, (key, rec) => seen.set(key, recHash(rec))); seen.set('settings', recHash(sharedSettings(S.settings))); };
+    function stampChanges() {
+      const now = clock ? clock().getTime() : Date.now();
+      const keys = new Set();
+      eachRecord(S, (key, rec) => { keys.add(key); const h = recHash(rec); if (seen.get(key) !== h) { rec._t = now; seen.set(key, recHash(rec)); } });
+      seen.forEach((_, key) => { if (key !== 'settings' && !keys.has(key)) { S.deleted = S.deleted || {}; S.deleted[key] = now; seen.delete(key); } });
+      const sh = recHash(sharedSettings(S.settings));
+      if (seen.get('settings') !== sh) { S.settings._t = now; seen.set('settings', recHash(sharedSettings(S.settings))); }
+      // Forget deletions older than 90 days.
+      if (S.deleted) Object.keys(S.deleted).forEach((k) => { if (now - S.deleted[k] > 90 * 86400000) delete S.deleted[k]; });
+    }
+    remember();
 
     function load() {
       let s = null;
@@ -1276,6 +1291,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       return s;
     }
     function save(source) {
+      if (source === 'remote') remember(); else stampChanges();
       try { storage.setItem(KEY, JSON.stringify(S)); } catch (_) { throw new Error('Storage is full: export a backup and remove old data.'); }
       listeners.forEach((f) => f(source || 'local'));
     }
@@ -2232,6 +2248,48 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
   }
 
+  // ── Merging two copies of the data (this device + Google Sheet) ──────────────
+  const MERGE_COLLS = ['categories', 'items', 'team', 'patients', 'sales', 'purchases', 'expenses', 'moves', 'appointments', 'leads', 'accounts'];
+  const recKey = (coll, rec) => `${coll}:${coll === 'categories' ? rec.name : rec.id}`;
+  function eachRecord(st, fn) { MERGE_COLLS.forEach((c) => (st[c] || []).forEach((r) => { if (r && (r.id || r.name)) fn(recKey(c, r), r, c); })); }
+  const sharedSettings = (set) => { const o = { ...set }; ['sheetsUrl', 'sheetsSecret', 'autoSync', 'lastSync', '_t'].forEach((k) => { delete o[k]; }); return o; };
+  function recHash(rec) {
+    const t = JSON.stringify(rec, (k, v) => (k === '_t' ? undefined : v));
+    let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+    return `${t.length}:${h.toString(36)}`;
+  }
+  /**
+   * Combine this device's data with the Google Sheet's: every record (sale, patient, appointment, lead…)
+   * keeps its newest version, records deleted on either side stay deleted, logs are joined.
+   */
+  function mergeStates(local, remote) {
+    if (!remote) return local;
+    if (!local) return remote;
+    const out = { ...remote };
+    const deleted = { ...(remote.deleted || {}) };
+    Object.entries(local.deleted || {}).forEach(([k, t]) => { if (!(deleted[k] >= t)) deleted[k] = t; });
+    out.deleted = deleted;
+    const alive = (key, rec) => !(deleted[key] >= (rec._t || 0));
+    MERGE_COLLS.forEach((c) => {
+      const map = new Map(); const order = [];
+      (remote[c] || []).forEach((r) => { const k = recKey(c, r); map.set(k, r); order.push(k); });
+      (local[c] || []).forEach((r) => {
+        const k = recKey(c, r);
+        const o = map.get(k);
+        if (!o) { map.set(k, r); order.push(k); } else if ((r._t || 0) > (o._t || 0)) map.set(k, r);
+      });
+      out[c] = order.map((k) => map.get(k)).filter((r) => alive(recKey(c, r), r));
+    });
+    const ls = local.settings || {}; const rs = remote.settings || {};
+    out.settings = (ls._t || 0) > (rs._t || 0) ? { ...ls } : { ...rs };
+    out.renewalsDone = { ...(remote.renewalsDone || {}), ...(local.renewalsDone || {}) };
+    const logKey = (x) => `${x.at}|${x.by}|${x.action}|${x.detail}`;
+    const logs = new Map();
+    [...(remote.log || []), ...(local.log || [])].forEach((x) => logs.set(logKey(x), x));
+    out.log = [...logs.values()].sort((a, b) => a.at - b.at).slice(-3000);
+    return out;
+  }
+
   /** Body-mass index from kg and cm, one decimal; '' when either is missing. */
   function bmi(weight, height) {
     const w = Number(weight); const h = Number(height) / 100;
@@ -2240,7 +2298,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
   }
   const bmiLabel = (b) => (!b ? '' : b < 18.5 ? 'Underweight' : b < 23 ? 'Normal' : b < 25 ? 'Overweight' : b < 30 ? 'Obese I' : 'Obese II');
   const api = {
-    bmi, bmiLabel, createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
+    bmi, bmiLabel, mergeStates, createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
     KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
@@ -2754,7 +2812,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '3.7';
+  const APP_VERSION = '3.8';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -3506,6 +3564,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['3.8', 'No more "Data changed on another device" question: when two phones change data at the same time the app joins both automatically (newest version of every sale, patient, appointment, lead and setting wins, deletions stay deleted, nothing is lost).'],
     ['3.7', 'Built for Android 15 so Google Play Protect no longer blocks the install as an app for an older Android version; screens stay clear of the status bar, navigation bar and keyboard on Android 15; fixed a crash when the app was sent to the background with a lot of data; safer recovery if Android stops the page to save memory; smoother animations.'],
     ['3.6', 'Connects to the clinic Google Sheet by itself: first launch shows "Connecting…" and then the sign-in screen with the logins from the sheet (no Create Super Admin or Connect Google Sheet screens); clear retry screen when offline; Settings → Google Sheet: test connection, sync now, disconnect, reconnect to the clinic sheet or change the link; sign-in screen refreshes logins in the background; more premium side menu.'],
     ['3.5', 'Protein sales no longer ask New / Renewal (new / renewal now follows earlier injections); Today shows injection, protein and diet sales in separate boxes with patient mobile, age and gender, and exports them as separate sections; image export fixed: phone numbers, ages and amounts always show in full, long names wrap instead of being cut; more premium tables, filter plates and colours.'],
@@ -4741,36 +4800,27 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     const editing = modal.open || screen === 'sell' || screen === 'purchase-new' || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName));
     if (!editing && !$('#shell').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
   }
-  function choose(title, message, keepLabel, useLabel) {
-    return new Promise((resolve) => {
-      if (modal.open) modal.close();
-      $('#modal-title').textContent = title;
-      $('#modal-body').innerHTML = `<p style="margin:0">${esc(message)}</p>`;
-      $('#modal-err').textContent = '';
-      $('#modal-foot').innerHTML = `<button type="button" class="btn" data-choice="use">${esc(useLabel)}</button><button type="button" class="btn primary" data-choice="keep">${esc(keepLabel)}</button>`;
-      const onClick = (e) => {
-        const c = e.target.closest('[data-choice]');
-        if (!c) return;
-        modal.removeEventListener('click', onClick);
-        modal.close();
-        resolve(c.dataset.choice);
-      };
-      modal.addEventListener('click', onClick);
-      modal.addEventListener('close', () => { modal.removeEventListener('click', onClick); resolve('use'); }, { once: true });
-      modal.showModal();
-    });
-  }
+  // Another device saved while this one had unsaved changes: join both (newest version of every
+  // record wins, deletions stay deleted) and save the result. Nothing to ask.
+  let mergeDepth = 0;
   async function resolveConflict(out) {
-    const who = out.by ? ` on ${out.by}` : '';
-    const when = out.updated ? new Date(out.updated).toLocaleString('en-IN') : '';
-    const pick = await choose('Data changed on another device',
-      `The Google Sheet was updated${who} (${when}) while this device had changes that were not saved yet. Which data should be kept? The other version is replaced.`,
-      "Keep this device's data", 'Use Google Sheet data');
-    if (pick === 'keep') return push(true);
-    const remote = await call('GET');
-    if (remote.state) applyRemote(remote);
-    toast('Loaded the latest data from the Google Sheet');
-    return null;
+    const remote = out && out.state !== undefined ? out : await call('GET');
+    if (!remote.state) return push(true);
+    const merged = A.mergeStates(admin.exportState(), remote.state);
+    admin.loadState(merged);
+    setBase(remote.updated);
+    refreshAfterSync();
+    if (mergeDepth > 2) return null; // still racing another device: the next save tries again
+    mergeDepth++;
+    try { return await push(); } finally { mergeDepth--; }
+  }
+  // After new data arrives: keep the signed-in person valid and redraw unless they are typing.
+  function refreshAfterSync() {
+    const acc = me && admin.account(me.id);
+    if (!role || !acc || !acc.hash || acc.disabled) { if (role) lock(); else if (!$('#lock').hidden && !lockPin && lockMode === 'login') showLock(); return; }
+    me = acc; role = acc.role;
+    const editing = modal.open || screen === 'sell' || screen === 'purchase-new' || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName));
+    if (!editing && !$('#shell').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
   }
   /** Save this device's data to the sheet. force = overwrite even if another device saved since. */
   async function push(force) {
@@ -4780,7 +4830,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     syncState('Saving…');
     try {
       const out = await call('POST', { action: 'save', secret: set().sheetsSecret, state: admin.exportState(), sheets: admin.sheetsData(), base: getBase(), by: device(), force: !!force });
-      if (out.conflict) { busy = false; await resolveConflict(out); return; }
+      if (out.conflict) { busy = false; await resolveConflict(null); return; }
       setBase(out.updated);
       setDirty(false);
       storage.setItem(SYNC_KEY, String(Date.now()));
@@ -4816,14 +4866,9 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
         if (manual) toast('Up to date with the Google Sheet');
         return;
       }
-      if (isDirty() && getBase()) { await resolveConflict(out); return; }
-      if (isDirty() && !getBase()) {
-        // First connection of a device that already has data, to a sheet that has data too.
-        const pick = await choose('Google Sheet already has data',
-          'This device and the Google Sheet both have data. Which should be kept? The other is replaced.',
-          "Keep this device's data", 'Use Google Sheet data');
-        if (pick === 'keep') { await push(true); return; }
-      }
+      // This device has unsaved changes and the sheet changed too (or this is the first connection
+      // of a device that already has data): join both and save.
+      if (isDirty()) { await resolveConflict(out); if (manual) toast('Up to date with the Google Sheet'); return; }
       applyRemote(out);
       showSheetState();
       if (manual) toast('Loaded the latest data from the Google Sheet');
@@ -5799,7 +5844,7 @@ function json(o) {
 
 ===== BEGIN FILE: admin/sw.js =====
 /* Offline cache for Hindivine Admin (installed web app). */
-const CACHE = 'hindivine-admin-v10';
+const CACHE = 'hindivine-admin-v11';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/config.js', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js', 'vendor/fonts/PlusJakartaSans-latin.woff2',
   '../img/logo.jpg', '../img/icon-192.png', '../img/icon-512.png',
@@ -6930,6 +6975,37 @@ test('protein sales have no new / renewal; injections count earlier injections o
   assert.equal(i1.patientType, 'new', 'earlier protein does not make the first injection a renewal');
   const i2 = a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9876543210', itemId: pen.id, amount: 17000, refId: m.id, date: '2026-09-10' });
   assert.equal(i2.patientType, 'renewal');
+});
+
+test('two devices editing at once are merged: newest record wins, deletions stay, nothing lost', () => {
+  const store = A.memoryStorage();
+  let now = new Date('2026-09-15T10:00:00');
+  const base = A.createAdmin(store, () => now);
+  const m = base.saveMember({ name: 'Riya' });
+  const pen = byName(base, 'Mounjaro 15mg');
+  base.adjustStock(pen.id, 10, 'count');
+  const old = base.saveSale({ type: 'injection', patientName: 'Old', mobile: '9000000001', itemId: pen.id, amount: 17000, refId: m.id });
+  const shared = JSON.parse(JSON.stringify(base.exportState()));
+  // Two phones start from the same sheet copy.
+  const phoneA = A.createAdmin(A.memoryStorage(), () => now); phoneA.loadState(JSON.parse(JSON.stringify(shared)));
+  const phoneB = A.createAdmin(A.memoryStorage(), () => now); phoneB.loadState(JSON.parse(JSON.stringify(shared)));
+  now = new Date('2026-09-15T10:05:00');
+  phoneA.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9000000002', itemId: pen.id, amount: 17000, refId: m.id });
+  phoneA.saveMember({ ...phoneA.member(m.id), salary: 20000 });
+  now = new Date('2026-09-15T10:06:00');
+  phoneB.saveAppointment({ patientName: 'Ravi', mobile: '9000000003', date: '2026-09-15', mode: 'clinic' });
+  phoneB.saveMember({ ...phoneB.member(m.id), salary: 25000 }); // later edit wins
+  phoneB.deleteSale(old.id);
+  // Phone A saved first; phone B merges with the sheet (A's copy).
+  const merged = A.mergeStates(phoneB.exportState(), phoneA.exportState());
+  const c = A.createAdmin(A.memoryStorage(), () => now); c.loadState(merged);
+  assert.deepEqual(c.state.sales.map((x) => x.patientName), ['Asha'], 'A\'s new sale kept, B\'s deletion kept');
+  assert.equal(c.state.appointments.length, 1, 'B\'s appointment kept');
+  assert.equal(c.member(m.id).salary, 25000, 'newest edit wins');
+  assert.ok(c.state.patients.some((p) => p.name === 'Asha') && c.state.patients.some((p) => p.name === 'Ravi'));
+  assert.equal(c.stockOf(pen.id), 9, 'stock moves merged: 10 in, Asha −1, Old\'s sale deleted');
+  // Merging again changes nothing.
+  assert.deepEqual(A.mergeStates(merged, merged).sales.length, 1);
 });
 ===== END FILE: tests/admin.test.js =====
 

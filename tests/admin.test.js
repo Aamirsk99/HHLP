@@ -448,3 +448,34 @@ test('protein sales have no new / renewal; injections count earlier injections o
   const i2 = a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9876543210', itemId: pen.id, amount: 17000, refId: m.id, date: '2026-09-10' });
   assert.equal(i2.patientType, 'renewal');
 });
+
+test('two devices editing at once are merged: newest record wins, deletions stay, nothing lost', () => {
+  const store = A.memoryStorage();
+  let now = new Date('2026-09-15T10:00:00');
+  const base = A.createAdmin(store, () => now);
+  const m = base.saveMember({ name: 'Riya' });
+  const pen = byName(base, 'Mounjaro 15mg');
+  base.adjustStock(pen.id, 10, 'count');
+  const old = base.saveSale({ type: 'injection', patientName: 'Old', mobile: '9000000001', itemId: pen.id, amount: 17000, refId: m.id });
+  const shared = JSON.parse(JSON.stringify(base.exportState()));
+  // Two phones start from the same sheet copy.
+  const phoneA = A.createAdmin(A.memoryStorage(), () => now); phoneA.loadState(JSON.parse(JSON.stringify(shared)));
+  const phoneB = A.createAdmin(A.memoryStorage(), () => now); phoneB.loadState(JSON.parse(JSON.stringify(shared)));
+  now = new Date('2026-09-15T10:05:00');
+  phoneA.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9000000002', itemId: pen.id, amount: 17000, refId: m.id });
+  phoneA.saveMember({ ...phoneA.member(m.id), salary: 20000 });
+  now = new Date('2026-09-15T10:06:00');
+  phoneB.saveAppointment({ patientName: 'Ravi', mobile: '9000000003', date: '2026-09-15', mode: 'clinic' });
+  phoneB.saveMember({ ...phoneB.member(m.id), salary: 25000 }); // later edit wins
+  phoneB.deleteSale(old.id);
+  // Phone A saved first; phone B merges with the sheet (A's copy).
+  const merged = A.mergeStates(phoneB.exportState(), phoneA.exportState());
+  const c = A.createAdmin(A.memoryStorage(), () => now); c.loadState(merged);
+  assert.deepEqual(c.state.sales.map((x) => x.patientName), ['Asha'], 'A\'s new sale kept, B\'s deletion kept');
+  assert.equal(c.state.appointments.length, 1, 'B\'s appointment kept');
+  assert.equal(c.member(m.id).salary, 25000, 'newest edit wins');
+  assert.ok(c.state.patients.some((p) => p.name === 'Asha') && c.state.patients.some((p) => p.name === 'Ravi'));
+  assert.equal(c.stockOf(pen.id), 9, 'stock moves merged: 10 in, Asha −1, Old\'s sale deleted');
+  // Merging again changes nothing.
+  assert.deepEqual(A.mergeStates(merged, merged).sales.length, 1);
+});

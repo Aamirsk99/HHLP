@@ -186,6 +186,21 @@
     const today = () => isoDate(clock ? clock() : new Date());
     let S = load();
     const listeners = [];
+    // Change tracking for merging with other devices: every record that changes gets _t (time);
+    // every record that disappears is remembered in S.deleted so a merge can drop it everywhere.
+    let seen = new Map();
+    const remember = () => { seen = new Map(); eachRecord(S, (key, rec) => seen.set(key, recHash(rec))); seen.set('settings', recHash(sharedSettings(S.settings))); };
+    function stampChanges() {
+      const now = clock ? clock().getTime() : Date.now();
+      const keys = new Set();
+      eachRecord(S, (key, rec) => { keys.add(key); const h = recHash(rec); if (seen.get(key) !== h) { rec._t = now; seen.set(key, recHash(rec)); } });
+      seen.forEach((_, key) => { if (key !== 'settings' && !keys.has(key)) { S.deleted = S.deleted || {}; S.deleted[key] = now; seen.delete(key); } });
+      const sh = recHash(sharedSettings(S.settings));
+      if (seen.get('settings') !== sh) { S.settings._t = now; seen.set('settings', recHash(sharedSettings(S.settings))); }
+      // Forget deletions older than 90 days.
+      if (S.deleted) Object.keys(S.deleted).forEach((k) => { if (now - S.deleted[k] > 90 * 86400000) delete S.deleted[k]; });
+    }
+    remember();
 
     function load() {
       let s = null;
@@ -213,6 +228,7 @@
       return s;
     }
     function save(source) {
+      if (source === 'remote') remember(); else stampChanges();
       try { storage.setItem(KEY, JSON.stringify(S)); } catch (_) { throw new Error('Storage is full: export a backup and remove old data.'); }
       listeners.forEach((f) => f(source || 'local'));
     }
@@ -1169,6 +1185,48 @@
     return { getItem: (k) => (m.has(k) ? m.get(k) : null), setItem: (k, v) => m.set(k, String(v)), removeItem: (k) => m.delete(k) };
   }
 
+  // ── Merging two copies of the data (this device + Google Sheet) ──────────────
+  const MERGE_COLLS = ['categories', 'items', 'team', 'patients', 'sales', 'purchases', 'expenses', 'moves', 'appointments', 'leads', 'accounts'];
+  const recKey = (coll, rec) => `${coll}:${coll === 'categories' ? rec.name : rec.id}`;
+  function eachRecord(st, fn) { MERGE_COLLS.forEach((c) => (st[c] || []).forEach((r) => { if (r && (r.id || r.name)) fn(recKey(c, r), r, c); })); }
+  const sharedSettings = (set) => { const o = { ...set }; ['sheetsUrl', 'sheetsSecret', 'autoSync', 'lastSync', '_t'].forEach((k) => { delete o[k]; }); return o; };
+  function recHash(rec) {
+    const t = JSON.stringify(rec, (k, v) => (k === '_t' ? undefined : v));
+    let h = 5381; for (let i = 0; i < t.length; i++) h = ((h * 33) ^ t.charCodeAt(i)) >>> 0;
+    return `${t.length}:${h.toString(36)}`;
+  }
+  /**
+   * Combine this device's data with the Google Sheet's: every record (sale, patient, appointment, lead…)
+   * keeps its newest version, records deleted on either side stay deleted, logs are joined.
+   */
+  function mergeStates(local, remote) {
+    if (!remote) return local;
+    if (!local) return remote;
+    const out = { ...remote };
+    const deleted = { ...(remote.deleted || {}) };
+    Object.entries(local.deleted || {}).forEach(([k, t]) => { if (!(deleted[k] >= t)) deleted[k] = t; });
+    out.deleted = deleted;
+    const alive = (key, rec) => !(deleted[key] >= (rec._t || 0));
+    MERGE_COLLS.forEach((c) => {
+      const map = new Map(); const order = [];
+      (remote[c] || []).forEach((r) => { const k = recKey(c, r); map.set(k, r); order.push(k); });
+      (local[c] || []).forEach((r) => {
+        const k = recKey(c, r);
+        const o = map.get(k);
+        if (!o) { map.set(k, r); order.push(k); } else if ((r._t || 0) > (o._t || 0)) map.set(k, r);
+      });
+      out[c] = order.map((k) => map.get(k)).filter((r) => alive(recKey(c, r), r));
+    });
+    const ls = local.settings || {}; const rs = remote.settings || {};
+    out.settings = (ls._t || 0) > (rs._t || 0) ? { ...ls } : { ...rs };
+    out.renewalsDone = { ...(remote.renewalsDone || {}), ...(local.renewalsDone || {}) };
+    const logKey = (x) => `${x.at}|${x.by}|${x.action}|${x.detail}`;
+    const logs = new Map();
+    [...(remote.log || []), ...(local.log || [])].forEach((x) => logs.set(logKey(x), x));
+    out.log = [...logs.values()].sort((a, b) => a.at - b.at).slice(-3000);
+    return out;
+  }
+
   /** Body-mass index from kg and cm, one decimal; '' when either is missing. */
   function bmi(weight, height) {
     const w = Number(weight); const h = Number(height) / 100;
@@ -1177,7 +1235,7 @@
   }
   const bmiLabel = (b) => (!b ? '' : b < 18.5 ? 'Underweight' : b < 23 ? 'Normal' : b < 25 ? 'Overweight' : b < 30 ? 'Obese I' : 'Obese II');
   const api = {
-    bmi, bmiLabel, createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
+    bmi, bmiLabel, mergeStates, createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
     KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
