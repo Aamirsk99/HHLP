@@ -44,7 +44,7 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 - **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
 - **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
 
-## Hindivine Admin app (`admin/`) — version 4.4
+## Hindivine Admin app (`admin/`) — version 4.0
 
 A separate app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+, built for Android 15 so Play Protect accepts it; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*.
 
@@ -112,7 +112,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 
 ```sh
 VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
-APP=admin VERSION_CODE=18 VERSION_NAME=4.4 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
+APP=admin VERSION_CODE=18 VERSION_NAME=4.0 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.

@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.4';
+  const APP_VERSION = '4.0';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -572,7 +572,7 @@
   };
 
   // ── Lead management (CRM) ─────────────────────────────────────
-  const leadF = { tab: 'open', q: '', status: '', source: '', priority: '', owner: '' };
+  const leadF = { tab: 'all', q: '', status: '', source: '', priority: '', owner: '' };
   const PRIO_CLS = { hot: 'bad', warm: 'gold', cold: 'info' };
   // Front Desk sees their own leads and unassigned ones; Admin and Manager see everyone's.
   function myLeadFilter() {
@@ -600,16 +600,24 @@
     const st = admin.leadStats(null, mine);
     const list = filteredLeads();
     const base = S().leads.filter((l) => !mine || mine(l));
-    const tabs = [['open', 'Open'], ['follow', '⏰ Follow-ups'], ['due', `Due today (${st.dueToday})`], ['overdue', `Overdue (${st.overdue})`], ['won', 'Converted'], ['lost', 'Lost'], ['all', 'All']];
+    const tabs = [['all', `All (${base.length})`], ['open', 'Open'], ['follow', '⏰ Follow-ups'], ['due', `Due today (${st.dueToday})`], ['overdue', `Overdue (${st.overdue})`], ['won', 'Converted'], ['lost', 'Lost']];
     const pipeline = set().lists.leadStatuses.map((x) => [x, base.filter((l) => l.status === x).length]);
     const people = S().accounts.filter((a) => !a.disabled);
     const card = (l) => {
       const due = l.followUp && !admin.isClosedLead(l) ? (l.followUp < d ? 'bad' : l.followUp === d ? 'warn' : 'info') : '';
       const wa = waLink(l.mobile, `Namaste ${l.name}, this is ${set().clinic}.`);
-      return `<div class="lead" data-act="lead" data-id="${l.id}" role="button" tabindex="0">
-        <div class="lead-top"><span class="prio ${PRIO_CLS[l.priority] || ''}" title="${esc(A.LEAD_PRIORITIES[l.priority] || '')}"></span><b>${esc(l.name)}</b><span class="badge ${['Converted', 'Appointment booked'].includes(l.status) ? 'ok' : ['Lost', 'Not interested'].includes(l.status) ? 'bad' : 'info'}">${esc(l.status)}</span></div>
-        <div class="lead-meta">${l.interest ? `<span>${esc(l.interest)}</span>` : ''}${l.source ? `<span>${esc(l.source)}</span>` : ''}${l.city ? `<span>${esc(l.city)}</span>` : ''}${l.assignedTo ? `<span>👤 ${esc(accountName(l.assignedTo))}</span>` : ''}</div>
-        <div class="lead-foot">${l.followUp ? `<span class="badge ${due}">Follow-up ${fdate(l.followUp)}${l.followTime ? ` ${time12(l.followTime)}` : ''}</span>` : '<span class="hint">No follow-up set</span>'}
+      const nm = String(l.name || l.mobile || '?').trim();
+      const initial = (nm.match(/[A-Za-z0-9ऀ-ॿ]/) || ['#'])[0].toUpperCase();
+      const hue = [...String(l.name || l.mobile || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
+      const won = ['Converted', 'Appointment booked'].includes(l.status);
+      const lost = ['Lost', 'Not interested'].includes(l.status);
+      return `<div class="lead lead-lux ${PRIO_CLS[l.priority] || ''}" data-act="lead" data-id="${l.id}" role="button" tabindex="0">
+        <div class="lead-top">
+          <span class="lead-ava" style="--h:${hue}">${esc(initial)}<i class="prio ${PRIO_CLS[l.priority] || ''}" title="${esc(A.LEAD_PRIORITIES[l.priority] || '')}"></i></span>
+          <span class="lead-id"><b>${esc(nm)}</b><span class="lead-sub">${esc(l.mobile || '')}${l.interest ? ` · ${esc(l.interest)}` : ''}</span></span>
+          <span class="badge ${won ? 'ok' : lost ? 'bad' : 'info'}">${esc(l.status)}</span></div>
+        <div class="lead-meta">${l.source ? `<span>${esc(l.source)}</span>` : ''}${l.city ? `<span>📍 ${esc(l.city)}</span>` : ''}${l.assignedTo ? `<span>👤 ${esc(accountName(l.assignedTo))}</span>` : ''}</div>
+        <div class="lead-foot">${l.followUp ? `<span class="badge ${due}">⏰ ${fdate(l.followUp)}${l.followTime ? ` ${time12(l.followTime)}` : ''}</span>` : '<span class="hint">No follow-up set</span>'}
           <span class="lead-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></span></div></div>`;
     };
     return `<div class="toolbar"><div class="scroll-x"><div class="seg">${tabs.map(([k, l]) => `<button type="button" data-leadtab="${k}" class="${leadF.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
@@ -992,11 +1000,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
-    ['4.4', 'WhatsApp leads from MyOperator / Heyo by logging in — no webhook, no export file. Settings → WhatsApp → "Open MyOperator & read chats" opens your panel (in.app.myoperator.com/chat) inside the app; it reads the chat names and numbers straight off the screen (and the panel\'s live messages), auto-scrolls to load more, and makes a lead for each number — every chat becomes a lead (the old \'Hello! Can I get more info on this?\' filter is off by default). Even when the list shows only names, it reads the number behind each name (from the chat\'s link or data). Whoever a chat is assigned to on MyOperator becomes the lead\'s "Assigned to" after you match each person to a staff login once. Duplicates (already a lead or patient) are skipped. The older webhook, API-test and file-import methods were removed.'],
-    ['4.3', 'Leads in their own Google spreadsheet: Settings → Google Sheet → Leads spreadsheet can create a new "Hindivine Leads" sheet, connect an existing one or go back to the main sheet; the Leads tab and the WhatsApp messages tab then go there instead of the main clinic sheet.'],
-    ['4.2', 'WhatsApp leads only from the ad message: a new number becomes a lead only when its message contains "Hello! Can I get more info on this?" (phrases editable in Settings → Google Sheet → WhatsApp; empty = any message). Other chats still show in the WhatsApp inbox.'],
-    ['4.1', 'WhatsApp inbox for Heyo / MyOperator: messages arrive through the Google Sheet (webhook to the Apps Script, saved in a WhatsApp tab; optional pull from the MyOperator API with the key kept in Apps Script), WhatsApp screen with chats, unread counts, chat view, reply on WhatsApp, + lead and Book OPD; every new number becomes a lead (source WhatsApp) and messages are added to the lead history.'],
-    ['4.0', 'Share invoices and OPD slips on WhatsApp: the PDF opens straight in the patient\'s WhatsApp chat with a short message (Share invoice / Share slip in the appointment, Share on WhatsApp in the invoice options); purchase invoices no longer show the product: the item reads "Weight Loss Program" or "Weight Loss Program (3 Months)", with the months entered on the sale or when making the invoice and the name editable (default in Settings).'],
+    ['4.0', 'Premium leads & WhatsApp. Leads screen redesigned (luxury cards with name, number and photo initial) and opens on All leads with full filters, pipeline and export. WhatsApp leads from MyOperator / Heyo by logging in inside the app (Settings → WhatsApp → "Open MyOperator & read chats"): it reads the chat names and numbers straight off the screen — even when only a name shows, it finds the number behind it — auto-scrolls and collects every chat as a lead, with the number used as the name when no name is shown; whoever a chat is assigned to on MyOperator becomes the lead\'s "Assigned to". Leads can live in their own Google spreadsheet. Share invoices and OPD slips on WhatsApp; purchase invoices read "Weight Loss Program (N Months)" instead of the product.'],
     ['3.9', 'Premium non-GST invoices for patient purchases (Sales and Today) and OPD consultations: invoice numbers per financial year (HV/INV/26-27/0001, HV/OPD/26-27/0001), patient details, amount in words, paid / due, terms and "no signature required"; payment method on every sale; reports, images and slips print a note (computer-generated, no signature required), editable in Settings with the invoice terms and prefix; every sign-in, sign-out, wrong PIN and auto-lock is recorded in the activity log with a Sign-ins filter and last sign-in per person.'],
     ['3.8', 'No more "Data changed on another device" question: when two phones change data at the same time the app joins both automatically (newest version of every sale, patient, appointment, lead and setting wins, deletions stay deleted, nothing is lost).'],
     ['3.7', 'Built for Android 15 so Google Play Protect no longer blocks the install as an app for an older Android version; screens stay clear of the status bar, navigation bar and keyboard on Android 15; fixed a crash when the app was sent to the background with a lot of data; safer recovery if Android stops the page to save memory; smoother animations.'],
