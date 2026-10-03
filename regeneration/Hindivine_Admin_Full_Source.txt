@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN 4.1 — COMPLETE SOURCE CODE
+ HINDIVINE ADMIN 4.2 — COMPLETE SOURCE CODE
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
 ================================================================================
 
@@ -28,7 +28,7 @@ Then:
   3. chmod +x android/build.sh
   4. npm test                      (unit tests, Node 18+)
   5. npx serve .   → open /admin/  (try it in a browser)
-  6. APP=admin VERSION_CODE=15 VERSION_NAME=4.1 ./android/build.sh
+  6. APP=admin VERSION_CODE=16 VERSION_NAME=4.2 ./android/build.sh
                                    (Android APK → dist/HindivineAdmin.apk)
 See "Hindivine_Admin_Regeneration_Script.txt" for the full explanation.
 
@@ -1165,6 +1165,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
         clinic: 'Hindivine Healthcare',
         clinicAddress: '', clinicPhone: '', clinicEmail: '',
         waOn: false, waAutoLead: true, // WhatsApp (Heyo / MyOperator) inbox; new numbers become leads
+        waLeadPhrases: ['Hello! Can I get more info on this?'], // a new number becomes a lead only if its message contains one (empty = any message)
         invoicePrefix: 'HV',
         invoiceItemName: 'Weight Loss Program', // what purchase invoices call the item (instead of the product name) // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
         legalNote: DEFAULT_LEGAL_NOTE, // terms printed on invoices
@@ -1912,6 +1913,9 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
         let l = S.leads.find((x) => digits(x.mobile) === d);
         if (!l) {
           if (S.settings.waAutoLead === false || S.patients.some((p) => digits(p.mobile) === d)) return;
+          const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+          const phrases = (S.settings.waLeadPhrases || []).map(norm).filter(Boolean);
+          if (phrases.length && !phrases.some((ph) => norm(m.text).includes(ph))) return;
           l = { id: `wa${d}`, created: m.at, createdBy: 'WhatsApp', date: isoDate(new Date(m.at)), status: 'New', priority: 'warm', name: String(m.name || '').trim() || `WhatsApp ${d}`,
             mobile: d, source: 'WhatsApp', followUp: isoDate(new Date(m.at)), history: [{ at: m.at, by: 'WhatsApp', type: 'created', text: 'Lead added from WhatsApp' }] };
           S.leads.push(l);
@@ -3083,7 +3087,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.1';
+  const APP_VERSION = '4.2';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -3942,6 +3946,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.2', 'WhatsApp leads only from the ad message: a new number becomes a lead only when its message contains "Hello! Can I get more info on this?" (phrases editable in Settings → Google Sheet → WhatsApp; empty = any message). Other chats still show in the WhatsApp inbox.'],
     ['4.1', 'WhatsApp inbox for Heyo / MyOperator: messages arrive through the Google Sheet (webhook to the Apps Script, saved in a WhatsApp tab; optional pull from the MyOperator API with the key kept in Apps Script), WhatsApp screen with chats, unread counts, chat view, reply on WhatsApp, + lead and Book OPD; every new number becomes a lead (source WhatsApp) and messages are added to the lead history.'],
     ['4.0', 'Share invoices and OPD slips on WhatsApp: the PDF opens straight in the patient\'s WhatsApp chat with a short message (Share invoice / Share slip in the appointment, Share on WhatsApp in the invoice options); purchase invoices no longer show the product: the item reads "Weight Loss Program" or "Weight Loss Program (3 Months)", with the months entered on the sale or when making the invoice and the name editable (default in Settings).'],
     ['3.9', 'Premium non-GST invoices for patient purchases (Sales and Today) and OPD consultations: invoice numbers per financial year (HV/INV/26-27/0001, HV/OPD/26-27/0001), patient details, amount in words, paid / due, terms and "no signature required"; payment method on every sale; reports, images and slips print a note (computer-generated, no signature required), editable in Settings with the invoice terms and prefix; every sign-in, sign-out, wrong PIN and auto-lock is recorded in the activity log with a Sign-ins filter and last sign-in per person.'],
@@ -5084,7 +5089,9 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       ${isSuper && connected() ? sec('sheet', `<h2><span class="ic wa-ic-bg">${svg(ICON_WA)}</span>WhatsApp (Heyo / MyOperator)</h2>
         <div class="set-switches">
           <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waOn" ${set().waOn ? 'checked' : ''}> Show WhatsApp messages in the app (WhatsApp screen)</label>
-          <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waAutoLead" ${set().waAutoLead !== false ? 'checked' : ''}> Turn every new number into a lead (source: WhatsApp)</label></div>
+          <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waAutoLead" ${set().waAutoLead !== false ? 'checked' : ''}> Turn new numbers into leads (source: WhatsApp)</label></div>
+        <label class="f">Make a lead only when the message contains (one per line)<textarea id="wa-phrases" rows="2">${esc((set().waLeadPhrases || []).join('\n'))}</textarea><span class="hint">Default: the ad message "Hello! Can I get more info on this?". Leave empty to make a lead from any first message.</span></label>
+        <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="wa-phrases">Save lead message</button></div>
         <label class="f">Webhook link for Heyo / MyOperator<input id="wa-hook" readonly value="${esc(`${set().sheetsUrl}${set().sheetsUrl.includes('?') ? '&' : '?'}hook=whatsapp&key=${set().sheetsSecret}`)}"></label>
         <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm" data-act="wa-copy">Copy webhook link</button>${set().waOn ? '<button type="button" class="btn sm" data-act="wa-refresh">Fetch now</button>' : ''}</div>
         <ol class="steps"><li>Paste the updated <b>Code.gs</b> in Apps Script and deploy a new version.</li>
@@ -5594,6 +5601,11 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     'wa-toggle': (d) => {
       const k = d.k; admin.updateSettings({ [k]: !(set()[k] === true || (k === 'waAutoLead' && set()[k] !== false)) });
       render(); if (k === 'waOn' && set().waOn) waFetch(false, true);
+    },
+    'wa-phrases': () => {
+      const list = $('#wa-phrases').value.split('\n').map((x) => x.trim()).filter(Boolean);
+      admin.updateSettings({ waLeadPhrases: list });
+      toast(list.length ? `Leads only from: ${list.join(' · ')}` : 'Every new number becomes a lead');
     },
     'wa-copy': async () => {
       const t = $('#wa-hook').value;
@@ -6473,7 +6485,7 @@ function installWhatsAppPull() {
 
 ===== BEGIN FILE: admin/sw.js =====
 /* Offline cache for Hindivine Admin (installed web app). */
-const CACHE = 'hindivine-admin-v14';
+const CACHE = 'hindivine-admin-v15';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/config.js', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js', 'vendor/fonts/PlusJakartaSans-latin.woff2',
   '../img/logo.jpg', '../img/icon-192.png', '../img/icon-512.png',
@@ -7816,7 +7828,7 @@ test('WhatsApp messages become leads once, with history; patients and outgoing m
   const a = setup('2026-10-03');
   const t = new Date('2026-10-03T10:00:00').getTime();
   const msgs = [
-    { id: 'w1', at: t, dir: 'in', phone: '919876543210', name: 'Asha', text: 'Price of Mounjaro?' },
+    { id: 'w1', at: t, dir: 'in', phone: '919876543210', name: 'Asha', text: 'Hello! Can I get more info on this?' },
     { id: 'w2', at: t + 60000, dir: 'in', phone: '919876543210', name: 'Asha', text: 'Do you have weekend OPD?' },
     { id: 'w3', at: t + 90000, dir: 'out', phone: '919876543210', text: 'Yes, Sunday 10 AM' },
   ];
@@ -7828,7 +7840,12 @@ test('WhatsApp messages become leads once, with history; patients and outgoing m
   // An existing patient messaging does not become a lead.
   const m = a.saveMember({ name: 'Riya' }); const pro = byName(a, 'Protein Sachets'); a.adjustStock(pro.id, 2, 'count');
   a.saveSale({ type: 'protein', patientName: 'Ravi', mobile: '9876500000', itemId: pro.id, amount: 2500, refId: m.id });
-  assert.deepEqual(a.importWhatsApp([{ id: 'w9', at: t, dir: 'in', phone: '919876500000', text: 'Hello' }]), { created: 0, updated: 0 });
+  assert.deepEqual(a.importWhatsApp([{ id: 'w9', at: t, dir: 'in', phone: '919876500000', text: 'Hello! Can I get more info on this?' }]), { created: 0, updated: 0 });
+  // Only the ad message makes a lead; other first messages from new numbers do not.
+  assert.deepEqual(a.importWhatsApp([{ id: 'w11', at: t, dir: 'in', phone: '919830000002', text: 'Hi, are you open today?' }]), { created: 0, updated: 0 });
+  assert.equal(a.importWhatsApp([{ id: 'w12', at: t, dir: 'in', phone: '919830000003', text: 'hello!  can i get more INFO on this?' }]).created, 1, 'case and spaces ignored');
+  a.updateSettings({ waLeadPhrases: [] });
+  assert.equal(a.importWhatsApp([{ id: 'w13', at: t, dir: 'in', phone: '919830000004', text: 'Any message' }]).created, 1, 'empty list = every new number');
   a.updateSettings({ waAutoLead: false });
   assert.deepEqual(a.importWhatsApp([{ id: 'w10', at: t, dir: 'in', phone: '919830000001', text: 'Hi' }]), { created: 0, updated: 0 });
 });

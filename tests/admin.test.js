@@ -520,7 +520,7 @@ test('WhatsApp messages become leads once, with history; patients and outgoing m
   const a = setup('2026-10-03');
   const t = new Date('2026-10-03T10:00:00').getTime();
   const msgs = [
-    { id: 'w1', at: t, dir: 'in', phone: '919876543210', name: 'Asha', text: 'Price of Mounjaro?' },
+    { id: 'w1', at: t, dir: 'in', phone: '919876543210', name: 'Asha', text: 'Hello! Can I get more info on this?' },
     { id: 'w2', at: t + 60000, dir: 'in', phone: '919876543210', name: 'Asha', text: 'Do you have weekend OPD?' },
     { id: 'w3', at: t + 90000, dir: 'out', phone: '919876543210', text: 'Yes, Sunday 10 AM' },
   ];
@@ -532,7 +532,12 @@ test('WhatsApp messages become leads once, with history; patients and outgoing m
   // An existing patient messaging does not become a lead.
   const m = a.saveMember({ name: 'Riya' }); const pro = byName(a, 'Protein Sachets'); a.adjustStock(pro.id, 2, 'count');
   a.saveSale({ type: 'protein', patientName: 'Ravi', mobile: '9876500000', itemId: pro.id, amount: 2500, refId: m.id });
-  assert.deepEqual(a.importWhatsApp([{ id: 'w9', at: t, dir: 'in', phone: '919876500000', text: 'Hello' }]), { created: 0, updated: 0 });
+  assert.deepEqual(a.importWhatsApp([{ id: 'w9', at: t, dir: 'in', phone: '919876500000', text: 'Hello! Can I get more info on this?' }]), { created: 0, updated: 0 });
+  // Only the ad message makes a lead; other first messages from new numbers do not.
+  assert.deepEqual(a.importWhatsApp([{ id: 'w11', at: t, dir: 'in', phone: '919830000002', text: 'Hi, are you open today?' }]), { created: 0, updated: 0 });
+  assert.equal(a.importWhatsApp([{ id: 'w12', at: t, dir: 'in', phone: '919830000003', text: 'hello!  can i get more INFO on this?' }]).created, 1, 'case and spaces ignored');
+  a.updateSettings({ waLeadPhrases: [] });
+  assert.equal(a.importWhatsApp([{ id: 'w13', at: t, dir: 'in', phone: '919830000004', text: 'Any message' }]).created, 1, 'empty list = every new number');
   a.updateSettings({ waAutoLead: false });
   assert.deepEqual(a.importWhatsApp([{ id: 'w10', at: t, dir: 'in', phone: '919830000001', text: 'Hi' }]), { created: 0, updated: 0 });
 });

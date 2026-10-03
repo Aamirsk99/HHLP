@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 4.1)
+ HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 4.2)
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
  Hindivine Healthcare Pvt. Ltd. · www.hindivine.com
 ================================================================================
@@ -14,7 +14,7 @@ from scratch by a developer or by an AI coding assistant. It has three parts:
           rule, every screen, exports, Google Sheet storage, Android build.
   PART C  Step-by-step rebuild and release checklist.
 
-The exact source code of version 4.1 is in the companion file
+The exact source code of version 4.2 is in the companion file
 "Hindivine_Admin_Full_Source.txt" (every file, with an unpack script). If you
 want an identical app, use that file. If you want to regenerate or extend the
 app, use this file.
@@ -330,7 +330,7 @@ Reports, Admin.
     Roles & permissions matrix (Super Admin only); Choice lists (chips with
     rename/remove + add) incl. inventory categories; Backup (export/import
     JSON), All reports, Erase all data (Super Admin).
-20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 4.1) and credits.
+20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 4.1, 4.2) and credits.
 Every drop-down backed by a list ends with "+ Add new…" which shows an
 inline input and saves the new option for everyone.
 Period options everywhere: Today, This month (auto), Choose month, Last
@@ -612,6 +612,14 @@ B25. VERSION 4.1 ADDITIONS
   pref waSeen), search, Fetch now; chat sheet with bubbles, Reply on
   WhatsApp (wa.me), Open lead / + Lead, Book OPD. Settings → Google Sheet
   card (Super Admin): switches, webhook link with copy, set-up steps.
+
+B26. VERSION 4.2 ADDITIONS
+--------------------------
+* settings.waLeadPhrases (default ["Hello! Can I get more info on this?"]):
+  importWhatsApp makes a lead for a new number only when the message
+  contains one of the phrases (lower-case, spaces collapsed); empty list =
+  any message. Messages from existing leads still go into their history.
+  Settings → Google Sheet → WhatsApp: textarea + "Save lead message".
 
 B14. TESTS (node --test tests/*.test.js)
 ----------------------------------------

@@ -71,6 +71,7 @@
         clinic: 'Hindivine Healthcare',
         clinicAddress: '', clinicPhone: '', clinicEmail: '',
         waOn: false, waAutoLead: true, // WhatsApp (Heyo / MyOperator) inbox; new numbers become leads
+        waLeadPhrases: ['Hello! Can I get more info on this?'], // a new number becomes a lead only if its message contains one (empty = any message)
         invoicePrefix: 'HV',
         invoiceItemName: 'Weight Loss Program', // what purchase invoices call the item (instead of the product name) // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
         legalNote: DEFAULT_LEGAL_NOTE, // terms printed on invoices
@@ -818,6 +819,9 @@
         let l = S.leads.find((x) => digits(x.mobile) === d);
         if (!l) {
           if (S.settings.waAutoLead === false || S.patients.some((p) => digits(p.mobile) === d)) return;
+          const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+          const phrases = (S.settings.waLeadPhrases || []).map(norm).filter(Boolean);
+          if (phrases.length && !phrases.some((ph) => norm(m.text).includes(ph))) return;
           l = { id: `wa${d}`, created: m.at, createdBy: 'WhatsApp', date: isoDate(new Date(m.at)), status: 'New', priority: 'warm', name: String(m.name || '').trim() || `WhatsApp ${d}`,
             mobile: d, source: 'WhatsApp', followUp: isoDate(new Date(m.at)), history: [{ at: m.at, by: 'WhatsApp', type: 'created', text: 'Lead added from WhatsApp' }] };
           S.leads.push(l);

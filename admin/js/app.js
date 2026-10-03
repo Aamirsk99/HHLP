@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.1';
+  const APP_VERSION = '4.2';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -865,6 +865,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.2', 'WhatsApp leads only from the ad message: a new number becomes a lead only when its message contains "Hello! Can I get more info on this?" (phrases editable in Settings → Google Sheet → WhatsApp; empty = any message). Other chats still show in the WhatsApp inbox.'],
     ['4.1', 'WhatsApp inbox for Heyo / MyOperator: messages arrive through the Google Sheet (webhook to the Apps Script, saved in a WhatsApp tab; optional pull from the MyOperator API with the key kept in Apps Script), WhatsApp screen with chats, unread counts, chat view, reply on WhatsApp, + lead and Book OPD; every new number becomes a lead (source WhatsApp) and messages are added to the lead history.'],
     ['4.0', 'Share invoices and OPD slips on WhatsApp: the PDF opens straight in the patient\'s WhatsApp chat with a short message (Share invoice / Share slip in the appointment, Share on WhatsApp in the invoice options); purchase invoices no longer show the product: the item reads "Weight Loss Program" or "Weight Loss Program (3 Months)", with the months entered on the sale or when making the invoice and the name editable (default in Settings).'],
     ['3.9', 'Premium non-GST invoices for patient purchases (Sales and Today) and OPD consultations: invoice numbers per financial year (HV/INV/26-27/0001, HV/OPD/26-27/0001), patient details, amount in words, paid / due, terms and "no signature required"; payment method on every sale; reports, images and slips print a note (computer-generated, no signature required), editable in Settings with the invoice terms and prefix; every sign-in, sign-out, wrong PIN and auto-lock is recorded in the activity log with a Sign-ins filter and last sign-in per person.'],
@@ -2007,7 +2008,9 @@
       ${isSuper && connected() ? sec('sheet', `<h2><span class="ic wa-ic-bg">${svg(ICON_WA)}</span>WhatsApp (Heyo / MyOperator)</h2>
         <div class="set-switches">
           <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waOn" ${set().waOn ? 'checked' : ''}> Show WhatsApp messages in the app (WhatsApp screen)</label>
-          <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waAutoLead" ${set().waAutoLead !== false ? 'checked' : ''}> Turn every new number into a lead (source: WhatsApp)</label></div>
+          <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waAutoLead" ${set().waAutoLead !== false ? 'checked' : ''}> Turn new numbers into leads (source: WhatsApp)</label></div>
+        <label class="f">Make a lead only when the message contains (one per line)<textarea id="wa-phrases" rows="2">${esc((set().waLeadPhrases || []).join('\n'))}</textarea><span class="hint">Default: the ad message "Hello! Can I get more info on this?". Leave empty to make a lead from any first message.</span></label>
+        <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="wa-phrases">Save lead message</button></div>
         <label class="f">Webhook link for Heyo / MyOperator<input id="wa-hook" readonly value="${esc(`${set().sheetsUrl}${set().sheetsUrl.includes('?') ? '&' : '?'}hook=whatsapp&key=${set().sheetsSecret}`)}"></label>
         <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm" data-act="wa-copy">Copy webhook link</button>${set().waOn ? '<button type="button" class="btn sm" data-act="wa-refresh">Fetch now</button>' : ''}</div>
         <ol class="steps"><li>Paste the updated <b>Code.gs</b> in Apps Script and deploy a new version.</li>
@@ -2517,6 +2520,11 @@
     'wa-toggle': (d) => {
       const k = d.k; admin.updateSettings({ [k]: !(set()[k] === true || (k === 'waAutoLead' && set()[k] !== false)) });
       render(); if (k === 'waOn' && set().waOn) waFetch(false, true);
+    },
+    'wa-phrases': () => {
+      const list = $('#wa-phrases').value.split('\n').map((x) => x.trim()).filter(Boolean);
+      admin.updateSettings({ waLeadPhrases: list });
+      toast(list.length ? `Leads only from: ${list.join(' · ')}` : 'Every new number becomes a lead');
     },
     'wa-copy': async () => {
       const t = $('#wa-hook').value;
