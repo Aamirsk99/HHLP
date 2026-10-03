@@ -609,7 +609,7 @@
           <span class="lead-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></span></div></div>`;
     };
     return `<div class="toolbar"><div class="scroll-x"><div class="seg">${tabs.map(([k, l]) => `<button type="button" data-leadtab="${k}" class="${leadF.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-        <span class="grow"></span>${exportBtns('leads')}<button class="btn" data-act="leads-import">${svg('<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>')}Import</button><button class="btn primary" data-act="new-lead">${svg('<path d="M12 5v14M5 12h14"/>')}New lead</button></div>
+        <span class="grow"></span>${exportBtns('leads')}<button class="btn primary" data-act="new-lead">${svg('<path d="M12 5v14M5 12h14"/>')}New lead</button></div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Open leads', num(st.open))}${kpi('New today', num(st.newToday), '', 'teal')}${kpi('Due today', num(st.dueToday), '', 'gold')}${kpi('Overdue', num(st.overdue), '', st.overdue ? 'bad' : '')}${kpi('Hot leads', num(st.hot), '', 'bad')}${kpi('Conversion', `${st.conversion}%`, `${st.won} of ${st.total}`, 'good')}</div>
       <div class="pipeline scroll-x">${pipeline.map(([x, n]) => `<button type="button" class="pipe ${leadF.status === x ? 'on' : ''}" data-leadstatus="${esc(x)}"><b>${n}</b><span>${esc(x)}</span></button>`).join('')}</div>
       <div class="filters"><div class="row">
@@ -732,7 +732,7 @@
   const WA_KEY = 'hindivine.admin.wa';
   const waCache = () => { try { const c = JSON.parse(lsGet(WA_KEY, 'null')); return c && Array.isArray(c.list) ? c : { at: 0, list: [] }; } catch (_) { return { at: 0, list: [] }; } };
   const waSeen = () => prefs().waSeen || {};
-  const waOn = () => connected() && set().waOn === true;
+  const waOn = () => connected(); // WhatsApp = the MyOperator chats read into the app
   let waBusy = false;
   let waNote = '';
   async function waFetch(pull, manual) {
@@ -763,7 +763,6 @@
       if (manual) toast(fresh.length ? `${plural(fresh.length, 'new WhatsApp message')}` : waNote || 'No new WhatsApp messages');
     } catch (err) { if (manual) toast(err.message, true); } finally { waBusy = false; }
   }
-  setInterval(() => { if (role && can('whatsapp')) waFetch(false, false); }, 45000);
 
   // ── MyOperator / Heyo panel inside the Android app: read the chats it loads and make leads ──
   const onHeyoApp = () => !!(window.AndroidBridge && window.AndroidBridge.openHeyo);
@@ -843,15 +842,14 @@
   SUBS.whatsapp = () => (waOn() ? 'Heyo / MyOperator messages' : 'Not switched on');
   SCREENS.whatsapp = () => {
     if (!waOn()) {
-      return `<section class="card empty">${svg(ICON_WA)}<h2>Connect WhatsApp</h2><p class="hint">WhatsApp messages from Heyo / MyOperator arrive through your Google Sheet.${connected() ? '' : ' Connect the Google Sheet first.'}</p>
-        ${role === 'super' ? '<button class="btn primary" data-act="wa-setup">Set up in Settings → Google Sheet</button>' : '<p class="hint">Ask the Super Admin to switch it on in Settings.</p>'}</section>`;
+      return `<section class="card empty">${svg(ICON_WA)}<h2>Connect WhatsApp</h2><p class="hint">Connect the Google Sheet first, then log in to MyOperator in Settings.</p></section>`;
     }
     const q = String(gf('whatsapp').q || '').toLowerCase();
     const list = waThreads().filter((t) => !q || `${t.name} ${t.phone} ${t.msgs.map((m) => m.text).join(' ')}`.toLowerCase().includes(q));
     const unread = list.reduce((a, t) => a + t.unread, 0);
     return `<div class="toolbar">${fSearch('whatsapp', 'Search name, number or message')}<span class="grow"></span>
-        <button type="button" class="btn sm" data-act="leads-import">Import Heyo export</button>
-        <button type="button" class="btn sm" data-act="wa-refresh">${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}Fetch now</button></div>
+        <button type="button" class="btn sm primary" data-act="heyo-open">Open MyOperator & read chats</button>
+        <button type="button" class="btn sm" data-act="heyo-sync">${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}Sync now</button></div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Chats', num(list.length))}${kpi('Unread', num(unread), '', unread ? 'warn' : 'good')}${kpi('Messages', num(waCache().list.length), '', 'teal')}${kpi('Leads from WhatsApp', num(S().leads.filter((l) => l.source === 'WhatsApp').length), '', 'violet')}</div>
       ${waNote ? `<p class="hint">${esc(waNote)}</p>` : ''}
       <div class="wa-list">${list.map((t) => {
@@ -988,7 +986,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
-    ['4.4', 'Connect MyOperator / Heyo by logging in (no webhook): Settings → Google Sheet → WhatsApp → "Open MyOperator & read chats" opens the panel inside the app; the chats it loads become leads and whoever a chat is assigned to on MyOperator becomes the lead\'s "Assigned to" (match each panel person to an app login once). Also Leads → Import (and WhatsApp → Import Heyo export) reads a CSV or Excel export of chats or contacts, finds the phone, name, message and date columns, shows a preview and adds new numbers as leads (by default only rows with the ad message; known leads and patients skipped). Settings → Google Sheet → WhatsApp → Test MyOperator API checks which MyOperator endpoints answer with the key saved in Apps Script, to set up automatic fetching.'],
+    ['4.4', 'WhatsApp leads from MyOperator / Heyo by logging in — no webhook, no export file. Settings → WhatsApp → "Open MyOperator & read chats" opens your panel (in.app.myoperator.com/chat) inside the app; it reads the chat names and numbers straight off the screen (and the panel\'s live messages), auto-scrolls to load more, and makes a lead for each number — only the ones with the ad message by default (clear the phrase box to take every chat). Whoever a chat is assigned to on MyOperator becomes the lead\'s "Assigned to" after you match each person to a staff login once. Duplicates (already a lead or patient) are skipped. The older webhook, API-test and file-import methods were removed.'],
     ['4.3', 'Leads in their own Google spreadsheet: Settings → Google Sheet → Leads spreadsheet can create a new "Hindivine Leads" sheet, connect an existing one or go back to the main sheet; the Leads tab and the WhatsApp messages tab then go there instead of the main clinic sheet.'],
     ['4.2', 'WhatsApp leads only from the ad message: a new number becomes a lead only when its message contains "Hello! Can I get more info on this?" (phrases editable in Settings → Google Sheet → WhatsApp; empty = any message). Other chats still show in the WhatsApp inbox.'],
     ['4.1', 'WhatsApp inbox for Heyo / MyOperator: messages arrive through the Google Sheet (webhook to the Apps Script, saved in a WhatsApp tab; optional pull from the MyOperator API with the key kept in Apps Script), WhatsApp screen with chats, unread counts, chat view, reply on WhatsApp, + lead and Book OPD; every new number becomes a lead (source WhatsApp) and messages are added to the lead history.'],
@@ -2140,26 +2138,19 @@
         <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm" data-act="leads-sheet" data-mode="connect">Connect this sheet</button></div>
         <p class="hint" style="margin:0">The sheet must be shared with (or owned by) the Google account that runs the Apps Script. Update Code.gs and deploy a new version first.</p>`;
       })()) : ''}
-      ${isSuper && connected() ? sec('sheet', `<h2><span class="ic wa-ic-bg">${svg(ICON_WA)}</span>WhatsApp (Heyo / MyOperator)</h2>
+      ${isSuper && connected() ? sec('sheet', `<h2><span class="ic wa-ic-bg">${svg(ICON_WA)}</span>WhatsApp leads from MyOperator / Heyo</h2>
+        <p class="hint" style="margin-top:0">Log in to MyOperator once, inside the app. It reads your WhatsApp chats and turns the numbers into leads, and copies who each chat is assigned to on MyOperator. ${onHeyoApp() ? '' : '<b>Open this in the Hindivine Admin app on your phone to use it.</b>'}</p>
+        <label class="f">MyOperator panel link<input id="heyo-url" value="${esc(set().heyoUrl || 'https://in.app.myoperator.com/chat')}"></label>
+        <label class="f">Your WhatsApp number(s) — so sent messages aren't counted as new leads (separate several with a comma)<input id="heyo-num" placeholder="e.g. 911234567890, 919876500000" value="${esc(set().waNumber || '')}"></label>
         <div class="set-switches">
-          <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waOn" ${set().waOn ? 'checked' : ''}> Show WhatsApp messages in the app (WhatsApp screen)</label>
-          <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waAutoLead" ${set().waAutoLead !== false ? 'checked' : ''}> Turn new numbers into leads (source: WhatsApp)</label></div>
-        <label class="f">Make a lead only when the message contains (one per line)<textarea id="wa-phrases" rows="2">${esc((set().waLeadPhrases || []).join('\n'))}</textarea><span class="hint">Default: the ad message "Hello! Can I get more info on this?". Leave empty to make a lead from any first message.</span></label>
-        <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="wa-phrases">Save lead message</button></div>
-        <div class="set-card" style="margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:12px">
-          <h3 style="margin:0 0 6px">Connect MyOperator by logging in (no webhook needed)</h3>
-          <p class="hint" style="margin:0 0 8px">Log in to the MyOperator / Heyo panel inside the app once. The app reads the chats the panel shows and turns new numbers into leads; whoever a chat is assigned to on MyOperator becomes the lead's "Assigned to" here. ${onHeyoApp() ? '' : '<b>Open this in the Hindivine Admin app on your phone to use it.</b>'}</p>
-          <label class="f">MyOperator panel link<input id="heyo-url" value="${esc(set().heyoUrl || 'https://in.app.myoperator.com/')}"></label>
-          <label class="f">Your WhatsApp number(s) — so the app knows outgoing from incoming (separate several with a comma)<input id="heyo-num" placeholder="e.g. 911234567890, 919876500000" value="${esc(set().waNumber || '')}"></label>
           <label class="check"><input type="checkbox" id="heyo-assign" ${set().heyoAssign !== false ? 'checked' : ''}> Copy the assigned person from MyOperator to the lead</label>
-          <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="heyo-open">Open MyOperator & read chats</button><button type="button" class="btn sm" data-act="heyo-sync">Sync now</button><button type="button" class="btn sm" data-act="heyo-save">Save</button><button type="button" class="btn sm danger" data-act="heyo-logout">Log out</button></div>
-          ${(set().heyoSeen || []).length ? `<p class="hint" style="margin:8px 0 0">People seen on MyOperator: ${(set().heyoSeen || []).map((a) => esc(a)).join(', ')}.</p>` : ''}
-        </div>
-        <label class="f" style="margin-top:12px">Webhook link for Heyo / MyOperator<input id="wa-hook" readonly value="${esc(`${set().sheetsUrl}${set().sheetsUrl.includes('?') ? '&' : '?'}hook=whatsapp&key=${set().sheetsSecret}`)}"></label>
-        <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm" data-act="wa-copy">Copy webhook link</button><button type="button" class="btn sm" data-act="myop-probe">Test MyOperator API</button><button type="button" class="btn sm" data-act="leads-import">Import Heyo export</button>${set().waOn ? '<button type="button" class="btn sm" data-act="wa-refresh">Fetch now</button>' : ''}</div>
-        <ol class="steps"><li>Paste the updated <b>Code.gs</b> in Apps Script and deploy a new version.</li>
-          <li>In Heyo / MyOperator, set the incoming WhatsApp message webhook to the link above. Every message is saved in the sheet's <b>WhatsApp</b> tab and shows here within a minute.</li>
-          <li>Optional, to fetch through the MyOperator API: Apps Script → Project Settings → Script Properties: <b>MYOP_API_KEY</b>, <b>MYOP_COMPANY_ID</b> and <b>MYOP_LIST_PATH</b> (the messages endpoint from MyOperator), then run <b>installWhatsAppPull</b>. The key stays in Google, never in the app.</li></ol>`) : ''}
+          <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waAutoLead" ${set().waAutoLead !== false ? 'checked' : ''}> Turn new numbers into leads</label></div>
+        <label class="f">Make a lead only from chats whose message contains (one per line — leave empty to make a lead from every chat)<textarea id="wa-phrases" rows="2">${esc((set().waLeadPhrases || []).join('\n'))}</textarea></label>
+        <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="heyo-open">Open MyOperator & read chats</button><button type="button" class="btn sm" data-act="heyo-sync">Sync now</button><button type="button" class="btn sm" data-act="heyo-save">Save settings</button><button type="button" class="btn sm danger" data-act="heyo-logout">Log out</button></div>
+        ${(set().heyoSeen || []).length ? `<p class="hint" style="margin:8px 0 0">People seen on MyOperator: ${(set().heyoSeen || []).map((a) => esc(a)).join(', ')}.</p>` : ''}
+        <ol class="steps"><li>Tap <b>Open MyOperator & read chats</b> and log in. The top bar shows <b>Connected ✓</b> and a count as it reads.</li>
+          <li><b>Scroll the chat list and open your chats</b> so the numbers load, then tap <b>Done</b>.</li>
+          <li>The first time, match each MyOperator person to a staff login. New leads then appear in the Leads screen.</li></ol>`) : ''}
     </form>
     ${sec('clinic', `<h2><span class="ic">${svg('<path d="M12 4v16M4 12h16"/><rect x="3" y="3" width="18" height="18" rx="5"/>')}</span>Doctors & clinics</h2>
       <p class="hint" style="margin-top:0">Choose these when booking an OPD appointment; they print on the OPD slip. Add, rename (✎) or remove (✕).</p>
@@ -2649,7 +2640,6 @@
         toast(shareIt ? 'Opening WhatsApp…' : `Invoice ${no} ready`);
       } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
     },
-    'wa-refresh': () => waFetch(true, true),
     'heyo-open': () => heyoOpen(),
     'heyo-sync': () => heyoPull(true),
     'heyo-logout': async () => {
@@ -2659,7 +2649,8 @@
     },
     'heyo-save': () => {
       const nums = String($('#heyo-num').value || '').split(/[^0-9]+/).filter((x) => x.length >= 10).join(', ');
-      admin.updateSettings({ heyoUrl: ($('#heyo-url').value || '').trim() || 'https://in.app.myoperator.com/', waNumber: nums, heyoAssign: !!($('#heyo-assign') && $('#heyo-assign').checked) });
+      const phrases = ($('#wa-phrases') ? $('#wa-phrases').value : '').split('\n').map((x) => x.trim()).filter(Boolean);
+      admin.updateSettings({ heyoUrl: ($('#heyo-url').value || '').trim() || 'https://in.app.myoperator.com/chat', waNumber: nums, heyoAssign: !!($('#heyo-assign') && $('#heyo-assign').checked), waLeadPhrases: phrases });
       toast('MyOperator settings saved'); render();
     },
     'wa-setup': () => { setTab = 'sheet'; go('settings'); },
@@ -2676,7 +2667,7 @@
     },
     'wa-toggle': (d) => {
       const k = d.k; admin.updateSettings({ [k]: !(set()[k] === true || (k === 'waAutoLead' && set()[k] !== false)) });
-      render(); if (k === 'waOn' && set().waOn) waFetch(false, true);
+      render();
     },
     'leads-sheet': async (d) => {
       const ref = d.mode === 'connect' ? ($('#leads-ref').value || '').trim() : '';
@@ -2691,31 +2682,6 @@
         render();
         toast(out.leadsSheet && out.leadsSheet.separate ? `Leads now go to “${out.leadsSheet.name}”` : 'Leads now go to the main sheet');
       } catch (err) { toast(err.message.includes('Bad JSON') || err.message.includes('refused') ? 'Update Code.gs in Apps Script and deploy a new version, then try again' : err.message, true); }
-    },
-    'leads-import': () => pickImportFile(),
-    'myop-probe': async () => {
-      toast('Testing the MyOperator API… (takes up to a minute)');
-      try {
-        const url = set().sheetsUrl;
-        const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}action=myopprobe&secret=${encodeURIComponent(set().sheetsSecret)}`);
-        const out = await res.json();
-        if (!out.ok) throw new Error(out.error || 'Update Code.gs and deploy a new version first');
-        const list = Array.isArray(out.probe) ? out.probe : [];
-        openForm({
-          title: 'MyOperator API test', submitLabel: false,
-          html: out.probe && out.probe.error ? `<p>${esc(out.probe.error)}</p>` : `<p class="hint" style="margin:0">Green = the endpoint answered. Send a screenshot of this to set up automatic fetching.</p>
-            <div class="tbl-wrap"><table class="rt"><thead><tr><th>Endpoint</th><th class="r">Status</th><th class="r">Msgs</th><th>Answer</th></tr></thead><tbody>${list.map((x) => `<tr><td><b>${esc(x.path)}</b></td><td class="r"><span class="badge ${x.status >= 200 && x.status < 300 ? 'ok' : x.status === 401 || x.status === 403 ? 'warn' : ''}">${x.status}</span></td><td class="r">${x.messages}</td><td><small>${esc(x.sample)}</small></td></tr>`).join('')}</tbody></table></div>`,
-        });
-      } catch (err) { toast(err.message, true); }
-    },
-    'wa-phrases': () => {
-      const list = $('#wa-phrases').value.split('\n').map((x) => x.trim()).filter(Boolean);
-      admin.updateSettings({ waLeadPhrases: list });
-      toast(list.length ? `Leads only from: ${list.join(' · ')}` : 'Every new number becomes a lead');
-    },
-    'wa-copy': async () => {
-      const t = $('#wa-hook').value;
-      try { await navigator.clipboard.writeText(t); toast('Webhook link copied'); } catch (_) { $('#wa-hook').select(); toast('Select and copy the link'); }
     },
     'gf-clear': (d) => { GF[d.sc] = {}; render(); },
     'today-export-reset': () => { setPref('todayExport', TODAY_EXPORT_DEFAULT); todayExportForm(($('#modal-body .exp-fmt .on') || { dataset: { expfmt: 'pdf' } }).dataset.expfmt); },

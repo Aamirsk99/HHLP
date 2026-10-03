@@ -612,3 +612,24 @@ test('MyOperator socket.io / nested payloads parse into chats', () => {
   assert.deepEqual(p.convs.map((c) => [c.phone, c.name, c.assignee]), [['9000012345', 'Vikram', 'Priya Das']]);
   assert.deepEqual(p.msgs.map((m) => [m.phone, m.dir, m.text]), [['9000012345', 'in', 'Hello! Can I get more info on this?']]);
 });
+
+test('MyOperator on-screen scrape: only ad-message chats become leads, rest with empty phrase', () => {
+  const a = setup('2026-10-03');
+  // Shape produced by the screen scraper: conversations with phone, name and the row text.
+  const convs = [
+    { phone: '9830011111', name: 'Asha Sharma', text: 'Asha Sharma Hello! Can I get more info on this?' },
+    { phone: '9830022222', name: 'Ravi Kumar', text: 'Ravi Kumar price?' },
+  ];
+  const data = A.parseChatCapture({ conversations: convs }, ['910000000000']);
+  assert.equal(data.convs.length, 2);
+  // Default phrase = the ad message: only Asha qualifies.
+  let r = a.heyoSync(data);
+  assert.equal(r.created, 1);
+  assert.ok(a.state.leads.some((l) => l.mobile === '9830011111'));
+  assert.ok(!a.state.leads.some((l) => l.mobile === '9830022222'));
+  // Clearing the phrase makes every chat a lead; no duplicate for Asha.
+  a.updateSettings({ waLeadPhrases: [] });
+  r = a.heyoSync(A.parseChatCapture({ conversations: convs }, []));
+  assert.equal(r.created, 1);
+  assert.equal(a.state.leads.filter((l) => l.mobile === '9830011111').length, 1);
+});
