@@ -62,7 +62,7 @@ if [ "$APP" = admin ]; then
   if [ -n "${SHEET_ENV:-}" ]; then . "$SHEET_ENV"; fi
   if [ -n "${HDV_SHEET_URL:-}" ]; then
     echo "  (built-in Google Sheet connection included)"
-    node -e 'const [u, k] = process.argv.slice(1); process.stdout.write(`window.HDV_CONFIG = ${JSON.stringify({ sheetsUrl: u, sheetsSecret: k, sheetName: "Hindivine" })};\n`);' "$HDV_SHEET_URL" "${HDV_SHEET_SECRET:-}" > "$BUILD/assets/www/admin/js/config.js"
+    node -e 'const [u, k, h, w] = process.argv.slice(1); const c = { sheetsUrl: u, sheetsSecret: k, sheetName: "Hindivine" }; if (h) c.heyoUrl = h; if (w) c.waNumber = w; process.stdout.write(`window.HDV_CONFIG = ${JSON.stringify(c)};\n`);' "$HDV_SHEET_URL" "${HDV_SHEET_SECRET:-}" "${HDV_HEYO_URL:-}" "${HDV_WA_NUMBER:-}" > "$BUILD/assets/www/admin/js/config.js"
   fi
 else
   cp "$ROOT/index.html" "$BUILD/assets/www/"

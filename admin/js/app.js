@@ -43,6 +43,9 @@
   if (BUILT.sheetsUrl && !admin.state.settings.sheetsUrl && lsGet(SHEET_OFF_KEY, '') !== '1') {
     admin.updateSettings({ sheetsUrl: BUILT.sheetsUrl, sheetsSecret: BUILT.sheetsSecret || '' });
   }
+  // Clinic build: MyOperator panel link and the clinic's own WhatsApp number(s), set once if not chosen yet.
+  if (BUILT.heyoUrl && !lsGet('hindivine.admin.heyoSeed', '')) { admin.updateSettings({ heyoUrl: BUILT.heyoUrl }); lsSet('hindivine.admin.heyoSeed', '1'); }
+  if (BUILT.waNumber && !set().waNumber) admin.updateSettings({ waNumber: BUILT.waNumber });
 
   const $ = (sel, el) => (el || document).querySelector(sel);
   const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
@@ -767,7 +770,7 @@
   let heyoBusy = false;
   function heyoOpen() {
     if (!onHeyoApp()) { toast('Open this in the Hindivine Admin app to log in to MyOperator', true); return; }
-    try { window.AndroidBridge.openHeyo(set().heyoUrl || 'https://my.myoperator.co/'); } catch (_) { toast('Could not open MyOperator', true); }
+    try { window.AndroidBridge.openHeyo(set().heyoUrl || 'https://in.app.myoperator.com/'); } catch (_) { toast('Could not open MyOperator', true); }
   }
   async function heyoPull(manual) {
     if (heyoBusy) return;
@@ -778,7 +781,7 @@
       let raw;
       try { raw = JSON.parse(b.heyoTake() || '[]'); } catch (_) { raw = []; }
       if (!raw.length) { if (manual) toast('Open MyOperator and view your chats first'); return; }
-      const own = [set().waNumber].filter(Boolean);
+      const own = String(set().waNumber || '').split(/[^0-9]+/).filter((x) => x.length >= 10);
       const msgs = []; const convs = new Map();
       raw.forEach((r) => {
         let data; try { data = JSON.parse(r.body); } catch (_) { return; }
@@ -2144,8 +2147,8 @@
         <div class="set-card" style="margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:12px">
           <h3 style="margin:0 0 6px">Connect MyOperator by logging in (no webhook needed)</h3>
           <p class="hint" style="margin:0 0 8px">Log in to the MyOperator / Heyo panel inside the app once. The app reads the chats the panel shows and turns new numbers into leads; whoever a chat is assigned to on MyOperator becomes the lead's "Assigned to" here. ${onHeyoApp() ? '' : '<b>Open this in the Hindivine Admin app on your phone to use it.</b>'}</p>
-          <label class="f">MyOperator panel link<input id="heyo-url" value="${esc(set().heyoUrl || 'https://my.myoperator.co/')}"></label>
-          <label class="f">Your WhatsApp Business number (so the app knows outgoing from incoming)<input id="heyo-num" inputmode="numeric" placeholder="e.g. 918920831975" value="${esc(set().waNumber || '')}"></label>
+          <label class="f">MyOperator panel link<input id="heyo-url" value="${esc(set().heyoUrl || 'https://in.app.myoperator.com/')}"></label>
+          <label class="f">Your WhatsApp number(s) — so the app knows outgoing from incoming (separate several with a comma)<input id="heyo-num" placeholder="e.g. 911234567890, 919876500000" value="${esc(set().waNumber || '')}"></label>
           <label class="check"><input type="checkbox" id="heyo-assign" ${set().heyoAssign !== false ? 'checked' : ''}> Copy the assigned person from MyOperator to the lead</label>
           <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="heyo-open">Open MyOperator & read chats</button><button type="button" class="btn sm" data-act="heyo-sync">Sync now</button><button type="button" class="btn sm" data-act="heyo-save">Save</button><button type="button" class="btn sm danger" data-act="heyo-logout">Log out</button></div>
           ${(set().heyoSeen || []).length ? `<p class="hint" style="margin:8px 0 0">People seen on MyOperator: ${(set().heyoSeen || []).map((a) => esc(a)).join(', ')}.</p>` : ''}
@@ -2653,7 +2656,8 @@
       toast('Logged out of MyOperator');
     },
     'heyo-save': () => {
-      admin.updateSettings({ heyoUrl: ($('#heyo-url').value || '').trim() || 'https://my.myoperator.co/', waNumber: ($('#heyo-num').value || '').replace(/\D/g, ''), heyoAssign: !!($('#heyo-assign') && $('#heyo-assign').checked) });
+      const nums = String($('#heyo-num').value || '').split(/[^0-9]+/).filter((x) => x.length >= 10).join(', ');
+      admin.updateSettings({ heyoUrl: ($('#heyo-url').value || '').trim() || 'https://in.app.myoperator.com/', waNumber: nums, heyoAssign: !!($('#heyo-assign') && $('#heyo-assign').checked) });
       toast('MyOperator settings saved'); render();
     },
     'wa-setup': () => { setTab = 'sheet'; go('settings'); },

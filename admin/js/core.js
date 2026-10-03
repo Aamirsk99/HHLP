@@ -73,7 +73,7 @@
         waOn: false, waAutoLead: true, // WhatsApp (Heyo / MyOperator) inbox; new numbers become leads
         waLeadPhrases: ['Hello! Can I get more info on this?'], // a new number becomes a lead only if its message contains one (empty = any message)
         // MyOperator / Heyo panel opened inside the Android app: chats it loads are read and synced.
-        heyoUrl: 'https://my.myoperator.co/', heyoAuto: true, heyoEvery: 5, heyoAssign: true, waNumber: '',
+        heyoUrl: 'https://in.app.myoperator.com/', heyoAuto: true, heyoEvery: 5, heyoAssign: true, waNumber: '',
         heyoAgents: {}, heyoSeen: [], // panel agent name (lower case) → login id; agent names seen so far
         invoicePrefix: 'HV',
         invoiceItemName: 'Weight Loss Program', // what purchase invoices call the item (instead of the product name) // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
