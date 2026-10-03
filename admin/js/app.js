@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.3';
+  const APP_VERSION = '4.4';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -606,7 +606,7 @@
           <span class="lead-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></span></div></div>`;
     };
     return `<div class="toolbar"><div class="scroll-x"><div class="seg">${tabs.map(([k, l]) => `<button type="button" data-leadtab="${k}" class="${leadF.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-        <span class="grow"></span>${exportBtns('leads')}<button class="btn primary" data-act="new-lead">${svg('<path d="M12 5v14M5 12h14"/>')}New lead</button></div>
+        <span class="grow"></span>${exportBtns('leads')}<button class="btn" data-act="leads-import">${svg('<path d="M12 21V9M7 14l5-5 5 5M5 3h14"/>')}Import</button><button class="btn primary" data-act="new-lead">${svg('<path d="M12 5v14M5 12h14"/>')}New lead</button></div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Open leads', num(st.open))}${kpi('New today', num(st.newToday), '', 'teal')}${kpi('Due today', num(st.dueToday), '', 'gold')}${kpi('Overdue', num(st.overdue), '', st.overdue ? 'bad' : '')}${kpi('Hot leads', num(st.hot), '', 'bad')}${kpi('Conversion', `${st.conversion}%`, `${st.won} of ${st.total}`, 'good')}</div>
       <div class="pipeline scroll-x">${pipeline.map(([x, n]) => `<button type="button" class="pipe ${leadF.status === x ? 'on' : ''}" data-leadstatus="${esc(x)}"><b>${n}</b><span>${esc(x)}</span></button>`).join('')}</div>
       <div class="filters"><div class="row">
@@ -787,6 +787,7 @@
     const list = waThreads().filter((t) => !q || `${t.name} ${t.phone} ${t.msgs.map((m) => m.text).join(' ')}`.toLowerCase().includes(q));
     const unread = list.reduce((a, t) => a + t.unread, 0);
     return `<div class="toolbar">${fSearch('whatsapp', 'Search name, number or message')}<span class="grow"></span>
+        <button type="button" class="btn sm" data-act="leads-import">Import Heyo export</button>
         <button type="button" class="btn sm" data-act="wa-refresh">${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}Fetch now</button></div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Chats', num(list.length))}${kpi('Unread', num(unread), '', unread ? 'warn' : 'good')}${kpi('Messages', num(waCache().list.length), '', 'teal')}${kpi('Leads from WhatsApp', num(S().leads.filter((l) => l.source === 'WhatsApp').length), '', 'violet')}</div>
       ${waNote ? `<p class="hint">${esc(waNote)}</p>` : ''}
@@ -821,6 +822,65 @@
     setTimeout(() => { const c = $('#wa-chat'); if (c) c.scrollTop = c.scrollHeight; }, 30);
     renderNav();
     if (screen === 'whatsapp') render();
+  }
+
+  // ── Import leads from a file (Heyo / MyOperator export, any CSV or Excel) ──────────
+  const COLS = {
+    phone: /phone|mobile|number|contact|whatsapp|msisdn|wa.?id|customer.?no/i,
+    name: /^(name|full.?name|customer.?name|contact.?name|profile.?name|lead.?name|customer|contact)$/i,
+    message: /message|text|chat|last.?msg|body|query|content/i,
+    date: /date|time|created|received|last.?seen|timestamp/i,
+    city: /city|location|area/i,
+  };
+  function pickImportFile() {
+    const inp = document.createElement('input');
+    inp.type = 'file'; inp.accept = '.csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+    inp.onchange = () => { if (inp.files && inp.files[0]) readImportFile(inp.files[0]); };
+    inp.click();
+  }
+  function readImportFile(file) {
+    const fr = new FileReader();
+    fr.onload = () => {
+      try {
+        const wb = window.XLSX.read(new Uint8Array(fr.result), { type: 'array', cellDates: true });
+        const sh = wb.Sheets[wb.SheetNames[0]];
+        const raw = window.XLSX.utils.sheet_to_json(sh, { header: 1, raw: false, defval: '' });
+        // Header row = the row in the top 10 naming the most known columns (a title row like "WhatsApp export" only names one).
+        const score = (r) => Object.values(COLS).filter((re) => r.some((c) => re.test(String(c).trim()))).length;
+        let hi = 0;
+        raw.slice(0, 10).forEach((r, i) => { if (score(r) > score(raw[hi])) hi = i; });
+        const head = raw[hi].map((c) => String(c).trim());
+        const find = (k, not) => head.findIndex((h, i) => COLS[k].test(h) && !not.includes(i));
+        const ix = {}; const used = [];
+        ['phone', 'message', 'date', 'city', 'name'].forEach((k) => { ix[k] = find(k, used); if (ix[k] >= 0) used.push(ix[k]); });
+        if (ix.name < 0) ix.name = head.findIndex((h, i) => /name/i.test(h) && !used.includes(i));
+        if (ix.phone < 0) throw new Error('No phone / mobile column found in this file');
+        const rows = raw.slice(hi + 1).map((r) => ({ phone: r[ix.phone], name: ix.name >= 0 ? r[ix.name] : '', message: ix.message >= 0 ? r[ix.message] : '', date: ix.date >= 0 ? r[ix.date] : '', city: ix.city >= 0 ? r[ix.city] : '' }))
+          .filter((r) => String(r.phone || '').replace(/\D/g, '').length >= 10);
+        importPreview(file.name, head, ix, rows);
+      } catch (err) { toast(`Could not read the file: ${err.message}`, true); }
+    };
+    fr.readAsArrayBuffer(file);
+  }
+  function importPreview(fileName, head, ix, rows) {
+    const col = (k) => (ix[k] >= 0 ? esc(head[ix[k]]) : '<span class="hint">not found</span>');
+    const phrase = (set().waLeadPhrases || [])[0] || '';
+    const matching = rows.filter((r) => phrase && String(r.message || '').toLowerCase().replace(/\s+/g, ' ').includes(phrase.toLowerCase().replace(/\s+/g, ' '))).length;
+    openForm({
+      title: 'Import leads', submitLabel: 'Import leads',
+      html: `<p class="hint" style="margin:0"><b>${esc(fileName)}</b> · ${plural(rows.length, 'row')} with a phone number</p>
+        <dl class="detail-list"><div><dt>Phone</dt><dd>${col('phone')}</dd></div><div><dt>Name</dt><dd>${col('name')}</dd></div><div><dt>Message</dt><dd>${col('message')}</dd></div><div><dt>Date</dt><dd>${col('date')}</dd></div><div><dt>City</dt><dd>${col('city')}</dd></div></dl>
+        <div class="grid"><label class="f">Lead source${listSelect('leadSources', 'id="im-source"', 'WhatsApp')}</label></div>
+        ${ix.message >= 0 && phrase ? `<label class="check"><input type="checkbox" id="im-only" checked> Only rows whose message contains “${esc(phrase)}” (${num(matching)} rows)</label>` : ''}
+        <div class="tbl-wrap"><table class="rt"><thead><tr><th>Phone</th><th>Name</th><th>Message</th></tr></thead><tbody>${rows.slice(0, 6).map((r) => `<tr><td>${esc(r.phone)}</td><td>${esc(r.name || '-')}</td><td>${esc(String(r.message || '').slice(0, 60))}</td></tr>`).join('')}</tbody></table></div>
+        <p class="hint" style="margin:0">Numbers that are already leads or patients are skipped.</p>`,
+      onSubmit: () => {
+        if (!rows.length) throw new Error('No rows with a phone number to import');
+        const src = $('#im-source').value === '__new__' ? 'WhatsApp' : $('#im-source').value;
+        const res = admin.importLeads(rows, { source: src || 'WhatsApp', onlyPhrases: !!($('#im-only') && $('#im-only').checked), fileName });
+        return `Imported ${plural(res.added, 'lead')}${res.dupes ? ` · ${res.dupes} already known` : ''}${res.skipped ? ` · ${res.skipped} skipped` : ''}`;
+      },
+    });
   }
 
   // ── Activity log: every change, who made it and when ─────────
@@ -865,6 +925,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.4', 'Heyo / MyOperator without a webhook: Leads → Import (and WhatsApp → Import Heyo export) reads a CSV or Excel export of chats or contacts, finds the phone, name, message and date columns, shows a preview and adds new numbers as leads (by default only rows with the ad message; known leads and patients skipped). Settings → Google Sheet → WhatsApp → Test MyOperator API checks which MyOperator endpoints answer with the key saved in Apps Script, to set up automatic fetching.'],
     ['4.3', 'Leads in their own Google spreadsheet: Settings → Google Sheet → Leads spreadsheet can create a new "Hindivine Leads" sheet, connect an existing one or go back to the main sheet; the Leads tab and the WhatsApp messages tab then go there instead of the main clinic sheet.'],
     ['4.2', 'WhatsApp leads only from the ad message: a new number becomes a lead only when its message contains "Hello! Can I get more info on this?" (phrases editable in Settings → Google Sheet → WhatsApp; empty = any message). Other chats still show in the WhatsApp inbox.'],
     ['4.1', 'WhatsApp inbox for Heyo / MyOperator: messages arrive through the Google Sheet (webhook to the Apps Script, saved in a WhatsApp tab; optional pull from the MyOperator API with the key kept in Apps Script), WhatsApp screen with chats, unread counts, chat view, reply on WhatsApp, + lead and Book OPD; every new number becomes a lead (source WhatsApp) and messages are added to the lead history.'],
@@ -2023,7 +2084,7 @@
         <label class="f">Make a lead only when the message contains (one per line)<textarea id="wa-phrases" rows="2">${esc((set().waLeadPhrases || []).join('\n'))}</textarea><span class="hint">Default: the ad message "Hello! Can I get more info on this?". Leave empty to make a lead from any first message.</span></label>
         <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="wa-phrases">Save lead message</button></div>
         <label class="f">Webhook link for Heyo / MyOperator<input id="wa-hook" readonly value="${esc(`${set().sheetsUrl}${set().sheetsUrl.includes('?') ? '&' : '?'}hook=whatsapp&key=${set().sheetsSecret}`)}"></label>
-        <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm" data-act="wa-copy">Copy webhook link</button>${set().waOn ? '<button type="button" class="btn sm" data-act="wa-refresh">Fetch now</button>' : ''}</div>
+        <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm" data-act="wa-copy">Copy webhook link</button><button type="button" class="btn sm" data-act="myop-probe">Test MyOperator API</button><button type="button" class="btn sm" data-act="leads-import">Import Heyo export</button>${set().waOn ? '<button type="button" class="btn sm" data-act="wa-refresh">Fetch now</button>' : ''}</div>
         <ol class="steps"><li>Paste the updated <b>Code.gs</b> in Apps Script and deploy a new version.</li>
           <li>In Heyo / MyOperator, set the incoming WhatsApp message webhook to the link above. Every message is saved in the sheet's <b>WhatsApp</b> tab and shows here within a minute.</li>
           <li>Optional, to fetch through the MyOperator API: Apps Script → Project Settings → Script Properties: <b>MYOP_API_KEY</b>, <b>MYOP_COMPANY_ID</b> and <b>MYOP_LIST_PATH</b> (the messages endpoint from MyOperator), then run <b>installWhatsAppPull</b>. The key stays in Google, never in the app.</li></ol>`) : ''}
@@ -2546,6 +2607,22 @@
         render();
         toast(out.leadsSheet && out.leadsSheet.separate ? `Leads now go to “${out.leadsSheet.name}”` : 'Leads now go to the main sheet');
       } catch (err) { toast(err.message.includes('Bad JSON') || err.message.includes('refused') ? 'Update Code.gs in Apps Script and deploy a new version, then try again' : err.message, true); }
+    },
+    'leads-import': () => pickImportFile(),
+    'myop-probe': async () => {
+      toast('Testing the MyOperator API… (takes up to a minute)');
+      try {
+        const url = set().sheetsUrl;
+        const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}action=myopprobe&secret=${encodeURIComponent(set().sheetsSecret)}`);
+        const out = await res.json();
+        if (!out.ok) throw new Error(out.error || 'Update Code.gs and deploy a new version first');
+        const list = Array.isArray(out.probe) ? out.probe : [];
+        openForm({
+          title: 'MyOperator API test', submitLabel: false,
+          html: out.probe && out.probe.error ? `<p>${esc(out.probe.error)}</p>` : `<p class="hint" style="margin:0">Green = the endpoint answered. Send a screenshot of this to set up automatic fetching.</p>
+            <div class="tbl-wrap"><table class="rt"><thead><tr><th>Endpoint</th><th class="r">Status</th><th class="r">Msgs</th><th>Answer</th></tr></thead><tbody>${list.map((x) => `<tr><td><b>${esc(x.path)}</b></td><td class="r"><span class="badge ${x.status >= 200 && x.status < 300 ? 'ok' : x.status === 401 || x.status === 403 ? 'warn' : ''}">${x.status}</span></td><td class="r">${x.messages}</td><td><small>${esc(x.sample)}</small></td></tr>`).join('')}</tbody></table></div>`,
+        });
+      } catch (err) { toast(err.message, true); }
     },
     'wa-phrases': () => {
       const list = $('#wa-phrases').value.split('\n').map((x) => x.trim()).filter(Boolean);

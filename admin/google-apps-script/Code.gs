@@ -167,6 +167,10 @@ function writeSheets(ss, sheets) {
 /** GET ?action=load&secret=… → the app data; ?action=wa&since=… → WhatsApp messages; GET without action → health check. */
 function doGet(e) {
   const p = (e && e.parameter) || {};
+  if (p.action === 'myopprobe') {
+    if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret.' });
+    try { return json({ ok: true, probe: probeMyOperator() }); } catch (err) { return json({ ok: false, error: String(err.message || err) }); }
+  }
   if (p.action === 'wa' || p.action === 'wapull') {
     if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret.' });
     let pulled = null;
@@ -370,4 +374,31 @@ function setLeadsSheet(mode, ref) {
   }
   if (mode === 'new') { const blank = target.getSheetByName('Sheet1'); waSheet(target); if (blank && target.getSheets().length > 1) target.deleteSheet(blank); }
   return leadsInfo();
+}
+
+/**
+ * Tries the likely MyOperator / Heyo endpoints with MYOP_API_KEY and reports which answer (status + a short sample).
+ * Read-only GET calls. Run it from the app (Settings → Google Sheet → WhatsApp → Test MyOperator API) or here.
+ * When one returns messages, put its path in MYOP_LIST_PATH and run installWhatsAppPull.
+ */
+function probeMyOperator() {
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty('MYOP_API_KEY'); const company = props.getProperty('MYOP_COMPANY_ID') || '';
+  if (!key) return { error: 'Add MYOP_API_KEY (and MYOP_COMPANY_ID) in Apps Script → Project Settings → Script Properties first.' };
+  const paths = ['/chat/messages', '/chat/conversations', '/chat/contacts', '/chats', '/messages', '/conversations', '/contacts',
+    '/whatsapp/messages', '/whatsapp/conversations', '/whatsapp/contacts', '/whatsapp/chats', '/wa/messages', '/v1/messages',
+    '/v1/conversations', '/v1/chats', '/v1/contacts', '/v2/messages', '/api/v1/messages', '/api/v1/conversations', '/leads', '/v1/leads'];
+  const out = [];
+  paths.forEach((path) => {
+    const url = MYOP_BASE + path + '?company_id=' + encodeURIComponent(company) + '&limit=5';
+    try {
+      const res = UrlFetchApp.fetch(url, { method: 'get', headers: { 'x-api-key': key, Authorization: 'Bearer ' + key, Accept: 'application/json' }, muteHttpExceptions: true, followRedirects: true });
+      const body = res.getContentText() || '';
+      let found = 0;
+      try { found = waExtract(JSON.parse(body)).length; } catch (e) { found = 0; }
+      out.push({ path: path, status: res.getResponseCode(), messages: found, sample: body.replace(/\s+/g, ' ').slice(0, 160) });
+    } catch (err) { out.push({ path: path, status: 0, messages: 0, sample: String(err.message || err).slice(0, 160) }); }
+  });
+  Logger.log(JSON.stringify(out, null, 1));
+  return out;
 }

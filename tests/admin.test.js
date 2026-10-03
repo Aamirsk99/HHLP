@@ -541,3 +541,22 @@ test('WhatsApp messages become leads once, with history; patients and outgoing m
   a.updateSettings({ waAutoLead: false });
   assert.deepEqual(a.importWhatsApp([{ id: 'w10', at: t, dir: 'in', phone: '919830000001', text: 'Hi' }]), { created: 0, updated: 0 });
 });
+
+test('import leads from a Heyo / MyOperator export: duplicates, patients and phrase filter', () => {
+  const a = setup('2026-10-03');
+  a.saveLead({ name: 'Old Lead', mobile: '9000000001' });
+  const m = a.saveMember({ name: 'Riya' }); const pro = byName(a, 'Protein Sachets'); a.adjustStock(pro.id, 1, 'count');
+  a.saveSale({ type: 'protein', patientName: 'Patient', mobile: '9000000002', itemId: pro.id, amount: 2500, refId: m.id });
+  const rows = [
+    { phone: '+91 90000 00001', name: 'Old Lead', message: 'Hello! Can I get more info on this?' },
+    { phone: '919000000002', name: 'Patient', message: 'Hello! Can I get more info on this?' },
+    { phone: '9000000003', name: 'Asha', message: 'Hello! Can I get more info on this?', date: '2026-10-01' },
+    { phone: '9000000003', name: 'Asha again', message: 'hi' },
+    { phone: '9000000004', name: 'Ravi', message: 'Is the clinic open?' },
+    { phone: '123', name: 'Bad number', message: 'Hello! Can I get more info on this?' },
+  ];
+  assert.deepEqual(a.importLeads(rows, { onlyPhrases: true, fileName: 'heyo.xlsx' }), { added: 1, skipped: 3, dupes: 2 });
+  const l = a.state.leads.find((x) => x.name === 'Asha');
+  assert.equal(l.id, 'wa9000000003'); assert.equal(l.date, '2026-10-01'); assert.equal(l.source, 'WhatsApp');
+  assert.deepEqual(a.importLeads(rows, { fileName: 'heyo.xlsx' }), { added: 1, skipped: 1, dupes: 4 }, 'without the filter Ravi is added too');
+});

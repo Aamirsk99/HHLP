@@ -840,6 +840,38 @@
       if (created || updated) { if (created) log('WhatsApp leads', `${created} new lead${created > 1 ? 's' : ''} from WhatsApp`); save(); }
       return { created, updated };
     }
+    /**
+     * Import leads from a file (Heyo / MyOperator export, any CSV / Excel): rows {phone, name, message, date}.
+     * Skips numbers that are already leads or patients and repeated numbers in the file; onlyPhrases keeps rows whose
+     * message contains a WhatsApp lead phrase. Returns { added, skipped, dupes }.
+     */
+    function importLeads(rows, opts) {
+      const o = opts || {};
+      const source = String(o.source || 'WhatsApp').trim() || 'WhatsApp';
+      const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const phrases = o.onlyPhrases ? (S.settings.waLeadPhrases || []).map(norm).filter(Boolean) : [];
+      let added = 0; let skipped = 0; let dupes = 0;
+      const now = clock ? clock().getTime() : Date.now();
+      const seenNums = new Set();
+      (rows || []).forEach((r) => {
+        const d = digits(r.phone);
+        if (d.length < 10) { skipped++; return; }
+        if (phrases.length && !phrases.some((ph) => norm(r.message).includes(ph))) { skipped++; return; }
+        if (seenNums.has(d) || S.leads.some((x) => digits(x.mobile) === d) || S.patients.some((x) => digits(x.mobile) === d)) { dupes++; return; }
+        seenNums.add(d);
+        const at = Number(new Date(r.date)) || now;
+        const day = isoDate(new Date(at));
+        const l = { id: source === 'WhatsApp' ? `wa${d}` : uid('l'), created: at, createdBy: actor || 'Import', date: day, status: 'New', priority: 'warm',
+          name: String(r.name || '').trim() || `${source} ${d}`, mobile: d, source, followUp: today(), history: [{ at: now, by: actor || 'Import', type: 'created', text: `Lead imported from ${o.fileName || 'a file'}` }] };
+        if (r.message) l.history.push({ at, by: l.name, type: 'whatsapp', text: `${source}: ${String(r.message).slice(0, 300)}` });
+        if (r.city) l.city = String(r.city).trim();
+        S.leads.push(l);
+        added++;
+      });
+      if (!S.settings.lists.leadSources.includes(source)) S.settings.lists.leadSources.push(source);
+      if (added) { log('Leads imported', `${added} from ${o.fileName || 'a file'}${dupes ? ` · ${dupes} already known` : ''}`); save(); }
+      return { added, skipped, dupes };
+    }
     function setLeadStatusRaw(l, status) {
       if (!S.settings.lists.leadStatuses.includes(status)) S.settings.lists.leadStatuses.push(status);
       const from = l.status;
@@ -1250,7 +1282,7 @@
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
-      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo, importWhatsApp,
+      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo, importWhatsApp, importLeads,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,

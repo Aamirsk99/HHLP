@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 4.3)
+ HINDIVINE ADMIN — FULL REGENERATION SCRIPT (version 4.4)
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
  Hindivine Healthcare Pvt. Ltd. · www.hindivine.com
 ================================================================================
@@ -14,7 +14,7 @@ from scratch by a developer or by an AI coding assistant. It has three parts:
           rule, every screen, exports, Google Sheet storage, Android build.
   PART C  Step-by-step rebuild and release checklist.
 
-The exact source code of version 4.3 is in the companion file
+The exact source code of version 4.4 is in the companion file
 "Hindivine_Admin_Full_Source.txt" (every file, with an unpack script). If you
 want an identical app, use that file. If you want to regenerate or extend the
 app, use this file.
@@ -330,7 +330,7 @@ Reports, Admin.
     Roles & permissions matrix (Super Admin only); Choice lists (chips with
     rename/remove + add) incl. inventory categories; Backup (export/import
     JSON), All reports, Erase all data (Super Admin).
-20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 4.1, 4.2, 4.3) and credits.
+20. What's new — version history (1.0, 1.1, 2.0, 3.0, 3.1, 3.2, 3.3, 3.4, 3.5, 3.6, 3.7, 3.8, 3.9, 4.0, 4.1, 4.2, 4.3, 4.4) and credits.
 Every drop-down backed by a list ends with "+ Add new…" which shows an
 inline input and saves the new option for everyone.
 Period options everywhere: Today, This month (auto), Choose month, Last
@@ -634,6 +634,24 @@ B27. VERSION 4.3 ADDITIONS
   status with link, Create new leads sheet, Connect this sheet (link box),
   Use main sheet; after a change the app saves so the Leads tab is written
   in its new place.
+
+B28. VERSION 4.4 ADDITIONS
+--------------------------
+* core.importLeads(rows, {source, onlyPhrases, fileName}): rows {phone,
+  name, message, date, city}; skips numbers under 10 digits and (when
+  onlyPhrases) rows without a lead phrase; numbers already leads, patients
+  or repeated in the file count as dupes; WhatsApp source → id wa<10 digits>;
+  history "Imported from <file>" + the message; returns {added, skipped,
+  dupes}.
+* App: Leads toolbar "Import", WhatsApp toolbar "Import Heyo export",
+  Settings WhatsApp card button. readImportFile uses SheetJS (CSV / XLSX);
+  header row = the row in the first 10 naming the most known columns
+  (COLS regexes for phone, name, message, date, city); preview dialog with
+  detected columns, lead source, "only ad-message rows" checkbox, 6 rows.
+* Code.gs: GET action=myopprobe → probeMyOperator() tries common MyOperator
+  list paths with MYOP_API_KEY / MYOP_COMPANY_ID (x-api-key and Bearer) and
+  returns [{path, status, messages, sample}]; app action "Test MyOperator
+  API" shows it as a table.
 
 B14. TESTS (node --test tests/*.test.js)
 ----------------------------------------
