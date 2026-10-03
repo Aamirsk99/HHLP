@@ -997,6 +997,15 @@
       if (l) log('Lead deleted', `${l.name} · ${l.mobile}`);
       save();
     }
+    /** Delete several leads at once (bulk delete). Returns how many were removed. */
+    function deleteLeads(ids) {
+      const set = new Set(ids || []);
+      const before = S.leads.length;
+      S.leads = S.leads.filter((x) => !set.has(x.id));
+      const removed = before - S.leads.length;
+      if (removed) { log('Leads deleted', `${removed} lead${removed === 1 ? '' : 's'} removed`); save(); }
+      return removed;
+    }
     /** Convert a lead: creates (or finds) the patient and, optionally, books an OPD appointment. */
     function convertLead(id, appt) {
       const l = lead(id);
@@ -1376,7 +1385,7 @@
       account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo, importWhatsApp, importLeads, heyoSync, heyoAccount, fixWhatsAppNames, cleanLeadName,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
-      lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,
+      lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, deleteLeads, convertLead, leadStats, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,
     };

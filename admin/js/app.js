@@ -573,6 +573,8 @@
 
   // ── Lead management (CRM) ─────────────────────────────────────
   const leadF = { tab: 'all', q: '', status: '', source: '', priority: '', owner: '' };
+  const leadSel = { on: false, ids: new Set() };
+  function toggleLeadSel(id) { if (leadSel.ids.has(id)) leadSel.ids.delete(id); else leadSel.ids.add(id); render(); }
   const PRIO_CLS = { hot: 'bad', warm: 'gold', cold: 'info' };
   // Front Desk sees their own leads and unassigned ones; Admin and Manager see everyone's.
   function myLeadFilter() {
@@ -611,8 +613,10 @@
       const hue = [...String(l.name || l.mobile || '')].reduce((a, c) => a + c.charCodeAt(0), 0) % 360;
       const won = ['Converted', 'Appointment booked'].includes(l.status);
       const lost = ['Lost', 'Not interested'].includes(l.status);
-      return `<div class="lead lead-lux ${PRIO_CLS[l.priority] || ''}" data-act="lead" data-id="${l.id}" role="button" tabindex="0">
+      const sel = leadSel.on && leadSel.ids.has(l.id);
+      return `<div class="lead lead-lux ${PRIO_CLS[l.priority] || ''}${leadSel.on ? ' selmode' : ''}${sel ? ' sel' : ''}" data-act="lead" data-id="${l.id}" role="button" tabindex="0">
         <div class="lead-top">
+          ${leadSel.on ? `<span class="lead-check">${sel ? '✓' : ''}</span>` : ''}
           <span class="lead-ava" style="--h:${hue}">${esc(initial)}<i class="prio ${PRIO_CLS[l.priority] || ''}" title="${esc(A.LEAD_PRIORITIES[l.priority] || '')}"></i></span>
           <span class="lead-id"><b>${esc(nm)}</b><span class="lead-sub">${esc(l.mobile || '')}${l.interest ? ` · ${esc(l.interest)}` : ''}</span></span>
           <span class="badge ${won ? 'ok' : lost ? 'bad' : 'info'}">${esc(l.status)}</span></div>
@@ -620,8 +624,10 @@
         <div class="lead-foot">${l.followUp ? `<span class="badge ${due}">⏰ ${fdate(l.followUp)}${l.followTime ? ` ${time12(l.followTime)}` : ''}</span>` : '<span class="hint">No follow-up set</span>'}
           <span class="lead-acts"><a class="btn xs" href="tel:${esc(l.mobile)}">Call</a>${wa ? `<a class="btn xs" href="${esc(wa)}" target="_blank" rel="noopener">WhatsApp</a>` : ''}<button type="button" class="btn xs primary" data-act="lead-note" data-id="${l.id}">Update</button></span></div></div>`;
     };
+    const canDel = can('settings') || role !== 'desk';
     return `<div class="toolbar"><div class="scroll-x"><div class="seg">${tabs.map(([k, l]) => `<button type="button" data-leadtab="${k}" class="${leadF.tab === k ? 'on' : ''}">${l}</button>`).join('')}</div></div>
-        <span class="grow"></span>${exportBtns('leads')}<button class="btn primary" data-act="new-lead">${svg('<path d="M12 5v14M5 12h14"/>')}New lead</button></div>
+        <span class="grow"></span>${exportBtns('leads')}${canDel ? `<button class="btn ${leadSel.on ? 'primary' : ''}" data-act="leads-select">${leadSel.on ? 'Done' : 'Select'}</button>` : ''}<button class="btn primary" data-act="new-lead">${svg('<path d="M12 5v14M5 12h14"/>')}New lead</button></div>
+      ${leadSel.on ? `<div class="selbar"><label class="check"><input type="checkbox" data-act="leads-selall" ${list.length && list.every((l) => leadSel.ids.has(l.id)) ? 'checked' : ''}> Select all (${list.length})</label><span class="grow"></span><b>${leadSel.ids.size} selected</b><button class="btn sm danger" data-act="leads-delsel" ${leadSel.ids.size ? '' : 'disabled'}>Delete ${leadSel.ids.size || ''}</button></div>` : ''}
       <div class="kpis" style="margin-bottom:14px">${kpi('Open leads', num(st.open))}${kpi('New today', num(st.newToday), '', 'teal')}${kpi('Due today', num(st.dueToday), '', 'gold')}${kpi('Overdue', num(st.overdue), '', st.overdue ? 'bad' : '')}${kpi('Hot leads', num(st.hot), '', 'bad')}${kpi('Conversion', `${st.conversion}%`, `${st.won} of ${st.total}`, 'good')}</div>
       <div class="pipeline scroll-x">${pipeline.map(([x, n]) => `<button type="button" class="pipe ${leadF.status === x ? 'on' : ''}" data-leadstatus="${esc(x)}"><b>${n}</b><span>${esc(x)}</span></button>`).join('')}</div>
       <div class="filters"><div class="row">
@@ -745,36 +751,6 @@
   const waCache = () => { try { const c = JSON.parse(lsGet(WA_KEY, 'null')); return c && Array.isArray(c.list) ? c : { at: 0, list: [] }; } catch (_) { return { at: 0, list: [] }; } };
   const waSeen = () => prefs().waSeen || {};
   const waOn = () => connected(); // WhatsApp = the MyOperator chats read into the app
-  let waBusy = false;
-  let waNote = '';
-  async function waFetch(pull, manual) {
-    if (!waOn() || waBusy) return;
-    waBusy = true;
-    try {
-      const c = waCache();
-      const url = set().sheetsUrl;
-      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-      const timer = ctl && setTimeout(() => ctl.abort(), 30000);
-      let out;
-      try {
-        const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}action=${pull ? 'wapull' : 'wa'}&since=${c.at}&secret=${encodeURIComponent(set().sheetsSecret)}`, { signal: ctl && ctl.signal });
-        out = await res.json();
-      } finally { clearTimeout(timer); }
-      if (!out || !out.ok) throw new Error((out && out.error) || 'WhatsApp messages could not be loaded');
-      if (out.pulled) waNote = out.pulled.error || out.pulled.skipped || (out.pulled.saved != null ? `Fetched ${out.pulled.saved} new from MyOperator` : '');
-      const ids = new Set(c.list.map((m) => m.id));
-      const fresh = (out.messages || []).filter((m) => m && m.id && !ids.has(m.id));
-      if (fresh.length) {
-        c.list = c.list.concat(fresh).sort((a, b) => a.at - b.at).slice(-3000);
-        c.at = Math.max(c.at, ...fresh.map((m) => m.at));
-        lsSet(WA_KEY, JSON.stringify(c));
-        admin.importWhatsApp(fresh);
-      }
-      updateWaBadge();
-      if (fresh.length && screen === 'whatsapp' && !modal.open && !(document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))) render();
-      if (manual) toast(fresh.length ? `${plural(fresh.length, 'new WhatsApp message')}` : waNote || 'No new WhatsApp messages');
-    } catch (err) { if (manual) toast(err.message, true); } finally { waBusy = false; }
-  }
 
   // ── MyOperator / Heyo panel inside the Android app: read the chats it loads and make leads ──
   const onHeyoApp = () => !!(window.AndroidBridge && window.AndroidBridge.openHeyo);
@@ -865,7 +841,6 @@
         <button type="button" class="btn sm primary" data-act="heyo-open">Open MyOperator & read chats</button>
         <button type="button" class="btn sm" data-act="heyo-sync">${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}Sync now</button></div>
       <div class="kpis" style="margin-bottom:14px">${kpi('Chats', num(list.length))}${kpi('Unread', num(unread), '', unread ? 'warn' : 'good')}${kpi('Messages', num(waCache().list.length), '', 'teal')}${kpi('Leads from WhatsApp', num(S().leads.filter((l) => l.source === 'WhatsApp').length), '', 'violet')}</div>
-      ${waNote ? `<p class="hint">${esc(waNote)}</p>` : ''}
       <div class="wa-list">${list.map((t) => {
         const last = t.msgs[t.msgs.length - 1]; const lead = waLeadFor(t.phone); const pat = waPatientFor(t.phone);
         return `<div class="wa-row ${t.unread ? 'unread' : ''}" data-act="wa-open" data-phone="${t.phone}" role="button" tabindex="0">
@@ -897,65 +872,6 @@
     setTimeout(() => { const c = $('#wa-chat'); if (c) c.scrollTop = c.scrollHeight; }, 30);
     renderNav();
     if (screen === 'whatsapp') render();
-  }
-
-  // ── Import leads from a file (Heyo / MyOperator export, any CSV or Excel) ──────────
-  const COLS = {
-    phone: /phone|mobile|number|contact|whatsapp|msisdn|wa.?id|customer.?no/i,
-    name: /^(name|full.?name|customer.?name|contact.?name|profile.?name|lead.?name|customer|contact)$/i,
-    message: /message|text|chat|last.?msg|body|query|content/i,
-    date: /date|time|created|received|last.?seen|timestamp/i,
-    city: /city|location|area/i,
-  };
-  function pickImportFile() {
-    const inp = document.createElement('input');
-    inp.type = 'file'; inp.accept = '.csv,.xlsx,.xls,text/csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    inp.onchange = () => { if (inp.files && inp.files[0]) readImportFile(inp.files[0]); };
-    inp.click();
-  }
-  function readImportFile(file) {
-    const fr = new FileReader();
-    fr.onload = () => {
-      try {
-        const wb = window.XLSX.read(new Uint8Array(fr.result), { type: 'array', cellDates: true });
-        const sh = wb.Sheets[wb.SheetNames[0]];
-        const raw = window.XLSX.utils.sheet_to_json(sh, { header: 1, raw: false, defval: '' });
-        // Header row = the row in the top 10 naming the most known columns (a title row like "WhatsApp export" only names one).
-        const score = (r) => Object.values(COLS).filter((re) => r.some((c) => re.test(String(c).trim()))).length;
-        let hi = 0;
-        raw.slice(0, 10).forEach((r, i) => { if (score(r) > score(raw[hi])) hi = i; });
-        const head = raw[hi].map((c) => String(c).trim());
-        const find = (k, not) => head.findIndex((h, i) => COLS[k].test(h) && !not.includes(i));
-        const ix = {}; const used = [];
-        ['phone', 'message', 'date', 'city', 'name'].forEach((k) => { ix[k] = find(k, used); if (ix[k] >= 0) used.push(ix[k]); });
-        if (ix.name < 0) ix.name = head.findIndex((h, i) => /name/i.test(h) && !used.includes(i));
-        if (ix.phone < 0) throw new Error('No phone / mobile column found in this file');
-        const rows = raw.slice(hi + 1).map((r) => ({ phone: r[ix.phone], name: ix.name >= 0 ? r[ix.name] : '', message: ix.message >= 0 ? r[ix.message] : '', date: ix.date >= 0 ? r[ix.date] : '', city: ix.city >= 0 ? r[ix.city] : '' }))
-          .filter((r) => String(r.phone || '').replace(/\D/g, '').length >= 10);
-        importPreview(file.name, head, ix, rows);
-      } catch (err) { toast(`Could not read the file: ${err.message}`, true); }
-    };
-    fr.readAsArrayBuffer(file);
-  }
-  function importPreview(fileName, head, ix, rows) {
-    const col = (k) => (ix[k] >= 0 ? esc(head[ix[k]]) : '<span class="hint">not found</span>');
-    const phrase = (set().waLeadPhrases || [])[0] || '';
-    const matching = rows.filter((r) => phrase && String(r.message || '').toLowerCase().replace(/\s+/g, ' ').includes(phrase.toLowerCase().replace(/\s+/g, ' '))).length;
-    openForm({
-      title: 'Import leads', submitLabel: 'Import leads',
-      html: `<p class="hint" style="margin:0"><b>${esc(fileName)}</b> · ${plural(rows.length, 'row')} with a phone number</p>
-        <dl class="detail-list"><div><dt>Phone</dt><dd>${col('phone')}</dd></div><div><dt>Name</dt><dd>${col('name')}</dd></div><div><dt>Message</dt><dd>${col('message')}</dd></div><div><dt>Date</dt><dd>${col('date')}</dd></div><div><dt>City</dt><dd>${col('city')}</dd></div></dl>
-        <div class="grid"><label class="f">Lead source${listSelect('leadSources', 'id="im-source"', 'WhatsApp')}</label></div>
-        ${ix.message >= 0 && phrase ? `<label class="check"><input type="checkbox" id="im-only" checked> Only rows whose message contains “${esc(phrase)}” (${num(matching)} rows)</label>` : ''}
-        <div class="tbl-wrap"><table class="rt"><thead><tr><th>Phone</th><th>Name</th><th>Message</th></tr></thead><tbody>${rows.slice(0, 6).map((r) => `<tr><td>${esc(r.phone)}</td><td>${esc(r.name || '-')}</td><td>${esc(String(r.message || '').slice(0, 60))}</td></tr>`).join('')}</tbody></table></div>
-        <p class="hint" style="margin:0">Numbers that are already leads or patients are skipped.</p>`,
-      onSubmit: () => {
-        if (!rows.length) throw new Error('No rows with a phone number to import');
-        const src = $('#im-source').value === '__new__' ? 'WhatsApp' : $('#im-source').value;
-        const res = admin.importLeads(rows, { source: src || 'WhatsApp', onlyPhrases: !!($('#im-only') && $('#im-only').checked), fileName });
-        return `Imported ${plural(res.added, 'lead')}${res.dupes ? ` · ${res.dupes} already known` : ''}${res.skipped ? ` · ${res.skipped} skipped` : ''}`;
-      },
-    });
   }
 
   // ── Activity log: every change, who made it and when ─────────
@@ -1000,7 +916,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
-    ['4.0', 'Premium leads & WhatsApp. Leads screen redesigned (luxury cards with name, number and photo initial) and opens on All leads with full filters, pipeline and export. WhatsApp leads from MyOperator / Heyo by logging in inside the app (Settings → WhatsApp → "Open MyOperator & read chats"): it reads the chat names and numbers straight off the screen — even when only a name shows, it finds the number behind it — auto-scrolls and collects every chat as a lead, with the number used as the name when no name is shown; whoever a chat is assigned to on MyOperator becomes the lead\'s "Assigned to". Leads can live in their own Google spreadsheet. Share invoices and OPD slips on WhatsApp; purchase invoices read "Weight Loss Program (N Months)" instead of the product.'],
+    ['4.0', 'Premium leads & WhatsApp. Leads screen redesigned (luxury cards with name, number and photo initial) and opens on All leads with full filters, pipeline, export and a Select mode to delete many leads at once. WhatsApp leads from MyOperator / Heyo by logging in inside the app (Settings → WhatsApp → "Open MyOperator & read chats"): it reads the chat names and numbers straight off the screen — even when only a name shows, it finds the number behind it — auto-scrolls and collects every chat as a lead, with the number used as the name when no name is shown; whoever a chat is assigned to on MyOperator becomes the lead\'s "Assigned to". Leads can live in their own Google spreadsheet. Share invoices and OPD slips on WhatsApp; purchase invoices read "Weight Loss Program (N Months)" instead of the product.'],
     ['3.9', 'Premium non-GST invoices for patient purchases (Sales and Today) and OPD consultations: invoice numbers per financial year (HV/INV/26-27/0001, HV/OPD/26-27/0001), patient details, amount in words, paid / due, terms and "no signature required"; payment method on every sale; reports, images and slips print a note (computer-generated, no signature required), editable in Settings with the invoice terms and prefix; every sign-in, sign-out, wrong PIN and auto-lock is recorded in the activity log with a Sign-ins filter and last sign-in per person.'],
     ['3.8', 'No more "Data changed on another device" question: when two phones change data at the same time the app joins both automatically (newest version of every sale, patient, appointment, lead and setting wins, deletions stay deleted, nothing is lost).'],
     ['3.7', 'Built for Android 15 so Google Play Protect no longer blocks the install as an app for an older Android version; screens stay clear of the status bar, navigation bar and keyboard on Android 15; fixed a crash when the app was sent to the background with a lot of data; safer recovery if Android stops the page to save memory; smoother animations.'],
@@ -2663,7 +2579,6 @@
       admin.updateSettings({ heyoUrl: ($('#heyo-url').value || '').trim() || 'https://in.app.myoperator.com/chat', waNumber: nums, heyoAssign: !!($('#heyo-assign') && $('#heyo-assign').checked), waLeadPhrases: phrases });
       toast('MyOperator settings saved'); render();
     },
-    'wa-setup': () => { setTab = 'sheet'; go('settings'); },
     'wa-open': (d) => waOpen(d.phone),
     'wa-lead': (d) => {
       const t = waThreads().find((x) => x.phone === d.phone) || {};
@@ -2772,7 +2687,18 @@
       if (await confirmBox('Delete patient', `Delete ${p.name}?${extra} This can't be undone.`)) { admin.deletePatient(p.id, true); modal.close(); render(); toast('Patient deleted'); }
     },
     'new-lead': () => leadForm(null),
-    lead: (d) => leadDetail(d.id),
+    lead: (d) => { if (leadSel.on) { toggleLeadSel(d.id); return; } leadDetail(d.id); },
+    'leads-select': () => { leadSel.on = !leadSel.on; leadSel.ids.clear(); render(); },
+    'leads-selall': () => { const list = filteredLeads(); if (list.every((l) => leadSel.ids.has(l.id))) leadSel.ids.clear(); else list.forEach((l) => leadSel.ids.add(l.id)); render(); },
+    'leads-delsel': async () => {
+      const n = leadSel.ids.size;
+      if (!n) return;
+      if (!(await confirmBox('Delete leads', `Delete ${plural(n, 'lead')}? This cannot be undone.`, `Delete ${n}`))) return;
+      const removed = admin.deleteLeads([...leadSel.ids]);
+      leadSel.ids.clear(); leadSel.on = false; render();
+      if (isDirty()) push().catch(() => {});
+      toast(`Deleted ${plural(removed, 'lead')}`);
+    },
     'lead-note': (d) => leadDetail(d.id, true),
     'lead-edit': (d) => { modal.close(); leadForm(admin.lead(d.id)); },
     'lead-del': async (d) => {

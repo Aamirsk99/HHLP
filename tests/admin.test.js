@@ -667,3 +667,15 @@ test('fixWhatsAppNames tidies leads saved by older builds', () => {
   assert.equal(a.state.leads.find((l) => l.mobile === '9830011111').name, '9830011111');
   assert.ok(a.state.leads.some((l) => l.name === 'Real Patient Lead'), 'non-WhatsApp leads untouched');
 });
+
+test('deleteLeads removes several leads at once', () => {
+  const a = setup('2026-10-03');
+  const l1 = a.saveLead({ name: 'A', mobile: '9000000001' });
+  const l2 = a.saveLead({ name: 'B', mobile: '9000000002' });
+  const l3 = a.saveLead({ name: 'C', mobile: '9000000003' });
+  assert.equal(a.state.leads.length, 3);
+  const removed = a.deleteLeads([l1.id, l3.id]);
+  assert.equal(removed, 2);
+  assert.deepEqual(a.state.leads.map((l) => l.name), ['B']);
+  assert.equal(a.deleteLeads(['nope']), 0, 'unknown ids remove nothing');
+});

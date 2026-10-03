@@ -392,6 +392,12 @@ dialog footer { display: flex; gap: 10px; justify-content: flex-end; flex-wrap: 
 .prio.bad { background: var(--danger); box-shadow: 0 0 0 4px color-mix(in srgb, var(--danger) 18%, transparent); }
 .prio.gold { background: var(--gold); }
 .prio.info { background: var(--sky); }
+/* Leads bulk-select */
+.selbar { display: flex; align-items: center; gap: 10px; background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 8px 12px; margin-bottom: 12px; }
+.selbar .check { display: flex; align-items: center; gap: 7px; font-weight: 650; }
+.lead-check { width: 24px; height: 24px; flex: none; border-radius: 50%; border: 2px solid var(--border); display: grid; place-items: center; color: #fff; font-weight: 800; font-size: 14px; }
+.lead.sel { outline: 2px solid var(--accent); outline-offset: -2px; background: color-mix(in srgb, var(--accent) 8%, var(--surface)); }
+.lead.sel .lead-check { background: var(--accent); border-color: var(--accent); }
 /* Premium lead card: avatar, name + number, priority ring */
 .lead-lux { position: relative; overflow: hidden; background: linear-gradient(162deg, var(--surface), color-mix(in srgb, var(--surface-2) 55%, var(--surface))); border-radius: 18px; }
 .lead-lux::before { content: ""; position: absolute; inset: 0 auto 0 0; width: 4px; background: var(--muted); opacity: .5; }
