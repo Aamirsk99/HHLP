@@ -425,3 +425,14 @@ test('a refused sale adds no patient; a shared mobile with another name is a new
   assert.strictEqual(s2.patientName, 'Riya');
   assert.strictEqual(a.state.patients.length, 2);
 });
+
+test('sign-in and sign-out are logged under the member, without changing the current actor', () => {
+  const admin = fresh();
+  admin.setActor('Asha');
+  admin.logSession('Signed in', 'Front Desk · Android app', 'Ravi');
+  const last = admin.state.log[admin.state.log.length - 1];
+  assert.equal(last.by, 'Ravi');
+  assert.equal(last.action, 'Signed in');
+  admin.addListItem('services', 'Skin check');
+  assert.equal(admin.state.log[admin.state.log.length - 1].by, 'Asha');
+});

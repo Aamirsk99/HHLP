@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.8';
+  const APP_VERSION = '4.9';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -1533,40 +1533,66 @@
   }
 
   // ── Activity log: every change, who made it and when ─────────
-  const actF = { by: '', q: '' };
+  const actF = { by: '', q: '', kind: '' };
+  const isSession = (x) => /^(Signed in|Signed out|Sign-in )/.test(x.action);
   function filteredLog() {
     const r = range();
     const q = actF.q.toLowerCase();
     return S().log.filter((x) => {
       const day = A.isoDate(new Date(x.at));
-      return inR(day, r) && (!actF.by || x.by === actF.by) && (!q || `${x.action} ${x.detail}`.toLowerCase().includes(q));
+      const kindOk = !actF.kind || (actF.kind === 'login' ? isSession(x) : !isSession(x));
+      return inR(day, r) && kindOk && (!actF.by || x.by === actF.by) && (!q || `${x.action} ${x.detail}`.toLowerCase().includes(q));
     }).slice().reverse();
   }
   SUBS.activity = () => periodLabel();
   SCREENS.activity = () => {
     const list = filteredLog();
-    const people = [...new Set(S().log.map((x) => x.by))];
+    const people = [...new Set([...S().accounts.map((a) => a.name), ...S().log.map((x) => x.by)])].filter(Boolean);
     const per = {};
     list.forEach((x) => {
-      const p = per[x.by] || (per[x.by] = { total: 0, leads: 0, updates: 0, appts: 0, sales: 0 });
+      const p = per[x.by] || (per[x.by] = { total: 0, logins: 0, leads: 0, updates: 0, appts: 0, sales: 0 });
       p.total++;
+      if (x.action === 'Signed in') p.logins++;
       if (x.action === 'Lead added') p.leads++;
       if (x.action === 'Lead activity' || x.action === 'Lead status') p.updates++;
       if (x.action === 'Appointment booked') p.appts++;
       if (x.action === 'Sale added') p.sales++;
     });
+    // Team logins: every login with its last sign-in / sign-out (all time) and sign-ins in the period.
+    const all = S().log;
+    const lastOf = (name, act) => { for (let i = all.length - 1; i >= 0; i--) if (all[i].by === name && (act instanceof RegExp ? act.test(all[i].action) : all[i].action === act)) return all[i]; return null; };
+    const r = range();
+    const logins = S().accounts.filter((a) => !actF.by || a.name === actF.by).map((a) => {
+      const inn = lastOf(a.name, 'Signed in'); const out = lastOf(a.name, 'Signed out'); const bad = lastOf(a.name, /^Sign-in (failed|refused)/);
+      const online = !!inn && (!out || out.at < inn.at);
+      const n = all.filter((x) => x.by === a.name && x.action === 'Signed in' && inR(A.isoDate(new Date(x.at)), r)).length;
+      return { a, inn, out, bad, online, n };
+    }).sort((x, y) => ((y.inn || {}).at || 0) - ((x.inn || {}).at || 0));
+    const dev = (x) => (x && x.detail ? esc(x.detail.split(' · ').slice(-2, -1)[0] || '') : '');
+    const loginCards = logins.map(({ a, inn, out, bad, online, n }) => `<div class="login-tile${a.disabled ? ' off' : ''}">
+        <span class="lt-av">${esc(a.name.charAt(0).toUpperCase())}<i class="${online ? 'on' : ''}"></i></span>
+        <div class="lt-body"><b>${esc(a.name)}</b><small>${esc(A.ROLES[a.role] || a.role)}${a.disabled ? ' · disabled' : ''}</small>
+          <span>Last sign-in: <em>${inn ? ftime(inn.at) : 'never'}</em>${inn ? ` <small>${dev(inn)}</small>` : ''}</span>
+          <span>Last sign-out: <em>${out ? ftime(out.at) : '—'}</em></span>
+          ${bad && (!inn || bad.at > inn.at) ? `<span class="lt-bad">Failed try ${ftime(bad.at)}</span>` : ''}</div>
+        <span class="lt-n"><b>${n}</b><small>sign-ins</small></span></div>`).join('');
+    const icon = (x) => (x.action === 'Signed in' ? '→' : x.action === 'Signed out' ? '←' : isSession(x) ? '!' : esc(x.by.charAt(0).toUpperCase()));
     return `<div class="toolbar">${periodBar()}<span class="grow"></span>${exportBtns('activity')}</div>
       <div class="filters"><div class="row"><input type="search" data-actfilter="q" placeholder="Search actions and details" value="${esc(actF.q)}">
-        <select data-actfilter="by" aria-label="Person">${opt('', 'Everyone', actF.by)}${people.map((p) => opt(p, p, actF.by)).join('')}</select></div></div>
+        <select data-actfilter="by" aria-label="Person">${opt('', 'Everyone', actF.by)}${people.map((p) => opt(p, p, actF.by)).join('')}</select>
+        <select data-actfilter="kind" aria-label="Kind">${opt('', 'All activity', actF.kind)}${opt('login', 'Sign-ins & sign-outs', actF.kind)}${opt('data', 'Data changes', actF.kind)}</select></div></div>
+      <section class="card"><h2><span class="ic gold">${svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>')}</span>Team logins<span class="sp"></span><span class="badge">${logins.filter((x) => x.online).length} signed in</span></h2>
+        <div class="login-grid">${loginCards || '<p class="hint">No logins yet.</p>'}</div></section>
       <section class="card"><h2><span class="ic violet">${svg('<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/>')}</span>By person</h2>
-        ${table(['Person', '>Changes', '>Leads added', '>Lead updates', '>Appointments', '>Sales'], Object.entries(per).map(([n, p]) => `<tr><td><b>${esc(n)}</b></td><td class="r">${p.total}</td><td class="r">${p.leads}</td><td class="r">${p.updates}</td><td class="r">${p.appts}</td><td class="r">${p.sales}</td></tr>`))}</section>
-      <section class="card"><h2><span class="ic">${svg('<path d="M3 12h4l3-8 4 16 3-8h4"/>')}</span>All changes<span class="sp"></span><span class="badge">${list.length}</span></h2>
-        <ol class="timeline big">${capList(list, 'activity').map((x) => `<li><span class="t-ic">${esc(x.by.charAt(0).toUpperCase())}</span><div><b>${esc(x.action)}</b>${x.detail ? `<span>${esc(x.detail)}</span>` : ''}<small>${ftime(x.at)} · ${esc(x.by)}</small></div></li>`).join('') || '<li class="empty">No changes in this period.</li>'}</ol>
+        ${table(['Person', '>Sign-ins', '>Actions', '>Leads added', '>Lead updates', '>Appointments', '>Sales'], Object.entries(per).map(([n, p]) => `<tr><td><b>${esc(n)}</b></td><td class="r">${p.logins}</td><td class="r">${p.total}</td><td class="r">${p.leads}</td><td class="r">${p.updates}</td><td class="r">${p.appts}</td><td class="r">${p.sales}</td></tr>`))}</section>
+      <section class="card"><h2><span class="ic">${svg('<path d="M3 12h4l3-8 4 16 3-8h4"/>')}</span>All activity<span class="sp"></span><span class="badge">${list.length}</span></h2>
+        <ol class="timeline big">${capList(list, 'activity').map((x) => `<li class="${isSession(x) ? 'sess' : ''}"><span class="t-ic">${icon(x)}</span><div><b>${esc(x.action)}</b>${x.detail ? `<span>${esc(x.detail)}</span>` : ''}<small>${ftime(x.at)} · ${esc(x.by)}</small></div></li>`).join('') || '<li class="empty">No activity in this period.</li>'}</ol>
         ${moreBtn('activity', list.length)}</section>`;
   };
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.9', 'Activity Log records every member\'s sign-in, sign-out (by hand or after idle time) and failed sign-in tries, with role and device; new Team logins boxes show who is signed in now, last sign-in and sign-out and sign-ins in the period; filter by person and by sign-ins or data changes. Every box is now deep emerald green with a gold outline and white text, including the home tiles, dashboard boxes, filters, alerts and Settings tiles.'],
     ['4.8', 'Android app now targets Android 14 so Google Play Protect no longer blocks the install as built for an older Android; smoother scrolling (no background repaint on every frame), pop-ups slide up like native sheets, press feedback on boxes; no crash if the app is closed while syncing.'],
     ['4.7', 'First opening shows a calm "Getting your clinic ready" screen while the Google Sheet loads, then Sign in (or Create Super Admin for an empty sheet); it never hangs: after 45 s it shows Try again or Set up without the sheet. More premium menu: deep emerald and gold, serif title, gold section labels and active item.'],
     ['4.6', 'The Prime Fit Google Sheet is built into the app: on first opening it connects by itself and loads the logins and data, no link or secret to type. Change it any time in Settings → Data & Google Sheet, or switch back with "Use The Prime Fit Google Sheet".'],
@@ -3134,7 +3160,7 @@
     markSynced(out.state);
     // Signed-in login removed or disabled on another device: back to sign-in.
     const acc = me && admin.account(me.id);
-    if (!role || !acc || !acc.hash || acc.disabled) { if (role) lock(); else if (!$('#lock').hidden) showLock(); return; }
+    if (!role || !acc || !acc.hash || acc.disabled) { if (role) lock('login removed or disabled on another device'); else if (!$('#lock').hidden) showLock(); return; }
     me = acc; role = acc.role;
     const editing = modal.open || screen === 'sell' || screen === 'purchase-new' || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName));
     if (!editing && !$('#shell').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
@@ -3642,7 +3668,7 @@
     },
     'social-fetch': () => socialFetch(),
     'social-edit': () => socialForm(),
-    lock: () => lock(),
+    lock: () => lock('signed out'),
   };
 
   // Actions a view-only login may still use: they open, filter or export, never change data.
@@ -3879,20 +3905,32 @@
     if (u && u.hash && !u.disabled && (await hashPin(pass, u.salt)) === u.hash) {
       fails = 0;
       try { localStorage.setItem('primefit.admin.lastUser', u.username); } catch (_) { /* ignore */ }
-      enter(u.id);
+      enter(u.id, true);
       return;
     }
     fails += 1;
+    if (u) logSession(u.disabled ? 'Sign-in refused (login disabled)' : 'Sign-in failed (wrong password)', u, `attempt ${fails}`);
     if (fails >= 5) { waitUntil = Date.now() + 30000; fails = 0; }
     $('#lk-pass').value = '';
     const card = $('#lk-form'); card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
     err.textContent = u && u.disabled ? 'This login is disabled' : 'Wrong user ID or password';
   }
-  function enter(id) {
+  // Where a sign-in happened, for the activity log.
+  function deviceLabel() {
+    const ua = navigator.userAgent || '';
+    const app = window.AndroidBridge ? 'Android app' : /Android/i.test(ua) ? 'Android browser' : /iPhone|iPad/i.test(ua) ? 'iPhone browser' : 'Computer browser';
+    return app;
+  }
+  function logSession(action, acc, extra) {
+    if (!acc) return;
+    try { admin.logSession(action, [A.ROLES[acc.role] || acc.role, extra, deviceLabel()].filter(Boolean).join(' · '), acc.name); } catch (_) { /* ignore */ }
+  }
+  function enter(id, fresh) {
     const acc = admin.account(id);
     if (!acc || acc.disabled) { showLock(); return; }
     me = acc; role = acc.role;
     admin.setActor(acc.name);
+    if (fresh) logSession('Signed in', acc, `user ID ${acc.username}`);
     try { sessionStorage.setItem(ROLE_KEY, id); localStorage.setItem('primefit.admin.lastLogin', id); if (can('diet')) sessionStorage.setItem('primefit.diet', '1'); else sessionStorage.removeItem('primefit.diet'); } catch (_) { /* ignore */ }
     $('#lock').hidden = true; $('#shell').hidden = false;
     screen = /^#admin/.test(location.hash) ? adminHome() : home();
@@ -3934,8 +3972,9 @@
   // Auto sign-out after the idle minutes set in Settings (0 = never).
   let lastTouch = Date.now();
   ['pointerdown', 'keydown', 'scroll'].forEach((ev) => document.addEventListener(ev, () => { lastTouch = Date.now(); }, { passive: true, capture: true }));
-  setInterval(() => { const m = Number(set().autoLockMins) || 0; if (m && me && $('#lock').hidden && Date.now() - lastTouch > m * 60000) { lock(); toast('Signed out after inactivity'); } }, 30000);
-  function lock() {
+  setInterval(() => { const m = Number(set().autoLockMins) || 0; if (m && me && $('#lock').hidden && Date.now() - lastTouch > m * 60000) { lock(`auto sign-out after ${m} min idle`); toast('Signed out after inactivity'); } }, 30000);
+  function lock(reason) {
+    if (me) logSession('Signed out', me, reason || 'signed out');
     try { sessionStorage.removeItem(ROLE_KEY); sessionStorage.removeItem('primefit.diet'); } catch (_) { /* ignore */ }
     admin.setActor('');
     showLock();
@@ -3959,7 +3998,7 @@
       await savePin(sup.id, pin);
       try { localStorage.setItem('primefit.admin.lastUser', admin.account(sup.id).username); } catch (_) { /* ignore */ }
       lockMode = 'login';
-      enter(sup.id);
+      enter(sup.id, true);
       toast(`Welcome! Your user ID is ${admin.account(sup.id).username}. Add logins for your team in Settings → Logins.`);
       return;
     }
@@ -3983,7 +4022,7 @@
   });
   let idle = Date.now();
   ['click', 'keydown', 'touchstart'].forEach((ev) => document.addEventListener(ev, () => { idle = Date.now(); }, { passive: true }));
-  setInterval(() => { if (role && Date.now() - idle > IDLE_LOCK_MS) lock(); }, 30000);
+  setInterval(() => { if (role && Date.now() - idle > IDLE_LOCK_MS) lock('auto sign-out when idle'); }, 30000);
 
   // Android back button: the app asks the page first (see MainActivity).
   window.hdvBack = () => {

@@ -1369,6 +1369,14 @@
       save();
     }
     const setActor = (name) => { actor = name || ''; };
+    /** Sign-in, sign-out and failed sign-in, written to the activity log under the member's own name. */
+    function logSession(action, detail, by) {
+      const keep = actor;
+      if (by) actor = by;
+      log(action, detail);
+      actor = keep;
+      save();
+    }
     const accountByUsername = (u) => S.accounts.find((a) => a.username === slug(u)) || null;
 
     // Choice lists ("+ Add new" everywhere)
@@ -2018,7 +2026,7 @@
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
-      account, saveAccount, setAccountPin, deleteAccount, setActor,
+      account, saveAccount, setAccountPin, deleteAccount, setActor, logSession,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
       updatePatient, deletePatient, daySummary,
       invoiceFor, slipFor, issueSlip, logLeadClick, clickStats, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, founders, founder, saveFounder, setFounderActive, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,

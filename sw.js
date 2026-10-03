@@ -1,5 +1,5 @@
 /* Offline cache for The Prime Fit (installed web app on iPhone / Android). */
-const CACHE = 'primefit-v24';
+const CACHE = 'primefit-v25';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/styles.css',
   'js/foodnames.js', 'js/ingredients.js', 'js/recipes.js', 'js/fooddb.js', 'js/i18n.js', 'js/icons.js',

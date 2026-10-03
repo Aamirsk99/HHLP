@@ -42,6 +42,7 @@ The Prime Fit is a **new app** (Android `com.theprimefit.app`, iOS `com.theprime
 **Round 19 (APK 2.7):** first-launch splash while the sheet loads (45 s limit, Try again), premium emerald-and-gold menu.
 
 **Round 20 (APK 2.8):** targetSdk 34 (Play Protect no longer blocks the install), smoother scrolling and sheet animations, bridge callback guarded after close.
+**Round 21 (APK 2.9):** sign-ins, sign-outs and failed sign-in tries of every member in the Activity Log with a Team logins view; every box emerald green with a gold outline and white text.
 
 The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
