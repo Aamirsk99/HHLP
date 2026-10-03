@@ -48,6 +48,8 @@
   if (BUILT.waNumber && !set().waNumber) admin.updateSettings({ waNumber: BUILT.waNumber });
   // Make a lead from every WhatsApp chat (drop the old "Hello! Can I get more info on this?" filter), once.
   if (!lsGet('hindivine.admin.noPhrase', '')) { if ((set().waLeadPhrases || []).length) admin.updateSettings({ waLeadPhrases: [] }); lsSet('hindivine.admin.noPhrase', '1'); }
+  // One-time tidy: fix the junk WhatsApp lead names (HTML / buttons) saved by earlier builds; drop any without a number.
+  if (!lsGet('hindivine.admin.leadTidy', '') && admin.fixWhatsAppNames) { try { admin.fixWhatsAppNames(); } catch (_) { /* ignore */ } lsSet('hindivine.admin.leadTidy', '1'); }
 
   const $ = (sel, el) => (el || document).querySelector(sel);
   const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
@@ -823,6 +825,8 @@
   }
   // When the user comes back from the MyOperator panel, read what it loaded.
   window.hdvHeyoPull = () => { heyoPull(false); return 1; };
+  // Every 30 s, collect any new chats the panel buffered into leads.
+  setInterval(() => { if (role && onHeyoApp() && window.AndroidBridge.heyoPending && window.AndroidBridge.heyoPending() > 0) heyoPull(false); }, 30000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && onHeyoApp() && window.AndroidBridge.heyoPending && window.AndroidBridge.heyoPending() > 0) setTimeout(() => heyoPull(false), 400); });
 
   function waThreads() {

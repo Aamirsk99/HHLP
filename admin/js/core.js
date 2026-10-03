@@ -814,6 +814,34 @@
      * a new number (not a patient) becomes a "New" lead from WhatsApp when waAutoLead is on.
      * Lead ids come from the number, so two devices importing the same message make one lead.
      */
+    // A real contact name, or the number itself when the "name" is junk (HTML from a template message,
+    // a button like "Talk to us on", a URL, or just the number). Numbers are mandatory, so the number
+    // is always a safe fallback and goes in the name box too.
+    function cleanLeadName(raw, mobile) {
+      let s = String(raw == null ? '' : raw);
+      s = s.replace(/<[^>]*>/g, ' ').replace(/&[a-z#0-9]+;/gi, ' ').replace(/https?:\/\/\S+/gi, ' ').replace(/\s+/g, ' ').trim();
+      const low = s.toLowerCase();
+      const letters = (s.match(/[A-Za-zÀ-ɏऀ-ॿ]/g) || []).length;
+      const junk = !s || s.length > 40 || letters < 2
+        || /[<>{}=]/.test(s) || /style|img |width|height|display|http|www\.|\.com|href|<img/i.test(s)
+        || /^(whats ?app|talk to us|click here|hi there|hello there|message us|chat with us|learn more|get started|know more|contact us|view|reply|call now|no name)/i.test(low)
+        || digits(s).length >= 10;
+      return junk ? String(mobile) : s;
+    }
+    /** One-time tidy of WhatsApp leads: fix junk names (use the number) and drop any without a valid number. */
+    function fixWhatsAppNames() {
+      let fixed = 0; let removed = 0;
+      S.leads = S.leads.filter((l) => {
+        if (l.source !== 'WhatsApp') return true;
+        const d = digits(l.mobile);
+        if (d.length < 10 || /^[0-5]/.test(d)) { removed++; return false; } // number is mandatory
+        const nm = cleanLeadName(l.name, d);
+        if (nm !== l.name) { l.name = nm; fixed++; }
+        return true;
+      });
+      if (fixed || removed) { log('WhatsApp leads tidied', `${fixed} name${fixed === 1 ? '' : 's'} fixed · ${removed} without a number removed`); save(); }
+      return { fixed, removed };
+    }
     function importWhatsApp(msgs) {
       let created = 0; let updated = 0;
       (msgs || []).filter((m) => m && m.dir !== 'out' && m.text).sort((a, b) => a.at - b.at).forEach((m) => {
@@ -825,7 +853,7 @@
           const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
           const phrases = (S.settings.waLeadPhrases || []).map(norm).filter(Boolean);
           if (phrases.length && !phrases.some((ph) => norm(m.text).includes(ph))) return;
-          l = { id: `wa${d}`, created: m.at, createdBy: 'WhatsApp', date: isoDate(new Date(m.at)), status: 'New', priority: 'warm', name: String(m.name || '').trim() || `WhatsApp ${d}`,
+          l = { id: `wa${d}`, created: m.at, createdBy: 'WhatsApp', date: isoDate(new Date(m.at)), status: 'New', priority: 'warm', name: cleanLeadName(m.name, d),
             mobile: d, source: 'WhatsApp', followUp: isoDate(new Date(m.at)), history: [{ at: m.at, by: 'WhatsApp', type: 'created', text: 'Lead added from WhatsApp' }] };
           S.leads.push(l);
           if (!S.settings.lists.leadSources.includes('WhatsApp')) S.settings.lists.leadSources.push('WhatsApp');
@@ -833,7 +861,7 @@
         }
         l.history = l.history || [];
         if (l.history.some((h) => h.mid === m.id)) return;
-        l.history.push({ at: m.at, by: m.name || 'WhatsApp', type: 'whatsapp', text: `WhatsApp: ${String(m.text).slice(0, 300)}`, mid: m.id });
+        l.history.push({ at: m.at, by: m.name || 'WhatsApp', type: 'whatsapp', text: `WhatsApp: ${String(m.text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300)}`, mid: m.id });
         // Keep the latest 40 WhatsApp lines per lead (the full chat stays in the sheet's WhatsApp tab).
         const wa = l.history.filter((h) => h.type === 'whatsapp');
         if (wa.length > 40) { const drop = new Set(wa.slice(0, wa.length - 40)); l.history = l.history.filter((h) => !drop.has(h)); }
@@ -878,17 +906,19 @@
         const d = digits(c.phone);
         if (d.length < 10) return;
         let l = S.leads.find((x) => digits(x.mobile) === d);
-        if (!l && c.text && S.settings.waAutoLead !== false && !S.patients.some((x) => digits(x.mobile) === d)
-          && (!phrases.length || phrases.some((ph) => norm(c.text).includes(ph)))) {
+        if (!l && S.settings.waAutoLead !== false && !S.patients.some((x) => digits(x.mobile) === d)
+          && (!phrases.length || (c.text && phrases.some((ph) => norm(c.text).includes(ph))))) {
           const at = c.at || now;
-          l = { id: `wa${d}`, created: at, createdBy: 'WhatsApp', date: isoDate(new Date(at)), status: 'New', priority: 'warm', name: String(c.name || '').trim() || `WhatsApp ${d}`,
-            mobile: d, source: 'WhatsApp', followUp: isoDate(new Date(at)), history: [{ at, by: 'WhatsApp', type: 'created', text: 'Lead added from WhatsApp (MyOperator panel)' }, { at, by: c.name || 'WhatsApp', type: 'whatsapp', text: `WhatsApp: ${String(c.text).slice(0, 300)}` }] };
+          l = { id: `wa${d}`, created: at, createdBy: 'WhatsApp', date: isoDate(new Date(at)), status: 'New', priority: 'warm', name: cleanLeadName(c.name, d),
+            mobile: d, source: 'WhatsApp', followUp: isoDate(new Date(at)), history: [{ at, by: 'WhatsApp', type: 'created', text: 'Lead added from WhatsApp (MyOperator panel)' }].concat(c.text ? [{ at, by: cleanLeadName(c.name, d), type: 'whatsapp', text: `WhatsApp: ${String(c.text).replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 300)}` }] : []) };
           S.leads.push(l);
           if (!S.settings.lists.leadSources.includes('WhatsApp')) S.settings.lists.leadSources.push('WhatsApp');
           created++;
         }
         if (!l) return;
-        if (c.name && /^WhatsApp \d+$/.test(l.name)) l.name = String(c.name).trim();
+        // When we later learn a real name for a number-named lead, use it.
+        const cn = cleanLeadName(c.name, d);
+        if (cn !== d && (l.name === d || /^WhatsApp \d+$/.test(l.name) || digits(l.name).length >= 10)) l.name = cn;
         const agent = String(c.assignee || '').trim();
         if (!agent || S.settings.heyoAssign === false) return;
         if (!seen.some((x) => x.toLowerCase() === agent.toLowerCase())) { seen.push(agent); if (seen.length > 60) seen.shift(); }
@@ -923,7 +953,7 @@
         const at = Number(new Date(r.date)) || now;
         const day = isoDate(new Date(at));
         const l = { id: source === 'WhatsApp' ? `wa${d}` : uid('l'), created: at, createdBy: actor || 'Import', date: day, status: 'New', priority: 'warm',
-          name: String(r.name || '').trim() || `${source} ${d}`, mobile: d, source, followUp: today(), history: [{ at: now, by: actor || 'Import', type: 'created', text: `Lead imported from ${o.fileName || 'a file'}` }] };
+          name: cleanLeadName(r.name, d), mobile: d, source, followUp: today(), history: [{ at: now, by: actor || 'Import', type: 'created', text: `Lead imported from ${o.fileName || 'a file'}` }] };
         if (r.message) l.history.push({ at, by: l.name, type: 'whatsapp', text: `${source}: ${String(r.message).slice(0, 300)}` });
         if (r.city) l.city = String(r.city).trim();
         S.leads.push(l);
@@ -1343,7 +1373,7 @@
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
-      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo, importWhatsApp, importLeads, heyoSync, heyoAccount,
+      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo, importWhatsApp, importLeads, heyoSync, heyoAccount, fixWhatsAppNames, cleanLeadName,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,

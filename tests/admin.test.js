@@ -633,3 +633,37 @@ test('MyOperator on-screen scrape: only ad-message chats become leads, rest with
   assert.equal(r.created, 1);
   assert.equal(a.state.leads.filter((l) => l.mobile === '9830011111').length, 1);
 });
+
+test('WhatsApp lead names: junk (HTML, buttons, numbers) fall back to the number; real names kept', () => {
+  const a = setup('2026-10-03');
+  a.updateSettings({ waLeadPhrases: [] }); // every chat becomes a lead
+  // Names exactly like the ones seen on the MyOperator screen.
+  const convs = [
+    { phone: '9316047570', name: 'WhatsApp 9316047570', text: 'hi' },
+    { phone: '9830011111', name: '<img height="1" width="1" style="display', text: 'hi' },
+    { phone: '9830022222', name: 'Talk to us on', text: 'hi' },
+    { phone: '9830033333', name: 'pawan', text: 'hi' },
+    { phone: '9830044444', name: '', text: 'hi' },
+  ];
+  a.heyoSync(A.parseChatCapture({ conversations: convs }, []));
+  const by = (m) => a.state.leads.find((l) => l.mobile === m);
+  assert.equal(by('9316047570').name, '9316047570', 'the "WhatsApp <num>" label becomes the number');
+  assert.equal(by('9830011111').name, '9830011111', 'HTML is never a name');
+  assert.equal(by('9830022222').name, '9830022222', 'a button is never a name');
+  assert.equal(by('9830033333').name, 'pawan', 'a real name is kept');
+  assert.equal(by('9830044444').name, '9830044444', 'no name → the number');
+  // Later learning a real name upgrades a number-named lead.
+  a.heyoSync(A.parseChatCapture({ conversations: [{ phone: '9830022222', name: 'Sunita', text: 'hi' }] }, []));
+  assert.equal(by('9830022222').name, 'Sunita');
+});
+
+test('fixWhatsAppNames tidies leads saved by older builds', () => {
+  const a = setup('2026-10-03');
+  a.state.leads.push({ id: 'wa9830011111', name: '<img height="1" width="1" style="display', mobile: '9830011111', source: 'WhatsApp', status: 'New', history: [] });
+  a.state.leads.push({ id: 'waX', name: 'Talk to us on', mobile: '123', source: 'WhatsApp', status: 'New', history: [] });
+  a.state.leads.push({ id: 'l1', name: 'Real Patient Lead', mobile: '9811112222', source: 'Walk-in', status: 'New', history: [] });
+  const r = a.fixWhatsAppNames();
+  assert.equal(r.removed, 1, 'the one without a real number is removed');
+  assert.equal(a.state.leads.find((l) => l.mobile === '9830011111').name, '9830011111');
+  assert.ok(a.state.leads.some((l) => l.name === 'Real Patient Lead'), 'non-WhatsApp leads untouched');
+});
