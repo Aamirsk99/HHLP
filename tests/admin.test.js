@@ -515,3 +515,24 @@ test('purchase invoice item: description and program months kept on the sale', (
   a.saveSale({ ...a.state.sales[0], id: s.id, refId: m.id, programMonths: '' });
   assert.equal(a.state.sales[0].programMonths, 6, 'editing the sale keeps the months');
 });
+
+test('WhatsApp messages become leads once, with history; patients and outgoing messages skipped', () => {
+  const a = setup('2026-10-03');
+  const t = new Date('2026-10-03T10:00:00').getTime();
+  const msgs = [
+    { id: 'w1', at: t, dir: 'in', phone: '919876543210', name: 'Asha', text: 'Price of Mounjaro?' },
+    { id: 'w2', at: t + 60000, dir: 'in', phone: '919876543210', name: 'Asha', text: 'Do you have weekend OPD?' },
+    { id: 'w3', at: t + 90000, dir: 'out', phone: '919876543210', text: 'Yes, Sunday 10 AM' },
+  ];
+  assert.deepEqual(a.importWhatsApp(msgs), { created: 1, updated: 2 });
+  const l = a.state.leads[0];
+  assert.equal(l.id, 'wa9876543210'); assert.equal(l.mobile, '9876543210'); assert.equal(l.source, 'WhatsApp'); assert.equal(l.name, 'Asha');
+  assert.equal(l.history.filter((h) => h.type === 'whatsapp').length, 2);
+  assert.deepEqual(a.importWhatsApp(msgs), { created: 0, updated: 0 }, 'same messages again change nothing');
+  // An existing patient messaging does not become a lead.
+  const m = a.saveMember({ name: 'Riya' }); const pro = byName(a, 'Protein Sachets'); a.adjustStock(pro.id, 2, 'count');
+  a.saveSale({ type: 'protein', patientName: 'Ravi', mobile: '9876500000', itemId: pro.id, amount: 2500, refId: m.id });
+  assert.deepEqual(a.importWhatsApp([{ id: 'w9', at: t, dir: 'in', phone: '919876500000', text: 'Hello' }]), { created: 0, updated: 0 });
+  a.updateSettings({ waAutoLead: false });
+  assert.deepEqual(a.importWhatsApp([{ id: 'w10', at: t, dir: 'in', phone: '919830000001', text: 'Hi' }]), { created: 0, updated: 0 });
+});

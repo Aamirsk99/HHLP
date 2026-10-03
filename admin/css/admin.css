@@ -910,3 +910,27 @@ td b { font-variant-numeric: tabular-nums; }
 .iv-preview span { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
 .iv-preview b { font-size: 16px; color: var(--text); }
 .iv-preview small { color: var(--muted); }
+
+/* ══ 4.1: WhatsApp inbox ═════════════════════════════ */
+.wa-list { display: grid; gap: 8px; }
+.wa-row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 18px; background: var(--surface); border: 1px solid var(--border); cursor: pointer; transition: transform .12s, box-shadow .15s, border-color .15s; }
+.wa-row:hover { border-color: color-mix(in srgb, #25d366 40%, var(--border)); box-shadow: 0 10px 24px -18px rgba(10, 30, 60, .5); }
+.wa-row:active { transform: scale(.99); }
+.wa-row.unread { border-color: color-mix(in srgb, #25d366 55%, var(--border)); background: color-mix(in srgb, #25d366 6%, var(--surface)); }
+.wa-av { width: 44px; height: 44px; flex: none; border-radius: 50%; display: grid; place-items: center; font-weight: 800; font-size: 18px; color: #fff; background: linear-gradient(135deg, #1fa855, #25d366); }
+.wa-main { flex: 1; min-width: 0; }
+.wa-main b { display: block; font-size: 15px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wa-main small { display: block; color: var(--muted); font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wa-row.unread .wa-main small { color: var(--text); font-weight: 650; }
+.wa-side { display: grid; justify-items: end; gap: 4px; flex: none; }
+.wa-side small { font-size: 11.5px; color: var(--muted); }
+.badge.wa-n { background: #25d366; color: #fff; min-width: 22px; justify-content: center; }
+.wa-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; color: var(--muted); font-size: 13px; }
+.wa-chat { max-height: 52vh; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 16px;
+  background: color-mix(in srgb, #25d366 5%, var(--surface-2)); border: 1px solid var(--border); }
+.wa-b { max-width: 82%; padding: 8px 11px 6px; border-radius: 14px; font-size: 14px; line-height: 1.4; white-space: pre-wrap; word-wrap: break-word; box-shadow: 0 1px 1px rgba(0, 0, 0, .06); -webkit-user-select: text; user-select: text; }
+.wa-b small { display: block; text-align: right; font-size: 10.5px; color: var(--muted); margin-top: 2px; }
+.wa-b.in { align-self: flex-start; background: var(--surface); border-top-left-radius: 4px; }
+.wa-b.out { align-self: flex-end; background: #d9fdd3; color: #102218; border-top-right-radius: 4px; }
+.wa-day { align-self: center; font-size: 11.5px; font-weight: 700; color: var(--muted); background: var(--surface); padding: 3px 10px; border-radius: 99px; margin: 6px 0; }
+.ic.wa-ic-bg { background: linear-gradient(135deg, #1fa855, #25d366) !important; }

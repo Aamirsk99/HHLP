@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.0';
+  const APP_VERSION = '4.1';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -75,12 +75,14 @@
   const ICON_CAL = '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4M8 14h3"/>';
   const ICON_TODAY = '<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>';
   const ICON_LEADS = '<path d="M3 4h18l-7 8v6l-4 2v-8z"/>';
+  const ICON_WA = '<path d="M20.5 11.6a8.6 8.6 0 0 1-12.7 7.5L3 20.4l1.3-4.6a8.6 8.6 0 1 1 16.2-4.2z"/><path d="M9 9.5c.3 2 2.2 4.1 4.6 4.8l1.1-1.1 1.6.8"/>';
   const ICON_INV = '<rect x="4" y="4" width="16" height="6" rx="1"/><rect x="4" y="14" width="16" height="6" rx="1"/><path d="M9 7h6M9 17h6"/>';
   const NAV = [
     ['dashboard', 'Dashboard', '<path d="M4 13h6V4H4zM14 20h6v-9h-6zM4 20h6v-4H4zM14 4v4h6V4z"/>', 'Overview'],
     ['today', 'Today Summary', ICON_TODAY],
     ['appointments', 'OPD Appointments', ICON_CAL, 'Patients & OPD'],
     ['leads', 'Leads (CRM)', ICON_LEADS],
+    ['whatsapp', 'WhatsApp', ICON_WA],
     ['patients', 'Patients', '<circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.5 2.7-6 6-6s6 2.5 6 6M16 11a3 3 0 1 0 0-6M21 20c0-2.6-1.5-4.8-4-5.6"/>'],
     ['renewals', 'Renewals', '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>'],
     ['sell', 'New Sale', '<path d="M12 5v14M5 12h14"/>', 'Sales'],
@@ -99,7 +101,7 @@
   ];
   // Access: Super Admin opens everything; Admin, Manager and Front Desk follow Settings → Roles.
   const ALL = NAV.map((n) => n[0]).concat('purchase-new');
-  const EXTRA = { purchases: ['purchase-new'] };
+  const EXTRA = { purchases: ['purchase-new'], leads: ['whatsapp'] }; // WhatsApp inbox goes with Leads
   const TITLES = { 'purchase-new': 'Purchase Entry' };
   let me = null; // signed-in login
   let role = null;
@@ -147,7 +149,8 @@
     const lowN = can('inventory') ? admin.lowStock().length + admin.orderRequired().length : 0;
     const todayN = admin.appointmentsIn({ from: admin.today(), to: admin.today() }).filter((a) => a.status === 'booked').length;
     const leadsDue = can('leads') ? admin.leadStats(null, myLeadFilter()).dueToday + admin.leadStats(null, myLeadFilter()).overdue : 0;
-    const badge = (id) => (id === 'renewals' && due ? `<span class="badge warn">${due}</span>`
+    const waUnread = can('whatsapp') && waOn() ? waThreads().reduce((a, t) => a + t.unread, 0) : 0;
+    const badge = (id) => (id === 'whatsapp' && waUnread ? `<span class="badge wa-n">${waUnread}</span>` : id === 'renewals' && due ? `<span class="badge warn">${due}</span>`
       : id === 'inventory' && lowN ? `<span class="badge bad">${lowN}</span>`
         : id === 'appointments' && todayN ? `<span class="badge info">${todayN}</span>`
           : id === 'leads' && leadsDue ? `<span class="badge warn">${leadsDue}</span>` : '');
@@ -722,6 +725,104 @@
     $$('[data-fu]', modal).forEach((x) => x.classList.toggle('on', x === b));
   });
 
+  // ── WhatsApp inbox (Heyo / MyOperator → Google Sheet "WhatsApp" tab) ──────────
+  const WA_KEY = 'hindivine.admin.wa';
+  const waCache = () => { try { const c = JSON.parse(lsGet(WA_KEY, 'null')); return c && Array.isArray(c.list) ? c : { at: 0, list: [] }; } catch (_) { return { at: 0, list: [] }; } };
+  const waSeen = () => prefs().waSeen || {};
+  const waOn = () => connected() && set().waOn === true;
+  let waBusy = false;
+  let waNote = '';
+  async function waFetch(pull, manual) {
+    if (!waOn() || waBusy) return;
+    waBusy = true;
+    try {
+      const c = waCache();
+      const url = set().sheetsUrl;
+      const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+      const timer = ctl && setTimeout(() => ctl.abort(), 30000);
+      let out;
+      try {
+        const res = await fetch(`${url}${url.includes('?') ? '&' : '?'}action=${pull ? 'wapull' : 'wa'}&since=${c.at}&secret=${encodeURIComponent(set().sheetsSecret)}`, { signal: ctl && ctl.signal });
+        out = await res.json();
+      } finally { clearTimeout(timer); }
+      if (!out || !out.ok) throw new Error((out && out.error) || 'WhatsApp messages could not be loaded');
+      if (out.pulled) waNote = out.pulled.error || out.pulled.skipped || (out.pulled.saved != null ? `Fetched ${out.pulled.saved} new from MyOperator` : '');
+      const ids = new Set(c.list.map((m) => m.id));
+      const fresh = (out.messages || []).filter((m) => m && m.id && !ids.has(m.id));
+      if (fresh.length) {
+        c.list = c.list.concat(fresh).sort((a, b) => a.at - b.at).slice(-3000);
+        c.at = Math.max(c.at, ...fresh.map((m) => m.at));
+        lsSet(WA_KEY, JSON.stringify(c));
+        admin.importWhatsApp(fresh);
+      }
+      updateWaBadge();
+      if (fresh.length && screen === 'whatsapp' && !modal.open && !(document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName))) render();
+      if (manual) toast(fresh.length ? `${plural(fresh.length, 'new WhatsApp message')}` : waNote || 'No new WhatsApp messages');
+    } catch (err) { if (manual) toast(err.message, true); } finally { waBusy = false; }
+  }
+  setInterval(() => { if (role && can('whatsapp')) waFetch(false, false); }, 45000);
+  function waThreads() {
+    const by = new Map();
+    waCache().list.forEach((m) => {
+      const d = String(m.phone || '').replace(/\D/g, '').slice(-10);
+      if (!d) return;
+      const t = by.get(d) || { phone: d, name: '', msgs: [], last: 0, lastIn: 0 };
+      t.msgs.push(m); t.last = Math.max(t.last, m.at); if (m.dir !== 'out') t.lastIn = Math.max(t.lastIn, m.at);
+      if (m.name && m.dir !== 'out') t.name = m.name;
+      by.set(d, t);
+    });
+    const seen = waSeen();
+    return [...by.values()].map((t) => ({ ...t, unread: t.msgs.filter((m) => m.dir !== 'out' && m.at > (seen[t.phone] || 0)).length })).sort((a, b) => b.last - a.last);
+  }
+  function updateWaBadge() { if (role) renderNav(); }
+  const waLeadFor = (d) => S().leads.find((l) => String(l.mobile || '').replace(/\D/g, '').slice(-10) === d);
+  const waPatientFor = (d) => S().patients.find((p) => String(p.mobile || '').replace(/\D/g, '').slice(-10) === d);
+  SUBS.whatsapp = () => (waOn() ? 'Heyo / MyOperator messages' : 'Not switched on');
+  SCREENS.whatsapp = () => {
+    if (!waOn()) {
+      return `<section class="card empty">${svg(ICON_WA)}<h2>Connect WhatsApp</h2><p class="hint">WhatsApp messages from Heyo / MyOperator arrive through your Google Sheet.${connected() ? '' : ' Connect the Google Sheet first.'}</p>
+        ${role === 'super' ? '<button class="btn primary" data-act="wa-setup">Set up in Settings → Google Sheet</button>' : '<p class="hint">Ask the Super Admin to switch it on in Settings.</p>'}</section>`;
+    }
+    const q = String(gf('whatsapp').q || '').toLowerCase();
+    const list = waThreads().filter((t) => !q || `${t.name} ${t.phone} ${t.msgs.map((m) => m.text).join(' ')}`.toLowerCase().includes(q));
+    const unread = list.reduce((a, t) => a + t.unread, 0);
+    return `<div class="toolbar">${fSearch('whatsapp', 'Search name, number or message')}<span class="grow"></span>
+        <button type="button" class="btn sm" data-act="wa-refresh">${svg('<path d="M20 11a8 8 0 1 0-2.3 5.7M20 5v6h-6"/>')}Fetch now</button></div>
+      <div class="kpis" style="margin-bottom:14px">${kpi('Chats', num(list.length))}${kpi('Unread', num(unread), '', unread ? 'warn' : 'good')}${kpi('Messages', num(waCache().list.length), '', 'teal')}${kpi('Leads from WhatsApp', num(S().leads.filter((l) => l.source === 'WhatsApp').length), '', 'violet')}</div>
+      ${waNote ? `<p class="hint">${esc(waNote)}</p>` : ''}
+      <div class="wa-list">${list.map((t) => {
+        const last = t.msgs[t.msgs.length - 1]; const lead = waLeadFor(t.phone); const pat = waPatientFor(t.phone);
+        return `<div class="wa-row ${t.unread ? 'unread' : ''}" data-act="wa-open" data-phone="${t.phone}" role="button" tabindex="0">
+          <span class="wa-av">${esc((t.name || lead && lead.name || '#').trim().charAt(0).toUpperCase())}</span>
+          <div class="wa-main"><b>${esc(t.name || (lead && lead.name) || (pat && pat.name) || `+91 ${t.phone}`)}</b><small>${last.dir === 'out' ? '↗ ' : ''}${esc(String(last.text).slice(0, 90))}</small></div>
+          <div class="wa-side"><small>${waTime(t.last)}</small>${t.unread ? `<span class="badge wa-n">${t.unread}</span>` : lead ? `<span class="badge info">${esc(lead.status)}</span>` : pat ? '<span class="badge ok">Patient</span>' : ''}</div></div>`;
+      }).join('') || `<div class="card empty">${svg(ICON_WA)}No WhatsApp messages yet.<br><span class="hint">They appear here as soon as Heyo / MyOperator sends them to the Google Sheet.</span></div>`}</div>`;
+  };
+  const waTime = (at) => { const d = new Date(at); return A.isoDate(d) === admin.today() ? d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' }) : fdate(A.isoDate(d)); };
+  function waOpen(phone) {
+    const t = waThreads().find((x) => x.phone === phone);
+    if (!t) return;
+    const seen = waSeen(); seen[phone] = Date.now(); setPref('waSeen', seen);
+    const lead = waLeadFor(phone); const pat = waPatientFor(phone);
+    const name = t.name || (lead && lead.name) || (pat && pat.name) || `+91 ${phone}`;
+    let day = '';
+    const bubbles = t.msgs.slice(-200).map((m) => {
+      const d = A.isoDate(new Date(m.at)); const sep = d !== day ? `<div class="wa-day">${fdate(d)}</div>` : ''; day = d;
+      return `${sep}<div class="wa-b ${m.dir === 'out' ? 'out' : 'in'}">${esc(m.text)}<small>${new Date(m.at).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' })}</small></div>`;
+    }).join('');
+    openForm({
+      title: name, submitLabel: false,
+      html: `<div class="wa-head"><span>+91 ${esc(phone)}</span>${lead ? `<span class="badge info">Lead · ${esc(lead.status)}</span>` : ''}${pat ? '<span class="badge ok">Patient</span>' : ''}</div>
+        <div class="wa-chat" id="wa-chat">${bubbles}</div>
+        <div class="quick"><a class="btn wa" href="https://wa.me/91${esc(phone)}" target="_blank" rel="noopener">${WA_ICON}Reply on WhatsApp</a>
+          ${lead ? `<button type="button" class="btn" data-act="lead" data-id="${lead.id}">Open lead</button>` : `<button type="button" class="btn" data-act="wa-lead" data-phone="${phone}">+ Lead</button>`}
+          ${can('appointments') ? `<button type="button" class="btn primary" data-act="wa-book" data-phone="${phone}">Book OPD</button>` : ''}</div>`,
+    });
+    setTimeout(() => { const c = $('#wa-chat'); if (c) c.scrollTop = c.scrollHeight; }, 30);
+    renderNav();
+    if (screen === 'whatsapp') render();
+  }
+
   // ── Activity log: every change, who made it and when ─────────
   const actF = { by: '', q: '', kind: '' };
   // Activity kinds for the filter, matched on the action text.
@@ -764,6 +865,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.1', 'WhatsApp inbox for Heyo / MyOperator: messages arrive through the Google Sheet (webhook to the Apps Script, saved in a WhatsApp tab; optional pull from the MyOperator API with the key kept in Apps Script), WhatsApp screen with chats, unread counts, chat view, reply on WhatsApp, + lead and Book OPD; every new number becomes a lead (source WhatsApp) and messages are added to the lead history.'],
     ['4.0', 'Share invoices and OPD slips on WhatsApp: the PDF opens straight in the patient\'s WhatsApp chat with a short message (Share invoice / Share slip in the appointment, Share on WhatsApp in the invoice options); purchase invoices no longer show the product: the item reads "Weight Loss Program" or "Weight Loss Program (3 Months)", with the months entered on the sale or when making the invoice and the name editable (default in Settings).'],
     ['3.9', 'Premium non-GST invoices for patient purchases (Sales and Today) and OPD consultations: invoice numbers per financial year (HV/INV/26-27/0001, HV/OPD/26-27/0001), patient details, amount in words, paid / due, terms and "no signature required"; payment method on every sale; reports, images and slips print a note (computer-generated, no signature required), editable in Settings with the invoice terms and prefix; every sign-in, sign-out, wrong PIN and auto-lock is recorded in the activity log with a Sign-ins filter and last sign-in per person.'],
     ['3.8', 'No more "Data changed on another device" question: when two phones change data at the same time the app joins both automatically (newest version of every sale, patient, appointment, lead and setting wins, deletions stay deleted, nothing is lost).'],
@@ -1833,7 +1935,7 @@
 
   // Settings: Super Admin sees everything; other roles only if granted, and without logins/roles.
   const LIST_LABELS = { expenseCategories: 'Expense categories', services: 'Treatments / services', leadSources: 'Lead sources', leadStatuses: 'Lead stages', payMethods: 'Payment methods', designations: 'Designations' };
-  const PERM_SCREENS = NAV.filter((n) => !['settings', 'about'].includes(n[0])).map((n) => [n[0], n[1]]);
+  const PERM_SCREENS = NAV.filter((n) => !['settings', 'about', 'whatsapp'].includes(n[0])).map((n) => [n[0], n[1]]);
   // Settings sections: [id, title, icon, colour, super admin only, short description]
   let setTab = 'clinic';
   const SETTING_TABS = [
@@ -1902,6 +2004,15 @@
       </div>
       <ol class="steps"><li>Open <a href="${SHEET_LINK}" target="_blank" rel="noopener">the Hindivine Google Sheet</a> → Extensions → Apps Script.</li><li>Paste <a href="google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a>, Save, run <b>setup</b>.</li><li>Deploy → Web app (Execute as: Me, Who has access: Anyone).</li><li>Paste the URL and the secret here and save.</li></ol>
       <p class="hint" style="margin:0"><b>Current sheet or a new one:</b> data stays in the current sheet by default. In Apps Script run <b>useNewSpreadsheet</b> to copy all data into a brand-new spreadsheet and use it from now on, or <b>useCurrentSheet</b> to go back. Missing tabs are created automatically.</p>${saveBtn}`)}
+      ${isSuper && connected() ? sec('sheet', `<h2><span class="ic wa-ic-bg">${svg(ICON_WA)}</span>WhatsApp (Heyo / MyOperator)</h2>
+        <div class="set-switches">
+          <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waOn" ${set().waOn ? 'checked' : ''}> Show WhatsApp messages in the app (WhatsApp screen)</label>
+          <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waAutoLead" ${set().waAutoLead !== false ? 'checked' : ''}> Turn every new number into a lead (source: WhatsApp)</label></div>
+        <label class="f">Webhook link for Heyo / MyOperator<input id="wa-hook" readonly value="${esc(`${set().sheetsUrl}${set().sheetsUrl.includes('?') ? '&' : '?'}hook=whatsapp&key=${set().sheetsSecret}`)}"></label>
+        <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm" data-act="wa-copy">Copy webhook link</button>${set().waOn ? '<button type="button" class="btn sm" data-act="wa-refresh">Fetch now</button>' : ''}</div>
+        <ol class="steps"><li>Paste the updated <b>Code.gs</b> in Apps Script and deploy a new version.</li>
+          <li>In Heyo / MyOperator, set the incoming WhatsApp message webhook to the link above. Every message is saved in the sheet's <b>WhatsApp</b> tab and shows here within a minute.</li>
+          <li>Optional, to fetch through the MyOperator API: Apps Script → Project Settings → Script Properties: <b>MYOP_API_KEY</b>, <b>MYOP_COMPANY_ID</b> and <b>MYOP_LIST_PATH</b> (the messages endpoint from MyOperator), then run <b>installWhatsAppPull</b>. The key stays in Google, never in the app.</li></ol>`) : ''}
     </form>
     ${sec('clinic', `<h2><span class="ic">${svg('<path d="M12 4v16M4 12h16"/><rect x="3" y="3" width="18" height="18" rx="5"/>')}</span>Doctors & clinics</h2>
       <p class="hint" style="margin-top:0">Choose these when booking an OPD appointment; they print on the OPD slip. Add, rename (✎) or remove (✕).</p>
@@ -2389,6 +2500,27 @@
         }, shareIt ? { share: true, phone: a.mobile, text: `Namaste ${a.patientName}, here is your OPD invoice ${no} from ${a.branch || set().clinic} for ${inr(a.fee)}. Thank you!` } : null);
         toast(shareIt ? 'Opening WhatsApp…' : `Invoice ${no} ready`);
       } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
+    },
+    'wa-refresh': () => waFetch(true, true),
+    'wa-setup': () => { setTab = 'sheet'; go('settings'); },
+    'wa-open': (d) => waOpen(d.phone),
+    'wa-lead': (d) => {
+      const t = waThreads().find((x) => x.phone === d.phone) || {};
+      modal.close();
+      try { const l = admin.saveLead({ name: t.name || `WhatsApp ${d.phone}`, mobile: d.phone, source: 'WhatsApp', priority: 'warm', followUp: admin.today() }); render(); leadDetail(l.id); } catch (err) { toast(err.message, true); }
+    },
+    'wa-book': (d) => {
+      const t = waThreads().find((x) => x.phone === d.phone) || {}; const lead = waLeadFor(d.phone); const pat = waPatientFor(d.phone);
+      modal.close();
+      apptForm(null, { patientName: (pat && pat.name) || (lead && lead.name) || t.name || '', mobile: d.phone, ...(lead ? { leadId: lead.id } : {}), date: admin.today() });
+    },
+    'wa-toggle': (d) => {
+      const k = d.k; admin.updateSettings({ [k]: !(set()[k] === true || (k === 'waAutoLead' && set()[k] !== false)) });
+      render(); if (k === 'waOn' && set().waOn) waFetch(false, true);
+    },
+    'wa-copy': async () => {
+      const t = $('#wa-hook').value;
+      try { await navigator.clipboard.writeText(t); toast('Webhook link copied'); } catch (_) { $('#wa-hook').select(); toast('Select and copy the link'); }
     },
     'gf-clear': (d) => { GF[d.sc] = {}; render(); },
     'today-export-reset': () => { setPref('todayExport', TODAY_EXPORT_DEFAULT); todayExportForm(($('#modal-body .exp-fmt .on') || { dataset: { expfmt: 'pdf' } }).dataset.expfmt); },

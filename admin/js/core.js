@@ -70,6 +70,7 @@
       settings: {
         clinic: 'Hindivine Healthcare',
         clinicAddress: '', clinicPhone: '', clinicEmail: '',
+        waOn: false, waAutoLead: true, // WhatsApp (Heyo / MyOperator) inbox; new numbers become leads
         invoicePrefix: 'HV',
         invoiceItemName: 'Weight Loss Program', // what purchase invoices call the item (instead of the product name) // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
         legalNote: DEFAULT_LEGAL_NOTE, // terms printed on invoices
@@ -804,6 +805,37 @@
       save();
       return l;
     }
+    /**
+     * WhatsApp messages from the Google Sheet (Heyo / MyOperator): a message from a lead goes into its history;
+     * a new number (not a patient) becomes a "New" lead from WhatsApp when waAutoLead is on.
+     * Lead ids come from the number, so two devices importing the same message make one lead.
+     */
+    function importWhatsApp(msgs) {
+      let created = 0; let updated = 0;
+      (msgs || []).filter((m) => m && m.dir !== 'out' && m.text).sort((a, b) => a.at - b.at).forEach((m) => {
+        const d = digits(m.phone);
+        if (d.length < 10) return;
+        let l = S.leads.find((x) => digits(x.mobile) === d);
+        if (!l) {
+          if (S.settings.waAutoLead === false || S.patients.some((p) => digits(p.mobile) === d)) return;
+          l = { id: `wa${d}`, created: m.at, createdBy: 'WhatsApp', date: isoDate(new Date(m.at)), status: 'New', priority: 'warm', name: String(m.name || '').trim() || `WhatsApp ${d}`,
+            mobile: d, source: 'WhatsApp', followUp: isoDate(new Date(m.at)), history: [{ at: m.at, by: 'WhatsApp', type: 'created', text: 'Lead added from WhatsApp' }] };
+          S.leads.push(l);
+          if (!S.settings.lists.leadSources.includes('WhatsApp')) S.settings.lists.leadSources.push('WhatsApp');
+          created++;
+        }
+        l.history = l.history || [];
+        if (l.history.some((h) => h.mid === m.id)) return;
+        l.history.push({ at: m.at, by: m.name || 'WhatsApp', type: 'whatsapp', text: `WhatsApp: ${String(m.text).slice(0, 300)}`, mid: m.id });
+        // Keep the latest 40 WhatsApp lines per lead (the full chat stays in the sheet's WhatsApp tab).
+        const wa = l.history.filter((h) => h.type === 'whatsapp');
+        if (wa.length > 40) { const drop = new Set(wa.slice(0, wa.length - 40)); l.history = l.history.filter((h) => !drop.has(h)); }
+        l.lastWhatsApp = Math.max(l.lastWhatsApp || 0, m.at);
+        updated++;
+      });
+      if (created || updated) { if (created) log('WhatsApp leads', `${created} new lead${created > 1 ? 's' : ''} from WhatsApp`); save(); }
+      return { created, updated };
+    }
     function setLeadStatusRaw(l, status) {
       if (!S.settings.lists.leadStatuses.includes(status)) S.settings.lists.leadStatuses.push(status);
       const from = l.status;
@@ -1214,7 +1246,7 @@
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
-      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo,
+      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo, importWhatsApp,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,

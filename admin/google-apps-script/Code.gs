@@ -19,6 +19,14 @@
  *  - Run `useNewSpreadsheet` to create a brand-new spreadsheet, copy all app data into it and use it from now on
  *    (its link is in the log). Run `useCurrentSheet` to go back. Missing tabs are always created automatically.
  *  The app's Settings → Google Sheet shows which spreadsheet is in use.
+ *
+ * WhatsApp (Heyo / MyOperator):
+ *  - Webhook: in the Heyo / MyOperator panel set the incoming-message webhook to
+ *      <this web app URL>?hook=whatsapp&key=<secret>
+ *    (the app shows the exact link in Settings → Google Sheet). Every message is saved in the "WhatsApp" tab.
+ *  - Optional pull from the API: Project Settings → Script Properties → add MYOP_API_KEY, MYOP_COMPANY_ID and
+ *    MYOP_LIST_PATH (the "list messages" endpoint path MyOperator gives you, e.g. /chat/messages), then run
+ *    `installWhatsAppPull` once (every 5 minutes). Keys stay in Script Properties, never in the app or the code.
  */
 const SHEET_ID = '1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y';
 const SHEETS = ['Dashboard', 'Appointments', 'Leads', 'Patients', 'Injection Sales', 'Protein Sales', 'Diet Support', 'Purchases',
@@ -132,9 +140,15 @@ function writeSheets(ss, sheets) {
   return written;
 }
 
-/** GET ?action=load&secret=… → the app data; GET without action → health check. */
+/** GET ?action=load&secret=… → the app data; ?action=wa&since=… → WhatsApp messages; GET without action → health check. */
 function doGet(e) {
   const p = (e && e.parameter) || {};
+  if (p.action === 'wa' || p.action === 'wapull') {
+    if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret.' });
+    let pulled = null;
+    if (p.action === 'wapull') { try { pulled = pullWhatsApp(); } catch (err) { pulled = { error: String(err.message || err) }; } }
+    return json({ ok: true, messages: waRead(Number(p.since) || 0), pulled: pulled });
+  }
   if (p.action !== 'load') return json({ ok: true, app: 'hindivine-admin-sheets', sheets: SHEETS });
   if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
   const ss = book();
@@ -147,6 +161,8 @@ function doGet(e) {
  * if another device saved since then the save is refused (conflict) so no one's work is overwritten.
  */
 function doPost(e) {
+  const q = (e && e.parameter) || {};
+  if (q.hook === 'whatsapp') return waWebhook(e, q);
   let body;
   try { body = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'Bad JSON' }); }
   if (!checkSecret(body.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
@@ -172,4 +188,126 @@ function doPost(e) {
 
 function json(o) {
   return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON);
+}
+
+// ── WhatsApp messages (Heyo / MyOperator) ───────────────────────
+const WA_SHEET = 'WhatsApp';
+const WA_HEAD = ['Received', 'At (ms)', 'Direction', 'Phone', 'Name', 'Message', 'Type', 'Message ID', 'Raw'];
+const MYOP_BASE = 'https://publicapi.myoperator.co';
+
+function waSheet(ss) {
+  let sh = ss.getSheetByName(WA_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(WA_SHEET);
+    sh.getRange(1, 1, 1, WA_HEAD.length).setValues([WA_HEAD]).setFontWeight('bold').setBackground(NAVY).setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+    sh.hideColumns(2);
+  }
+  return sh;
+}
+
+/** Webhook from Heyo / MyOperator: ?hook=whatsapp&key=<secret>. Saves every message it can find in the payload. */
+function waWebhook(e, q) {
+  if (!checkSecret(q.key)) return json({ ok: false, error: 'Wrong key' });
+  let body = {};
+  try { body = JSON.parse((e.postData && e.postData.contents) || '{}'); } catch (err) { body = { text: String((e.postData && e.postData.contents) || '') }; }
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    const n = waStore(waExtract(body), body);
+    return json({ ok: true, saved: n });
+  } finally { lock.releaseLock(); }
+}
+
+/** Finds messages in any common WhatsApp payload shape (Meta Cloud API, MyOperator / Heyo, flat objects). */
+function waExtract(body) {
+  const out = [];
+  const names = {};
+  const digits = (v) => String(v == null ? '' : v).replace(/[^0-9]/g, '');
+  const str = (v) => (v == null ? '' : typeof v === 'string' ? v : typeof v === 'number' ? String(v) : '');
+  // Meta format: entry[].changes[].value.{contacts, messages}
+  (body.entry || []).forEach((en) => (en.changes || []).forEach((ch) => {
+    const v = ch.value || {};
+    (v.contacts || []).forEach((c) => { names[digits(c.wa_id)] = c.profile && c.profile.name; });
+    (v.messages || []).forEach((m) => out.push(waMsg(m, names[digits(m.from)], 'in')));
+  }));
+  if (out.length) return out;
+  // Anything else: every object that has a phone-like and a text-like field.
+  const seen = new Set();
+  const walk = (o, depth) => {
+    if (!o || typeof o !== 'object' || depth > 6) return;
+    if (Array.isArray(o)) { o.forEach((x) => walk(x, depth + 1)); return; }
+    const text = str(o.text && o.text.body) || str(o.text) || str(o.body) || str(o.message) || str(o.message_text) || str(o.content) || str(o.msg) || str(o.caption)
+      || str(o.data && o.data.text) || '';
+    const phone = digits(o.from || o.wa_id || o.mobile || o.phone || o.phone_number || o.customer_number || o.customer_phone || o.contact_number || o.sender || o.number || o.msisdn || o.to);
+    if (text && phone.length >= 10) {
+      const m = waMsg(o, str(o.name || o.customer_name || o.contact_name || o.profile_name || (o.profile && o.profile.name) || (o.contact && o.contact.name)), '');
+      if (!seen.has(m.id)) { seen.add(m.id); out.push(m); }
+      return;
+    }
+    Object.keys(o).forEach((k) => walk(o[k], depth + 1));
+  };
+  walk(body, 0);
+  return out;
+}
+
+function waMsg(m, name, dir) {
+  const digits = (v) => String(v == null ? '' : v).replace(/[^0-9]/g, '');
+  const text = (m.text && m.text.body) || (typeof m.text === 'string' ? m.text : '') || m.body || m.message || m.message_text || m.content || m.msg || m.caption
+    || (m.image && (m.image.caption || '[photo]')) || (m.document && '[document]') || (m.audio && '[voice message]') || (m.button && m.button.text) || (m.interactive && JSON.stringify(m.interactive).slice(0, 200)) || '';
+  const outgoing = dir === 'out' || /out|sent|agent|business/i.test(String(m.direction || m.message_direction || m.source || '')) || m.from_me === true || m.fromMe === true;
+  const phone = digits(outgoing ? (m.to || m.recipient || m.customer_number || m.phone || m.mobile) : (m.from || m.wa_id || m.customer_number || m.phone || m.mobile || m.sender || m.msisdn));
+  const ts = Number(m.timestamp || m.time || m.created_at_ts || 0);
+  const at = ts ? (ts < 1e12 ? ts * 1000 : ts) : (Date.parse(m.created_at || m.createdAt || m.date || '') || Date.now());
+  const id = String(m.id || m.message_id || m.wamid || m.messageId || `${phone}-${at}-${String(text).length}`);
+  return { id: id, at: at, dir: outgoing ? 'out' : 'in', phone: phone.slice(-12), name: String(name || ''), text: String(text).slice(0, 2000), type: String(m.type || m.message_type || 'text') };
+}
+
+/** Appends new messages (skips ids already saved). */
+function waStore(msgs, raw) {
+  const ss = book();
+  const sh = waSheet(ss);
+  const last = sh.getLastRow();
+  const from = Math.max(2, last - 1500);
+  const known = new Set(last >= 2 ? sh.getRange(from, 8, last - from + 1, 1).getValues().map((r) => String(r[0])) : []);
+  const rows = msgs.filter((m) => m.text && !known.has(m.id)).map((m) => [new Date(m.at), m.at, m.dir === 'out' ? 'Sent' : 'Received', m.phone, m.name, m.text, m.type, m.id, JSON.stringify(raw || '').slice(0, 4000)]);
+  if (rows.length) sh.getRange(sh.getLastRow() + 1, 1, rows.length, WA_HEAD.length).setValues(rows);
+  return rows.length;
+}
+
+/** Messages saved after `since` (ms), newest 1000. */
+function waRead(since) {
+  const sh = book().getSheetByName(WA_SHEET);
+  if (!sh || sh.getLastRow() < 2) return [];
+  const last = sh.getLastRow();
+  const from = Math.max(2, last - 3000);
+  return sh.getRange(from, 1, last - from + 1, 8).getValues()
+    .filter((r) => Number(r[1]) > since)
+    .map((r) => ({ at: Number(r[1]), dir: r[2] === 'Sent' ? 'out' : 'in', phone: String(r[3]), name: String(r[4] || ''), text: String(r[5] || ''), type: String(r[6] || ''), id: String(r[7]) }))
+    .slice(-1000);
+}
+
+/**
+ * Optional: fetch messages from the MyOperator public API. Needs Script Properties MYOP_API_KEY, MYOP_COMPANY_ID and
+ * MYOP_LIST_PATH (ask MyOperator support for the "list WhatsApp messages / conversations" endpoint).
+ */
+function pullWhatsApp() {
+  const props = PropertiesService.getScriptProperties();
+  const key = props.getProperty('MYOP_API_KEY'); const company = props.getProperty('MYOP_COMPANY_ID'); const path = props.getProperty('MYOP_LIST_PATH');
+  if (!key || !path) return { skipped: 'Add MYOP_API_KEY and MYOP_LIST_PATH in Script Properties to fetch from the MyOperator API.' };
+  const url = MYOP_BASE + path + (path.indexOf('?') >= 0 ? '&' : '?') + 'company_id=' + encodeURIComponent(company || '') + '&limit=100';
+  const res = UrlFetchApp.fetch(url, { method: 'get', headers: { 'x-api-key': key, Authorization: 'Bearer ' + key, Accept: 'application/json' }, muteHttpExceptions: true });
+  const code = res.getResponseCode();
+  if (code >= 300) return { error: 'MyOperator replied ' + code + ': ' + res.getContentText().slice(0, 200) };
+  const body = JSON.parse(res.getContentText() || '{}');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try { return { saved: waStore(waExtract(body), null) }; } finally { lock.releaseLock(); }
+}
+
+/** Run once to fetch from the MyOperator API every 5 minutes (only needed if the webhook is not set up). */
+function installWhatsAppPull() {
+  ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === 'pullWhatsApp').forEach((t) => ScriptApp.deleteTrigger(t));
+  ScriptApp.newTrigger('pullWhatsApp').timeBased().everyMinutes(5).create();
+  Logger.log(JSON.stringify(pullWhatsApp()));
 }
