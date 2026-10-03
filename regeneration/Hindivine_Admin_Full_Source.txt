@@ -1,5 +1,5 @@
 ================================================================================
- HINDIVINE ADMIN 4.2 — COMPLETE SOURCE CODE
+ HINDIVINE ADMIN 4.3 — COMPLETE SOURCE CODE
  Developer credit: Aamir Sk · Hindivine Digital Marketing Team
 ================================================================================
 
@@ -28,7 +28,7 @@ Then:
   3. chmod +x android/build.sh
   4. npm test                      (unit tests, Node 18+)
   5. npx serve .   → open /admin/  (try it in a browser)
-  6. APP=admin VERSION_CODE=16 VERSION_NAME=4.2 ./android/build.sh
+  6. APP=admin VERSION_CODE=17 VERSION_NAME=4.3 ./android/build.sh
                                    (Android APK → dist/HindivineAdmin.apk)
 See "Hindivine_Admin_Regeneration_Script.txt" for the full explanation.
 
@@ -3087,7 +3087,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.2';
+  const APP_VERSION = '4.3';
   const CREDIT = 'Developed by Aamir Sk · Hindivine Digital Marketing Team';
   const ROLE_KEY = 'hindivine.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -3946,6 +3946,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['4.3', 'Leads in their own Google spreadsheet: Settings → Google Sheet → Leads spreadsheet can create a new "Hindivine Leads" sheet, connect an existing one or go back to the main sheet; the Leads tab and the WhatsApp messages tab then go there instead of the main clinic sheet.'],
     ['4.2', 'WhatsApp leads only from the ad message: a new number becomes a lead only when its message contains "Hello! Can I get more info on this?" (phrases editable in Settings → Google Sheet → WhatsApp; empty = any message). Other chats still show in the WhatsApp inbox.'],
     ['4.1', 'WhatsApp inbox for Heyo / MyOperator: messages arrive through the Google Sheet (webhook to the Apps Script, saved in a WhatsApp tab; optional pull from the MyOperator API with the key kept in Apps Script), WhatsApp screen with chats, unread counts, chat view, reply on WhatsApp, + lead and Book OPD; every new number becomes a lead (source WhatsApp) and messages are added to the lead history.'],
     ['4.0', 'Share invoices and OPD slips on WhatsApp: the PDF opens straight in the patient\'s WhatsApp chat with a short message (Share invoice / Share slip in the appointment, Share on WhatsApp in the invoice options); purchase invoices no longer show the product: the item reads "Weight Loss Program" or "Weight Loss Program (3 Months)", with the months entered on the sale or when making the invoice and the name editable (default in Settings).'],
@@ -5086,6 +5087,16 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       </div>
       <ol class="steps"><li>Open <a href="${SHEET_LINK}" target="_blank" rel="noopener">the Hindivine Google Sheet</a> → Extensions → Apps Script.</li><li>Paste <a href="google-apps-script/Code.gs" target="_blank" rel="noopener">Code.gs</a>, Save, run <b>setup</b>.</li><li>Deploy → Web app (Execute as: Me, Who has access: Anyone).</li><li>Paste the URL and the secret here and save.</li></ol>
       <p class="hint" style="margin:0"><b>Current sheet or a new one:</b> data stays in the current sheet by default. In Apps Script run <b>useNewSpreadsheet</b> to copy all data into a brand-new spreadsheet and use it from now on, or <b>useCurrentSheet</b> to go back. Missing tabs are created automatically.</p>${saveBtn}`)}
+      ${isSuper && connected() ? sec('sheet', (() => {
+        let li = null; try { li = JSON.parse(lsGet('hindivine.admin.leadsInfo', 'null')); } catch (_) { li = null; }
+        return `<h2><span class="ic violet">${svg(ICON_LEADS)}</span>Leads spreadsheet</h2>
+        <div class="sheet-status ${li && li.separate ? 'ok' : ''}"><b>${li && li.separate ? 'Separate sheet' : 'In the main sheet'}</b><span>${li && li.separate ? 'The Leads and WhatsApp tabs are kept here' : 'Leads and WhatsApp tabs are in the main clinic sheet'}</span>${li && li.separate ? `<a href="${esc(li.url)}" target="_blank" rel="noopener">${esc(li.name)} ↗</a>` : ''}</div>
+        <p class="hint" style="margin-top:0">Keep leads (and WhatsApp messages) in their own Google spreadsheet, apart from sales, patients and stock. The app keeps working the same way.</p>
+        <div class="sheet-acts"><button type="button" class="btn sm primary" data-act="leads-sheet" data-mode="new">Create new leads sheet</button>${li && li.separate ? '<button type="button" class="btn sm" data-act="leads-sheet" data-mode="main">Use main sheet</button>' : ''}</div>
+        <label class="f">Or connect an existing Google Sheet<input id="leads-ref" placeholder="https://docs.google.com/spreadsheets/d/…"></label>
+        <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm" data-act="leads-sheet" data-mode="connect">Connect this sheet</button></div>
+        <p class="hint" style="margin:0">The sheet must be shared with (or owned by) the Google account that runs the Apps Script. Update Code.gs and deploy a new version first.</p>`;
+      })()) : ''}
       ${isSuper && connected() ? sec('sheet', `<h2><span class="ic wa-ic-bg">${svg(ICON_WA)}</span>WhatsApp (Heyo / MyOperator)</h2>
         <div class="set-switches">
           <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waOn" ${set().waOn ? 'checked' : ''}> Show WhatsApp messages in the app (WhatsApp screen)</label>
@@ -5233,6 +5244,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     } finally { clearTimeout(timer); }
     const out = await res.json().catch(() => null);
     if (out && out.sheetUrl) lsSet('hindivine.admin.sheetInfo', JSON.stringify({ name: out.sheetName, url: out.sheetUrl }));
+    if (out && out.leadsSheet) lsSet('hindivine.admin.leadsInfo', JSON.stringify(out.leadsSheet));
     if (!out) throw new Error(`Google Sheet replied ${res.status}. Check the web app URL and that it is deployed for "Anyone".`);
     if (!out.ok && !out.conflict) throw new Error(out.error || 'Google Sheet refused the request');
     return out;
@@ -5601,6 +5613,20 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     'wa-toggle': (d) => {
       const k = d.k; admin.updateSettings({ [k]: !(set()[k] === true || (k === 'waAutoLead' && set()[k] !== false)) });
       render(); if (k === 'waOn' && set().waOn) waFetch(false, true);
+    },
+    'leads-sheet': async (d) => {
+      const ref = d.mode === 'connect' ? ($('#leads-ref').value || '').trim() : '';
+      if (d.mode === 'connect' && !ref) { toast('Paste the Google Sheet link first', true); return; }
+      if (d.mode === 'main' && !(await confirmBox('Use main sheet', 'Move leads back into the main clinic sheet? The separate sheet stays as it is.', 'Use main sheet'))) return;
+      toast(d.mode === 'new' ? 'Creating the leads sheet…' : 'Connecting…');
+      try {
+        const out = await call('POST', { action: 'leadsSheet', secret: set().sheetsSecret, mode: d.mode, ref });
+        lsSet('hindivine.admin.leadsInfo', JSON.stringify(out.leadsSheet || { separate: false }));
+        admin.logEvent('Leads sheet', out.leadsSheet && out.leadsSheet.separate ? `Leads kept in ${out.leadsSheet.name}` : 'Leads kept in the main sheet');
+        await push().catch(() => {}); // writes the Leads tab to its new place
+        render();
+        toast(out.leadsSheet && out.leadsSheet.separate ? `Leads now go to “${out.leadsSheet.name}”` : 'Leads now go to the main sheet');
+      } catch (err) { toast(err.message.includes('Bad JSON') || err.message.includes('refused') ? 'Update Code.gs in Apps Script and deploy a new version, then try again' : err.message, true); }
     },
     'wa-phrases': () => {
       const list = $('#wa-phrases').value.split('\n').map((x) => x.trim()).filter(Boolean);
@@ -6190,6 +6216,10 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
  *    (its link is in the log). Run `useCurrentSheet` to go back. Missing tabs are always created automatically.
  *  The app's Settings → Google Sheet shows which spreadsheet is in use.
  *
+ * Leads in a separate spreadsheet (optional): from the app (Settings → Google Sheet → Leads spreadsheet) create a new
+ * "Hindivine Leads" spreadsheet or connect an existing one. The Leads tab and the WhatsApp tab then go there instead
+ * of this sheet (property LEADS_SHEET_ID). The app's own data still lives in this sheet's hidden _AppData.
+ *
  * WhatsApp (Heyo / MyOperator):
  *  - Webhook: in the Heyo / MyOperator panel set the incoming-message webhook to
  *      <this web app URL>?hook=whatsapp&key=<secret>
@@ -6292,12 +6322,32 @@ function writeData(ss, state, by) {
   return meta.updated;
 }
 
+// Tabs that go to the separate leads spreadsheet when one is connected.
+const LEAD_TABS = ['Leads'];
+/** The separate leads spreadsheet, or null when leads stay in the main sheet. */
+function leadsBook() {
+  const id = PropertiesService.getScriptProperties().getProperty('LEADS_SHEET_ID');
+  if (!id) return null;
+  try { return SpreadsheetApp.openById(id); } catch (err) { return null; }
+}
+function leadsInfo() {
+  const lb = leadsBook();
+  return lb ? { name: lb.getName(), url: lb.getUrl(), separate: true } : { separate: false };
+}
+
 function writeSheets(ss, sheets) {
   const written = {};
+  const lb = leadsBook();
   SHEETS.forEach((name, i) => {
     const rows = (sheets || {})[name];
     if (!rows) return;
-    const sh = ss.getSheetByName(name) || ss.insertSheet(name, i);
+    const target = lb && LEAD_TABS.indexOf(name) >= 0 ? lb : ss;
+    if (target !== ss) {
+      // Leave a pointer in the main sheet instead of an old copy.
+      const old = ss.getSheetByName(name);
+      if (old) { old.clearContents(); old.getRange('A1').setValue('Leads are kept in the separate spreadsheet: ' + lb.getUrl()); }
+    }
+    const sh = target.getSheetByName(name) || target.insertSheet(name, target === ss ? i : 0);
     sh.clearContents();
     if (!rows.length) return;
     const width = Math.max.apply(null, rows.map((r) => r.length));
@@ -6323,7 +6373,7 @@ function doGet(e) {
   if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
   const ss = book();
   const d = readData(ss);
-  return json({ ok: true, updated: d.updated, by: d.by, state: d.state, sheetName: ss.getName(), sheetUrl: ss.getUrl() });
+  return json({ ok: true, updated: d.updated, by: d.by, state: d.state, sheetName: ss.getName(), sheetUrl: ss.getUrl(), leadsSheet: leadsInfo() });
 }
 
 /**
@@ -6336,6 +6386,9 @@ function doPost(e) {
   let body;
   try { body = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'Bad JSON' }); }
   if (!checkSecret(body.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
+  if (body.action === 'leadsSheet') {
+    try { return json({ ok: true, leadsSheet: setLeadsSheet(body.mode, body.ref) }); } catch (err) { return json({ ok: false, error: String(err.message || err) }); }
+  }
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -6366,6 +6419,7 @@ const WA_HEAD = ['Received', 'At (ms)', 'Direction', 'Phone', 'Name', 'Message',
 const MYOP_BASE = 'https://publicapi.myoperator.co';
 
 function waSheet(ss) {
+  ss = leadsBook() || ss;
   let sh = ss.getSheetByName(WA_SHEET);
   if (!sh) {
     sh = ss.insertSheet(WA_SHEET);
@@ -6447,7 +6501,7 @@ function waStore(msgs, raw) {
 
 /** Messages saved after `since` (ms), newest 1000. */
 function waRead(since) {
-  const sh = book().getSheetByName(WA_SHEET);
+  const sh = (leadsBook() || book()).getSheetByName(WA_SHEET);
   if (!sh || sh.getLastRow() < 2) return [];
   const last = sh.getLastRow();
   const from = Math.max(2, last - 3000);
@@ -6481,11 +6535,43 @@ function installWhatsAppPull() {
   ScriptApp.newTrigger('pullWhatsApp').timeBased().everyMinutes(5).create();
   Logger.log(JSON.stringify(pullWhatsApp()));
 }
+
+/**
+ * Choose where leads go: mode 'new' creates a "Hindivine Leads" spreadsheet, 'connect' uses an existing one
+ * (link or id in ref), 'main' brings leads back to this sheet. Existing WhatsApp messages are copied across.
+ */
+function setLeadsSheet(mode, ref) {
+  const props = PropertiesService.getScriptProperties();
+  const main = book();
+  const before = leadsBook() || main;
+  let target = null;
+  if (mode === 'main') props.deleteProperty('LEADS_SHEET_ID');
+  else {
+    if (mode === 'new') target = SpreadsheetApp.create('Hindivine Leads');
+    else {
+      const m = String(ref || '').match(/\/d\/([a-zA-Z0-9_-]{20,})/) || String(ref || '').match(/^([a-zA-Z0-9_-]{20,})$/);
+      if (!m) throw new Error('Paste the Google Sheet link (or its id)');
+      try { target = SpreadsheetApp.openById(m[1]); } catch (err) { throw new Error('Cannot open that sheet: share it with the Google account that runs this script'); }
+      if (target.getId() === main.getId()) { props.deleteProperty('LEADS_SHEET_ID'); return leadsInfo(); }
+    }
+    props.setProperty('LEADS_SHEET_ID', target.getId());
+  }
+  const after = leadsBook() || main;
+  // Move the WhatsApp messages with the leads.
+  const from = before.getSheetByName(WA_SHEET);
+  if (from && before.getId() !== after.getId() && from.getLastRow() > 1) {
+    const to = waSheet(after);
+    const rows = from.getRange(2, 1, from.getLastRow() - 1, WA_HEAD.length).getValues();
+    if (to.getLastRow() < 2) to.getRange(2, 1, rows.length, WA_HEAD.length).setValues(rows);
+  }
+  if (mode === 'new') { const blank = target.getSheetByName('Sheet1'); waSheet(target); if (blank && target.getSheets().length > 1) target.deleteSheet(blank); }
+  return leadsInfo();
+}
 ===== END FILE: admin/google-apps-script/Code.gs =====
 
 ===== BEGIN FILE: admin/sw.js =====
 /* Offline cache for Hindivine Admin (installed web app). */
-const CACHE = 'hindivine-admin-v15';
+const CACHE = 'hindivine-admin-v16';
 const ASSETS = [
   './', 'index.html', 'manifest.webmanifest', 'css/admin.css', 'js/config.js', 'js/core.js', 'js/export.js', 'js/app.js', 'vendor/jspdf.umd.min.js', 'vendor/jspdf.plugin.autotable.min.js', 'vendor/xlsx.mini.min.js', 'vendor/fonts/PlusJakartaSans-latin.woff2',
   '../img/logo.jpg', '../img/icon-192.png', '../img/icon-512.png',

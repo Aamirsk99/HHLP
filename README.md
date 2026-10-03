@@ -44,7 +44,7 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 - **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
 - **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
 
-## Hindivine Admin app (`admin/`) — version 4.2
+## Hindivine Admin app (`admin/`) — version 4.3
 
 A separate app for running the clinic. **Android:** install [`dist/HindivineAdmin.apk`](dist/HindivineAdmin.apk) (Android 7.0+, built for Android 15 so Play Protect accepts it; installs next to Hindivine Diet). **Web / iPhone:** open `admin/index.html`, or host the folder and *Add to Home Screen*.
 
@@ -83,6 +83,8 @@ Developed by **Aamir Sk · Hindivine Digital Marketing Team**.
 
 **Google Sheet data storage:** all data is stored in the [Hindivine Google Sheet](https://docs.google.com/spreadsheets/d/1_aKPoHJaJfQ6awuoG7ihufQzOBhw8I84yipErlWO1_Y/edit). Set-up once: open the sheet → Extensions → Apps Script → paste [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) → run `setup` (creates Dashboard, Appointments, Leads, Patients, Injection Sales, Protein Sales, Diet Support, Purchases, Inventory, Team, Incentives, Salary, Expenses, Renewals, Activity Log, plus a hidden `_AppData` sheet, and logs a secret) → Deploy → Web app (Execute as *Me*, access *Anyone*) → paste the URL and secret on the sign-in screen (*Connect Google Sheet*) or in Settings. The app saves each change within seconds without showing it, refreshes the data every 30 seconds and on pull-down or the refresh button, works offline, and, when two devices changed data at the same time, joins both automatically (newest version of each record wins, deletions stay deleted). Enter data in the app, not in the sheet: every save rewrites the tabs. **Current sheet or a new one:** by default the data stays in the current Hindivine sheet; run `useNewSpreadsheet` in Apps Script to copy all data into a brand-new spreadsheet and use it from now on, or `useCurrentSheet` to go back (missing tabs are created automatically, and Settings shows which spreadsheet is in use). After changing Code.gs: Deploy → Manage deployments → New version.
 
+**Leads in a separate spreadsheet:** Settings → Google Sheet → *Leads spreadsheet* → **Create new leads sheet** (makes "Hindivine Leads"), **Connect this sheet** (paste the link of a sheet the Apps Script account can open) or **Use main sheet**. The Leads and WhatsApp tabs are then written there; the main sheet's Leads tab points to it. The app's shared data stays in the main sheet's hidden `_AppData`.
+
 **Built-in sheet link (clinic APK):** to make the app connect by itself on first launch, put the web app link and secret in `android/sheet.env` (ignored by git) as `HDV_SHEET_URL=…` and `HDV_SHEET_SECRET=…`, then build with `SHEET_ENV=android/sheet.env OUT=/somewhere/HindivineAdmin-clinic.apk APP=admin ./android/build.sh`. Install that APK on clinic phones and **never commit it**: this repository is public and the secret gives full access to the data. The APK in `dist/` has no link; it asks for it on first launch. Settings → Google Sheet can test, sync, disconnect, reconnect or change the link.
 
 **Excel / Google Sheets workbook:** [`admin/Hindivine_Admin_Sheets.xlsx`](admin/Hindivine_Admin_Sheets.xlsx) has the same 13 sheets plus Settings, with formulas, so it also works on its own: appointments (₹1000 fee, clinic visit/online), sales, purchases, expenses, patients and team; stock, incentives, salary + incentive, renewals (75/90 days) and the dashboard calculate themselves. Keep it separate from the Google Sheet the app stores its data in, because the app rewrites those tabs.
@@ -110,7 +112,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 
 ```sh
 VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
-APP=admin VERSION_CODE=16 VERSION_NAME=4.2 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
+APP=admin VERSION_CODE=17 VERSION_NAME=4.3 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.

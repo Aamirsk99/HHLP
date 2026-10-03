@@ -20,6 +20,10 @@
  *    (its link is in the log). Run `useCurrentSheet` to go back. Missing tabs are always created automatically.
  *  The app's Settings → Google Sheet shows which spreadsheet is in use.
  *
+ * Leads in a separate spreadsheet (optional): from the app (Settings → Google Sheet → Leads spreadsheet) create a new
+ * "Hindivine Leads" spreadsheet or connect an existing one. The Leads tab and the WhatsApp tab then go there instead
+ * of this sheet (property LEADS_SHEET_ID). The app's own data still lives in this sheet's hidden _AppData.
+ *
  * WhatsApp (Heyo / MyOperator):
  *  - Webhook: in the Heyo / MyOperator panel set the incoming-message webhook to
  *      <this web app URL>?hook=whatsapp&key=<secret>
@@ -122,12 +126,32 @@ function writeData(ss, state, by) {
   return meta.updated;
 }
 
+// Tabs that go to the separate leads spreadsheet when one is connected.
+const LEAD_TABS = ['Leads'];
+/** The separate leads spreadsheet, or null when leads stay in the main sheet. */
+function leadsBook() {
+  const id = PropertiesService.getScriptProperties().getProperty('LEADS_SHEET_ID');
+  if (!id) return null;
+  try { return SpreadsheetApp.openById(id); } catch (err) { return null; }
+}
+function leadsInfo() {
+  const lb = leadsBook();
+  return lb ? { name: lb.getName(), url: lb.getUrl(), separate: true } : { separate: false };
+}
+
 function writeSheets(ss, sheets) {
   const written = {};
+  const lb = leadsBook();
   SHEETS.forEach((name, i) => {
     const rows = (sheets || {})[name];
     if (!rows) return;
-    const sh = ss.getSheetByName(name) || ss.insertSheet(name, i);
+    const target = lb && LEAD_TABS.indexOf(name) >= 0 ? lb : ss;
+    if (target !== ss) {
+      // Leave a pointer in the main sheet instead of an old copy.
+      const old = ss.getSheetByName(name);
+      if (old) { old.clearContents(); old.getRange('A1').setValue('Leads are kept in the separate spreadsheet: ' + lb.getUrl()); }
+    }
+    const sh = target.getSheetByName(name) || target.insertSheet(name, target === ss ? i : 0);
     sh.clearContents();
     if (!rows.length) return;
     const width = Math.max.apply(null, rows.map((r) => r.length));
@@ -153,7 +177,7 @@ function doGet(e) {
   if (!checkSecret(p.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
   const ss = book();
   const d = readData(ss);
-  return json({ ok: true, updated: d.updated, by: d.by, state: d.state, sheetName: ss.getName(), sheetUrl: ss.getUrl() });
+  return json({ ok: true, updated: d.updated, by: d.by, state: d.state, sheetName: ss.getName(), sheetUrl: ss.getUrl(), leadsSheet: leadsInfo() });
 }
 
 /**
@@ -166,6 +190,9 @@ function doPost(e) {
   let body;
   try { body = JSON.parse(e.postData.contents); } catch (err) { return json({ ok: false, error: 'Bad JSON' }); }
   if (!checkSecret(body.secret)) return json({ ok: false, error: 'Wrong secret. Run setup and copy the secret again.' });
+  if (body.action === 'leadsSheet') {
+    try { return json({ ok: true, leadsSheet: setLeadsSheet(body.mode, body.ref) }); } catch (err) { return json({ ok: false, error: String(err.message || err) }); }
+  }
   const lock = LockService.getScriptLock();
   lock.waitLock(20000);
   try {
@@ -196,6 +223,7 @@ const WA_HEAD = ['Received', 'At (ms)', 'Direction', 'Phone', 'Name', 'Message',
 const MYOP_BASE = 'https://publicapi.myoperator.co';
 
 function waSheet(ss) {
+  ss = leadsBook() || ss;
   let sh = ss.getSheetByName(WA_SHEET);
   if (!sh) {
     sh = ss.insertSheet(WA_SHEET);
@@ -277,7 +305,7 @@ function waStore(msgs, raw) {
 
 /** Messages saved after `since` (ms), newest 1000. */
 function waRead(since) {
-  const sh = book().getSheetByName(WA_SHEET);
+  const sh = (leadsBook() || book()).getSheetByName(WA_SHEET);
   if (!sh || sh.getLastRow() < 2) return [];
   const last = sh.getLastRow();
   const from = Math.max(2, last - 3000);
@@ -310,4 +338,36 @@ function installWhatsAppPull() {
   ScriptApp.getProjectTriggers().filter((t) => t.getHandlerFunction() === 'pullWhatsApp').forEach((t) => ScriptApp.deleteTrigger(t));
   ScriptApp.newTrigger('pullWhatsApp').timeBased().everyMinutes(5).create();
   Logger.log(JSON.stringify(pullWhatsApp()));
+}
+
+/**
+ * Choose where leads go: mode 'new' creates a "Hindivine Leads" spreadsheet, 'connect' uses an existing one
+ * (link or id in ref), 'main' brings leads back to this sheet. Existing WhatsApp messages are copied across.
+ */
+function setLeadsSheet(mode, ref) {
+  const props = PropertiesService.getScriptProperties();
+  const main = book();
+  const before = leadsBook() || main;
+  let target = null;
+  if (mode === 'main') props.deleteProperty('LEADS_SHEET_ID');
+  else {
+    if (mode === 'new') target = SpreadsheetApp.create('Hindivine Leads');
+    else {
+      const m = String(ref || '').match(/\/d\/([a-zA-Z0-9_-]{20,})/) || String(ref || '').match(/^([a-zA-Z0-9_-]{20,})$/);
+      if (!m) throw new Error('Paste the Google Sheet link (or its id)');
+      try { target = SpreadsheetApp.openById(m[1]); } catch (err) { throw new Error('Cannot open that sheet: share it with the Google account that runs this script'); }
+      if (target.getId() === main.getId()) { props.deleteProperty('LEADS_SHEET_ID'); return leadsInfo(); }
+    }
+    props.setProperty('LEADS_SHEET_ID', target.getId());
+  }
+  const after = leadsBook() || main;
+  // Move the WhatsApp messages with the leads.
+  const from = before.getSheetByName(WA_SHEET);
+  if (from && before.getId() !== after.getId() && from.getLastRow() > 1) {
+    const to = waSheet(after);
+    const rows = from.getRange(2, 1, from.getLastRow() - 1, WA_HEAD.length).getValues();
+    if (to.getLastRow() < 2) to.getRange(2, 1, rows.length, WA_HEAD.length).setValues(rows);
+  }
+  if (mode === 'new') { const blank = target.getSheetByName('Sheet1'); waSheet(target); if (blank && target.getSheets().length > 1) target.deleteSheet(blank); }
+  return leadsInfo();
 }
