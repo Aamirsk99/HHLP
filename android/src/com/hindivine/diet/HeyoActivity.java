@@ -25,17 +25,19 @@ public class HeyoActivity extends Activity {
     private WebView web;
     private TextView count;
 
-    // Injected into the panel: wrap fetch and XMLHttpRequest so JSON replies are handed to the app.
+    // Injected into the panel: wrap fetch, XMLHttpRequest and WebSocket so every JSON the chat loads
+    // (chat list, opened chats, and live messages that stream over a socket) is handed to the app.
     private static final String HOOK =
         "(function(){try{if(window.__hdvHeyo)return;window.__hdvHeyo=1;"
-        + "var ok=function(u,t){try{if(!t||t.length<2)return;var s=t.trim()[0];if(s!=='{'&&s!=='[')return;"
-        + "if(t.length>8000000)return;AndroidBridge.heyoData(String(u||''),t);}catch(e){}};"
-        + "var of=window.fetch;if(of)window.fetch=function(){var a=arguments;return of.apply(this,a).then(function(r){try{"
-        + "var u=(a[0]&&a[0].url)||a[0];var ct=r.headers.get('content-type')||'';if(ct.indexOf('json')>=0){r.clone().text().then(function(t){ok(u,t);});}}catch(e){}return r;});};"
-        + "var op=XMLHttpRequest.prototype.open,os=XMLHttpRequest.prototype.send;"
+        + "var ok=function(u,t){try{if(typeof t!=='string'||t.length<2)return;var s=t.trim();"
+        + "if(/^\\d/.test(s)){var i=s.search(/[\\[{]/);if(i>0&&i<12)s=s.slice(i);}" // socket.io frame like 42["msg",{...}]
+        + "var c=s.charAt(0);if(c!=='{'&&c!=='[')return;if(s.length>8000000)return;AndroidBridge.heyoData(String(u||''),s);}catch(e){}};"
+        + "try{var of=window.fetch;if(of)window.fetch=function(){var a=arguments;return of.apply(this,a).then(function(r){try{"
+        + "var u=(a[0]&&a[0].url)||a[0];r.clone().text().then(function(t){ok(u,t);}).catch(function(){});}catch(e){}return r;});};}catch(e){}"
+        + "try{var op=XMLHttpRequest.prototype.open,os=XMLHttpRequest.prototype.send;"
         + "XMLHttpRequest.prototype.open=function(m,u){this.__u=u;return op.apply(this,arguments);};"
-        + "XMLHttpRequest.prototype.send=function(){this.addEventListener('load',function(){try{"
-        + "var ct=this.getResponseHeader('content-type')||'';if(ct.indexOf('json')>=0||String(this.responseText).trim()[0]==='{'||String(this.responseText).trim()[0]==='[')ok(this.__u,this.responseText);}catch(e){}});return os.apply(this,arguments);};"
+        + "XMLHttpRequest.prototype.send=function(){var self=this;this.addEventListener('load',function(){try{ok(self.__u,self.responseText);}catch(e){}});return os.apply(this,arguments);};}catch(e){}"
+        + "try{var OW=window.WebSocket;if(OW){var NW=function(url,p){var ws=p!==undefined?new OW(url,p):new OW(url);ws.addEventListener('message',function(ev){try{if(typeof ev.data==='string')ok('ws:'+url,ev.data);}catch(e){}});return ws;};NW.prototype=OW.prototype;NW.CONNECTING=OW.CONNECTING;NW.OPEN=OW.OPEN;NW.CLOSING=OW.CLOSING;NW.CLOSED=OW.CLOSED;window.WebSocket=NW;}}catch(e){}"
         + "}catch(e){}})();";
 
     @Override
@@ -72,8 +74,10 @@ public class HeyoActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
+        web.setWebChromeClient(new android.webkit.WebChromeClient());
         web.addJavascriptInterface(new Bridge(), "AndroidBridge");
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return false; }

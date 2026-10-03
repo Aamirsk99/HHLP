@@ -789,7 +789,8 @@
         p.msgs.forEach((m) => msgs.push(m));
         p.convs.forEach((c) => { const e = convs.get(c.phone) || {}; if (!e.at || c.at >= e.at) convs.set(c.phone, Object.assign(e, c)); });
       });
-      const res = admin.heyoSync({ msgs, convs: [...convs.values()] });
+      const convList = [...convs.values()];
+      const res = admin.heyoSync({ msgs, convs: convList });
       if (msgs.length) {
         const c = waCache(); const ids = new Set(c.list.map((m) => m.id));
         const fresh = msgs.filter((m) => m.id && m.text && !ids.has(m.id));
@@ -799,7 +800,7 @@
       if (isDirty()) push().catch(() => {});
       render();
       if (res.unknown && res.unknown.length) { heyoMapPrompt(res.unknown); return res; }
-      if (manual || res.created || res.assigned) toast(`MyOperator: ${res.created ? `${plural(res.created, 'new lead')} · ` : ''}${res.assigned ? `${res.assigned} assigned · ` : ''}${plural(res.updated || 0, 'message')} read`);
+      if (manual || res.created || res.assigned) toast(`MyOperator: ${convList.length ? `${plural(convList.length, 'chat')} seen · ` : ''}${res.created ? `${plural(res.created, 'new lead')} · ` : ''}${res.assigned ? `${res.assigned} assigned · ` : ''}${plural(res.updated || 0, 'message')}`);
       return res;
     } finally { heyoBusy = false; }
   }
@@ -820,6 +821,7 @@
     });
   }
   // When the user comes back from the MyOperator panel, read what it loaded.
+  window.hdvHeyoPull = () => { heyoPull(false); return 1; };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && onHeyoApp() && window.AndroidBridge.heyoPending && window.AndroidBridge.heyoPending() > 0) setTimeout(() => heyoPull(false), 400); });
 
   function waThreads() {

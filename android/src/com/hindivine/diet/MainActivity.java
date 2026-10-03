@@ -164,6 +164,20 @@ public class MainActivity extends Activity {
     }
 
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Back from the MyOperator panel: read the chats it loaded into leads.
+        if (webView != null && HeyoStore.pending() > 0) {
+            webView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (webView != null) webView.evaluateJavascript("(window.hdvHeyoPull?window.hdvHeyoPull():0)", null);
+                }
+            }, 500);
+        }
+    }
+
     private long lastBack;
 
     // Back: the page handles it first (close a dialog, go to the previous screen). Only on the

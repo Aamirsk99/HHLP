@@ -73,7 +73,7 @@
         waOn: false, waAutoLead: true, // WhatsApp (Heyo / MyOperator) inbox; new numbers become leads
         waLeadPhrases: ['Hello! Can I get more info on this?'], // a new number becomes a lead only if its message contains one (empty = any message)
         // MyOperator / Heyo panel opened inside the Android app: chats it loads are read and synced.
-        heyoUrl: 'https://in.app.myoperator.com/', heyoAuto: true, heyoEvery: 5, heyoAssign: true, waNumber: '',
+        heyoUrl: 'https://in.app.myoperator.com/chat', heyoAuto: true, heyoEvery: 5, heyoAssign: true, waNumber: '',
         heyoAgents: {}, heyoSeen: [], // panel agent name (lower case) → login id; agent names seen so far
         invoicePrefix: 'HV',
         invoiceItemName: 'Weight Loss Program', // what purchase invoices call the item (instead of the product name) // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
@@ -1429,6 +1429,18 @@
       }
       return '';
     };
+    // The first customer phone anywhere inside a node — used when a message's phone sits in a sibling
+    // subtree (e.g. conversation.contact.phone next to conversation.message.body).
+    const deepPhone = (node, d) => {
+      if (!node || typeof node !== 'object' || d > 6) return '';
+      if (Array.isArray(node)) { for (const x of node) { const p = deepPhone(x, d + 1); if (p) return p; } return ''; }
+      for (const k0 of Object.keys(node)) {
+        const v = node[k0];
+        if (PHONE.test(key(k0))) { const ph = phoneOf(v) || (v && typeof v === 'object' ? phoneOf(v.phone || v.number || v.wa_id || v.mobile || v.phone_number) : ''); if (ph && !own.has(ph)) return ph; }
+      }
+      for (const k0 of Object.keys(node)) { const v = node[k0]; if (v && typeof v === 'object') { const p = deepPhone(v, d + 1); if (p) return p; } }
+      return '';
+    };
     const msgs = []; const convs = new Map(); let n = 0;
     const walk = (node, ctx, depth) => {
       if (!node || typeof node !== 'object' || depth > 12 || ++n > 50000) return;
@@ -1453,7 +1465,10 @@
       // The customer's number: anything that is not the clinic's own; a message "from" the clinic is outgoing.
       const fromOwn = f.phones.some(([k, ph]) => (k === 'from' || k === 'sender') && own.has(ph));
       const cust = (f.phones.find(([, ph]) => !own.has(ph)) || [])[1] || '';
-      const phone = cust || ctx.phone;
+      // This node carries message content but no phone of its own: find the phone in its subtree.
+      let ctxPhone = ctx.phone;
+      if (!cust && !ctxPhone && (f.text || f.at || f.agent)) ctxPhone = deepPhone(node, 0);
+      const phone = cust || ctxPhone;
       const name = cust ? f.name : ctx.name;
       if (phone) {
         if (f.text && f.at) {
@@ -1468,7 +1483,7 @@
           convs.set(cust, c);
         }
       }
-      const next = { phone: cust || ctx.phone, name: cust ? f.name : ctx.name };
+      const next = { phone: cust || ctxPhone, name: cust ? f.name : ctx.name };
       Object.keys(node).forEach((k) => { if (node[k] && typeof node[k] === 'object' && !AGENT.test(key(k))) walk(node[k], next, depth + 1); });
     };
     walk(data, { phone: '', name: '' }, 0);

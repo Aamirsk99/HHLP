@@ -603,3 +603,12 @@ test('MyOperator panel data: chats parsed from any JSON shape, agents become "As
   assert.equal(a.heyoSync({ convs: [{ phone: '9876543210', assignee: 'Neha (Heyo)' }] }).assigned, 1);
   assert.equal(a.state.leads.find((l) => l.mobile === '9876543210').assignedTo, priya.id);
 });
+
+test('MyOperator socket.io / nested payloads parse into chats', () => {
+  // A live-message array payload (socket.io event: ["new_message", {...}]) and a nested wrapper.
+  const t = Date.UTC(2026, 9, 3, 6, 0);
+  const sock = ['message_new', { conversation: { contact: { name: 'Vikram', phone: '+91 90000 12345' }, assigned_agent: { first_name: 'Priya', last_name: 'Das' } }, message: { body: 'Hello! Can I get more info on this?', created_at: new Date(t).toISOString(), direction: 'incoming' } }];
+  const p = A.parseChatCapture(sock, ['910000000000']);
+  assert.deepEqual(p.convs.map((c) => [c.phone, c.name, c.assignee]), [['9000012345', 'Vikram', 'Priya Das']]);
+  assert.deepEqual(p.msgs.map((m) => [m.phone, m.dir, m.text]), [['9000012345', 'in', 'Hello! Can I get more info on this?']]);
+});

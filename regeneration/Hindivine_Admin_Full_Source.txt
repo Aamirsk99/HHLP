@@ -1167,7 +1167,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
         waOn: false, waAutoLead: true, // WhatsApp (Heyo / MyOperator) inbox; new numbers become leads
         waLeadPhrases: ['Hello! Can I get more info on this?'], // a new number becomes a lead only if its message contains one (empty = any message)
         // MyOperator / Heyo panel opened inside the Android app: chats it loads are read and synced.
-        heyoUrl: 'https://in.app.myoperator.com/', heyoAuto: true, heyoEvery: 5, heyoAssign: true, waNumber: '',
+        heyoUrl: 'https://in.app.myoperator.com/chat', heyoAuto: true, heyoEvery: 5, heyoAssign: true, waNumber: '',
         heyoAgents: {}, heyoSeen: [], // panel agent name (lower case) → login id; agent names seen so far
         invoicePrefix: 'HV',
         invoiceItemName: 'Weight Loss Program', // what purchase invoices call the item (instead of the product name) // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
@@ -2523,6 +2523,18 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       }
       return '';
     };
+    // The first customer phone anywhere inside a node — used when a message's phone sits in a sibling
+    // subtree (e.g. conversation.contact.phone next to conversation.message.body).
+    const deepPhone = (node, d) => {
+      if (!node || typeof node !== 'object' || d > 6) return '';
+      if (Array.isArray(node)) { for (const x of node) { const p = deepPhone(x, d + 1); if (p) return p; } return ''; }
+      for (const k0 of Object.keys(node)) {
+        const v = node[k0];
+        if (PHONE.test(key(k0))) { const ph = phoneOf(v) || (v && typeof v === 'object' ? phoneOf(v.phone || v.number || v.wa_id || v.mobile || v.phone_number) : ''); if (ph && !own.has(ph)) return ph; }
+      }
+      for (const k0 of Object.keys(node)) { const v = node[k0]; if (v && typeof v === 'object') { const p = deepPhone(v, d + 1); if (p) return p; } }
+      return '';
+    };
     const msgs = []; const convs = new Map(); let n = 0;
     const walk = (node, ctx, depth) => {
       if (!node || typeof node !== 'object' || depth > 12 || ++n > 50000) return;
@@ -2547,7 +2559,10 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       // The customer's number: anything that is not the clinic's own; a message "from" the clinic is outgoing.
       const fromOwn = f.phones.some(([k, ph]) => (k === 'from' || k === 'sender') && own.has(ph));
       const cust = (f.phones.find(([, ph]) => !own.has(ph)) || [])[1] || '';
-      const phone = cust || ctx.phone;
+      // This node carries message content but no phone of its own: find the phone in its subtree.
+      let ctxPhone = ctx.phone;
+      if (!cust && !ctxPhone && (f.text || f.at || f.agent)) ctxPhone = deepPhone(node, 0);
+      const phone = cust || ctxPhone;
       const name = cust ? f.name : ctx.name;
       if (phone) {
         if (f.text && f.at) {
@@ -2562,7 +2577,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
           convs.set(cust, c);
         }
       }
-      const next = { phone: cust || ctx.phone, name: cust ? f.name : ctx.name };
+      const next = { phone: cust || ctxPhone, name: cust ? f.name : ctx.name };
       Object.keys(node).forEach((k) => { if (node[k] && typeof node[k] === 'object' && !AGENT.test(key(k))) walk(node[k], next, depth + 1); });
     };
     walk(data, { phone: '', name: '' }, 0);
@@ -4039,7 +4054,8 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
         p.msgs.forEach((m) => msgs.push(m));
         p.convs.forEach((c) => { const e = convs.get(c.phone) || {}; if (!e.at || c.at >= e.at) convs.set(c.phone, Object.assign(e, c)); });
       });
-      const res = admin.heyoSync({ msgs, convs: [...convs.values()] });
+      const convList = [...convs.values()];
+      const res = admin.heyoSync({ msgs, convs: convList });
       if (msgs.length) {
         const c = waCache(); const ids = new Set(c.list.map((m) => m.id));
         const fresh = msgs.filter((m) => m.id && m.text && !ids.has(m.id));
@@ -4049,7 +4065,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
       if (isDirty()) push().catch(() => {});
       render();
       if (res.unknown && res.unknown.length) { heyoMapPrompt(res.unknown); return res; }
-      if (manual || res.created || res.assigned) toast(`MyOperator: ${res.created ? `${plural(res.created, 'new lead')} · ` : ''}${res.assigned ? `${res.assigned} assigned · ` : ''}${plural(res.updated || 0, 'message')} read`);
+      if (manual || res.created || res.assigned) toast(`MyOperator: ${convList.length ? `${plural(convList.length, 'chat')} seen · ` : ''}${res.created ? `${plural(res.created, 'new lead')} · ` : ''}${res.assigned ? `${res.assigned} assigned · ` : ''}${plural(res.updated || 0, 'message')}`);
       return res;
     } finally { heyoBusy = false; }
   }
@@ -4070,6 +4086,7 @@ window.HDV_CONFIG = { sheetsUrl: '', sheetsSecret: '', sheetName: 'Hindivine' };
     });
   }
   // When the user comes back from the MyOperator panel, read what it loaded.
+  window.hdvHeyoPull = () => { heyoPull(false); return 1; };
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && onHeyoApp() && window.AndroidBridge.heyoPending && window.AndroidBridge.heyoPending() > 0) setTimeout(() => heyoPull(false), 400); });
 
   function waThreads() {
@@ -7254,6 +7271,20 @@ public class MainActivity extends Activity {
     }
 
 
+    @Override
+    protected void onResume() {
+        super.onResume();
+        // Back from the MyOperator panel: read the chats it loaded into leads.
+        if (webView != null && HeyoStore.pending() > 0) {
+            webView.postDelayed(new Runnable() {
+                @Override
+                public void run() {
+                    if (webView != null) webView.evaluateJavascript("(window.hdvHeyoPull?window.hdvHeyoPull():0)", null);
+                }
+            }, 500);
+        }
+    }
+
     private long lastBack;
 
     // Back: the page handles it first (close a dialog, go to the previous screen). Only on the
@@ -7498,17 +7529,19 @@ public class HeyoActivity extends Activity {
     private WebView web;
     private TextView count;
 
-    // Injected into the panel: wrap fetch and XMLHttpRequest so JSON replies are handed to the app.
+    // Injected into the panel: wrap fetch, XMLHttpRequest and WebSocket so every JSON the chat loads
+    // (chat list, opened chats, and live messages that stream over a socket) is handed to the app.
     private static final String HOOK =
         "(function(){try{if(window.__hdvHeyo)return;window.__hdvHeyo=1;"
-        + "var ok=function(u,t){try{if(!t||t.length<2)return;var s=t.trim()[0];if(s!=='{'&&s!=='[')return;"
-        + "if(t.length>8000000)return;AndroidBridge.heyoData(String(u||''),t);}catch(e){}};"
-        + "var of=window.fetch;if(of)window.fetch=function(){var a=arguments;return of.apply(this,a).then(function(r){try{"
-        + "var u=(a[0]&&a[0].url)||a[0];var ct=r.headers.get('content-type')||'';if(ct.indexOf('json')>=0){r.clone().text().then(function(t){ok(u,t);});}}catch(e){}return r;});};"
-        + "var op=XMLHttpRequest.prototype.open,os=XMLHttpRequest.prototype.send;"
+        + "var ok=function(u,t){try{if(typeof t!=='string'||t.length<2)return;var s=t.trim();"
+        + "if(/^\\d/.test(s)){var i=s.search(/[\\[{]/);if(i>0&&i<12)s=s.slice(i);}" // socket.io frame like 42["msg",{...}]
+        + "var c=s.charAt(0);if(c!=='{'&&c!=='[')return;if(s.length>8000000)return;AndroidBridge.heyoData(String(u||''),s);}catch(e){}};"
+        + "try{var of=window.fetch;if(of)window.fetch=function(){var a=arguments;return of.apply(this,a).then(function(r){try{"
+        + "var u=(a[0]&&a[0].url)||a[0];r.clone().text().then(function(t){ok(u,t);}).catch(function(){});}catch(e){}return r;});};}catch(e){}"
+        + "try{var op=XMLHttpRequest.prototype.open,os=XMLHttpRequest.prototype.send;"
         + "XMLHttpRequest.prototype.open=function(m,u){this.__u=u;return op.apply(this,arguments);};"
-        + "XMLHttpRequest.prototype.send=function(){this.addEventListener('load',function(){try{"
-        + "var ct=this.getResponseHeader('content-type')||'';if(ct.indexOf('json')>=0||String(this.responseText).trim()[0]==='{'||String(this.responseText).trim()[0]==='[')ok(this.__u,this.responseText);}catch(e){}});return os.apply(this,arguments);};"
+        + "XMLHttpRequest.prototype.send=function(){var self=this;this.addEventListener('load',function(){try{ok(self.__u,self.responseText);}catch(e){}});return os.apply(this,arguments);};}catch(e){}"
+        + "try{var OW=window.WebSocket;if(OW){var NW=function(url,p){var ws=p!==undefined?new OW(url,p):new OW(url);ws.addEventListener('message',function(ev){try{if(typeof ev.data==='string')ok('ws:'+url,ev.data);}catch(e){}});return ws;};NW.prototype=OW.prototype;NW.CONNECTING=OW.CONNECTING;NW.OPEN=OW.OPEN;NW.CLOSING=OW.CLOSING;NW.CLOSED=OW.CLOSED;window.WebSocket=NW;}}catch(e){}"
         + "}catch(e){}})();";
 
     @Override
@@ -7545,8 +7578,10 @@ public class HeyoActivity extends Activity {
         s.setDomStorageEnabled(true);
         s.setDatabaseEnabled(true);
         s.setMediaPlaybackRequiresUserGesture(false);
+        s.setMixedContentMode(WebSettings.MIXED_CONTENT_COMPATIBILITY_MODE);
         CookieManager.getInstance().setAcceptCookie(true);
         CookieManager.getInstance().setAcceptThirdPartyCookies(web, true);
+        web.setWebChromeClient(new android.webkit.WebChromeClient());
         web.addJavascriptInterface(new Bridge(), "AndroidBridge");
         web.setWebViewClient(new WebViewClient() {
             @Override public boolean shouldOverrideUrlLoading(WebView view, WebResourceRequest request) { return false; }
@@ -8595,6 +8630,15 @@ test('MyOperator panel data: chats parsed from any JSON shape, agents become "As
   a.updateSettings({ heyoAgents: { 'neha (heyo)': priya.id } });
   assert.equal(a.heyoSync({ convs: [{ phone: '9876543210', assignee: 'Neha (Heyo)' }] }).assigned, 1);
   assert.equal(a.state.leads.find((l) => l.mobile === '9876543210').assignedTo, priya.id);
+});
+
+test('MyOperator socket.io / nested payloads parse into chats', () => {
+  // A live-message array payload (socket.io event: ["new_message", {...}]) and a nested wrapper.
+  const t = Date.UTC(2026, 9, 3, 6, 0);
+  const sock = ['message_new', { conversation: { contact: { name: 'Vikram', phone: '+91 90000 12345' }, assigned_agent: { first_name: 'Priya', last_name: 'Das' } }, message: { body: 'Hello! Can I get more info on this?', created_at: new Date(t).toISOString(), direction: 'incoming' } }];
+  const p = A.parseChatCapture(sock, ['910000000000']);
+  assert.deepEqual(p.convs.map((c) => [c.phone, c.name, c.assignee]), [['9000012345', 'Vikram', 'Priya Das']]);
+  assert.deepEqual(p.msgs.map((m) => [m.phone, m.dir, m.text]), [['9000012345', 'in', 'Hello! Can I get more info on this?']]);
 });
 ===== END FILE: tests/admin.test.js =====
 
