@@ -72,6 +72,9 @@
         clinicAddress: '', clinicPhone: '', clinicEmail: '',
         waOn: false, waAutoLead: true, // WhatsApp (Heyo / MyOperator) inbox; new numbers become leads
         waLeadPhrases: ['Hello! Can I get more info on this?'], // a new number becomes a lead only if its message contains one (empty = any message)
+        // MyOperator / Heyo panel opened inside the Android app: chats it loads are read and synced.
+        heyoUrl: 'https://my.myoperator.co/', heyoAuto: true, heyoEvery: 5, heyoAssign: true, waNumber: '',
+        heyoAgents: {}, heyoSeen: [], // panel agent name (lower case) → login id; agent names seen so far
         invoicePrefix: 'HV',
         invoiceItemName: 'Weight Loss Program', // what purchase invoices call the item (instead of the product name) // invoice numbers: HV/INV/26-27/0001 (purchases), HV/OPD/26-27/0001 (OPD)
         legalNote: DEFAULT_LEGAL_NOTE, // terms printed on invoices
@@ -845,6 +848,64 @@
      * Skips numbers that are already leads or patients and repeated numbers in the file; onlyPhrases keeps rows whose
      * message contains a WhatsApp lead phrase. Returns { added, skipped, dupes }.
      */
+    /** Login for a MyOperator / Heyo agent: the saved mapping, else the same name, else a unique first-name match. */
+    function heyoAccount(agent) {
+      const k = String(agent || '').trim().toLowerCase();
+      if (!k) return null;
+      const map = S.settings.heyoAgents || {};
+      if (map[k]) return S.accounts.find((a) => a.id === map[k]) || null;
+      if (k in map) return null; // mapped to "nobody"
+      const live = S.accounts.filter((a) => !a.disabled);
+      const exact = live.find((a) => String(a.name || '').trim().toLowerCase() === k);
+      if (exact) return exact;
+      const first = k.split(/[\s@._]+/)[0];
+      const byFirst = live.filter((a) => String(a.name || '').trim().toLowerCase().split(/\s+/)[0] === first);
+      return first.length > 2 && byFirst.length === 1 ? byFirst[0] : null;
+    }
+    /**
+     * Chats read from the MyOperator / Heyo panel: messages go through importWhatsApp (lead rules and history);
+     * each conversation's assigned agent becomes the lead's "Assigned to" whenever the agent changes on the panel.
+     */
+    function heyoSync(data) {
+      const msgs = (data && data.msgs) || []; const convs = (data && data.convs) || [];
+      const res = importWhatsApp(msgs);
+      let assigned = 0; let created = 0; const unknown = new Set();
+      const norm = (t) => String(t || '').toLowerCase().replace(/\s+/g, ' ').trim();
+      const phrases = (S.settings.waLeadPhrases || []).map(norm).filter(Boolean);
+      const seen = S.settings.heyoSeen || (S.settings.heyoSeen = []);
+      const now = clock ? clock().getTime() : Date.now();
+      convs.forEach((c) => {
+        const d = digits(c.phone);
+        if (d.length < 10) return;
+        let l = S.leads.find((x) => digits(x.mobile) === d);
+        if (!l && c.text && S.settings.waAutoLead !== false && !S.patients.some((x) => digits(x.mobile) === d)
+          && (!phrases.length || phrases.some((ph) => norm(c.text).includes(ph)))) {
+          const at = c.at || now;
+          l = { id: `wa${d}`, created: at, createdBy: 'WhatsApp', date: isoDate(new Date(at)), status: 'New', priority: 'warm', name: String(c.name || '').trim() || `WhatsApp ${d}`,
+            mobile: d, source: 'WhatsApp', followUp: isoDate(new Date(at)), history: [{ at, by: 'WhatsApp', type: 'created', text: 'Lead added from WhatsApp (MyOperator panel)' }, { at, by: c.name || 'WhatsApp', type: 'whatsapp', text: `WhatsApp: ${String(c.text).slice(0, 300)}` }] };
+          S.leads.push(l);
+          if (!S.settings.lists.leadSources.includes('WhatsApp')) S.settings.lists.leadSources.push('WhatsApp');
+          created++;
+        }
+        if (!l) return;
+        if (c.name && /^WhatsApp \d+$/.test(l.name)) l.name = String(c.name).trim();
+        const agent = String(c.assignee || '').trim();
+        if (!agent || S.settings.heyoAssign === false) return;
+        if (!seen.some((x) => x.toLowerCase() === agent.toLowerCase())) { seen.push(agent); if (seen.length > 60) seen.shift(); }
+        const acc = heyoAccount(agent);
+        if (!acc) { if (!(agent.toLowerCase() in (S.settings.heyoAgents || {}))) unknown.add(agent); return; }
+        // Follow the panel only when its agent changes, so a hand-made change in the app is kept until then.
+        if (l.heyoAgent === agent && l.assignedTo) return;
+        l.heyoAgent = agent;
+        if (l.assignedTo === acc.id) return;
+        l.assignedTo = acc.id;
+        l.history = l.history || [];
+        l.history.push({ at: now, by: 'MyOperator', type: 'note', text: `Assigned to ${acc.name} (as on MyOperator / Heyo)` });
+        assigned++;
+      });
+      if (created || assigned) { log('MyOperator sync', `${created} new lead${created === 1 ? '' : 's'} · ${assigned} assigned`); save(); }
+      return { created: res.created + created, updated: res.updated, assigned, unknown: [...unknown] };
+    }
     function importLeads(rows, opts) {
       const o = opts || {};
       const source = String(o.source || 'WhatsApp').trim() || 'WhatsApp';
@@ -1282,7 +1343,7 @@
       incentiveLedger, salarySheet, postSalary, salaryPosted,
       renewals, markRenewal,
       appointment, saveAppointment, updateAppointment, deleteAppointment, appointmentsIn, appointmentStats, feeEarned,
-      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo, importWhatsApp, importLeads,
+      account, saveAccount, setAccountPin, deleteAccount, setActor, logEvent, invoiceFor, setInvoiceInfo, importWhatsApp, importLeads, heyoSync, heyoAccount,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor, setRate,
       updatePatient, deletePatient, daySummary,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, findLeadByMobile, isClosedLead,
@@ -1338,6 +1399,82 @@
     return out;
   }
 
+  /**
+   * Reads any JSON the MyOperator / Heyo panel loads and returns { msgs, convs }:
+   * msgs [{id, at, dir, phone, name, text}] for single messages, convs [{phone, name, assignee, at, text}] for chat-list rows.
+   * Field names differ between versions, so it matches them by pattern; ownNumbers are the clinic's own WhatsApp numbers.
+   */
+  function parseChatCapture(data, ownNumbers) {
+    const dig = (v) => String(v == null ? '' : v).replace(/\D/g, '');
+    const own = new Set((ownNumbers || []).map((x) => dig(x).slice(-10)).filter((x) => x.length === 10));
+    const key = (k) => String(k).replace(/([a-z])([A-Z])/g, '$1_$2').toLowerCase();
+    const PHONE = /^(phone|mobile|msisdn|wa_?id|contact_?(no|number|phone|mobile)|customer_?(no|number|phone|mobile)|number|phone_?(no|number)|mobile_?(no|number)|whatsapp_?(no|number)|from|to|sender|recipient|recipient_?id|user_?phone|lead_?(phone|mobile)|country_?phone)$/;
+    const NAME = /^(name|full_?name|display_?name|contact_?name|customer_?name|profile_?name|wa_?name|push_?name|lead_?name)$/;
+    const TEXT = /^(text|body|message|message_?text|content|msg|caption|last_?message|last_?msg|last_?message_?text|preview|snippet)$/;
+    const TIME = /^(timestamp|time|ts|created_?at|updated_?at|sent_?at|received_?at|date|date_?time|last_?message_?(at|time)|last_?activity(_?at)?|last_?msg_?time)$/;
+    const AGENT = /(assign|agent|owner|executive|handled_?by|operator|staff)/;
+    const AGENT_NAME = ['name', 'full_name', 'fullname', 'display_name', 'username', 'user_name', 'first_name', 'email'];
+    const phoneOf = (v) => { if (typeof v !== 'string' && typeof v !== 'number') return ''; const d = dig(v); return d.length >= 10 && d.length <= 13 && String(v).replace(/[\s+()-]/g, '').length <= 15 ? d.slice(-10) : ''; };
+    const timeOf = (v) => {
+      if (typeof v === 'number') return v > 1e12 ? v : v > 1e9 ? v * 1000 : 0;
+      if (typeof v === 'string') { if (/^\d{10,13}$/.test(v)) return timeOf(Number(v)); const t = Date.parse(v); return Number.isFinite(t) && t > 946684800000 ? t : 0; }
+      return 0;
+    };
+    const textOf = (v) => (typeof v === 'string' ? v : v && typeof v === 'object' && typeof v.body === 'string' ? v.body : v && typeof v === 'object' && typeof v.text === 'string' ? v.text : '');
+    const agentOf = (v) => {
+      if (typeof v === 'string') return /^\d+$/.test(v) || v.length > 60 ? '' : v.trim();
+      if (v && typeof v === 'object' && !Array.isArray(v)) {
+        const k = Object.keys(v).find((x) => AGENT_NAME.includes(key(x)) && typeof v[x] === 'string' && v[x].trim());
+        if (k) return key(k) === 'first_name' && v.last_name ? `${v[k]} ${v.last_name}`.trim() : v[k].trim();
+      }
+      return '';
+    };
+    const msgs = []; const convs = new Map(); let n = 0;
+    const walk = (node, ctx, depth) => {
+      if (!node || typeof node !== 'object' || depth > 12 || ++n > 50000) return;
+      if (Array.isArray(node)) { node.forEach((x) => walk(x, ctx, depth + 1)); return; }
+      const f = { phones: [], name: '', text: '', at: 0, agent: '', out: null, id: '' };
+      Object.keys(node).forEach((k0) => {
+        const k = key(k0); const v = node[k0];
+        if (PHONE.test(k)) { const ph = phoneOf(v) || (v && typeof v === 'object' ? phoneOf(v.phone || v.number || v.wa_id || v.mobile) : ''); if (ph) f.phones.push([k, ph]); }
+        if (!f.name && NAME.test(k) && typeof v === 'string' && v.trim() && !phoneOf(v)) f.name = v.trim();
+        if (!f.text && TEXT.test(k)) f.text = textOf(v);
+        if (!f.at && TIME.test(k)) f.at = timeOf(v);
+        if (!f.agent && AGENT.test(k)) f.agent = agentOf(v);
+        if (/^(id|message_?id|wamid|msg_?id|uuid|_id)$/.test(k) && (typeof v === 'string' || typeof v === 'number')) f.id = String(v);
+        if (/^(direction|message_?direction|sender_?type|msg_?type|origin)$/.test(k) && typeof v === 'string') f.out = /out|sent|agent|business|user|operator|bot|template/i.test(v) && !/customer|contact|incoming|inbound|received/i.test(v);
+        if (/^(from_?me|is_?outgoing|outgoing|is_?sent|sent_?by_?me|is_?agent)$/.test(k) && typeof v === 'boolean') f.out = v;
+        if ((k === 'contact' || k === 'customer' || k === 'lead' || k === 'user' || k === 'profile') && v && typeof v === 'object' && !Array.isArray(v)) {
+          const ph = phoneOf(v.phone || v.mobile || v.number || v.wa_id || v.phone_number || v.mobile_number);
+          if (ph) f.phones.push(['contact', ph]);
+          if (!f.name) { const nm = v.name || v.full_name || v.display_name || v.profile_name; if (typeof nm === 'string' && !phoneOf(nm)) f.name = nm.trim(); }
+        }
+      });
+      // The customer's number: anything that is not the clinic's own; a message "from" the clinic is outgoing.
+      const fromOwn = f.phones.some(([k, ph]) => (k === 'from' || k === 'sender') && own.has(ph));
+      const cust = (f.phones.find(([, ph]) => !own.has(ph)) || [])[1] || '';
+      const phone = cust || ctx.phone;
+      const name = cust ? f.name : ctx.name;
+      if (phone) {
+        if (f.text && f.at) {
+          const out = f.out != null ? f.out : fromOwn;
+          msgs.push({ id: f.id ? `p${f.id}` : `p${phone}-${f.at}-${f.text.length}`, at: f.at, dir: out ? 'out' : 'in', phone, name: out ? '' : (name || ''), text: f.text.slice(0, 2000) });
+        }
+        if (cust) {
+          const c = convs.get(cust) || { phone: cust, name: '', assignee: '', at: 0, text: '' };
+          if (f.name && !c.name) c.name = f.name;
+          if (f.agent && (!c.assignee || f.at >= c.at)) c.assignee = f.agent;
+          if (f.at >= c.at) { c.at = f.at || c.at; if (f.text) c.text = f.text.slice(0, 500); }
+          convs.set(cust, c);
+        }
+      }
+      const next = { phone: cust || ctx.phone, name: cust ? f.name : ctx.name };
+      Object.keys(node).forEach((k) => { if (node[k] && typeof node[k] === 'object' && !AGENT.test(key(k))) walk(node[k], next, depth + 1); });
+    };
+    walk(data, { phone: '', name: '' }, 0);
+    return { msgs, convs: [...convs.values()] };
+  }
+
   /** Body-mass index from kg and cm, one decimal; '' when either is missing. */
   function bmi(weight, height) {
     const w = Number(weight); const h = Number(height) / 100;
@@ -1346,7 +1483,7 @@
   }
   const bmiLabel = (b) => (!b ? '' : b < 18.5 ? 'Underweight' : b < 23 ? 'Normal' : b < 25 ? 'Overweight' : b < 30 ? 'Obese I' : 'Obese II');
   const api = {
-    bmi, bmiLabel, mergeStates, createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
+    bmi, bmiLabel, mergeStates, parseChatCapture, createAdmin, memoryStorage, defaultState, splitIncentive, matchItem, rangeFor, monthRange, isoDate, daysBetween,
     KINDS, SALE_TYPES, EXPENSE_CATEGORIES, SHEETS, KEY, ROLES, APPT_MODES, APPT_STATUS, PAY_METHODS, DEFAULT_PERMS, LEAD_PRIORITIES, DEFAULT_LISTS,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;

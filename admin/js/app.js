@@ -761,6 +761,64 @@
     } catch (err) { if (manual) toast(err.message, true); } finally { waBusy = false; }
   }
   setInterval(() => { if (role && can('whatsapp')) waFetch(false, false); }, 45000);
+
+  // ── MyOperator / Heyo panel inside the Android app: read the chats it loads and make leads ──
+  const onHeyoApp = () => !!(window.AndroidBridge && window.AndroidBridge.openHeyo);
+  let heyoBusy = false;
+  function heyoOpen() {
+    if (!onHeyoApp()) { toast('Open this in the Hindivine Admin app to log in to MyOperator', true); return; }
+    try { window.AndroidBridge.openHeyo(set().heyoUrl || 'https://my.myoperator.co/'); } catch (_) { toast('Could not open MyOperator', true); }
+  }
+  async function heyoPull(manual) {
+    if (heyoBusy) return;
+    const b = window.AndroidBridge;
+    if (!b || !b.heyoTake) { if (manual) toast('Open this in the Hindivine Admin app to connect MyOperator', true); return; }
+    heyoBusy = true;
+    try {
+      let raw;
+      try { raw = JSON.parse(b.heyoTake() || '[]'); } catch (_) { raw = []; }
+      if (!raw.length) { if (manual) toast('Open MyOperator and view your chats first'); return; }
+      const own = [set().waNumber].filter(Boolean);
+      const msgs = []; const convs = new Map();
+      raw.forEach((r) => {
+        let data; try { data = JSON.parse(r.body); } catch (_) { return; }
+        const p = A.parseChatCapture(data, own);
+        p.msgs.forEach((m) => msgs.push(m));
+        p.convs.forEach((c) => { const e = convs.get(c.phone) || {}; if (!e.at || c.at >= e.at) convs.set(c.phone, Object.assign(e, c)); });
+      });
+      const res = admin.heyoSync({ msgs, convs: [...convs.values()] });
+      if (msgs.length) {
+        const c = waCache(); const ids = new Set(c.list.map((m) => m.id));
+        const fresh = msgs.filter((m) => m.id && m.text && !ids.has(m.id));
+        if (fresh.length) { c.list = c.list.concat(fresh).sort((a, b) => a.at - b.at).slice(-3000); c.at = Math.max(c.at, ...fresh.map((m) => m.at)); lsSet(WA_KEY, JSON.stringify(c)); }
+      }
+      updateWaBadge();
+      if (isDirty()) push().catch(() => {});
+      render();
+      if (res.unknown && res.unknown.length) { heyoMapPrompt(res.unknown); return res; }
+      if (manual || res.created || res.assigned) toast(`MyOperator: ${res.created ? `${plural(res.created, 'new lead')} · ` : ''}${res.assigned ? `${res.assigned} assigned · ` : ''}${plural(res.updated || 0, 'message')} read`);
+      return res;
+    } finally { heyoBusy = false; }
+  }
+  // Agents on the panel that don't match an app login yet: let the Super Admin link each one.
+  function heyoMapPrompt(agents) {
+    const people = S().accounts.filter((a) => !a.disabled);
+    openForm({
+      title: 'Match MyOperator people', submitLabel: 'Save',
+      html: `<p class="hint" style="margin:0">These people assign chats on MyOperator / Heyo. Pick the matching app login so their leads show as assigned to them.</p>
+        ${agents.map((a, i) => `<label class="f">${esc(a)}<select id="hm-${i}" data-agent="${esc(a)}"><option value="">Not assigned</option>${people.map((p) => opt(p.id, `${p.name} · ${A.ROLES[p.role]}`)).join('')}</select></label>`).join('')}`,
+      onSubmit: () => {
+        const map = Object.assign({}, set().heyoAgents || {});
+        agents.forEach((a, i) => { map[a.toLowerCase()] = $(`#hm-${i}`).value; });
+        admin.updateSettings({ heyoAgents: map });
+        heyoPull(false);
+        return 'People matched';
+      },
+    });
+  }
+  // When the user comes back from the MyOperator panel, read what it loaded.
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible' && onHeyoApp() && window.AndroidBridge.heyoPending && window.AndroidBridge.heyoPending() > 0) setTimeout(() => heyoPull(false), 400); });
+
   function waThreads() {
     const by = new Map();
     waCache().list.forEach((m) => {
@@ -925,7 +983,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
-    ['4.4', 'Heyo / MyOperator without a webhook: Leads → Import (and WhatsApp → Import Heyo export) reads a CSV or Excel export of chats or contacts, finds the phone, name, message and date columns, shows a preview and adds new numbers as leads (by default only rows with the ad message; known leads and patients skipped). Settings → Google Sheet → WhatsApp → Test MyOperator API checks which MyOperator endpoints answer with the key saved in Apps Script, to set up automatic fetching.'],
+    ['4.4', 'Connect MyOperator / Heyo by logging in (no webhook): Settings → Google Sheet → WhatsApp → "Open MyOperator & read chats" opens the panel inside the app; the chats it loads become leads and whoever a chat is assigned to on MyOperator becomes the lead\'s "Assigned to" (match each panel person to an app login once). Also Leads → Import (and WhatsApp → Import Heyo export) reads a CSV or Excel export of chats or contacts, finds the phone, name, message and date columns, shows a preview and adds new numbers as leads (by default only rows with the ad message; known leads and patients skipped). Settings → Google Sheet → WhatsApp → Test MyOperator API checks which MyOperator endpoints answer with the key saved in Apps Script, to set up automatic fetching.'],
     ['4.3', 'Leads in their own Google spreadsheet: Settings → Google Sheet → Leads spreadsheet can create a new "Hindivine Leads" sheet, connect an existing one or go back to the main sheet; the Leads tab and the WhatsApp messages tab then go there instead of the main clinic sheet.'],
     ['4.2', 'WhatsApp leads only from the ad message: a new number becomes a lead only when its message contains "Hello! Can I get more info on this?" (phrases editable in Settings → Google Sheet → WhatsApp; empty = any message). Other chats still show in the WhatsApp inbox.'],
     ['4.1', 'WhatsApp inbox for Heyo / MyOperator: messages arrive through the Google Sheet (webhook to the Apps Script, saved in a WhatsApp tab; optional pull from the MyOperator API with the key kept in Apps Script), WhatsApp screen with chats, unread counts, chat view, reply on WhatsApp, + lead and Book OPD; every new number becomes a lead (source WhatsApp) and messages are added to the lead history.'],
@@ -2083,7 +2141,16 @@
           <label class="check"><input type="checkbox" data-act="wa-toggle" data-k="waAutoLead" ${set().waAutoLead !== false ? 'checked' : ''}> Turn new numbers into leads (source: WhatsApp)</label></div>
         <label class="f">Make a lead only when the message contains (one per line)<textarea id="wa-phrases" rows="2">${esc((set().waLeadPhrases || []).join('\n'))}</textarea><span class="hint">Default: the ad message "Hello! Can I get more info on this?". Leave empty to make a lead from any first message.</span></label>
         <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="wa-phrases">Save lead message</button></div>
-        <label class="f">Webhook link for Heyo / MyOperator<input id="wa-hook" readonly value="${esc(`${set().sheetsUrl}${set().sheetsUrl.includes('?') ? '&' : '?'}hook=whatsapp&key=${set().sheetsSecret}`)}"></label>
+        <div class="set-card" style="margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:12px">
+          <h3 style="margin:0 0 6px">Connect MyOperator by logging in (no webhook needed)</h3>
+          <p class="hint" style="margin:0 0 8px">Log in to the MyOperator / Heyo panel inside the app once. The app reads the chats the panel shows and turns new numbers into leads; whoever a chat is assigned to on MyOperator becomes the lead's "Assigned to" here. ${onHeyoApp() ? '' : '<b>Open this in the Hindivine Admin app on your phone to use it.</b>'}</p>
+          <label class="f">MyOperator panel link<input id="heyo-url" value="${esc(set().heyoUrl || 'https://my.myoperator.co/')}"></label>
+          <label class="f">Your WhatsApp Business number (so the app knows outgoing from incoming)<input id="heyo-num" inputmode="numeric" placeholder="e.g. 918920831975" value="${esc(set().waNumber || '')}"></label>
+          <label class="check"><input type="checkbox" id="heyo-assign" ${set().heyoAssign !== false ? 'checked' : ''}> Copy the assigned person from MyOperator to the lead</label>
+          <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm primary" data-act="heyo-open">Open MyOperator & read chats</button><button type="button" class="btn sm" data-act="heyo-sync">Sync now</button><button type="button" class="btn sm" data-act="heyo-save">Save</button><button type="button" class="btn sm danger" data-act="heyo-logout">Log out</button></div>
+          ${(set().heyoSeen || []).length ? `<p class="hint" style="margin:8px 0 0">People seen on MyOperator: ${(set().heyoSeen || []).map((a) => esc(a)).join(', ')}.</p>` : ''}
+        </div>
+        <label class="f" style="margin-top:12px">Webhook link for Heyo / MyOperator<input id="wa-hook" readonly value="${esc(`${set().sheetsUrl}${set().sheetsUrl.includes('?') ? '&' : '?'}hook=whatsapp&key=${set().sheetsSecret}`)}"></label>
         <div class="sheet-acts" style="margin-top:8px"><button type="button" class="btn sm" data-act="wa-copy">Copy webhook link</button><button type="button" class="btn sm" data-act="myop-probe">Test MyOperator API</button><button type="button" class="btn sm" data-act="leads-import">Import Heyo export</button>${set().waOn ? '<button type="button" class="btn sm" data-act="wa-refresh">Fetch now</button>' : ''}</div>
         <ol class="steps"><li>Paste the updated <b>Code.gs</b> in Apps Script and deploy a new version.</li>
           <li>In Heyo / MyOperator, set the incoming WhatsApp message webhook to the link above. Every message is saved in the sheet's <b>WhatsApp</b> tab and shows here within a minute.</li>
@@ -2578,6 +2645,17 @@
       } catch (err) { console.error(err); toast(`Could not make the invoice: ${err.message}`, true); }
     },
     'wa-refresh': () => waFetch(true, true),
+    'heyo-open': () => heyoOpen(),
+    'heyo-sync': () => heyoPull(true),
+    'heyo-logout': async () => {
+      if (!(await confirmBox('Log out of MyOperator', 'Log out of MyOperator on this phone? You will need to log in again next time.', 'Log out'))) return;
+      try { window.AndroidBridge.heyoLogout(); } catch (_) { /* not on app */ }
+      toast('Logged out of MyOperator');
+    },
+    'heyo-save': () => {
+      admin.updateSettings({ heyoUrl: ($('#heyo-url').value || '').trim() || 'https://my.myoperator.co/', waNumber: ($('#heyo-num').value || '').replace(/\D/g, ''), heyoAssign: !!($('#heyo-assign') && $('#heyo-assign').checked) });
+      toast('MyOperator settings saved'); render();
+    },
     'wa-setup': () => { setTab = 'sheet'; go('settings'); },
     'wa-open': (d) => waOpen(d.phone),
     'wa-lead': (d) => {

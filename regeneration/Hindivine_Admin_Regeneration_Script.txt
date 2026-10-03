@@ -652,6 +652,19 @@ B28. VERSION 4.4 ADDITIONS
   list paths with MYOP_API_KEY / MYOP_COMPANY_ID (x-api-key and Bearer) and
   returns [{path, status, messages, sample}]; app action "Test MyOperator
   API" shows it as a table.
+* Log in to MyOperator inside the Android app (no webhook): HeyoActivity
+  opens the panel in a logged-in WebView and a small injected script copies
+  every JSON reply the panel loads to HeyoStore (in memory only; the app
+  makes no request of its own). AndroidBridge.openHeyo / heyoTake /
+  heyoPending / heyoLogout. core.parseChatCapture(data, ownNumbers) reads
+  any JSON shape into {msgs, convs}; core.heyoSync({msgs, convs}) makes
+  leads (importWhatsApp rules) and sets lead.assignedTo from the chat's
+  agent via heyoAccount (saved map settings.heyoAgents, else same / unique
+  first name); it follows the panel only while lead.heyoAgent is unchanged,
+  so a hand-made change in the app is kept. Settings → WhatsApp "Connect
+  MyOperator" card (panel link, own waNumber, assign toggle, open / sync /
+  log out) and a "Match MyOperator people" dialog for unknown agents
+  (settings.heyoSeen lists agents seen).
 
 B14. TESTS (node --test tests/*.test.js)
 ----------------------------------------

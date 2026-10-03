@@ -13,6 +13,7 @@ import android.webkit.WebChromeClient;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebResourceRequest;
 import android.webkit.WebSettings;
+import android.webkit.CookieManager;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 import android.widget.Toast;
@@ -291,6 +292,45 @@ public class MainActivity extends Activity {
         }
 
         /** Follow-up reminders: JSON [{id, at (ms), title, text}] replaces every reminder scheduled before. */
+        /** Open the MyOperator / Heyo panel in a logged-in WebView; chats it loads are read for leads. */
+        @JavascriptInterface
+        public void openHeyo(final String url) {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    try {
+                        Intent i = new Intent(MainActivity.this, HeyoActivity.class);
+                        if (url != null && url.startsWith("https://")) i.putExtra("url", url);
+                        startActivity(i);
+                    } catch (Exception e) {
+                        Toast.makeText(MainActivity.this, "Could not open the MyOperator panel", Toast.LENGTH_LONG).show();
+                    }
+                }
+            });
+        }
+
+        /** JSON of the chat data the panel loaded since last time; the page parses it into leads. */
+        @JavascriptInterface
+        public String heyoTake() {
+            return HeyoStore.take();
+        }
+
+        @JavascriptInterface
+        public int heyoPending() {
+            return HeyoStore.pending();
+        }
+
+        /** Log out of the panel: forget its cookies so the next open asks to log in again. */
+        @JavascriptInterface
+        public void heyoLogout() {
+            HeyoStore.clear();
+            try {
+                CookieManager.getInstance().removeAllCookies(null);
+                CookieManager.getInstance().flush();
+            } catch (Exception ignored) {
+            }
+        }
+
         @JavascriptInterface
         public void scheduleReminders(String json) {
             ReminderReceiver.schedule(MainActivity.this, json);

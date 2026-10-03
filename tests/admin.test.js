@@ -560,3 +560,46 @@ test('import leads from a Heyo / MyOperator export: duplicates, patients and phr
   assert.equal(l.id, 'wa9000000003'); assert.equal(l.date, '2026-10-01'); assert.equal(l.source, 'WhatsApp');
   assert.deepEqual(a.importLeads(rows, { fileName: 'heyo.xlsx' }), { added: 1, skipped: 1, dupes: 4 }, 'without the filter Ravi is added too');
 });
+
+test('MyOperator panel data: chats parsed from any JSON shape, agents become "Assigned to"', () => {
+  const t = Date.UTC(2026, 9, 3, 5, 0);
+  // A chat list (contact nested, agent as object) and an opened chat (messages under the conversation).
+  const list = { data: { conversations: [
+    { id: 'c1', contact: { name: 'Asha', phone_number: '+91 98765 43210' }, lastMessage: { body: 'Hello! Can I get more info on this?' }, updatedAt: new Date(t).toISOString(), assignedTo: { id: 7, fullName: 'Priya Das', phone: '9111111111' } },
+    { id: 'c2', customer_number: '919830000002', name: 'Ravi', last_message: 'price?', last_message_time: Math.floor(t / 1000), agent_name: 'Murshida' },
+  ] } };
+  const chat = { chat: { wa_id: '919876543210', messages: [
+    { id: 'm1', text: 'Hello! Can I get more info on this?', timestamp: Math.floor(t / 1000), direction: 'inbound' },
+    { id: 'm2', text: { body: 'Sure, call us' }, timestamp: Math.floor(t / 1000) + 60, from: '918920831975', to: '919876543210' },
+  ] } };
+  const p1 = A.parseChatCapture(list, ['+918920831975']);
+  assert.deepEqual(p1.convs.map((c) => [c.phone, c.name, c.assignee]), [['9876543210', 'Asha', 'Priya Das'], ['9830000002', 'Ravi', 'Murshida']]);
+  assert.equal(p1.convs[0].at, t); assert.equal(p1.convs[1].at, t);
+  const p2 = A.parseChatCapture(chat, ['8920831975']);
+  assert.deepEqual(p2.msgs.map((m) => [m.phone, m.dir, m.text]), [['9876543210', 'in', 'Hello! Can I get more info on this?'], ['9876543210', 'out', 'Sure, call us']]);
+  assert.ok(!p1.convs.some((c) => c.phone === '9111111111'), "the agent's own number is not a chat");
+
+  const a = setup('2026-10-03');
+  const priya = a.saveAccount({ name: 'Priya Das', role: 'desk' });
+  const mur = a.saveAccount({ name: 'Murshida Khatun', role: 'desk' });
+  const r = a.heyoSync({ msgs: [...p1.msgs, ...p2.msgs], convs: [...p1.convs, ...p2.convs] });
+  const asha = a.state.leads.find((l) => l.mobile === '9876543210');
+  assert.equal(asha.assignedTo, priya.id, 'same name');
+  assert.ok(!a.state.leads.some((l) => l.mobile === '9830000002'), 'no ad message, no lead');
+  assert.equal(r.assigned, 1);
+  // Ravi's lead made by hand: first name "Murshida" matches one login.
+  a.saveLead({ name: 'Ravi', mobile: '9830000002' });
+  assert.equal(a.heyoSync({ convs: p1.convs }).assigned, 1);
+  assert.equal(a.state.leads.find((l) => l.mobile === '9830000002').assignedTo, mur.id);
+  // A change made in the app stays until the panel's agent changes.
+  a.saveLead({ ...asha, assignedTo: mur.id });
+  a.heyoSync({ convs: p1.convs });
+  assert.equal(a.state.leads.find((l) => l.mobile === '9876543210').assignedTo, mur.id);
+  // Unknown agents are reported and can be mapped in Settings.
+  const res = a.heyoSync({ convs: [{ phone: '9876543210', assignee: 'Neha (Heyo)' }] });
+  assert.deepEqual(res.unknown, ['Neha (Heyo)']);
+  assert.ok(a.state.settings.heyoSeen.includes('Neha (Heyo)'));
+  a.updateSettings({ heyoAgents: { 'neha (heyo)': priya.id } });
+  assert.equal(a.heyoSync({ convs: [{ phone: '9876543210', assignee: 'Neha (Heyo)' }] }).assigned, 1);
+  assert.equal(a.state.leads.find((l) => l.mobile === '9876543210').assignedTo, priya.id);
+});
