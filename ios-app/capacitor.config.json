@@ -1,6 +1,6 @@
 {
-  "appId": "com.hindivine.diet",
-  "appName": "Hindivine Diet",
+  "appId": "com.theprimefit.app",
+  "appName": "The Prime Fit",
   "webDir": "www",
   "ios": { "contentInset": "always", "backgroundColor": "#0A2F55" }
 }

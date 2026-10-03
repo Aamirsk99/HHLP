@@ -1,8 +1,50 @@
-# Hindivine Diet
+# The Prime Fit
 
-**Hindivine Healthcare Private Limited** · www.hindivine.com
+**The Prime Fit** · www.theprimefit.in · *Transform today, thrive tomorrow*
 
-Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
+One app with two parts:
+
+- **Diet charts** (the home screen): patients, diet charts, recipes and food library.
+- **Clinic admin** (the app opens on a sign-in with user ID and password, then a Home page split 50/50 between *Diet Charts* and *Clinic Admin*): OPD appointments with doctor profiles, leads (CRM), sales, patients, renewals, products and inventory (reorder items and categories, unlimited services, per-product kits), purchases, team, incentives, salary, expenses (founder, ads, editing, custom names), content & posts (editor profiles with a fee per video, videos received/posted/remaining, scheduled-post reminders, editor logins), expense counting switches, reports (PDF/Excel/Image), activity log, logins with PINs and roles, and Google Sheet sync (`admin/google-apps-script/Code.gs`). *Diet charts* in the admin menu goes back.
+
+The Prime Fit is a **new app** (Android `com.theprimefit.app`, iOS `com.theprimefit.app`). It installs next to the old Hindivine apps and starts with empty data of its own.
+
+**Admin data sheet:** [`admin/ThePrimeFit_Sheets.xlsx`](admin/ThePrimeFit_Sheets.xlsx) is the Google Sheet template (Start Here + the 27 data sheets, including Service Sales, Other Sales, Campaigns, Ads Report, Tasks, Attendance, Founders, Founder Notes, Doctors, Editors, Content and Slips), and [`admin/google-apps-script/Code.gs`](admin/google-apps-script/Code.gs) is its script. Upload the xlsx to Google Drive, save it as a Google Sheet, paste Code.gs under Extensions → Apps Script, run `setup`, deploy as a web app, then enter the URL and secret in Clinic admin → Settings → Google Sheet. You can keep your current sheet (paste the new Code.gs into it and deploy a new version) or use a new one; *Load from Google Sheet* and *Send this device's data* force a reload or upload.
+
+**Round 5 (APK 1.3):** services and the GLP-1 Success Support packages (1 week ₹1,499, 1 month ₹2,999, 2 months ₹4,500, 3 months ₹5,999) come first, and injections, protein and diet support can be switched off under Settings → What you sell. Other additions are a View only role, an OPD slip PDF on every appointment, YouTube and Instagram counts in Content & Posts (set `YT_API_KEY` and `IG_TOKEN` + `IG_USER_ID` in the script properties of Code.gs), a profit card with founder, product and all-time figures, hideable dashboard cards, and salary per month or per working day with incentives as fixed ₹ or % of the sale.
+
+**Round 6 (APK 1.4):** the clinic creates its own product types (no starter injections, protein or diet plans), several OPD clinics, Customize on every summary screen to show or hide any card or box, a WhatsApp today card, a lead daily summary with follow-up reminders, social counts read from the public YouTube and Instagram pages, five themes with light / dark mode and a new card look in both apps, and in the diet charts your own foods, items and step-by-step recipes.
+
+**Round 7 (APK 1.5):** patient invoices (PDF and WhatsApp) with numbering and optional GST, a Marketing login role, a Marketing Hub (lead sources, campaigns with cost per lead and ROI, content ideas with trending ideas, a 7-day posting plan, hashtag sets), a Team Desk (tasks, attendance that fills paid days, monthly targets), an OPD clinic picker, product names in What you sell, a Settings card to choose what shows on each dashboard, and step-by-step recipe PDFs in the diet charts.
+
+**Round 8 (APK 1.6):** a Founder Hub (founder profile, founder vs common expenses with a monthly limit, every alert in the app, discussions and notes, key numbers), expenses split into Common and Founder, an alerts bell, an Ads report (spend vs leads, cost per lead, ROI, manual lead counts), leads board view with bulk actions, paste import, tags, lead score and WhatsApp templates, Settings in tabs with more options, quick Admin / Super Admin logins, 12 themes, no zoom or sideways scroll, a luxury card look and new dashboard, "Follow us" handles on every PDF, and full step-by-step recipes.
+
+**Round 9 (APK 1.7):** several founder profiles with profit share, monthly limits and capital in / out; Founder Hub discussions saved with date, time and mode, who was there, outcome and next step, plus a PDF of all discussions; more Founder Hub numbers; easier leads (quick add, one-tap call outcome, next-stage button); scrolling fixed on Settings and every screen; more luxury styling.
+
+**Round 10 (APK 1.8):** founders can be disabled and enabled again with more profile details; Super Admin branding & menu controls; faster screens on large data; luxury serif headings. Diet charts: a Foods & Recipes library with 9,070 foods (IFCT 2017, USDA SR Legacy via TempoLife, CC-BY-4.0) and 11,018 recipes with full method and nutrition calculated from the ingredients, plus protein powder shakes in diet charts.
+
+**Round 11 (APK 1.9):** clickable dashboard boxes, no founder items on the dashboard, WhatsApp card tabs and options, a grouped fold-away menu, Settings tiles with Google Sheet status, PDFs that open after saving, six multi-colour themes in both apps, all 11,018 recipes in the diet Recipes screen; the Data Explorer was removed.
+
+**Round 12 (APK 2.0):** company profile and payment details in Settings that flow into every PDF and the diet charts, patient sales slips (A5, A4, 80 mm), a new PDF letterhead and footer with medico-legal wording, Today export filters, Call and WhatsApp taps per team member with repeat taps ignored, follow-up reminders in Leads, redesigned dashboard boxes and menu icons, a transparent logo and new app icon, lighter animations; in the diet app My foods sits in Foods & Recipes and charts, patients, recipes and foods are tappable.
+
+**Round 13 (APK 2.1):** Back returns to the admin dashboard instead of Home, every menu section has an icon, and the logo and app icon keep the original colours.
+
+**Round 14 (APK 2.2):** serial slip, receipt and invoice numbers with a Slips sheet (27 sheets) and Slip register export; digital slips state that no signature is required.
+
+**Round 15 (APK 2.3):** Google Sheet connection fixed: requests go through the Android app itself, pasted links are cleaned, clear connect errors, Code.gs version 10.
+
+**Round 16 (APK 2.4):** Google Sheet saves are queued one at a time and changes from two devices are merged (three-way, record by record) instead of asking which to keep.
+
+**Round 17 (APK 2.5):** Indian-law medico-legal wording and patient consent form, luxe UI layer, and fixes from a full bug sweep (stray patients, shared mobiles, double PDF downloads, invoice year, Back handling in both apps).
+
+**Round 18 (APK 2.6):** built-in Google Sheet: the APK build reads android/sheet.local.json (not in git) into admin/js/sheet-default.js, and the app connects by itself on first launch.
+
+**Round 19 (APK 2.7):** first-launch splash while the sheet loads (45 s limit, Try again), premium emerald-and-gold menu.
+
+**Round 20 (APK 2.8):** targetSdk 34 (Play Protect no longer blocks the install), smoother scrolling and sheet animations, bridge callback guarded after close.
+**Round 21 (APK 2.9):** sign-ins, sign-outs and failed sign-in tries of every member in the Activity Log with a Team logins view; every box emerald green with a gold outline and white text.
+
+The diet part builds personalised **1–7 day Indian and worldwide diet charts** with a **recipe for every dish**, and prints them as branded **A4 PDFs**. It runs as a web page, an Android app or an iOS app, works offline, and keeps all data on the device.
 
 ## Features
 
@@ -34,12 +76,12 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
   - Any chart can be opened, edited, reprinted or deleted.
 - **Next week:** one tap makes next week's chart with the same patient and settings but **fully changed foods**. About 95–100% of the main foods change.
 - **Upload previous PDF:** choose last week's PDF to read it back.
-  - **Charts made with Hindivine Diet** carry hidden chart data, so they are read exactly (patient, targets, every meal). You can then edit the chart or generate next week.
+  - **Charts made with The Prime Fit** carry hidden chart data, so they are read exactly (patient, targets, every meal). You can then edit the chart or generate next week.
   - **Other PDFs:** the foods in them are found by name, in any of the 10 languages, and avoided in the new chart.
 - **A4 PDF:**
   - **Pages:** 1 page for short charts (1–3 days, when they fit), otherwise 2 pages. Text scales automatically to fit.
   - **Versions:** with or without the patient name.
-  - **Extras:** meal icons, optional recipe pages, and a "Download the Hindivine Patient App from Play Store or App Store" band on the last page.
+  - **Extras:** meal icons, optional recipe pages, and a "Download The Prime Fit App from Play Store or App Store" band on the last page.
   - **Signature:** none needed.
 - **Languages:** English, हिन्दी, मराठी, ગુજરાતી, বাংলা, ਪੰਜਾਬੀ, தமிழ், తెలుగు, ಕನ್ನಡ, മലയാളം. Any two can be combined.
 - **Backup:** export or import all patients and charts as a file (Settings). CSV export is also available.
@@ -48,8 +90,8 @@ Hindivine Diet builds personalised **1–7 day Indian and worldwide diet charts*
 
 | Platform | How |
 | --- | --- |
-| **Android** | Install [`dist/HindivineDiet.apk`](dist/HindivineDiet.apk) (Android 7.0+). |
-| **iPhone / iPad** | **Now:** host this folder on HTTPS (e.g. hindivine.com/diet) and open it in Safari, then *Share → Add to Home Screen*. It installs as an offline app (`manifest.webmanifest`, `sw.js`). **App Store:** the Xcode project is in `ios-app/`, see below. |
+| **Android** | Install [`dist/ThePrimeFit.apk`](dist/ThePrimeFit.apk) (Android 7.0+). It contains both diet charts and clinic admin. |
+| **iPhone / iPad** | **Now:** host this folder on HTTPS (e.g. theprimefit.in/app) and open it in Safari, then *Share → Add to Home Screen*. It installs as an offline app (`manifest.webmanifest`, `sw.js`). **App Store:** the Xcode project is in `ios-app/`, see below. |
 | **Web** | Open `index.html`, or run `npm start`. |
 
 ### Building the iOS app (needs a Mac)
@@ -66,7 +108,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 ## Rebuilding the Android app
 
 ```sh
-VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
+VERSION_CODE=1 VERSION_NAME=1.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.
@@ -97,9 +139,10 @@ npm test             # Node 18+, no dependencies
 | `js/app.js` | Dashboard, wizard, chart view, meal editor, patients, recipes, upload, A4 PDF and CSV export |
 | `manifest.webmanifest`, `sw.js` | Installable offline web app (iPhone / Android) |
 | `ios-app/` | Capacitor iOS project (Xcode) |
-| `img/` | Hindivine logo and icons |
+| `admin/` | Clinic admin (OPD, leads, sales, stock, team, expenses, reports, Google Sheet sync) |
+| `img/` | The Prime Fit logo and icons (shared by both parts) |
 | `android/` | Android WebView wrapper and build script |
-| `dist/HindivineDiet.apk` | Built Android app |
+| `dist/ThePrimeFit.apk` | Built Android app (diet charts + clinic admin) |
 | `tests/` | Unit tests (planner, recipes, storage, PDF read-back) |
 
 ## Disclaimer

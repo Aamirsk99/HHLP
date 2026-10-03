@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds dist/DietChart.apk from the web app without the Android SDK or Gradle.
+# Builds dist/ThePrimeFit.apk (diet charts + clinic admin) from the web app without the Android SDK or Gradle.
 # Needs: Java 11+, curl, zip/unzip, python3. Build tools are fetched from Maven Central.
 set -euo pipefail
 
@@ -7,7 +7,7 @@ ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 AND="$ROOT/android"
 TOOLS="${TOOLS_DIR:-$AND/.tools}"
 BUILD="$AND/build"
-OUT="$ROOT/dist/HindivineDiet.apk"
+OUT="$ROOT/dist/ThePrimeFit.apk"
 KEYSTORE="${KEYSTORE:-$AND/release.p12}"
 STOREPASS="${STOREPASS:-dietchart}"
 ALIAS="${KEY_ALIAS:-dietchart}"
@@ -15,7 +15,7 @@ ALIAS="${KEY_ALIAS:-dietchart}"
 VERSION_CODE="${VERSION_CODE:-1}"
 VERSION_NAME="${VERSION_NAME:-1.0}"
 MIN_SDK=24  # v2 signing only (apksig 2.3.0 cannot produce v1 signatures on modern JDKs)
-TARGET_SDK=30
+TARGET_SDK=34  # Android 14: current privacy protections, so Play Protect does not block the install (35 would force edge-to-edge)
 
 M=https://repo1.maven.org/maven2
 fetch() { # url dest
@@ -43,7 +43,20 @@ mkdir -p "$BUILD"/{res,gen,classes,assets/www,dex} "$(dirname "$OUT")"
 
 echo "• Copying web app into assets"
 cp "$ROOT/index.html" "$BUILD/assets/www/"
-cp -r "$ROOT/css" "$ROOT/js" "$ROOT/img" "$ROOT/vendor" "$BUILD/assets/www/"
+cp -r "$ROOT/css" "$ROOT/js" "$ROOT/img" "$ROOT/vendor" "$ROOT/fonts" "$BUILD/assets/www/"
+# Clinic admin lives in www/admin and shares the logo and icons in www/img.
+mkdir -p "$BUILD/assets/www/admin"
+cp "$ROOT/admin/index.html" "$ROOT/admin/manifest.webmanifest" "$BUILD/assets/www/admin/"
+cp -r "$ROOT/admin/css" "$ROOT/admin/js" "$ROOT/admin/vendor" "$ROOT/admin/google-apps-script" "$BUILD/assets/www/admin/"
+# Built-in Google Sheet link and secret (android/sheet.local.json, not in git): the app connects by itself.
+if [ -f "$AND/sheet.local.json" ]; then
+  python3 - "$AND/sheet.local.json" "$BUILD/assets/www/admin/js/sheet-default.js" <<'PY'
+import json, sys
+d = json.load(open(sys.argv[1]))
+open(sys.argv[2], 'w').write('window.PRIMEFIT_SHEET = ' + json.dumps({'url': d.get('url', ''), 'secret': d.get('secret', '')}) + ';\n')
+PY
+  echo "• Built-in Google Sheet set"
+fi
 
 echo "• Compiling resources"
 "$AAPT2" compile --dir "$AND/res" -o "$BUILD/res/res.zip"
@@ -59,7 +72,7 @@ echo "• Compiling resources"
 echo "• Compiling Java"
 find "$AND/src" "$BUILD/gen" -name '*.java' > "$BUILD/sources.txt"
 javac -nowarn --release 8 -encoding UTF-8 -classpath "$TOOLS/android-all.jar" -d "$BUILD/classes" @"$BUILD/sources.txt" 2>&1 | grep -v "bootstrap classpath\|^1 warning\|^warning: \[options\]\|source value 8\|target value 8\|To suppress warnings" || true
-[ -f "$BUILD/classes/com/hindivine/diet/MainActivity.class" ] || { echo "javac failed" >&2; exit 1; }
+[ -f "$BUILD/classes/com/theprimefit/app/MainActivity.class" ] || { echo "javac failed" >&2; exit 1; }
 
 echo "• Converting to dex"
 java -cp "$TOOLS/dx.jar" com.android.dx.command.Main --dex --min-sdk-version="$MIN_SDK" --output="$BUILD/dex/classes.dex" "$BUILD/classes"
@@ -69,7 +82,7 @@ echo "• Signing"
 if [ ! -f "$KEYSTORE" ]; then
   echo "  (creating new signing key at $KEYSTORE — keep it safe; updates must use the same key)"
   keytool -genkeypair -storetype PKCS12 -keystore "$KEYSTORE" -storepass "$STOREPASS" -keypass "$STOREPASS" \
-    -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Hindivine Diet, O=Hindivine Healthcare Private Limited, C=IN" 2>/dev/null
+    -alias "$ALIAS" -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=The Prime Fit, O=The Prime Fit, C=IN" 2>/dev/null
 fi
 javac -nowarn -d "$BUILD/signer" -classpath "$TOOLS/apksig.jar" "$AND/tools/SignApk.java"
 java --add-exports java.base/sun.security.x509=ALL-UNNAMED --add-exports java.base/sun.security.pkcs=ALL-UNNAMED --add-exports java.base/sun.security.util=ALL-UNNAMED \

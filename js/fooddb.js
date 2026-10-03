@@ -1,5 +1,5 @@
 /*
- * Hindivine Diet food database.
+ * The Prime Fit food database.
  *
  * Every entry is one food with its own nutrition per serving, so meals can be
  * generated, scaled and edited item by item. The planner combines items by role
@@ -105,6 +105,13 @@
   F('Fresh vegetable juice', 'drink', 'vegan', 'IN', 1, 'glass', 50, 2, 10, 0.3, '', 'wl');
   F('Whey protein shake (in water)', 'drink bfside', 'veg', 'CON', 1, 'scoop', 120, 24, 3, 1.5, 'dairy', 'tr');
   F('Plant protein shake', 'drink bfside', 'vegan', 'CON', 1, 'scoop', 120, 22, 4, 2, '', 'tr');
+  // Protein shakes for the diet chart's "protein shake" option (role 'shake': never picked at random).
+  // 1 scoop of powder in water; nutrition = typical label values (ingredients.js).
+  F('Whey isolate shake (in water)', 'shake', 'veg', 'CON', 1, 'scoop', 110, 26, 1, 0.5, 'dairy', 'tr wl');
+  F('Whey concentrate shake (in water)', 'shake', 'veg', 'CON', 1, 'scoop', 130, 25, 3, 2, 'dairy', 'tr');
+  F('Pea protein shake (in water)', 'shake', 'vegan', 'CON', 1, 'scoop', 125, 24, 4, 2, '', 'tr wl');
+  F('Soy protein isolate shake (in water)', 'shake', 'vegan', 'CON', 1, 'scoop', 100, 25, 1, 1, 'soy', 'tr wl');
+  F('Casein protein shake (in water)', 'shake', 'veg', 'CON', 1, 'scoop', 120, 25, 3, 1, 'dairy', 'tr');
   F('Banana–milk smoothie (no sugar)', 'drink', 'veg', 'CON', 1, 'glass', 180, 7, 30, 4, 'dairy', 'hgi');
   F('Spinach–apple green smoothie', 'drink', 'vegan', 'CON', 1, 'glass', 110, 2, 25, 0.5, '', 'wl hk');
 

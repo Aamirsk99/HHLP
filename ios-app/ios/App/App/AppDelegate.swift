@@ -49,28 +49,28 @@ class AppDelegate: UIResponder, UIApplicationDelegate {
 
 }
 
-/// Hosts the Hindivine Diet web app and adds native Print/PDF and file sharing,
+/// Hosts The Prime Fit web app and adds native Print/PDF and file sharing,
 /// which WKWebView does not provide for window.print() or blob downloads.
 class MainViewController: CAPBridgeViewController, WKScriptMessageHandler {
     override func capacitorDidLoad() {
         super.capacitorDidLoad()
         let controller = webView?.configuration.userContentController
-        controller?.add(self, name: "hindivinePrint")
-        controller?.add(self, name: "hindivineSave")
+        controller?.add(self, name: "primefitPrint")
+        controller?.add(self, name: "primefitSave")
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         switch message.name {
-        case "hindivinePrint":
+        case "primefitPrint":
             guard let webView = webView else { return }
             let info = UIPrintInfo(dictionary: nil)
-            info.jobName = (message.body as? String) ?? "Hindivine-Diet-Chart"
+            info.jobName = (message.body as? String) ?? "ThePrimeFit-Diet-Chart"
             info.outputType = .general
             let printer = UIPrintInteractionController.shared
             printer.printInfo = info
             printer.printFormatter = webView.viewPrintFormatter()
             printer.present(animated: true, completionHandler: nil)
-        case "hindivineSave":
+        case "primefitSave":
             guard let body = message.body as? [String: Any],
                   let name = body["name"] as? String,
                   let content = body["content"] as? String else { return }
