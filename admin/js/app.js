@@ -46,6 +46,8 @@
   // Clinic build: MyOperator panel link and the clinic's own WhatsApp number(s), set once if not chosen yet.
   if (BUILT.heyoUrl && !lsGet('hindivine.admin.heyoSeed', '')) { admin.updateSettings({ heyoUrl: BUILT.heyoUrl }); lsSet('hindivine.admin.heyoSeed', '1'); }
   if (BUILT.waNumber && !set().waNumber) admin.updateSettings({ waNumber: BUILT.waNumber });
+  // Make a lead from every WhatsApp chat (drop the old "Hello! Can I get more info on this?" filter), once.
+  if (!lsGet('hindivine.admin.noPhrase', '')) { if ((set().waLeadPhrases || []).length) admin.updateSettings({ waLeadPhrases: [] }); lsSet('hindivine.admin.noPhrase', '1'); }
 
   const $ = (sel, el) => (el || document).querySelector(sel);
   const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
@@ -986,7 +988,7 @@
 
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
-    ['4.4', 'WhatsApp leads from MyOperator / Heyo by logging in — no webhook, no export file. Settings → WhatsApp → "Open MyOperator & read chats" opens your panel (in.app.myoperator.com/chat) inside the app; it reads the chat names and numbers straight off the screen (and the panel\'s live messages), auto-scrolls to load more, and makes a lead for each number — only the ones with the ad message by default (clear the phrase box to take every chat). Whoever a chat is assigned to on MyOperator becomes the lead\'s "Assigned to" after you match each person to a staff login once. Duplicates (already a lead or patient) are skipped. The older webhook, API-test and file-import methods were removed.'],
+    ['4.4', 'WhatsApp leads from MyOperator / Heyo by logging in — no webhook, no export file. Settings → WhatsApp → "Open MyOperator & read chats" opens your panel (in.app.myoperator.com/chat) inside the app; it reads the chat names and numbers straight off the screen (and the panel\'s live messages), auto-scrolls to load more, and makes a lead for each number — every chat becomes a lead (the old \'Hello! Can I get more info on this?\' filter is off by default). Even when the list shows only names, it reads the number behind each name (from the chat\'s link or data). Whoever a chat is assigned to on MyOperator becomes the lead\'s "Assigned to" after you match each person to a staff login once. Duplicates (already a lead or patient) are skipped. The older webhook, API-test and file-import methods were removed.'],
     ['4.3', 'Leads in their own Google spreadsheet: Settings → Google Sheet → Leads spreadsheet can create a new "Hindivine Leads" sheet, connect an existing one or go back to the main sheet; the Leads tab and the WhatsApp messages tab then go there instead of the main clinic sheet.'],
     ['4.2', 'WhatsApp leads only from the ad message: a new number becomes a lead only when its message contains "Hello! Can I get more info on this?" (phrases editable in Settings → Google Sheet → WhatsApp; empty = any message). Other chats still show in the WhatsApp inbox.'],
     ['4.1', 'WhatsApp inbox for Heyo / MyOperator: messages arrive through the Google Sheet (webhook to the Apps Script, saved in a WhatsApp tab; optional pull from the MyOperator API with the key kept in Apps Script), WhatsApp screen with chats, unread counts, chat view, reply on WhatsApp, + lead and Book OPD; every new number becomes a lead (source WhatsApp) and messages are added to the lead history.'],

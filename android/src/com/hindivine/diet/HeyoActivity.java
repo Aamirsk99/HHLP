@@ -53,12 +53,19 @@ public class HeyoActivity extends Activity {
         + "var re=/(?:\\+?91[\\s-]*)?[6-9][\\d\\s-]{8,12}\\d/g;var cand={};" // tolerant of 98300 11111 / 98300-11111
         // For each phone keep the shortest on-screen text that mentions it AND carries a name,
         // so we get the chat row (name + number) rather than a whole container or a bare number.
-        + "els.forEach(function(e){try{if(e.children.length>8)return;var tx=(e.innerText||e.textContent||'').replace(/\\s+/g,' ').trim();if(!tx||tx.length>200)return;var m=tx.match(re);if(!m)return;"
+        + "els.forEach(function(e){try{if(e.children.length>8)return;var tx=(e.innerText||e.textContent||'').replace(/\\s+/g,' ').trim();if(tx.length>200)return;"
+        // The number is often behind the name — in a tel:/wa.me link or a data-/title attribute, not the visible text.
+        + "var hay=tx;try{var at=e.attributes;for(var i=0;i<at.length;i++){var v=at[i].value;if(v&&v.length<300&&v.replace(/\\D/g,'').length>=8)hay+=' '+v;}}catch(z){}"
+        + "try{var as=e.getElementsByTagName('a');for(var j=0;j<as.length&&j<6;j++){var h=as[j].getAttribute('href')||'';if(h.replace(/\\D/g,'').length>=8)hay+=' '+h;}}catch(z){}"
+        + "var m=hay.match(re);if(!m)return;"
         + "var hasName=/[A-Za-z\\u00c0-\\uffff]{2}/.test(tx.replace(re,' '));"
         + "m.forEach(function(ph){var d=ph.replace(/\\D/g,'').slice(-10);if(d.length!==10||/^[0-5]/.test(d)||window.__hdvSeen[d])return;"
-        + "var score=(hasName?0:100000)+tx.length;var prev=cand[d];if(!prev||score<prev.score)cand[d]={score:score,text:tx};});}catch(x){}});"
+        + "var first=((e.innerText||e.textContent||'').split('\\n')[0]||'').trim();" // the contact name is usually the first line
+        + "var score=(hasName?0:100000)+tx.length;var prev=cand[d];if(!prev||score<prev.score)cand[d]={score:score,text:tx,first:first};});}catch(x){}});"
         + "var out=[];Object.keys(cand).forEach(function(d){window.__hdvSeen[d]=1;var tx=cand[d].text;"
-        + "var name=tx.replace(re,' ').replace(/[•|·:,\\u2013\\u2014-]+/g,' ').replace(/\\s+/g,' ').trim().slice(0,40);out.push({phone:d,name:name,text:tx});});"
+        + "var name=(cand[d].first||tx).replace(re,' ').replace(/[•|·:,\\u2013\\u2014-]+/g,' ').replace(/\\s+/g,' ').trim().slice(0,40);"
+        + "if(/^(call|chat|open|view|reply|message|whatsapp|more|menu|new|today|yesterday|now)$/i.test(name))name='';"
+        + "out.push({phone:d,name:name,text:tx});});"
         + "if(out.length){try{AndroidBridge.heyoData('dom:scrape',JSON.stringify({conversations:out}));}catch(e){}}"
         + "return out.length;}catch(e){return -1;}})();";
 
