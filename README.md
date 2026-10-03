@@ -73,6 +73,16 @@ The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled 
 
 **Signing key:** the build signs with `android/release.p12` (password `dietchart`; override with `KEYSTORE` and `STOREPASS`), and creates it if it's missing. It's git-ignored. Keep a copy, because Android only installs an update over an existing install when both are signed with the same key.
 
+## WhatsApp lead agent
+
+[`whatsapp-agent/`](whatsapp-agent/README.md) is an AI agent for the WhatsApp Business number:
+
+- It replies to leads and sends follow-ups.
+- It stores every lead with their chat in a database, along with sentiment (positive / neutral / negative), quality (hot / warm / cold / junk) and a 0–100 score.
+- It includes a dashboard and CSV export.
+
+See its README for setup.
+
 ## Test
 
 ```sh
@@ -101,6 +111,7 @@ npm test             # Node 18+, no dependencies
 | `android/` | Android WebView wrapper and build script |
 | `dist/HindivineDiet.apk` | Built Android app |
 | `tests/` | Unit tests (planner, recipes, storage, PDF read-back) |
+| `whatsapp-agent/` | WhatsApp AI lead agent: replies, follow-ups, lead database and dashboard (separate Node service) |
 
 ## Disclaimer
 

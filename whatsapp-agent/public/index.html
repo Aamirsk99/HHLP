@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WhatsApp Leads</title>
+<style>
+  :root {
+    --bg: #f5f7f6; --card: #ffffff; --text: #17201c; --muted: #66736d; --line: #e2e7e4;
+    --brand: #128c7e; --brand-soft: #e3f4f1; --in: #ffffff; --out: #dcf8c6;
+    --hot: #d93025; --warm: #e8710a; --cold: #1a73e8; --junk: #80868b;
+    --pos: #188038; --neu: #80868b; --neg: #d93025;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f1513; --card: #18201d; --text: #e7ece9; --muted: #98a59f; --line: #2a3430;
+      --brand: #25d0b7; --brand-soft: #173430; --in: #222b28; --out: #10463d;
+      --hot: #f28b82; --warm: #fcad70; --cold: #8ab4f8; --junk: #9aa0a6;
+      --pos: #81c995; --neu: #9aa0a6; --neg: #f28b82;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text); font: 14px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; }
+  header { display: flex; align-items: center; gap: 12px; padding: 14px 16px; background: var(--card); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+  header h1 { font-size: 18px; margin: 0; flex: 1; }
+  .pill { font-size: 12px; padding: 2px 8px; border-radius: 99px; background: var(--brand-soft); color: var(--brand); }
+  button, .btn { font: inherit; border: 1px solid var(--line); background: var(--card); color: var(--text); padding: 7px 12px; border-radius: 8px; cursor: pointer; text-decoration: none; }
+  button.primary, .btn.primary { background: var(--brand); border-color: var(--brand); color: #fff; }
+  button:disabled { opacity: .5; cursor: default; }
+  main { padding: 16px; max-width: 1400px; margin: 0 auto; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; }
+  .stat b { display: block; font-size: 22px; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: 12px; }
+  .filters { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+  input, select, textarea { font: inherit; color: var(--text); background: var(--card); border: 1px solid var(--line); border-radius: 8px; padding: 7px 10px; }
+  .filters input[type="search"] { flex: 1; min-width: 180px; }
+  .table-wrap { background: var(--card); border: 1px solid var(--line); border-radius: 10px; overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { font-size: 12px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+  tr.row { cursor: pointer; }
+  tr.row:hover { background: var(--brand-soft); }
+  td.num { font-variant-numeric: tabular-nums; text-align: right; }
+  .muted { color: var(--muted); }
+  .clip { max-width: 320px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tag { display: inline-block; font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 99px; border: 1px solid currentColor; white-space: nowrap; }
+  .q-hot { color: var(--hot); } .q-warm { color: var(--warm); } .q-cold { color: var(--cold); } .q-junk, .q-unknown { color: var(--junk); }
+  .s-positive { color: var(--pos); } .s-neutral { color: var(--neu); } .s-negative { color: var(--neg); }
+  .flag { color: var(--hot); font-weight: 600; }
+  /* Detail drawer */
+  .drawer { position: fixed; inset: 0 0 0 auto; width: min(560px, 100vw); background: var(--card); border-left: 1px solid var(--line); display: none; flex-direction: column; z-index: 10; box-shadow: -8px 0 24px rgb(0 0 0 / .12); }
+  .drawer.open { display: flex; }
+  .drawer-head { padding: 12px 16px; border-bottom: 1px solid var(--line); display: flex; gap: 8px; align-items: center; }
+  .drawer-head h2 { margin: 0; font-size: 16px; flex: 1; }
+  .drawer-body { overflow-y: auto; flex: 1; padding: 12px 16px; }
+  .fields { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 12px; }
+  .fields label { font-size: 12px; color: var(--muted); display: flex; flex-direction: column; gap: 3px; }
+  .fields .wide { grid-column: 1 / -1; }
+  .summary { background: var(--brand-soft); border-radius: 8px; padding: 8px 10px; margin-bottom: 12px; }
+  .chat { display: flex; flex-direction: column; gap: 6px; padding: 10px; background: var(--bg); border-radius: 10px; }
+  .msg { max-width: 85%; padding: 6px 10px; border-radius: 10px; white-space: pre-wrap; word-wrap: break-word; border: 1px solid var(--line); }
+  .msg.in { background: var(--in); align-self: flex-start; }
+  .msg.out { background: var(--out); align-self: flex-end; }
+  .msg small { display: block; font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .composer { display: flex; gap: 8px; padding: 10px 16px; border-top: 1px solid var(--line); }
+  .composer textarea { flex: 1; resize: vertical; min-height: 40px; }
+  .actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; }
+  dialog { border: 1px solid var(--line); border-radius: 12px; background: var(--card); color: var(--text); width: min(420px, calc(100vw - 32px)); }
+  dialog form { display: flex; flex-direction: column; gap: 8px; }
+  @media (max-width: 700px) { .hide-sm { display: none; } .fields { grid-template-columns: 1fr; } }
+</style>
+</head>
+<body>
+<header>
+  <h1>WhatsApp Leads</h1>
+  <span id="mode" class="pill" hidden>Dry-run</span>
+  <button id="addBtn">+ Add lead</button>
+  <a class="btn" id="csvBtn" href="/api/leads.csv">Export CSV</a>
+</header>
+<main>
+  <div class="stats" id="stats"></div>
+  <div class="filters">
+    <input id="q" type="search" placeholder="Search name, phone, interest, city, summary">
+    <select id="fQuality"><option value="">All quality</option><option>hot</option><option>warm</option><option>cold</option><option>junk</option><option>unknown</option></select>
+    <select id="fSentiment"><option value="">All sentiment</option><option>positive</option><option>neutral</option><option>negative</option></select>
+    <select id="fStage"><option value="">All stages</option><option>new</option><option>engaged</option><option>interested</option><option>booked</option><option>converted</option><option>lost</option><option value="not_relevant">not relevant</option></select>
+    <label class="muted" style="display:flex;align-items:center;gap:4px"><input type="checkbox" id="fHuman"> Needs human</label>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr>
+        <th>Lead</th><th>Quality</th><th class="num">Score</th><th>Sentiment</th><th>Stage</th>
+        <th class="hide-sm">Interest</th><th class="hide-sm">Last message</th><th class="hide-sm">Last active</th>
+      </tr></thead>
+      <tbody id="rows"><tr><td colspan="8" class="muted">Loading…</td></tr></tbody>
+    </table>
+  </div>
+</main>
+
+<aside class="drawer" id="drawer">
+  <div class="drawer-head"><h2 id="dTitle"></h2><button id="dClose" aria-label="Close">✕</button></div>
+  <div class="drawer-body" id="dBody"></div>
+  <form class="composer" id="composer">
+    <textarea id="text" placeholder="Type a message to send as a team member…"></textarea>
+    <button class="primary">Send</button>
+  </form>
+</aside>
+
+<dialog id="addDlg">
+  <form id="addForm">
+    <h3 style="margin:0">Add lead</h3>
+    <input name="phone" placeholder="Phone with country code, e.g. 919876543210" required>
+    <input name="name" placeholder="Name">
+    <input name="interest" placeholder="Interest, e.g. weight loss diet">
+    <input name="source" placeholder="Source, e.g. Instagram, website form">
+    <textarea name="notes" placeholder="Notes"></textarea>
+    <div style="display:flex;gap:8px;justify-content:flex-end">
+      <button type="button" onclick="this.closest('dialog').close()">Cancel</button>
+      <button class="primary">Save</button>
+    </div>
+  </form>
+</dialog>
+
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const ago = (t) => {
+  if (!t) return '';
+  const s = (Date.now() - new Date(t.replace(' ', 'T') + 'Z')) / 1000;
+  if (s < 60) return 'just now';
+  if (s < 3600) return Math.floor(s / 60) + ' min ago';
+  if (s < 86400) return Math.floor(s / 3600) + ' h ago';
+  return Math.floor(s / 86400) + ' d ago';
+};
+const local = (t) => t ? new Date(t.replace(' ', 'T') + 'Z').toLocaleString() : '';
+async function api(path, opts = {}) {
+  const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...opts, body: opts.body ? JSON.stringify(opts.body) : undefined });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || res.statusText);
+  return data;
+}
+let current = null;
+
+function filterQuery() {
+  const p = new URLSearchParams();
+  if ($('#q').value) p.set('q', $('#q').value);
+  if ($('#fQuality').value) p.set('quality', $('#fQuality').value);
+  if ($('#fSentiment').value) p.set('sentiment', $('#fSentiment').value);
+  if ($('#fStage').value) p.set('stage', $('#fStage').value);
+  if ($('#fHuman').checked) p.set('needs_human', '1');
+  return p.toString();
+}
+
+async function loadStats() {
+  const s = await api('/api/stats');
+  $('#mode').hidden = !s.dryRun;
+  const tile = (n, label) => `<div class="stat"><b>${n ?? 0}</b><span>${label}</span></div>`;
+  $('#stats').innerHTML = tile(s.total, 'Total leads') + tile(s.quality.hot, 'Hot') + tile(s.quality.warm, 'Warm') +
+    tile(s.quality.cold, 'Cold') + tile(s.quality.junk, 'Junk') + tile(s.sentiment.positive, 'Positive') +
+    tile(s.sentiment.negative, 'Negative') + tile(s.stage.converted, 'Converted') + tile(s.needsHuman, 'Need a human') + tile(s.avgScore, 'Avg score');
+}
+
+async function loadLeads() {
+  const q = filterQuery();
+  $('#csvBtn').href = '/api/leads.csv' + (q ? '?' + q : '');
+  const leads = await api('/api/leads?' + q);
+  $('#rows').innerHTML = leads.length ? leads.map((l) => `
+    <tr class="row" data-id="${l.id}">
+      <td><b>${esc(l.name || 'Unknown')}</b>${l.needs_human ? ' <span class="flag" title="${esc(l.handoff_reason)}">● needs human</span>' : ''}${l.bot_enabled ? '' : ' <span class="muted">(bot off)</span>'}<br><span class="muted">+${esc(l.phone)}</span></td>
+      <td><span class="tag q-${esc(l.quality)}">${esc(l.quality)}</span></td>
+      <td class="num">${l.score}</td>
+      <td><span class="tag s-${esc(l.sentiment)}">${esc(l.sentiment)}</span></td>
+      <td>${esc(l.stage.replace('_', ' '))}</td>
+      <td class="hide-sm">${esc(l.interest)}</td>
+      <td class="hide-sm clip muted">${esc(l.last_message)}</td>
+      <td class="hide-sm muted">${ago(l.last_inbound_at || l.created_at)}</td>
+    </tr>`).join('') : '<tr><td colspan="8" class="muted">No leads yet. They appear here as soon as someone messages your WhatsApp number.</td></tr>';
+}
+
+const opts = (list, v) => list.map((o) => `<option ${o === v ? 'selected' : ''}>${o}</option>`).join('');
+
+async function openLead(id) {
+  const { lead: l, messages } = await api('/api/leads/' + id);
+  current = l;
+  $('#dTitle').textContent = (l.name || 'Unknown') + '  +' + l.phone;
+  $('#dBody').innerHTML = `
+    <div class="actions">
+      <button data-act="bot">${l.bot_enabled ? 'Pause bot (take over)' : 'Turn bot on'}</button>
+      ${l.needs_human ? '<button data-act="resolve">Mark handled</button>' : ''}
+      <button data-act="reply">Let AI reply now</button>
+      <button data-act="template">Send follow-up template</button>
+      <button data-act="delete">Delete</button>
+    </div>
+    ${l.needs_human ? `<p class="flag">Needs a human: ${esc(l.handoff_reason)}</p>` : ''}
+    ${l.summary ? `<div class="summary">${esc(l.summary)}</div>` : ''}
+    <div class="fields">
+      <label>Name<input data-f="name" value="${esc(l.name)}"></label>
+      <label>City<input data-f="city" value="${esc(l.city)}"></label>
+      <label>Quality<select data-f="quality">${opts(['hot', 'warm', 'cold', 'junk', 'unknown'], l.quality)}</select></label>
+      <label>Score<input data-f="score" type="number" min="0" max="100" value="${l.score}"></label>
+      <label>Sentiment<select data-f="sentiment">${opts(['positive', 'neutral', 'negative'], l.sentiment)}</select></label>
+      <label>Stage<select data-f="stage">${opts(['new', 'engaged', 'interested', 'booked', 'converted', 'lost', 'not_relevant'], l.stage)}</select></label>
+      <label class="wide">Interest<input data-f="interest" value="${esc(l.interest)}"></label>
+      <label class="wide">Notes<textarea data-f="notes">${esc(l.notes)}</textarea></label>
+      <span class="muted wide">Source: ${esc(l.source)} · Follow-ups sent: ${l.followup_count}${l.next_followup_at ? ' · Next follow-up: ' + local(l.next_followup_at) : ''}</span>
+    </div>
+    <div class="chat">${messages.map((m) => `<div class="msg ${m.direction}">${esc(m.body)}<small>${m.direction === 'out' ? esc(m.author) + ' · ' : ''}${local(m.created_at)}${m.status ? ' · ' + esc(m.status) : ''}</small></div>`).join('') || '<span class="muted">No messages yet</span>'}</div>`;
+  $('#drawer').classList.add('open');
+  const chat = $('#dBody .chat');
+  chat.lastElementChild?.scrollIntoView({ block: 'end' });
+}
+
+async function refresh() { await Promise.all([loadStats(), loadLeads()]); if (current && $('#drawer').classList.contains('open') && !$('#dBody').contains(document.activeElement)) await openLead(current.id); }
+
+$('#rows').addEventListener('click', (e) => { const tr = e.target.closest('tr.row'); if (tr) openLead(tr.dataset.id); });
+$('#dClose').onclick = () => { $('#drawer').classList.remove('open'); current = null; };
+for (const el of ['#q', '#fQuality', '#fSentiment', '#fStage', '#fHuman']) $(el).addEventListener('input', loadLeads);
+
+$('#dBody').addEventListener('change', async (e) => {
+  const f = e.target.dataset.f;
+  if (!f || !current) return;
+  await api('/api/leads/' + current.id, { method: 'PATCH', body: { [f]: f === 'score' ? Number(e.target.value) : e.target.value } });
+  loadLeads(); loadStats();
+});
+$('#dBody').addEventListener('click', async (e) => {
+  const act = e.target.dataset.act;
+  if (!act || !current) return;
+  e.target.disabled = true;
+  try {
+    if (act === 'bot') await api('/api/leads/' + current.id, { method: 'PATCH', body: { bot_enabled: !current.bot_enabled } });
+    if (act === 'resolve') await api('/api/leads/' + current.id, { method: 'PATCH', body: { needs_human: false } });
+    if (act === 'reply') await api('/api/leads/' + current.id + '/reply', { method: 'POST' });
+    if (act === 'template') await api('/api/leads/' + current.id + '/template', { method: 'POST', body: {} });
+    if (act === 'delete') {
+      if (!confirm('Delete this lead and its chat?')) return;
+      await api('/api/leads/' + current.id, { method: 'DELETE' });
+      $('#drawer').classList.remove('open'); current = null;
+    }
+    await refresh();
+  } catch (err) { alert(err.message); } finally { e.target.disabled = false; }
+});
+$('#composer').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const text = $('#text').value.trim();
+  if (!text || !current) return;
+  try { await api('/api/leads/' + current.id + '/send', { method: 'POST', body: { text } }); $('#text').value = ''; } catch (err) { alert(err.message); }
+  refresh();
+});
+$('#addBtn').onclick = () => $('#addDlg').showModal();
+$('#addForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const lead = await api('/api/leads', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) });
+    e.target.reset(); $('#addDlg').close(); await refresh(); openLead(lead.id);
+  } catch (err) { alert(err.message); }
+});
+
+refresh();
+setInterval(() => { if (!document.hidden) refresh(); }, 10000);
+</script>
+</body>
+</html>
