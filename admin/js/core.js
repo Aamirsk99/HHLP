@@ -515,6 +515,7 @@
         product, qty, amount,
         refId: input.refId, sharedId: refs[1] ? refs[1].memberId : '', sharePct: refs[1] ? refs[1].pct : 0,
         dietitianId: input.dietitianId || '', notes: String(input.notes || '').trim(), payMethod: String(input.payMethod || '').trim(), programMonths: Number(input.programMonths) > 0 ? Number(input.programMonths) : (existingMonths(id) || ''),
+        amountPaid: paidOf(input, amount), due: Math.max(0, amount - paidOf(input, amount)),
         incentive: sum(splits, (x) => x.amount), splits, created: Date.now(),
       };
     }
@@ -546,6 +547,26 @@
       S.moves = S.moves.filter((m) => m.ref !== id);
       if (x) log('Sale deleted', `${x.product} · ${x.patientName} · ₹${x.amount}`);
       save();
+    }
+    /** Record a payment towards a sale's pending balance (add to amount received). */
+    function settleSale(id, add, payMethod) {
+      const s = S.sales.find((x) => x.id === id);
+      if (!s) fail('Sale not found');
+      const total = Number(s.amount) || 0;
+      const was = Number(s.amountPaid) || 0;
+      const amt = Number(add) > 0 ? Number(add) : (Number(s.due) || 0); // blank = clear the whole balance
+      const paid = Math.max(0, Math.min(total, was + amt));
+      s.amountPaid = paid;
+      s.due = Math.max(0, total - paid);
+      if (payMethod) s.payMethod = payMethod;
+      log('Payment received', `${s.patientName} · ₹${paid - was} · ${s.due > 0 ? `₹${s.due} still due` : 'cleared'}`);
+      save();
+      return s;
+    }
+    /** All sales that still have money due (newest first), with the total pending. */
+    function pendingSales() {
+      const list = S.sales.filter((s) => (Number(s.due) || 0) > 0).slice().sort((a, b) => (b.date + b.id).localeCompare(a.date + a.id));
+      return { list, total: sum(list, (s) => Number(s.due) || 0) };
     }
 
     // Purchases
@@ -725,6 +746,11 @@
      */
     /** What a purchase invoice shows: description (default "Weight Loss Program") and program months, kept on the sale. */
     const existingMonths = (id) => { const x = S.sales.find((y) => y.id === id); return x ? x.programMonths : ''; };
+    // Amount actually received. Blank / missing = fully paid; a given amount is clamped to [0, total].
+    const paidOf = (input, amount) => {
+      if (input.amountPaid === '' || input.amountPaid == null) return amount;
+      return Math.max(0, Math.min(amount, Number(input.amountPaid) || 0));
+    };
     function setInvoiceInfo(id, info) {
       const rec = S.sales.find((x) => x.id === id);
       if (!rec) fail('Sale not found');
@@ -1376,7 +1402,7 @@
       member, memberName, saveMember, setMemberDisabled, deleteMember,
       item, itemsOf, saveItem, deleteItem, addCategory, stockOf, adjustStock, lowStock,
       matchItem: (name, kind) => matchItem(S.items.filter((i) => !i.disabled && (!kind || i.kind === kind)), name),
-      findOrCreatePatient, patientSales, saveSale, deleteSale, incentiveFor,
+      findOrCreatePatient, patientSales, saveSale, deleteSale, settleSale, pendingSales, incentiveFor,
       savePurchase, deletePurchase, findDuplicatePurchase, lineTotal,
       saveExpense, deleteExpense,
       incentiveLedger, salarySheet, postSalary, salaryPosted,

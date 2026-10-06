@@ -573,13 +573,13 @@
     [c.address, c.phone ? `Phone: ${c.phone}` : '', inv.clinic && inv.clinic.email ? `Email: ${inv.clinic.email}` : ''].filter(Boolean).forEach((t) => {
       const lines = doc.splitTextToSize(pdfText(t), 92); doc.text(lines, M, cy); cy += lines.length * 4.4;
     });
-    const bx = W - M - 78; const meta = [['Invoice No.', inv.no], ['Invoice date', inv.date], ['Payment', inv.paid ? `Paid${inv.payMethod ? ` · ${inv.payMethod}` : ''}` : 'Due'], ...(inv.metaExtra || [])];
+    const bx = W - M - 78; const meta = [['Invoice No.', inv.no], ['Invoice date', inv.date], ['Payment', fullyPaid ? `Paid${inv.payMethod ? ` · ${inv.payMethod}` : ''}` : (invPaid > 0 ? `Part paid${inv.payMethod ? ` · ${inv.payMethod}` : ''}` : 'Due')], ...(inv.metaExtra || [])];
     doc.setFillColor(...ZEBRA); doc.roundedRect(bx, y - 4, 78, 7 + meta.length * 7, 2.5, 2.5, 'F');
     meta.forEach(([l, v], i) => {
       const yy = y + 2 + i * 7;
       doc.setFont('helvetica', 'normal'); doc.setFontSize(8.2); doc.setTextColor(...MUTED); doc.text(l, bx + 4, yy);
       doc.setFont('helvetica', 'bold'); doc.setFontSize(9.2);
-      if (l === 'Payment') doc.setTextColor(...(inv.paid ? [20, 138, 94] : RED)); else doc.setTextColor(...NAVY);
+      if (l === 'Payment') doc.setTextColor(...(fullyPaid ? [20, 138, 94] : RED)); else doc.setTextColor(...NAVY);
       doc.text(pdfText(v), bx + 74, yy, { align: 'right' });
     });
     y = Math.max(cy, y + 7 + meta.length * 7) + 6;
@@ -613,7 +613,11 @@
     y = doc.lastAutoTable.finalY + 6;
     // Totals (right) and amount in words (left)
     const tw = 82; const tx = W - M - tw;
-    const lines = [['Sub total', money(inv.total)], ['GST', 'Not applicable'], ['Total', money(inv.total)], ['Paid', money(inv.paid ? inv.total : 0)], ['Balance due', money(inv.paid ? 0 : inv.total)]];
+    const invTotal = Number(inv.total) || 0;
+    const invPaid = inv.paidAmount != null ? Math.max(0, Math.min(invTotal, Number(inv.paidAmount) || 0)) : (inv.paid ? invTotal : 0);
+    const invDue = Math.max(0, invTotal - invPaid);
+    const fullyPaid = invDue <= 0;
+    const lines = [['Sub total', money(invTotal)], ['GST', 'Not applicable'], ['Total', money(invTotal)], ['Paid', money(invPaid)], ['Balance due', money(invDue)]];
     doc.setFillColor(...ZEBRA); doc.roundedRect(tx, y, tw, 8 + lines.length * 7.2, 2.5, 2.5, 'F');
     lines.forEach(([l, v], i) => {
       const yy = y + 7 + i * 7.2;
@@ -622,14 +626,14 @@
       doc.setFont('helvetica', big ? 'bold' : 'normal'); doc.setFontSize(big ? 10.5 : 9);
       doc.setTextColor(...(big ? [255, 255, 255] : MUTED)); doc.text(l, tx + 5, yy);
       doc.setFont('helvetica', 'bold');
-      doc.setTextColor(...(big ? [255, 255, 255] : l === 'Balance due' && !inv.paid ? RED : INK)); doc.text(pdfText(v), tx + tw - 5, yy, { align: 'right' });
+      doc.setTextColor(...(big ? [255, 255, 255] : l === 'Balance due' && !fullyPaid ? RED : INK)); doc.text(pdfText(v), tx + tw - 5, yy, { align: 'right' });
     });
     const ww = W - 2 * M - tw - 6;
     doc.setFont('helvetica', 'bold'); doc.setFontSize(7.5); doc.setTextColor(...MUTED); doc.text('AMOUNT IN WORDS', M, y + 5);
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9.6); doc.setTextColor(...NAVY);
     const words = doc.splitTextToSize(inWords(inv.total), ww); doc.text(words, M, y + 11);
     let ly = y + 11 + words.length * 4.8 + 3;
-    if (inv.payMethod || inv.paid) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6); doc.setTextColor(...INK); doc.text(pdfText(inv.paid ? `Received with thanks${inv.payMethod ? ` by ${inv.payMethod}` : ''}.` : 'Payment pending.'), M, ly); ly += 6; }
+    if (inv.payMethod || inv.paid || invPaid > 0) { doc.setFont('helvetica', 'normal'); doc.setFontSize(8.6); doc.setTextColor(...INK); doc.text(pdfText(fullyPaid ? `Received with thanks${inv.payMethod ? ` by ${inv.payMethod}` : ''}.` : (invPaid > 0 ? `Part payment received${inv.payMethod ? ` by ${inv.payMethod}` : ''}. Balance ${money(invDue)} due.` : 'Payment pending.')), M, ly); ly += 6; }
     y = Math.max(y + 8 + lines.length * 7.2, ly) + 8;
     // Notes / terms
     if (y > H - 62) { doc.addPage(); y = 20; }

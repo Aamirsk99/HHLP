@@ -679,3 +679,26 @@ test('deleteLeads removes several leads at once', () => {
   assert.deepEqual(a.state.leads.map((l) => l.name), ['B']);
   assert.equal(a.deleteLeads(['nope']), 0, 'unknown ids remove nothing');
 });
+
+test('partial sale payment: due tracked, pendingSales lists it, settleSale clears it', () => {
+  const a = setup('2026-10-06');
+  const m = a.saveMember({ name: 'Riya' });
+  const pen = byName(a, 'Mounjaro 15mg'); a.adjustStock(pen.id, 5, 'count');
+  // Pay 10000 of a 17000 sale → 7000 due.
+  const s = a.saveSale({ type: 'injection', patientName: 'Asha', mobile: '9876543210', itemId: pen.id, amount: 17000, amountPaid: 10000, refId: m.id });
+  assert.equal(s.amountPaid, 10000); assert.equal(s.due, 7000);
+  let pend = a.pendingSales();
+  assert.equal(pend.total, 7000); assert.equal(pend.list.length, 1);
+  // Blank amountPaid = fully paid.
+  const pro = byName(a, 'Protein Sachets'); a.adjustStock(pro.id, 10, 'count');
+  const s2 = a.saveSale({ type: 'protein', patientName: 'Ravi', mobile: '9876500000', itemId: pro.id, amount: 2500, refId: m.id });
+  assert.equal(s2.due, 0, 'blank paid = full');
+  // Collect 5000 towards the 7000 due → 2000 left.
+  a.settleSale(s.id, 5000, 'UPI');
+  assert.equal(a.state.sales.find((x) => x.id === s.id).due, 2000);
+  assert.equal(a.state.sales.find((x) => x.id === s.id).payMethod, 'UPI');
+  // Blank add clears the rest.
+  a.settleSale(s.id, 0);
+  assert.equal(a.state.sales.find((x) => x.id === s.id).due, 0);
+  assert.equal(a.pendingSales().total, 0);
+});

@@ -23,11 +23,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-        <activity
-            android:name="com.hindivine.diet.HeyoActivity"
-            android:exported="false"
-            android:windowSoftInputMode="adjustResize"
-            android:configChanges="orientation|screenSize|screenLayout|keyboardHidden|uiMode" />
         <receiver android:name="com.hindivine.diet.ReminderReceiver" android:exported="false" />
         <!-- PDFs shared to WhatsApp: read access only through the share intent's grant. -->
         <provider
