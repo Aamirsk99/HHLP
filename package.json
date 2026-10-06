@@ -1,8 +1,8 @@
 {
-  "name": "diet-chart-generator",
-  "version": "5.0.0",
+  "name": "theprimefit",
+  "version": "6.0.0",
   "private": true,
-  "description": "Personalised 7-day diet chart generator (static web app).",
+  "description": "The Prime Fit: diet charts and clinic admin in one app (static web app).",
   "scripts": {
     "start": "npx --yes serve .",
     "test": "node --test tests/*.test.js"

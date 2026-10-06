@@ -102,8 +102,13 @@
     'Kokum sharbat (no sugar)': 'mixdrink|kokum 20, spice 0.5',
     'Aam panna (less sugar)': 'blend|rawmango 60, sugar 5, spice 1',
     'Fresh vegetable juice': 'blend|carrot 60, beet 40, spinach 30, lemon 5',
-    'Whey protein shake (in water)': 'mixdrink|whey 30',
-    'Plant protein shake': 'mixdrink|plantp 32',
+    'Whey protein shake (in water)': 'shake|whey 30',
+    'Plant protein shake': 'shake|plantp 32',
+    'Whey isolate shake (in water)': 'shake|wheyiso 30',
+    'Whey concentrate shake (in water)': 'shake|wheyconc 33',
+    'Pea protein shake (in water)': 'shake|plantp 33',
+    'Soy protein isolate shake (in water)': 'shake|soyiso 30',
+    'Casein protein shake (in water)': 'shake|casein 34',
     'Banana–milk smoothie (no sugar)': 'blend|banana 100, milk 150',
     'Spinach–apple green smoothie': 'blend|spinach 40, apple 150, lemon 5',
     'Mint chaas': 'mixdrink|curd 75, mint 5',
@@ -728,6 +733,7 @@
     tea: ['Boil 1 cup of water with {main} for 3–5 minutes.', 'Strain and serve warm, without extra sugar.'],
     milk: ['Heat {main} in a pan until it just boils.', 'Simmer 1–2 minutes with the flavouring; serve warm without sugar.'],
     blend: ['Add {main} to a blender with a little water or ice.', 'Blend until smooth and serve immediately (no added sugar).'],
+    shake: ['Pour 250 ml cold water (or the milk listed) into a shaker bottle first, then add {main}.', 'Close the lid and shake hard for 20–30 seconds until smooth, or blend with a few ice cubes.', 'Drink within 30 minutes — after exercise or with the meal it is planned for.'],
     mixdrink: ['Whisk {main} into 1 glass of chilled water.', 'Add a pinch of salt, roasted cumin and a squeeze of lemon; serve.'],
     roti: ['Knead {main} with water and a pinch of salt into a soft dough; rest 15 minutes.', 'Divide into balls and roll out thin (pat by hand for millet flours).', 'Cook on a hot tawa on both sides; puff over the flame.', 'Brush with ghee/oil only if it is listed.'],
     paratha: ['Knead the flour with water into a soft dough; rest 15 minutes.', 'Prepare the filling or mix-in: {main} with salt and spices.', 'Stuff or mix, roll gently and cook on a tawa using only the listed oil/ghee until golden on both sides.'],
@@ -816,6 +822,49 @@
     return (STEPS[recipe.tpl] || STEPS.plate).map((s) => s.replace('{main}', join(main)).replace('{aro}', aro.length ? join(aro) : 'the spices'));
   }
 
+  // Extra finishing step for methods that are short, by template.
+  const FINISH = {
+    water: 'Let it cool to sipping warmth; drink it slowly over 5–10 minutes.',
+    raw: 'Arrange on a clean plate or bowl; add a squeeze of lemon or a pinch of chaat masala if you like.',
+    soak: 'Rinse once more and keep the rest covered in the fridge for up to 2 days.',
+    roast: 'Let it cool fully before storing so it stays crisp.',
+    ready: 'Portion out one serving into a bowl instead of eating from the pack.',
+    tea: 'Taste and add a few drops of lemon or a mint leaf instead of sugar.',
+    milk: 'Pour into a cup and let it cool for a minute before drinking.',
+    blend: 'Pour into a glass and drink fresh — do not strain away the fibre.',
+    shake: 'Rinse the shaker straight away; use 1 level scoop (the pack scoop) per serving.',
+    mixdrink: 'Stir again just before drinking, as it settles.',
+    salad: 'Toss once more just before serving so the dressing coats everything.',
+    raita: 'Taste and adjust salt; serve cold.',
+    chutney: 'Taste, adjust salt and lemon, and keep refrigerated (2–3 days).',
+    chaat: 'Taste, adjust lemon and salt, and eat straight away so it stays crunchy.',
+    wrap: 'Cut in half on a slant and serve.',
+    sandwich: 'Cut diagonally and serve warm.',
+    plate: 'Eat slowly: salad and protein first, then the grains.',
+  };
+  const DEFAULT_FINISH = 'Taste and adjust salt, lemon or spices; keep oil and sugar to what is listed.';
+
+  /**
+   * The full "how to" for a dish, start to finish: measure everything, wash and chop,
+   * the method itself, a finishing step when the method is short, and how much to serve.
+   * `serve` (optional) = { text: '1 bowl', kcal, p } for the last step; `serves` scales quantities.
+   */
+  function fullSteps(recipe, ingredients, serve, serves) {
+    const db = ingredients || ING;
+    const k = serves || 1;
+    const items = recipe.ing.map(([key, g]) => ({ x: db[key], g: Math.round(g * k * 10) / 10 }));
+    const unit = (x) => (x.cat === 'drink' || /milk|water|juice/i.test(x.name) ? 'ml' : 'g');
+    const join = (l) => (l.length > 1 ? l.slice(0, -1).join(', ') + ' and ' + l[l.length - 1] : l[0] || '');
+    const out = [`Measure everything first${k > 1 ? ` (for ${k} servings)` : ''}: ${join(items.map(({ x, g }) => `${titleCase(x.name)} ${g} ${unit(x)}`))}.`];
+    const fresh = items.filter(({ x }) => ['veg', 'leafy', 'fruit'].includes(x.cat)).map(({ x }) => titleCase(x.name));
+    if (fresh.length && recipe.tpl !== 'raw' && recipe.tpl !== 'salad' && recipe.tpl !== 'sabzi') out.push(`Wash ${join(fresh)} under running water, then peel and chop as the dish needs.`);
+    const method = steps(recipe, db);
+    out.push(...method);
+    if (method.length < 3 || out.length < 4) out.push(FINISH[recipe.tpl] || DEFAULT_FINISH);
+    if (serve) out.push(`Serve ${serve.text} per person — about ${serve.kcal} kcal and ${serve.p} g protein in each serving.`);
+    return out;
+  }
+
   /**
    * Attach recipes to foods and recalculate their nutrition from ingredients.
    * The recipe's diet and allergens are merged in (never loosened).
@@ -841,7 +890,7 @@
     return missing;
   }
 
-  const api = { RECIPES: R, STEPS, parse, analyse, steps, applyRecipes };
+  const api = { RECIPES: R, STEPS, FINISH, parse, analyse, steps, fullSteps, applyRecipes };
   if (typeof module !== 'undefined' && module.exports) {
     ING = require('./ingredients.js');
     module.exports = api;

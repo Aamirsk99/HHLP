@@ -2,20 +2,44 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Hindivine Diet</title>
-  <meta name="description" content="Hindivine Diet — premium 1–7 day Indian and worldwide diet charts with recipes in 10 languages: weight loss, diabetes, PCOS, thyroid, travel and more, as a 2-page A4 PDF.">
-  <meta name="theme-color" content="#0A2F55">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <title>The Prime Fit</title>
+  <script>
+    // In the Android / iPhone app everything starts at the sign-in; diet charts open after signing in.
+    try { if ((window.AndroidBridge || window.Capacitor) && !sessionStorage.getItem('primefit.diet')) location.replace('admin/index.html'); } catch (_) { /* ignore */ }
+  </script>
+  <script>
+    // Theme shared with the clinic admin (set before the page draws, so there is no flash):
+    // primefit.theme = teal | midnight | royal | emerald | charcoal | rose | ocean | sunset | onyx | plum | sapphire | forest
+    // | aurora | peacock | sunrise | galaxy | tropical | maharaja (multi-colour), primefit.mode = auto | light | dark.
+    (function () {
+      var d = document.documentElement, t = 'teal', m = 'auto';
+      try { t = localStorage.getItem('primefit.theme') || t; m = localStorage.getItem('primefit.mode') || m; } catch (_) { /* private mode */ }
+      d.dataset.theme = /^(teal|midnight|royal|emerald|charcoal|rose|ocean|sunset|onyx|plum|sapphire|forest|aurora|peacock|sunrise|galaxy|tropical|maharaja)$/.test(t) ? t : 'teal';
+      d.dataset.mode = /^(auto|light|dark)$/.test(m) ? m : 'auto';
+      var mq = window.matchMedia ? window.matchMedia('(prefers-color-scheme: dark)') : null;
+      function apply() {
+        var mode = d.dataset.mode;
+        d.dataset.scheme = mode === 'dark' || (mode === 'auto' && mq && mq.matches) ? 'dark' : 'light';
+      }
+      apply();
+      if (mq) { if (mq.addEventListener) mq.addEventListener('change', apply); else if (mq.addListener) mq.addListener(apply); }
+      window.primefitApplyTheme = apply;
+    })();
+  </script>
+  <meta name="description" content="The Prime Fit — premium 1–7 day Indian and worldwide diet charts with recipes in 10 languages: weight loss, diabetes, PCOS, thyroid, travel and more, as a 2-page A4 PDF.">
+  <meta name="theme-color" content="#015B53">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="apple-mobile-web-app-title" content="Hindivine Diet">
+  <meta name="apple-mobile-web-app-title" content="The Prime Fit">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="img/icon-192.png">
   <link rel="apple-touch-icon" href="img/icon-192.png">
   <link rel="stylesheet" href="css/styles.css">
 </head>
 <body>
+  <script src="js/intro.js"></script>
   <div class="app no-print">
     <!-- App bar -->
     <header class="appbar">
@@ -27,13 +51,16 @@
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"/></svg>
         </button>
         <div class="appbar-title">
-          <img src="img/logo.jpg" alt="Hindivine Healthcare" class="appbar-logo" id="appbar-logo" width="900" height="308">
+          <span class="appbar-logo" id="appbar-logo">
+            <img src="img/logo.png" alt="The Prime Fit" class="logo-on-light" width="877" height="286" decoding="async">
+            <img src="img/logo-light.png" alt="The Prime Fit" class="logo-on-dark" width="945" height="354" decoding="async" loading="lazy">
+          </span>
           <div class="appbar-text" id="appbar-text" hidden>
             <b id="screen-title"></b>
             <small id="screen-sub"></small>
           </div>
         </div>
-        <button type="button" class="icon-btn" id="go-library" aria-label="Food library" title="Food library">
+        <button type="button" class="icon-btn" id="go-library" aria-label="Search foods &amp; recipes" title="Foods &amp; Recipes library">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
         </button>
       </div>
@@ -44,11 +71,12 @@
     <div class="scrim" id="scrim" hidden></div>
     <aside class="drawer" id="drawer" aria-label="Main menu" hidden>
       <div class="drawer-head">
-        <img src="img/icon-192.png" alt="" width="52" height="52">
-        <div><b>Hindivine Diet</b><small id="drawer-sub">Diet charts · Recipes · Patients</small></div>
+        <div><img src="img/logo-light.png" alt="The Prime Fit" class="drawer-logo" width="945" height="354" decoding="async"><b id="drawer-name" hidden></b><small id="drawer-sub">Diet charts · Recipes · Patients</small></div>
+        <button type="button" class="icon-btn drawer-close" id="drawer-close" aria-label="Close menu">✕</button>
       </div>
+      <div class="drawer-quick" id="drawer-quick"></div>
       <nav class="drawer-nav" id="drawer-nav"></nav>
-      <div class="drawer-foot">Hindivine Healthcare Pvt. Ltd.<br>www.hindivine.com</div>
+      <div class="drawer-foot"><b id="drawer-foot-name">The Prime Fit</b><span id="drawer-foot-web">www.theprimefit.in</span></div>
     </aside>
 
     <form id="profile-form" novalidate>
@@ -57,7 +85,7 @@
         <div class="dash-hero">
           <div class="dash-hello">
             <small id="dash-greet">Namaste</small>
-            <h1 id="dash-name">Hindivine Diet</h1>
+            <h1 id="dash-name">The Prime Fit</h1>
             <p>Diet charts, recipes &amp; patient follow-ups — in 10 languages.</p>
           </div>
           <button type="button" class="hero-cta" data-go="s1">
@@ -66,7 +94,7 @@
           <div class="kpis" id="kpis"></div>
         </div>
         <button type="button" class="continue-card" id="continue-chart" hidden>
-          <span class="cc-icon">📋</span>
+          <span class="cc-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="3.5" width="14" height="17.5" rx="2"/><path d="M9 3.5h6v3H9zM8.5 11h7M8.5 14.5h7M8.5 18h4"/></svg></span>
           <span class="cc-text"><small>Continue last chart</small><b id="continue-title"></b><span id="continue-sub"></span></span>
           <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
         </button>
@@ -74,12 +102,12 @@
         <div class="quick-grid" id="quick-grid"></div>
         <div class="sec-row"><h2 class="sec-title">Recent charts</h2><button type="button" class="link-btn" data-go="charts">See all</button></div>
         <div class="list" id="recent-charts"></div>
-        <ul class="feature-list">
-          <li>Recipe for every dish</li>
-          <li>Kcal &amp; protein from ingredients</li>
-          <li>Next-week charts in one tap</li>
-          <li>1–7 days · 2 languages</li>
-        </ul>
+        <div class="feature-list">
+          <button type="button" data-go="recipes">Recipe for every dish</button>
+          <button type="button" data-go="explore">Kcal &amp; protein from ingredients</button>
+          <button type="button" data-go="charts">Next-week charts in one tap</button>
+          <button type="button" data-go="s1">1–7 days · 2 languages</button>
+        </div>
       </section>
 
       <!-- ── Step 1: Patient ──────────────────────────── -->
@@ -239,6 +267,20 @@
           </div>
           <label class="switch"><input type="checkbox" name="preferWl"> <span>Prefer weight-loss foods</span></label>
         </div>
+        <div class="card shake-card">
+          <label class="switch"><input type="checkbox" name="shakeOn" id="shake-on"> <span>Add a protein shake to the chart</span></label>
+          <div class="shake-opts" id="shake-opts" hidden>
+            <div class="row">
+              <label>Protein powder<select name="shakePowder" id="shake-powder"></select></label>
+              <label>Scoops per day<select name="shakeScoops"><option value="0.5">½ scoop</option><option value="1" selected>1 scoop</option><option value="1.5">1½ scoops</option><option value="2">2 scoops</option></select></label>
+            </div>
+            <div class="row">
+              <label>Mix with<select name="shakeWith" id="shake-with"></select></label>
+              <label>Meal<select name="shakeSlot" id="shake-slot"></select></label>
+            </div>
+            <p class="card-note" id="shake-note"></p>
+          </div>
+        </div>
       </section>
 
       <!-- ── Step 4: Schedule & language ──────────────── -->
@@ -306,7 +348,7 @@
       </section>
 
       <!-- ── Food library ─────────────────────────────── -->
-      <section class="screen" data-screen="library" data-title="Food library" hidden>
+      <section class="screen" data-screen="library" data-title="Diet-chart foods" hidden>
         <div class="card library-head">
           <input type="search" id="lib-search" placeholder="Search foods — English or हिन्दी, e.g. dosa, पनीर" aria-label="Search foods">
           <div class="row three">
@@ -320,6 +362,11 @@
           </div>
           <div class="chips" id="lib-filters"></div>
         </div>
+        <div class="lib-actions">
+          <button type="button" class="btn primary" id="lib-add-food"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add food</button>
+          <button type="button" class="btn" id="lib-my-foods">My foods <span class="count-pill" id="my-foods-count">0</span></button>
+        </div>
+        <button type="button" class="lx-banner" data-go="explore"><span class="lx-banner-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></span><span><b>Foods &amp; Recipes library</b><small class="lx-banner-sub" id="lib-banner-sub">9,070 Indian &amp; world foods · 11,018 recipes · filters &amp; export</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
         <p class="lib-count" id="lib-count"></p>
         <div class="food-grid" id="lib-list"></div>
       </section>
@@ -342,26 +389,118 @@
 
     <!-- ── Recipes ──────────────────────────────────── -->
     <section class="screen" data-screen="recipes" data-title="Recipes" hidden>
-      <div class="card library-head">
-        <input type="search" id="rc-search" placeholder="Search recipes — English or हिन्दी, e.g. poha, dal, पनीर" aria-label="Search recipes">
-        <div class="row">
-          <label>Category<select id="rc-category"></select></label>
-          <label>Food type<select id="rc-diet"></select></label>
-        </div>
+      <div class="rc-hero">
+        <small class="lx-kicker">The Prime Fit kitchen</small>
+        <h2 id="rc-headline"><b>11,018</b> recipes</h2>
+        <p>Indian &amp; world dishes with ingredients in grams, full method, kcal &amp; protein</p>
       </div>
-      <p class="lib-count" id="rc-count"></p>
+      <div class="card library-head">
+        <input type="search" id="rc-search" placeholder="Search recipes — e.g. paneer bowl, poha, dal, पनीर" aria-label="Search recipes" autocomplete="off" enterkeyhint="search">
+        <div class="chips rc-diets" id="rc-diets" role="group" aria-label="Food type"></div>
+        <div class="row">
+          <label>Meal<select id="rc-meal"></select></label>
+          <label>Dish type<select id="rc-category"></select></label>
+        </div>
+        <div class="chips" id="rc-filters"></div>
+      </div>
+      <div class="lib-actions">
+        <button type="button" class="btn primary" id="rc-add"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg> Add recipe</button>
+        <button type="button" class="btn" id="rc-add-food">New dish + recipe</button>
+      </div>
+      <p class="lib-count" id="rc-count" aria-live="polite"></p>
       <div class="recipe-grid" id="rc-list"></div>
+      <div class="rc-more-row"><button type="button" class="btn wide" id="rc-more" hidden>Show more</button></div>
+      <button type="button" class="lx-banner rc-lib-banner" data-go="explore"><span class="lx-banner-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg></span><span><b>Foods &amp; Recipes library</b><small class="lx-banner-sub" id="rc-lib-sub">9,070 foods per 100 g · more filters · Excel &amp; PDF export</small></span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"/></svg></button>
     </section>
     <section class="screen" data-screen="recipe" data-title="Recipe" hidden>
       <div id="rc-detail"></div>
     </section>
 
+    <!-- ── Foods & Recipes library (data loads on first open) ── -->
+    <section class="screen lx" data-screen="explore" data-title="Foods &amp; Recipes" hidden>
+      <div class="lx-hero">
+        <small class="lx-kicker">The Prime Fit library</small>
+        <h2 id="lx-headline">Foods &amp; Recipes</h2>
+        <p id="lx-sub">Indian &amp; world foods · recipes with full method</p>
+        <div class="lx-search">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="6"/><path d="M20 20l-4.5-4.5"/></svg>
+          <input type="search" id="lx-q" placeholder="Search — e.g. paneer bowl, ragi, whey, dal" aria-label="Search foods and recipes" autocomplete="off" enterkeyhint="search">
+        </div>
+        <div class="lx-seg" id="lx-type" role="tablist" aria-label="Show">
+          <button type="button" role="tab" data-type="" aria-selected="true">All</button>
+          <button type="button" role="tab" data-type="f" aria-selected="false">Foods</button>
+          <button type="button" role="tab" data-type="r" aria-selected="false">Recipes</button>
+        </div>
+      </div>
+      <div class="lx-mine" role="group" aria-label="My foods and recipes">
+        <button type="button" class="lx-mine-btn main" data-act="myfoods"><span class="lx-mine-ico"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21c-5 0-8-3.5-8-8 0-3 2-5 4.5-5 1.5 0 2.5.7 3.5.7s2-.7 3.5-.7C18 8 20 10 20 13c0 4.5-3 8-8 8z"/><path d="M12 8.7c0-2.5 1.2-4.2 3.5-5"/></svg></span><span><b>My foods</b><small><i class="my-foods-count count-pill" hidden>0</i> Edit or delete your own</small></span></button>
+        <button type="button" class="lx-mine-btn" data-act="addfood"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add food</span></button>
+        <button type="button" class="lx-mine-btn" data-act="addrecipe"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add recipe</span></button>
+      </div>
+      <div class="lx-bar">
+        <button type="button" class="lx-pill" id="lx-filter-btn" aria-expanded="false" aria-controls="lx-filters">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M7 12h10M10 18h4"/></svg> Filters <i id="lx-fcount" hidden></i>
+        </button>
+        <label class="lx-sort"><span class="sr-only">Sort by</span>
+          <select id="lx-sort" aria-label="Sort by">
+            <option value="">Best match</option>
+            <option value="protein">Protein (high first)</option>
+            <option value="ppk">Protein per 100 kcal</option>
+            <option value="kcal">Calories (low first)</option>
+            <option value="kcaldesc">Calories (high first)</option>
+            <option value="time">Quickest to cook</option>
+            <option value="name">Name (A–Z)</option>
+          </select>
+        </label>
+      </div>
+      <div class="chips small lx-quick" id="lx-quick"></div>
+      <div class="card lx-filters" id="lx-filters" hidden>
+        <span class="field-label">Food type</span>
+        <div class="chips small" id="lx-diet">
+          <button type="button" class="chip" data-diet="" aria-pressed="true">Any</button>
+          <button type="button" class="chip" data-diet="vegan" aria-pressed="false">Vegan</button>
+          <button type="button" class="chip" data-diet="veg" aria-pressed="false">Veg (incl. vegan)</button>
+          <button type="button" class="chip" data-diet="egg" aria-pressed="false">Veg + egg</button>
+          <button type="button" class="chip" data-diet="nonveg" aria-pressed="false">Non-veg only</button>
+        </div>
+        <div class="row">
+          <label>Category<select id="lx-cat"><option value="">All categories</option></select></label>
+          <label>Meal<select id="lx-meal"></select></label>
+        </div>
+        <div class="row">
+          <label>Calories from<select id="lx-kmin"><option value="">Any</option><option value="50">50 kcal</option><option value="100">100 kcal</option><option value="200">200 kcal</option><option value="300">300 kcal</option><option value="400">400 kcal</option></select></label>
+          <label>Calories up to<select id="lx-kmax"><option value="">Any</option><option value="100">100 kcal</option><option value="150">150 kcal</option><option value="200">200 kcal</option><option value="300">300 kcal</option><option value="400">400 kcal</option><option value="500">500 kcal</option><option value="700">700 kcal</option></select></label>
+        </div>
+        <div class="row">
+          <label>Cuisine / region<select id="lx-region"></select></label>
+          <label>Time to cook<select id="lx-time"><option value="">Any</option><option value="10">≤ 10 min</option><option value="20">≤ 20 min</option><option value="30">≤ 30 min</option><option value="45">≤ 45 min</option><option value="60">≤ 60 min</option></select></label>
+        </div>
+        <label>Source<select id="lx-src"></select></label>
+        <span class="field-label">Nutrition</span>
+        <div class="chips small" id="lx-toggles"></div>
+        <span class="field-label">Allergy-safe</span>
+        <div class="chips small" id="lx-no"></div>
+        <p class="card-note">Foods are per 100 g; recipes and diet-chart dishes are per serving. Allergens of world foods are read from their names — always check the label.</p>
+        <button type="button" class="btn ghost" id="lx-reset" hidden>Clear all filters</button>
+      </div>
+      <div class="lx-status" id="lx-status">
+        <span id="lx-count"></span>
+        <div class="lx-exports">
+          <button type="button" class="lx-x" id="lx-pdf" title="Export the list as PDF"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h8l5 5v13H6z"/><path d="M14 3v5h5"/></svg>PDF</button>
+          <button type="button" class="lx-x" id="lx-xls" title="Export the list for Excel"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M9 4v16"/></svg>Excel</button>
+        </div>
+      </div>
+      <div class="lx-list" id="lx-list"></div>
+      <nav class="lx-pager" id="lx-pager" aria-label="Pages"></nav>
+      <p class="lx-credit">Food nutrition data from TempoLife (tempolife.app), CC-BY-4.0 · USDA FoodData Central SR Legacy (public domain) · Indian Food Composition Tables 2017, NIN-ICMR. Recipes by The Prime Fit with nutrition calculated from ingredients; protein powders use typical label values.</p>
+    </section>
+
     <!-- ── Upload previous chart ────────────────────── -->
     <section class="screen" data-screen="upload" data-title="Upload previous chart" hidden>
       <label class="dropzone" for="pdf-file">
-        <span class="dz-icon">📄</span>
+        <span class="dz-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3h9l4 4v14H6z"/><path d="M14 3v5h5M12 18v-6M9.5 14.5L12 12l2.5 2.5"/></svg></span>
         <b>Choose last week's diet chart PDF</b>
-        <small>Charts made with Hindivine Diet are read exactly (patient, targets and every meal). Other PDFs: the foods in them are found by name.</small>
+        <small>Charts made with The Prime Fit are read exactly (patient, targets and every meal). Other PDFs: the foods in them are found by name.</small>
         <input type="file" id="pdf-file" accept="application/pdf,.pdf">
       </label>
       <div id="upload-result"></div>
@@ -369,6 +508,17 @@
 
     <!-- ── Settings ─────────────────────────────────── -->
     <section class="screen" data-screen="settings" data-title="Settings & backup" hidden>
+      <div class="card theme-card">
+        <h3>Theme</h3>
+        <p class="muted">Colours for this app and the clinic admin. Printed diet charts keep The Prime Fit colours.</p>
+        <div class="swatches" id="theme-swatches" role="radiogroup" aria-label="Theme colour"></div>
+        <span class="field-label">Appearance</span>
+        <div class="seg" id="mode-seg" role="radiogroup" aria-label="Appearance">
+          <button type="button" data-mode="auto" aria-pressed="true">Auto</button>
+          <button type="button" data-mode="light" aria-pressed="false">Light</button>
+          <button type="button" data-mode="dark" aria-pressed="false">Dark</button>
+        </div>
+      </div>
       <div class="card">
         <h3>Dietitian (printed on every chart)</h3>
         <label>Dietitian name<input type="text" id="set-dietitian" placeholder="e.g. Ms. Priya Verma"></label>
@@ -429,6 +579,30 @@
     </div>
   </dialog>
 
+  <!-- Library item (food or recipe) -->
+  <dialog id="lxdialog" class="editor no-print">
+    <div class="editor-inner">
+      <header class="editor-head">
+        <div><h2 id="lx-d-title"></h2><p id="lx-d-sub"></p></div>
+        <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+      </header>
+      <div class="editor-body" id="lx-d-body"></div>
+      <footer class="editor-foot" id="lx-d-foot"></footer>
+    </div>
+  </dialog>
+
+  <!-- My food / step-by-step recipe forms -->
+  <dialog id="fdialog" class="editor no-print">
+    <div class="editor-inner">
+      <header class="editor-head">
+        <div><h2 id="fd-title"></h2><p id="fd-sub"></p></div>
+        <button type="button" class="icon-btn" data-close aria-label="Close">✕</button>
+      </header>
+      <div class="editor-body" id="fd-body"></div>
+      <footer class="editor-foot" id="fd-foot"></footer>
+    </div>
+  </dialog>
+
   <!-- Meal editor -->
   <dialog id="editor" class="editor no-print">
     <div class="editor-inner">
@@ -455,11 +629,17 @@
             <div class="row three">
               <input id="cf-name" type="text" placeholder="Food name">
               <input id="cf-qty" type="text" placeholder="Qty, e.g. 1 bowl">
-              <input id="cf-kcal" type="number" placeholder="kcal">
+              <input id="cf-kcal" type="number" placeholder="kcal" inputmode="decimal">
             </div>
+            <div class="row three">
+              <input id="cf-protein" type="number" placeholder="Protein g" inputmode="decimal">
+              <input id="cf-carbs" type="number" placeholder="Carbs g" inputmode="decimal">
+              <input id="cf-fat" type="number" placeholder="Fat g" inputmode="decimal">
+            </div>
+            <label class="switch"><input type="checkbox" id="cf-keep"> <span>Also save to my food library (usable in every chart)</span></label>
             <div class="row">
-              <input id="cf-protein" type="number" placeholder="Protein g (optional)">
-              <button type="button" class="btn" id="cf-add">Add food</button>
+              <span></span>
+              <button type="button" class="btn primary" id="cf-add">Add to this meal</button>
             </div>
           </details>
         </div>
@@ -486,6 +666,7 @@
   <script src="js/icons.js"></script>
   <script src="js/planner.js"></script>
   <script src="js/store.js"></script>
+  <script src="js/library.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

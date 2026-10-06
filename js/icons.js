@@ -5,7 +5,7 @@
 (function (root) {
   // Checked in order: the first keyword found in the name wins.
   const BY_NAME = [
-    ['dalchini', '🍵'], ['herbal', '🍵'], ['prawn', '🦐'], ['shrimp', '🦐'], ['salmon', '🐟'], ['tuna', '🐟'], ['fish', '🐟'], ['maach', '🐟'], ['meen', '🐟'], ['sushi', '🍣'],
+    ['shake', '🥤'], ['smoothie', '🥤'], ['whey', '🥤'], ['casein', '🥤'], ['protein powder', '🥤'], ['dalchini', '🍵'], ['herbal', '🍵'], ['prawn', '🦐'], ['shrimp', '🦐'], ['salmon', '🐟'], ['tuna', '🐟'], ['fish', '🐟'], ['maach', '🐟'], ['meen', '🐟'], ['sushi', '🍣'],
     ['chicken', '🍗'], ['mutton', '🍖'], ['lamb', '🍖'], ['keema', '🍖'], ['rogan', '🍖'],
     ['omelette', '🍳'], ['bhurji', '🍳'], ['scrambled', '🍳'], ['akuri', '🍳'], ['frittata', '🍳'], ['egg', '🥚'], ['anda', '🥚'], ['tamagoyaki', '🥚'],
     ['paneer', '🧀'], ['cheese', '🧀'], ['feta', '🧀'], ['halloumi', '🧀'], ['tofu', '🧊'], ['tempeh', '🧊'],

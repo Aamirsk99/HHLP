@@ -1,5 +1,5 @@
 /*
- * Diet planning logic for Hindivine Diet: energy targets, food filtering,
+ * Diet planning logic for The Prime Fit: energy targets, food filtering,
  * meal composition from the food database, weekly plans and manual edits.
  * Pure functions with no DOM access, so they run in the browser and under Node tests.
  */
@@ -162,10 +162,64 @@
     sabzi: { label: 'Sabzi & salad', roles: ['sabzi', 'side', 'wveg'] },
     snacks: { label: 'Snacks & soups', roles: ['snack', 'soup'] },
     fruits: { label: 'Fruits', roles: ['fruit'] },
-    drinks: { label: 'Drinks', roles: ['drink', 'early', 'earlyadd', 'bed'] },
+    drinks: { label: 'Drinks', roles: ['drink', 'early', 'earlyadd', 'bed', 'shake'] },
+    shakes: { label: 'Protein shakes', roles: ['shake'] },
     meals: { label: 'Complete meals', roles: ['wmain', 'tmain'] },
     ingredients: { label: 'Ingredients (per 100 g)', roles: ['ingredient'] },
   };
+
+  // ── Protein shake option ─────────────────────────────────────────
+  // Typical label values per scoop (see ingredients.js); the dietitian picks powder, scoops, liquid and meal.
+  const PROTEIN_POWDERS = {
+    whey_iso: { label: 'Whey isolate', food: 'Whey isolate shake (in water)', scoopG: 30 },
+    whey: { label: 'Whey concentrate', food: 'Whey concentrate shake (in water)', scoopG: 33 },
+    pea: { label: 'Pea / plant protein', food: 'Pea protein shake (in water)', scoopG: 33 },
+    soy: { label: 'Soy protein isolate', food: 'Soy protein isolate shake (in water)', scoopG: 30 },
+    casein: { label: 'Casein (slow)', food: 'Casein protein shake (in water)', scoopG: 34 },
+  };
+  // Tried in this order when the chosen powder does not suit the patient (vegan, milk or soy allergy …).
+  const POWDER_FALLBACK = ['pea', 'soy', 'whey_iso', 'whey', 'casein'];
+  const SHAKE_WITH = {
+    water: { label: 'Water', food: null },
+    milk: { label: 'Toned milk', food: 'Toned milk' },
+    soymilk: { label: 'Soy milk', food: 'Soy milk' },
+    almond: { label: 'Almond milk', food: 'Unsweetened almond milk' },
+  };
+  const SHAKE_SLOTS = { auto: 'Auto (mid-morning or evening)', breakfast: 'Breakfast', midmorning: 'Mid-morning', evening: 'Evening (post-workout)', bedtime: 'Bedtime', early: 'Early morning' };
+
+  /**
+   * The protein shake for this profile, or null when it is off: { slot, items: [food, qty][], powder, with, note }.
+   * The powder and liquid are checked against the patient's diet, allergies and exclusions; if the chosen
+   * one does not suit, the next suitable one is used and `note` says so.
+   */
+  function planShake(db, profile, slotsInPlan) {
+    if (!profile || !profile.shakeOn) return null;
+    const allowed = foodFilter({ ...profile, travel: '' });
+    const byName = (n) => db.FOODS.find((f) => f.name === n);
+    const notes = [];
+    const want = PROTEIN_POWDERS[profile.shakePowder] ? profile.shakePowder : 'whey_iso';
+    const order = [want, ...POWDER_FALLBACK.filter((k) => k !== want)];
+    const powder = order.find((k) => { const f = byName(PROTEIN_POWDERS[k].food); return f && allowed(f); });
+    if (!powder) return { slot: null, items: [], powder: null, with: null, note: 'No protein powder suits this patient\'s diet and allergies — protein shake left out.' };
+    if (powder !== want) notes.push(`${PROTEIN_POWDERS[want].label} does not suit this patient's diet or allergies — ${PROTEIN_POWDERS[powder].label} used instead.`);
+    const wantWith = SHAKE_WITH[profile.shakeWith] ? profile.shakeWith : 'water';
+    const withOrder = [wantWith, 'soymilk', 'almond', 'water'].filter((k, i, a) => a.indexOf(k) === i);
+    const liquid = withOrder.find((k) => { const n = SHAKE_WITH[k].food; if (!n) return true; const f = byName(n); return f && allowed(f); });
+    if (liquid !== wantWith) notes.push(`${SHAKE_WITH[wantWith].label} does not suit this patient — mixed with ${SHAKE_WITH[liquid].label.toLowerCase()} instead.`);
+    const scoops = Math.min(3, Math.max(0.5, Number(profile.shakeScoops) || 1));
+    const present = slotsInPlan || Object.keys(SLOTS);
+    let slot = profile.shakeSlot && profile.shakeSlot !== 'auto' ? profile.shakeSlot : null;
+    if (slot && !present.includes(slot)) { notes.push(`${SLOTS[slot] ? SLOTS[slot].label : slot} is not in this chart's meals — the shake goes with another meal.`); slot = null; }
+    if (!slot) slot = ['midmorning', 'evening', 'breakfast', 'lunch'].find((s) => present.includes(s)) || present[0];
+    const items = [[byName(PROTEIN_POWDERS[powder].food), scoops]];
+    if (SHAKE_WITH[liquid].food) items.push([byName(SHAKE_WITH[liquid].food), 1]);
+    return { slot, items, powder, with: liquid, scoops, note: notes.join(' ') };
+  }
+
+  /** Meal items for a planned shake (fixed portions, never scaled). */
+  function shakeItems(shake) {
+    return shake && shake.items ? shake.items.map(([f, q]) => { const it = makeItem(f, q); it.fixed = true; it.shake = true; return it; }) : [];
+  }
 
   const UNIT_STEP = { pc: 0.5, egg: 1, slice: 0.5, g: 10, ml: 25, cup: 0.25, katori: 0.25, bowl: 0.25, glass: 0.25, tbsp: 0.5, tsp: 0.5, plate: 0.25, scoop: 0.5 };
   const UNIT_PLURAL = { pc: 'pcs', egg: 'eggs', slice: 'slices', cup: 'cups', katori: 'katoris', bowl: 'bowls', glass: 'glasses', plate: 'plates', scoop: 'scoops' };
@@ -623,6 +677,8 @@
       if (opts.preferWl) score -= (foods.filter((f) => f.flags.includes('wl')).length / foods.length) * 0.15;
       if (opts.likes.length) score -= foods.filter((f) => likedFood(f, opts.likes)).length * opts.likeWeight;
       if (opts.mix) score -= foods.filter((f) => f.diet === 'egg' || f.diet === 'nonveg').length * 0.12;
+      // The dietitian's own foods (added in the food library) are slightly preferred.
+      score -= foods.filter((f) => f.user).length * 0.1;
       score += rand() * 0.05;
       if (!best || score < best.score) best = { score, meal, foods };
     }
@@ -638,7 +694,9 @@
     const targets = computeTargets(profile);
     const rand = rng(seed);
     const slots = slotTargets(targets.calories, profile.meals || 5, profile.earlyDrink !== false);
-    const pools = buildPools(db.FOODS, profile);
+    const shakeOn = !!(profile && profile.shakeOn);
+    // With a planned shake, no other protein shake is picked at random.
+    const pools = buildPools(db.FOODS, shakeOn ? { ...profile, dislikes: [...(profile.dislikes || []), 'protein shake'] } : profile);
     const T = {};
     slots.forEach(({ slot }) => { T[slot] = templates(slot, pools, db.PRESETS, slot === 'dinner'); });
     const used = {};
@@ -654,23 +712,48 @@
       avoid: opt.avoidPrevious ? previousFoodIds(opt.avoidPrevious, db) : null,
     };
 
+    // Protein shake: its calories and protein come out of its meal's target; any excess is taken
+    // from the other scalable meals so the day stays on target.
+    const shake = planShake(db, profile, slots.map((x) => x.slot));
+    const shakeOf = shake && shake.slot ? shakeItems(shake) : [];
+    const shakeK = shakeOf.reduce((t, i) => t + i.kcal, 0);
+    const shakeP = shakeOf.reduce((t, i) => t + i.p, 0);
+    if (shakeOf.length) {
+      const own = slots.find((x) => x.slot === shake.slot);
+      const extra = Math.max(0, shakeK - own.kcal);
+      const others = slots.filter((x) => x !== own && SLOTS[x.slot].scalable);
+      const sum = others.reduce((t, x) => t + x.kcal, 0);
+      if (extra > 0 && sum > 0) others.forEach((x) => { x.kcal = Math.max(x.kcal * 0.6, x.kcal - (extra * x.kcal) / sum); });
+    }
+
     const days = planDays(profile.startDay, profile.days).map(({ day }, di) => {
       const meals = slots.map(({ slot, kcal, share }, si) => {
         const info = SLOTS[slot];
         const prev = opt.previous && opt.previous.days[di] && opt.previous.days[di].meals.find((m) => m.slot === slot);
-        const entry = { slot, label: info.label, time: times[slot] || info.time, target: Math.round(kcal), targetP: Math.round(targets.protein * share), meal: null, locked: false };
+        const entry = { slot, label: info.label, time: times[slot] || info.time, target: Math.round(shakeOf.length && slot === shake.slot ? Math.max(kcal, shakeK) : kcal), targetP: Math.round(targets.protein * share), meal: null, locked: false };
         if (prev && prev.locked && prev.meal) {
           entry.meal = prev.meal;
           entry.locked = true;
         } else if (opt.blank) {
           entry.meal = recalcMeal({ name: '', items: [] });
-        } else if (T[slot].length) {
-          const lastIds = last[slot] || new Set();
-          const best = bestMeal(T[slot], kcal, targets.protein * share, info.scalable, used, lastIds, rand, scoring);
-          if (best) {
-            entry.meal = best.meal;
-            best.foods.forEach((f) => { used[f.id] = (used[f.id] || 0) + 1; });
-            last[slot] = new Set(best.foods.map((f) => f.id));
+        } else {
+          const withShake = shakeOf.length && slot === shake.slot;
+          const restK = withShake ? kcal - shakeK : kcal;
+          const restP = withShake ? Math.max(0, targets.protein * share - shakeP) : targets.protein * share;
+          if (T[slot].length && (!withShake || restK >= 80)) {
+            const lastIds = last[slot] || new Set();
+            const best = bestMeal(T[slot], restK, restP, info.scalable, used, lastIds, rand, scoring);
+            if (best) {
+              entry.meal = best.meal;
+              best.foods.forEach((f) => { used[f.id] = (used[f.id] || 0) + 1; });
+              last[slot] = new Set(best.foods.map((f) => f.id));
+            }
+          }
+          if (withShake) {
+            const meal = entry.meal || { name: '', items: [] };
+            meal.items = meal.items.concat(shakeItems(shake));
+            meal.name = meal.items.map((i) => i.name).join(' + ');
+            entry.meal = recalcMeal(meal);
           }
         }
         return entry;
@@ -678,7 +761,7 @@
       return { day, meals, totals: sumDay(meals) };
     });
 
-    return { targets, days, combos: countCombinations(db, profile) };
+    return { targets, days, combos: countCombinations(db, profile), shake: shake ? { slot: shake.slot, powder: shake.powder, with: shake.with, scoops: shake.scoops, note: shake.note } : null };
   }
 
   /** Food ids used in a plan (or a list of food names), except fixed-portion add-ons. */
@@ -709,15 +792,23 @@
   /** Replace one meal with a different generated option. */
   function swapMeal(db, profile, plan, dayIndex, mealIndex, rand) {
     const entry = plan.days[dayIndex].meals[mealIndex];
-    const pools = buildPools(db.FOODS, profile);
+    const pools = buildPools(db.FOODS, profile && profile.shakeOn ? { ...profile, dislikes: [...(profile.dislikes || []), 'protein shake'] } : profile);
     const T = templates(entry.slot, pools, db.PRESETS, entry.slot === 'dinner');
     if (!T.length) return false;
     const r = rand || Math.random;
-    const current = entry.meal ? entry.meal.items.map((i) => i.fid).join(',') : '';
+    const current = entry.meal ? entry.meal.items.filter((i) => !i.shake).map((i) => i.fid).join(',') : '';
+    const shake = planShake(db, profile, plan.days[dayIndex].meals.map((m) => m.slot));
+    const keep = shake && shake.slot === entry.slot ? shakeItems(shake) : [];
+    const target = Math.max(80, entry.target - keep.reduce((t, i) => t + i.kcal, 0));
     for (let k = 0; k < 20; k++) {
       const foods = pickTemplate(T, r).gen(r);
       if (!foods || !foods.length || foods.map((f) => f.id).join(',') === current) continue;
-      entry.meal = composeMeal(foods, entry.target, SLOTS[entry.slot].scalable);
+      entry.meal = composeMeal(foods, target, SLOTS[entry.slot].scalable);
+      if (keep.length) {
+        entry.meal.items = entry.meal.items.concat(keep);
+        entry.meal.name = entry.meal.items.map((i) => i.name).join(' + ');
+        recalcMeal(entry.meal);
+      }
       entry.locked = false;
       refreshDay(plan.days[dayIndex]);
       return true;
@@ -738,7 +829,7 @@
   }
 
   /**
-   * Search the food database. Filters: profile (fits the patient), wl, hp, travel,
+   * Search the food database. Filters: profile (fits the patient), own (the dietitian's foods), wl, hp, travel,
    * indian, world, diet, category (see CATEGORIES), region, maxKcal, sort
    * ('name' | 'kcal' | 'protein').
    */
@@ -750,6 +841,7 @@
     const catRoles = fl.category && CATEGORIES[fl.category] ? CATEGORIES[fl.category].roles : null;
     const list = foods.filter((f) => {
       if (allowed && !allowed(f)) return false;
+      if (fl.own && !f.user) return false;
       if (fl.wl && !f.flags.includes('wl')) return false;
       if (fl.hp && !isHighProtein(f)) return false;
       if (fl.travel && !f.flags.includes('tr')) return false;
@@ -845,7 +937,7 @@
 
   const api = {
     ACTIVITY, GOALS, PLANS, CONDITIONS, DIETS, REGIONS, EXCLUDES, TRAVEL, SLOTS, SPLITS, DAY_NAMES, CATEGORIES,
-    MIXES, MIX_ITEMS, CONDITION_BANS, dietOf, previousFoodIds, overlap, resolveProfile, computeTargets, slotTargets, foodFilter, buildPools, composeMeal, makeItem, customItem,
+    MIXES, MIX_ITEMS, CONDITION_BANS, PROTEIN_POWDERS, SHAKE_WITH, SHAKE_SLOTS, planShake, dietOf, previousFoodIds, overlap, resolveProfile, computeTargets, slotTargets, foodFilter, buildPools, composeMeal, makeItem, customItem,
     setItemQty, recalcMeal, refreshDay, unitStep, generatePlan, swapMeal, copyMeal, countCombinations,
     searchFoods, isHighProtein, planDays, tips, avoidList, weightLossPicks, formatQty, rng,
   };
