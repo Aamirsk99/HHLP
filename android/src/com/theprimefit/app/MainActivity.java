@@ -4,9 +4,13 @@ import android.app.Activity;
 import android.content.Context;
 import android.content.Intent;
 import android.net.Uri;
+import android.app.NotificationManager;
+import android.content.pm.PackageManager;
+import android.os.Build;
 import android.os.Bundle;
 import android.print.PrintAttributes;
 import android.print.PrintManager;
+import android.view.View;
 import android.view.Window;
 import android.webkit.ValueCallback;
 import android.webkit.WebChromeClient;
@@ -20,10 +24,13 @@ import android.widget.Toast;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
 
+
 /** Hosts The Prime Fit web app (diet charts in assets/www, clinic admin in assets/www/admin) in a full-screen WebView. */
 public class MainActivity extends Activity {
     private static final int REQUEST_SAVE = 1;
     private static final int REQUEST_OPEN = 2;
+    private static final int REQUEST_NOTIFY = 3;
+    private String pendingOpen;
 
     private WebView webView;
     private String pendingFileContent;
@@ -36,7 +43,10 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
         requestWindowFeature(Window.FEATURE_NO_TITLE);
 
+        pendingOpen = getIntent() == null ? null : getIntent().getStringExtra("open");
         webView = new WebView(this);
+        webView.setBackgroundColor(0xFF06291F); // same emerald as the launch animation: no white flash
+        webView.setOverScrollMode(View.OVER_SCROLL_NEVER);
         WebSettings s = webView.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true); // remembers the last profile via localStorage
@@ -105,6 +115,30 @@ public class MainActivity extends Activity {
         }
     }
 
+    // A tapped notification while the app is open: go straight to that screen.
+    @Override
+    protected void onNewIntent(Intent intent) {
+        super.onNewIntent(intent);
+        String open = intent == null ? null : intent.getStringExtra("open");
+        if (open == null || open.isEmpty()) return;
+        pendingOpen = open;
+        webView.evaluateJavascript("window.__tpfOpen && window.__tpfOpen()", null);
+    }
+
+    /** Local network address (Wi-Fi or mobile data) of this phone, for the sign-in log. */
+    private static String localIp() {
+        try {
+            for (java.net.NetworkInterface ni : java.util.Collections.list(java.net.NetworkInterface.getNetworkInterfaces())) {
+                if (!ni.isUp() || ni.isLoopback()) continue;
+                for (java.net.InetAddress a : java.util.Collections.list(ni.getInetAddresses())) {
+                    if (a instanceof java.net.Inet4Address && !a.isLoopbackAddress()) return a.getHostAddress();
+                }
+            }
+        } catch (Exception ignored) {
+        }
+        return "";
+    }
+
     @Override
     protected void onSaveInstanceState(Bundle outState) {
         super.onSaveInstanceState(outState);
@@ -148,51 +182,91 @@ public class MainActivity extends Activity {
             new Thread(new Runnable() {
                 @Override
                 public void run() {
-                    int status = 0;
-                    String text;
-                    try {
-                        String url = address;
-                        boolean post = "POST".equals(method);
-                        java.net.HttpURLConnection c = null;
-                        for (int hop = 0; hop < 6; hop++) {
-                            c = (java.net.HttpURLConnection) new java.net.URL(url).openConnection();
-                            c.setInstanceFollowRedirects(false);
-                            c.setConnectTimeout(20000);
-                            c.setReadTimeout(60000);
-                            if (post) {
-                                c.setRequestMethod("POST");
-                                c.setDoOutput(true);
-                                c.setRequestProperty("Content-Type", "text/plain;charset=utf-8");
-                                try (OutputStream o = c.getOutputStream()) { o.write(body == null ? new byte[0] : body.getBytes(StandardCharsets.UTF_8)); }
-                            }
-                            status = c.getResponseCode();
-                            if (status < 300 || status > 399) break;
-                            String next = c.getHeaderField("Location");
-                            c.disconnect();
-                            if (next == null) break;
-                            url = new java.net.URL(new java.net.URL(url), next).toString();
-                            post = false; // Apps Script: POST, then GET the answer from the redirect
-                        }
-                        java.io.InputStream in = status >= 400 ? c.getErrorStream() : c.getInputStream();
-                        java.io.ByteArrayOutputStream buf = new java.io.ByteArrayOutputStream();
-                        if (in != null) {
-                            byte[] b = new byte[16384];
-                            for (int n; (n = in.read(b)) > 0; ) buf.write(b, 0, n);
-                            in.close();
-                        }
-                        c.disconnect();
-                        text = new String(buf.toByteArray(), StandardCharsets.UTF_8);
-                    } catch (Exception e) {
-                        status = -1;
-                        text = String.valueOf(e.getMessage() == null ? e.getClass().getSimpleName() : e.getMessage());
-                    }
-                    final String js = "window.__tpfHttp && window.__tpfHttp(" + org.json.JSONObject.quote(id) + "," + status + "," + org.json.JSONObject.quote(text) + ")";
+                    Net.Reply r = Net.fetch(method, address, body);
+                    final String js = "window.__tpfHttp && window.__tpfHttp(" + org.json.JSONObject.quote(id) + "," + r.status + "," + org.json.JSONObject.quote(r.text) + ")";
                     runOnUiThread(new Runnable() {
                         @Override
                         public void run() { if (!isFinishing() && !isDestroyed()) webView.evaluateJavascript(js, null); } // the app may have closed meanwhile
                     });
                 }
             }).start();
+        }
+
+        /** This phone's name, model, Android version and local network address, for the sign-in log. */
+        @JavascriptInterface
+        public String deviceInfo() {
+            org.json.JSONObject o = new org.json.JSONObject();
+            try {
+                String model = (Build.MANUFACTURER + " " + Build.MODEL).trim();
+                String name = null;
+                try { name = android.provider.Settings.Global.getString(getContentResolver(), "device_name"); } catch (Exception ignored) { }
+                o.put("name", name == null || name.isEmpty() ? model : name);
+                o.put("model", model);
+                o.put("android", Build.VERSION.RELEASE);
+                o.put("ip", localIp());
+            } catch (Exception ignored) {
+            }
+            return o.toString();
+        }
+
+        /** Founder chat watch: the sheet link, the signed-in login and the last message seen. Empty url stops it. */
+        @JavascriptInterface
+        public void chatWatch(String url, String secret, String me, String seenAt) {
+            android.content.SharedPreferences.Editor e = getSharedPreferences(ChatJob.PREFS, MODE_PRIVATE).edit();
+            if (url == null || url.isEmpty() || me == null || me.isEmpty()) {
+                e.clear().apply();
+                ChatJob.cancel(MainActivity.this);
+                return;
+            }
+            long seen = 0;
+            try { seen = Long.parseLong(seenAt); } catch (Exception ignored) { }
+            long old = getSharedPreferences(ChatJob.PREFS, MODE_PRIVATE).getLong("seen", 0);
+            e.putString("url", url).putString("secret", secret == null ? "" : secret).putString("me", me).putLong("seen", Math.max(seen, old)).apply();
+            ChatJob.schedule(MainActivity.this);
+        }
+
+        /** Messages up to this time have been seen in the app: the background check skips them. */
+        @JavascriptInterface
+        public void chatSeen(String seenAt) {
+            try {
+                long seen = Long.parseLong(seenAt);
+                android.content.SharedPreferences p = getSharedPreferences(ChatJob.PREFS, MODE_PRIVATE);
+                if (seen > p.getLong("seen", 0)) p.edit().putLong("seen", seen).apply();
+            } catch (Exception ignored) {
+            }
+        }
+
+        @JavascriptInterface
+        public void showNotice(String title, String body, String open) {
+            Notify.show(MainActivity.this, 2, title, body, open);
+        }
+
+        /** Android 13+: ask once for permission to show notifications. */
+        @JavascriptInterface
+        public void askNotify() {
+            runOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    if (Build.VERSION.SDK_INT >= 33 && checkSelfPermission("android.permission.POST_NOTIFICATIONS") != PackageManager.PERMISSION_GRANTED) {
+                        requestPermissions(new String[] {"android.permission.POST_NOTIFICATIONS"}, REQUEST_NOTIFY);
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public boolean canNotify() {
+            if (Build.VERSION.SDK_INT >= 33) return checkSelfPermission("android.permission.POST_NOTIFICATIONS") == PackageManager.PERMISSION_GRANTED;
+            NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
+            return nm == null || nm.areNotificationsEnabled();
+        }
+
+        /** A screen to open, from a tapped notification (read once). */
+        @JavascriptInterface
+        public String takeOpen() {
+            String o = pendingOpen == null ? "" : pendingOpen;
+            pendingOpen = null;
+            return o;
         }
 
         @JavascriptInterface

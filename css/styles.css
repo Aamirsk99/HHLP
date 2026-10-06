@@ -1386,3 +1386,56 @@ h1, h2 { font-family: "Prime Serif", Georgia, "Times New Roman", serif; letter-s
 @media (min-width: 600px) { .appbar-logo, .appbar-logo img { height: 46px; } .appbar-logo img { max-width: 220px; } }
 /* Water / day on narrow phones: keep "Auto 2.75 L" fully visible. */
 #water-quick { font-size: .92em; padding-left: 8px; padding-right: 22px; min-width: 0; text-overflow: ellipsis; }
+
+/* ══ v22 · Premium emerald & gold (matches the clinic admin) ══
+   Boxes are deep emerald with a metallic gold edge and white text; the printed A4 chart (.ps-*) is untouched.
+   Menus and boxes can't be selected or long-press copied; typing fields still can. */
+:root { --lux-g1: #0f5640; --lux-g2: #083626; --lux-g3: #052619; --lux-gold: #d4af37; --lux-gold-2: #f1d77a;
+  --lux-edge: linear-gradient(135deg, #f7e39a, #d4af37 35%, #8f6d1a 62%, #f1d77a 85%, #b8922c); }
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select, [contenteditable="true"] { -webkit-user-select: text; user-select: text; -webkit-touch-callout: default; }
+button, a, .card, .tile-btn, .recipe-card, .row-card { touch-action: manipulation; }
+img { -webkit-user-drag: none; }
+.card, .tile-btn, .tile, .meal-card, .food-card, .continue-card, .row-card, .recipe-card {
+  --surface: #0e4a37; --surface-2: #11563f; --surface-3: #166247; --text: #ffffff; --navy: #ffffff; --muted: #cfe2d8;
+  --border: color-mix(in srgb, var(--lux-gold) 34%, transparent); --accent: var(--lux-gold-2); --accent-ink: #062a1d; --ring: rgba(212, 175, 55, .35);
+  --ok: #6be3a8; --warn: #ffc56e; --danger: #ff9a8f;
+  color: #fff; color-scheme: dark; border: 1.5px solid transparent !important;
+  background: radial-gradient(380px 200px at 100% 0%, rgba(241, 215, 122, .10), transparent 70%) padding-box, linear-gradient(160deg, var(--lux-g1) 0%, var(--lux-g2) 62%, var(--lux-g3) 100%) padding-box, var(--lux-edge) border-box !important;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, .08), 0 14px 30px -20px rgba(3, 30, 20, .8) !important;
+}
+.card.soft { background: linear-gradient(160deg, #12604a, var(--lux-g2)) padding-box, var(--lux-edge) border-box !important; }
+.card h2, .card h3, .tile-btn b, .recipe-card b, .row-card b, .meal-card b, .food-card b { color: #fff; }
+.tile-label, .card label, .card .hint, .tile-btn small, .rcard-meta, .tile-sub { color: var(--lux-gold-2) !important; }
+.tile-value { color: #fff !important; }
+.card input, .card select, .card textarea, .search-card input { background: rgba(0, 0, 0, .2) !important; color: #fff !important; border-color: color-mix(in srgb, var(--lux-gold) 42%, transparent) !important; }
+.card input::placeholder, .card textarea::placeholder { color: rgba(255, 255, 255, .55) !important; }
+.card select option { color: #10201a; background: #fff; }
+.card .btn:not(.primary), .card .chip, .card .seg button { color: #fff; border-color: color-mix(in srgb, var(--lux-gold) 50%, transparent); }
+.card .btn.primary, .tile-btn.primary { color: #062a1d !important; background: linear-gradient(135deg, #f7e39a, #d4af37) padding-box, var(--lux-edge) border-box !important; }
+.tile-btn.primary b, .tile-btn.primary small { color: #062a1d !important; }
+.rcard-ico { background: rgba(255, 255, 255, .08) !important; border: 1px solid color-mix(in srgb, var(--lux-gold) 45%, transparent); }
+.home-hero { border: 1.5px solid transparent; background: radial-gradient(520px 260px at 100% 0%, rgba(241, 215, 122, .16), transparent 70%) padding-box, linear-gradient(150deg, #0f5a43, var(--lux-g2) 60%, var(--lux-g3)) padding-box, var(--lux-edge) border-box !important; }
+.home-stats div { background: rgba(255, 255, 255, .07) !important; border-color: color-mix(in srgb, var(--lux-gold) 55%, transparent) !important; }
+.home-stats span { color: var(--lux-gold-2) !important; }
+.home-icon { box-shadow: 0 0 0 2px #d4af37, 0 10px 26px rgba(0, 0, 0, .35) !important; }
+h1, h2 { text-wrap: balance; }
+.search-card { --surface: #0e4a37; color: #fff; border: 1.5px solid transparent !important; background: linear-gradient(160deg, var(--lux-g1), var(--lux-g2)) padding-box, var(--lux-edge) border-box !important; }
+.search-card input { background: rgba(0, 0, 0, .2) !important; color: #fff !important; border-color: color-mix(in srgb, var(--lux-gold) 42%, transparent) !important; }
+.search-card input::placeholder { color: rgba(255, 255, 255, .6) !important; }
+.rc-hero, .lx-hero { border: 1.5px solid transparent; background: radial-gradient(420px 220px at 100% 0%, rgba(241, 215, 122, .16), transparent 70%) padding-box, linear-gradient(150deg, #0f5a43, var(--lux-g2) 60%, var(--lux-g3)) padding-box, var(--lux-edge) border-box !important; }
+.lx-kicker { color: var(--lux-gold-2) !important; }
+.appbar { box-shadow: 0 1px 0 color-mix(in srgb, var(--lux-gold) 55%, transparent), 0 10px 24px -20px rgba(3, 30, 20, .6); }
+.quick, .feature-list li, .feature-list > button { color: #fff; border: 1.5px solid transparent !important; background: linear-gradient(160deg, var(--lux-g1), var(--lux-g2) 70%, var(--lux-g3)) padding-box, var(--lux-edge) border-box !important; box-shadow: 0 12px 26px -18px rgba(3, 30, 20, .8) !important; }
+.quick b { color: #fff; } .quick small { color: var(--lux-gold-2) !important; }
+.quick .q-ico { background: linear-gradient(135deg, #f7e39a, #d4af37) !important; color: #062a1d; box-shadow: inset 0 1px 0 rgba(255, 255, 255, .5); }
+.quick .q-ico svg { stroke: #062a1d; }
+.feature-list li::before, .feature-list > button::before { color: var(--lux-gold-2) !important; }
+.dash-hero, .summary { border: 1.5px solid transparent; background: radial-gradient(520px 260px at 100% 0%, rgba(241, 215, 122, .16), transparent 70%) padding-box, linear-gradient(150deg, #0f5a43, var(--lux-g2) 60%, var(--lux-g3)) padding-box, var(--lux-edge) border-box !important; }
+.dash-hero .kpi { background: rgba(255, 255, 255, .06) !important; border-color: color-mix(in srgb, var(--lux-gold) 55%, transparent) !important; }
+.hero-cta { background: linear-gradient(135deg, #f7e39a, #d4af37) !important; color: #062a1d !important; }
+.sec-title { color: color-mix(in srgb, var(--lux-gold) 80%, #4a3a10) !important; }
+.empty { border-color: color-mix(in srgb, var(--lux-gold) 50%, transparent) !important; }
+.lx-row { --surface-2: #11563f; --text: #fff; --muted: #cfe2d8; color: #fff; border: 1.5px solid transparent !important; background: linear-gradient(160deg, var(--lux-g1), var(--lux-g2) 70%, var(--lux-g3)) padding-box, linear-gradient(135deg, #f1d77a, #b8922c) border-box !important; }
+.lx-row b, .lx-row strong { color: #fff; }
+.lx-row small, .lx-row span { color: #d6e7df; }

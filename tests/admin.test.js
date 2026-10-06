@@ -436,3 +436,16 @@ test('sign-in and sign-out are logged under the member, without changing the cur
   admin.addListItem('services', 'Skin check');
   assert.equal(admin.state.log[admin.state.log.length - 1].by, 'Asha');
 });
+
+test('founder chat: messages are saved with sender, empty messages refused, and can be deleted', () => {
+  const admin = fresh();
+  admin.setActor('Ravi');
+  assert.throws(() => admin.sendChat('   ', 'a1'), /Write a message/);
+  const m = admin.sendChat(' Review ad spend today? ', 'a1');
+  assert.equal(m.text, 'Review ad spend today?');
+  assert.equal(m.by, 'Ravi');
+  assert.equal(m.byId, 'a1');
+  assert.equal(admin.chat().length, 1);
+  admin.deleteChat(m.id);
+  assert.equal(admin.chat().length, 0);
+});

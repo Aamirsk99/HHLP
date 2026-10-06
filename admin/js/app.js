@@ -6,7 +6,7 @@
 (function () {
   const A = window.ADMIN;
   const X = window.EXPORT;
-  const APP_VERSION = '4.9';
+  const APP_VERSION = '5.0';
   const CREDIT = 'Developed by Aamir Sk · The Prime Fit Digital Marketing Team';
   const ROLE_KEY = 'primefit.admin.role'; // signed-in login id for this browser session
   const AUTO_REFRESH_MS = 30000;
@@ -82,6 +82,7 @@
     ['salary', 'Salary', '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M3 10h18M7 15h4"/>'],
     ['expenses', 'Expenses', '<path d="M12 3v12M7 10l5 5 5-5M5 21h14"/>'],
     ['founder', 'Founder Hub', '<path d="M3 7l4 4 5-7 5 7 4-4-2 12H5z"/><path d="M5 21h14"/>', 'Founder'],
+    ['chat', 'Founder Chat', '<path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z"/><path d="M8.5 11h7M8.5 14h4"/>'],
     ['marketing', 'Marketing Hub', '<path d="M3 11v2a1 1 0 0 0 1 1h2l5 4V6L6 10H4a1 1 0 0 0-1 1zM15 9a4 4 0 0 1 0 6M18 6a8 8 0 0 1 0 12"/>', 'Marketing'],
     ['content', 'Content & Posts', '<rect x="3" y="5" width="14" height="14" rx="2"/><path d="M17 10l4-2v8l-4-2M8 9l4 3-4 3z"/>'],
     ['reports', 'Reports', '<path d="M5 3h14v18H5zM9 8h6M9 12h6M9 16h3"/>', 'Reports'],
@@ -102,7 +103,8 @@
     if (r === 'super') return ALL;
     const list = ((set().perms || {})[r] || A.DEFAULT_PERMS[r] || { screens: [] }).screens.slice();
     list.forEach((id) => (EXTRA[id] || []).forEach((x) => list.push(x)));
-    if (list.includes('diet')) list.push('home'); // the split Diet charts | Clinic admin start page
+    if (list.includes('diet')) list.push('home');
+    if (list.includes('founder')) list.push('chat'); // founder chat goes with the Founder Hub // the split Diet charts | Clinic admin start page
     const ro = r !== 'super' && !!((set().perms || {})[r] || A.DEFAULT_PERMS[r] || {}).view;
     const off = (set().ui || {}).off || [];
     return list.filter((id) => (!ro || !['sell', 'purchase-new', 'settings'].includes(id)) && !off.includes(id)).concat('about');
@@ -172,7 +174,8 @@
     const badge = (id) => (id === 'renewals' && due ? `<span class="badge warn">${due}</span>`
       : id === 'inventory' && lowN ? `<span class="badge bad">${lowN}</span>`
         : id === 'appointments' && todayN ? `<span class="badge info">${todayN}</span>`
-          : id === 'leads' && leadsDue ? `<span class="badge warn">${leadsDue}</span>` : '');
+          : id === 'leads' && leadsDue ? `<span class="badge warn">${leadsDue}</span>`
+            : id === 'chat' && chatUnread() ? `<span class="badge gold">${chatUnread()}</span>` : '');
     const sd = $('.side-diet'); if (sd) sd.hidden = !can('diet');
     const q = (($('#nav-q') || {}).value || '').trim().toLowerCase();
     const items = NAV.filter((n) => can(n[0]) && (!q || navLabel(n[0], n[1]).toLowerCase().includes(q) || (n[3] || '').toLowerCase().includes(q)));
@@ -1568,11 +1571,11 @@
       const n = all.filter((x) => x.by === a.name && x.action === 'Signed in' && inR(A.isoDate(new Date(x.at)), r)).length;
       return { a, inn, out, bad, online, n };
     }).sort((x, y) => ((y.inn || {}).at || 0) - ((x.inn || {}).at || 0));
-    const dev = (x) => (x && x.detail ? esc(x.detail.split(' · ').slice(-2, -1)[0] || '') : '');
+    const devOf = (x) => (x && x.detail ? esc(x.detail.split(' · ').slice(2).join(' · ')) : '');
     const loginCards = logins.map(({ a, inn, out, bad, online, n }) => `<div class="login-tile${a.disabled ? ' off' : ''}">
         <span class="lt-av">${esc(a.name.charAt(0).toUpperCase())}<i class="${online ? 'on' : ''}"></i></span>
         <div class="lt-body"><b>${esc(a.name)}</b><small>${esc(A.ROLES[a.role] || a.role)}${a.disabled ? ' · disabled' : ''}</small>
-          <span>Last sign-in: <em>${inn ? ftime(inn.at) : 'never'}</em>${inn ? ` <small>${dev(inn)}</small>` : ''}</span>
+          <span>Last sign-in: <em>${inn ? ftime(inn.at) : 'never'}</em>${inn ? `<small class="lt-dev">${devOf(inn)}</small>` : ''}</span>
           <span>Last sign-out: <em>${out ? ftime(out.at) : '—'}</em></span>
           ${bad && (!inn || bad.at > inn.at) ? `<span class="lt-bad">Failed try ${ftime(bad.at)}</span>` : ''}</div>
         <span class="lt-n"><b>${n}</b><small>sign-ins</small></span></div>`).join('');
@@ -1590,8 +1593,123 @@
         ${moreBtn('activity', list.length)}</section>`;
   };
 
+  // ── Founder chat: messages between founders, synced through the Google Sheet, with phone notifications ──
+  const chatSeenKey = () => `primefit.chat.seen.${me ? me.id : ''}`;
+  const chatNotKey = () => `primefit.chat.notified.${me ? me.id : ''}`;
+  const lsNum = (k) => { try { return Number(localStorage.getItem(k)) || 0; } catch (_) { return 0; } };
+  const lsSet = (k, v) => { try { localStorage.setItem(k, String(v)); } catch (_) { /* ignore */ } };
+  const chatFromOthers = () => admin.chat().filter((m) => m.byId !== (me && me.id));
+  const chatLast = () => admin.chat().reduce((a, m) => Math.max(a, m.at || 0), 0);
+  const chatUnread = () => (me && can('chat') ? chatFromOthers().filter((m) => m.at > lsNum(chatSeenKey())).length : 0);
+  function chatMarkSeen() {
+    const last = chatLast();
+    if (last > lsNum(chatSeenKey())) lsSet(chatSeenKey(), last);
+    if (last > lsNum(chatNotKey())) lsSet(chatNotKey(), last);
+    try { if (window.AndroidBridge && AndroidBridge.chatSeen) AndroidBridge.chatSeen(String(last)); } catch (_) { /* ignore */ }
+  }
+  function chatBadge() {
+    const b = $('#chat-btn'); if (!b) return;
+    b.hidden = !me || !can('chat');
+    const n = chatUnread(); const i = $('#chat-n');
+    i.hidden = !n; i.textContent = n > 9 ? '9+' : String(n);
+  }
+  const chatDay = (ms) => { const d = A.isoDate(new Date(ms)); const t = admin.today(); const y = A.isoDate(new Date(Date.now() - 86400000)); return d === t ? 'Today' : d === y ? 'Yesterday' : fdate(d); };
+  const chatTime = (ms) => { const d = new Date(ms); return time12(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`); };
+  function chatListHtml() {
+    const list = admin.chat().slice(-300).sort((a, b) => a.at - b.at);
+    if (!list.length) return '<div class="chat-empty"><span>💬</span><b>Start the founder chat</b><small>Messages are shared only with logins that can open the Founder Hub, saved to the Google Sheet, and every founder gets a notification on their phone.</small></div>';
+    let day = ''; let prev = null;
+    return list.map((m) => {
+      const mine = m.byId === me.id; const d = chatDay(m.at);
+      const sep = d !== day ? `<div class="chat-day"><span>${esc(d)}</span></div>` : '';
+      const cont = !sep && prev && prev.byId === m.byId && m.at - prev.at < 300000;
+      day = d; prev = m;
+      return `${sep}<div class="msg ${mine ? 'me' : ''} ${cont ? 'cont' : ''}">${!mine && !cont ? `<span class="msg-av">${esc(initialsOf(m.by))}</span>` : '<span class="msg-av sp"></span>'}<div class="msg-b">${!mine && !cont ? `<b>${esc(m.by)}</b>` : ''}<p>${esc(m.text).replace(/\n/g, '<br>')}</p><small>${chatTime(m.at)}${mine && !readOnly() ? ` · <button type="button" class="link msg-del" data-act="chat-del" data-id="${m.id}">Delete</button>` : ''}</small></div></div>`;
+    }).join('');
+  }
+  SUBS.chat = () => { const p = S().accounts.filter((a) => !a.disabled && (a.role === 'super' || allowed(a.role).includes('chat'))); return `${plural(p.length, 'member')} · ${p.map((a) => a.name.split(' ')[0]).slice(0, 4).join(', ')}`; };
+  SCREENS.chat = () => `<section class="chat-wrap">
+      <div class="chat-head"><span class="ic gold">${svg('<rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/>')}</span><span><b>Founders only</b><small>${connected() ? 'Shared through your Google Sheet · new messages notify every founder' : 'Connect the Google Sheet so other founders receive messages'}</small></span>${notifyOn() ? '' : '<button type="button" class="btn sm primary" data-act="chat-notify">Turn on alerts</button>'}</div>
+      <div class="chat-list" id="chat-list">${chatListHtml()}</div>
+      ${readOnly() ? '' : `<form class="chat-bar" id="chat-form" autocomplete="off"><textarea id="chat-text" rows="1" maxlength="2000" placeholder="Message the founders…" aria-label="Message"></textarea><button type="submit" class="chat-send" aria-label="Send">${svg('<path d="M4 12l16-8-6 16-2-7z"/>')}</button></form>`}
+    </section>`;
+  AFTER.chat = () => {
+    chatMarkSeen(); chatBadge();
+    requestAnimationFrame(() => window.scrollTo(0, document.body.scrollHeight));
+    const t = $('#chat-text');
+    if (t) t.addEventListener('input', () => { t.style.height = 'auto'; t.style.height = `${Math.min(140, t.scrollHeight)}px`; });
+  };
+  function chatRefresh() {
+    const l = $('#chat-list'); if (!l || screen !== 'chat') return;
+    const atEnd = window.innerHeight + window.scrollY >= document.body.scrollHeight - 120;
+    l.innerHTML = chatListHtml();
+    if (document.visibilityState === 'visible') chatMarkSeen();
+    if (atEnd) window.scrollTo(0, document.body.scrollHeight);
+  }
+  function chatSend() {
+    const t = $('#chat-text'); if (!t) return;
+    try { admin.sendChat(t.value, me.id); } catch (err) { toast(err.message, true); return; }
+    t.value = ''; t.style.height = 'auto';
+    chatMarkSeen(); chatRefresh(); window.scrollTo(0, document.body.scrollHeight);
+    try { if (navigator.vibrate) navigator.vibrate(12); } catch (_) { /* ignore */ }
+  }
+  document.addEventListener('submit', (e) => { if (e.target.id === 'chat-form') { e.preventDefault(); chatSend(); } }, true);
+  document.addEventListener('keydown', (e) => { if (e.target.id === 'chat-text' && e.key === 'Enter' && !e.shiftKey && !('ontouchstart' in window)) { e.preventDefault(); chatSend(); } });
+  const notifyOn = () => { try { if (window.AndroidBridge && AndroidBridge.canNotify) return AndroidBridge.canNotify(); return !!window.Notification && Notification.permission === 'granted'; } catch (_) { return false; } };
+  function askNotify() {
+    try {
+      if (window.AndroidBridge && AndroidBridge.askNotify) { AndroidBridge.askNotify(); return; }
+      if (window.Notification && Notification.permission === 'default') Notification.requestPermission().then(() => { if (screen === 'chat') render(); });
+    } catch (_) { /* ignore */ }
+  }
+  function phoneNotify(title, body) {
+    try {
+      if (window.AndroidBridge && AndroidBridge.showNotice) { AndroidBridge.showNotice(title, body, 'chat'); return; }
+      if (window.Notification && Notification.permission === 'granted') new Notification(title, { body, icon: '../img/icon-192.png', tag: 'founder-chat' });
+    } catch (_) { /* ignore */ }
+  }
+  /** After new data arrives: notify about chat messages from other founders that this login has not seen yet. */
+  function chatCheck() {
+    if (!me || !can('chat')) return;
+    const last = chatLast();
+    const fresh = !localStorage.getItem(chatNotKey());
+    const since = Math.max(lsNum(chatNotKey()), lsNum(chatSeenKey()));
+    const news = fresh ? [] : chatFromOthers().filter((m) => m.at > since);
+    if (last > lsNum(chatNotKey())) lsSet(chatNotKey(), last);
+    const wk = `${set().sheetsUrl}|${me.id}`; if (wk !== chatWatchKey) { chatWatchKey = wk; chatWatch(true); }
+    chatBadge();
+    if (screen === 'chat' && $('#shell') && !$('#shell').hidden) { chatRefresh(); if (document.visibilityState === 'visible') { if (news.length) { try { if (navigator.vibrate) navigator.vibrate(30); } catch (_) { /* ignore */ } } return; } }
+    if (!news.length) return;
+    const m = news[news.length - 1];
+    const title = news.length === 1 ? `${m.by} · Founder chat` : `${news.length} new messages · Founder chat`;
+    const body = news.length === 1 ? m.text : `${m.by}: ${m.text}`;
+    if (document.visibilityState === 'visible') toast(`💬 ${m.by}: ${m.text.length > 70 ? `${m.text.slice(0, 70)}…` : m.text}`);
+    phoneNotify(title, body);
+    try { if (window.AndroidBridge && AndroidBridge.chatSeen) AndroidBridge.chatSeen(String(last)); } catch (_) { /* ignore */ }
+    renderNav();
+  }
+  let chatTimer = 0; let chatWatchKey = '';
+  admin.onChange(() => { clearTimeout(chatTimer); chatTimer = setTimeout(chatCheck, 300); });
+  /** Background check on the phone (every ~15 min while the app is closed) for this login. */
+  function chatWatch(on) {
+    try {
+      if (!window.AndroidBridge || !AndroidBridge.chatWatch) return;
+      if (!on || !me || !can('chat') || !connected()) { AndroidBridge.chatWatch('', '', '', '0'); return; }
+      AndroidBridge.chatWatch(set().sheetsUrl, set().sheetsSecret || '', me.id, String(Math.max(lsNum(chatSeenKey()), lsNum(chatNotKey()), chatLast())));
+    } catch (_) { /* ignore */ }
+  }
+  // A tapped notification opens the chat.
+  window.__tpfOpen = () => {
+    let o = '';
+    try { o = window.AndroidBridge && AndroidBridge.takeOpen ? AndroidBridge.takeOpen() : ''; } catch (_) { o = ''; }
+    if (o === 'chat' && me && can('chat')) go('chat');
+  };
+  // While the chat is open, check for new messages every 10 s.
+  setInterval(() => { if (screen === 'chat' && canAutoRefresh() && Date.now() - lastPull > 9000 && !(document.activeElement && document.activeElement.id === 'chat-text' && $('#chat-text').value)) pull(); }, 3000);
+
   // ── What's new: app versions and credits ──────────────────────
   const CHANGELOG = [
+    ['5.0', 'Founder Chat: a private chat for logins that can open the Founder Hub (menu and chat button at the top with unread count), saved through the Google Sheet, with phone notifications for new messages, also when the app is closed (checked about every 15 minutes). Sign-ins now record the device name and model, Android version, internet IP address and local network address. New launch animation; metallic gold edges on every box; diet app boxes in the same emerald and gold; menus and boxes can no longer be selected or long-press copied; lighter scrolling on phones. Google Sheet script version 11 (faster chat checks).'],
     ['4.9', 'Activity Log records every member\'s sign-in, sign-out (by hand or after idle time) and failed sign-in tries, with role and device; new Team logins boxes show who is signed in now, last sign-in and sign-out and sign-ins in the period; filter by person and by sign-ins or data changes. Every box is now deep emerald green with a gold outline and white text, including the home tiles, dashboard boxes, filters, alerts and Settings tiles.'],
     ['4.8', 'Android app now targets Android 14 so Google Play Protect no longer blocks the install as built for an older Android; smoother scrolling (no background repaint on every frame), pop-ups slide up like native sheets, press feedback on boxes; no crash if the app is closed while syncing.'],
     ['4.7', 'First opening shows a calm "Getting your clinic ready" screen while the Google Sheet loads, then Sign in (or Create Super Admin for an empty sheet); it never hangs: after 45 s it shows Try again or Set up without the sheet. More premium menu: deep emerald and gold, serif title, gold section labels and active item.'],
@@ -3668,7 +3786,9 @@
     },
     'social-fetch': () => socialFetch(),
     'social-edit': () => socialForm(),
-    lock: () => lock('signed out'),
+    lock: () => { chatWatch(false); lock('signed out'); },
+    'chat-del': async (d) => { if (!(await confirmBox('Delete message', 'Delete this message for every founder?'))) return; admin.deleteChat(d.id); chatRefresh(); },
+    'chat-notify': () => { askNotify(); setTimeout(() => { if (screen === 'chat') render(); }, 4000); },
   };
 
   // Actions a view-only login may still use: they open, filter or export, never change data.
@@ -3915,11 +4035,36 @@
     const card = $('#lk-form'); card.classList.remove('shake'); void card.offsetWidth; card.classList.add('shake');
     err.textContent = u && u.disabled ? 'This login is disabled' : 'Wrong user ID or password';
   }
-  // Where a sign-in happened, for the activity log.
-  function deviceLabel() {
+  // Where a sign-in happened, for the activity log: device name and model, Android version,
+  // the internet (public) IP address and the local Wi-Fi / mobile address.
+  const dev = { name: '', model: '', os: '', ip: '', lan: '' };
+  (function readDevice() {
     const ua = navigator.userAgent || '';
-    const app = window.AndroidBridge ? 'Android app' : /Android/i.test(ua) ? 'Android browser' : /iPhone|iPad/i.test(ua) ? 'iPhone browser' : 'Computer browser';
-    return app;
+    try {
+      if (window.AndroidBridge && AndroidBridge.deviceInfo) {
+        const d = JSON.parse(AndroidBridge.deviceInfo() || '{}');
+        dev.name = d.name || ''; dev.model = d.model || ''; dev.os = d.android ? `Android ${d.android}` : 'Android'; dev.lan = d.ip || '';
+      }
+    } catch (_) { /* ignore */ }
+    if (!dev.os) {
+      const am = ua.match(/Android ([\d.]+);\s*([^;)]+?)(?:\sBuild|[;)])/);
+      if (am) { dev.os = `Android ${am[1]}`; dev.model = am[2] === 'K' ? '' : am[2]; }
+      else if (/iPhone|iPad/.test(ua)) { dev.os = `iOS ${((ua.match(/OS (\d+[_\d]*)/) || [])[1] || '').replace(/_/g, '.')}`; dev.model = /iPad/.test(ua) ? 'iPad' : 'iPhone'; }
+      else dev.os = /Windows/.test(ua) ? 'Windows' : /Mac OS X/.test(ua) ? 'Mac' : /Linux/.test(ua) ? 'Linux' : 'Computer';
+      const br = /Edg\//.test(ua) ? 'Edge' : /Chrome\//.test(ua) ? 'Chrome' : /Firefox\//.test(ua) ? 'Firefox' : /Safari\//.test(ua) ? 'Safari' : 'Browser';
+      dev.name = `${br} browser`;
+    }
+    // Public IP address (ipify.org answers with the address only).
+    const got = (t) => { try { const ip = JSON.parse(t).ip; if (/^[\d.:a-f]+$/i.test(ip || '')) dev.ip = ip; } catch (_) { /* ignore */ } };
+    try {
+      if (window.AndroidBridge && AndroidBridge.http) sheetHttp('GET', 'https://api.ipify.org?format=json').then((r) => got(r.text || r)).catch(() => {});
+      else fetch('https://api.ipify.org?format=json').then((r) => r.text()).then(got).catch(() => {});
+    } catch (_) { /* ignore */ }
+  })();
+  function deviceLabel() {
+    const app = window.AndroidBridge ? 'Android app' : 'Web';
+    const name = dev.name && dev.model && dev.name !== dev.model ? `${dev.name} (${dev.model})` : dev.name || dev.model;
+    return [app, name, dev.os, dev.ip ? `IP ${dev.ip}` : '', dev.lan && dev.lan !== dev.ip ? `local ${dev.lan}` : ''].filter(Boolean).join(' · ');
   }
   function logSession(action, acc, extra) {
     if (!acc) return;
@@ -3939,6 +4084,8 @@
     render();
     pull();
     setTimeout(remindFollowUps, 1200);
+    if (can('chat')) { chatWatch(true); setTimeout(askNotify, 2500); }
+    setTimeout(() => window.__tpfOpen(), 400);
   }
   // Follow-up reminders: once a day after sign-in a list of today's and overdue follow-ups, and an alert
   // 10 minutes before each follow-up time while the app is open.

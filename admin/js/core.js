@@ -124,7 +124,7 @@
       },
       categories: [{ name: PACKAGE_CATEGORY, kind: 'service' }],
       items, team: [], patients: [], sales: [], purchases: [], expenses: [], moves: [], renewalsDone: {}, appointments: [],
-      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, campaigns: [], ideas: [], tasks: [], attendance: {}, targets: {}, notes: [], capital: [], slips: [], social: { youtube: {}, instagram: {}, fetchedAt: 0 },
+      leads: [], log: [], doctors: [], content: [], editors: [], workDays: {}, campaigns: [], ideas: [], tasks: [], attendance: {}, targets: {}, notes: [], chat: [], capital: [], slips: [], social: { youtube: {}, instagram: {}, fetchedAt: 0 },
       seeded: { packages: true, cleared: true, r7: true, r8: true, r9: true },
       accounts: [
         { id: 'super', name: 'Super Admin', username: 'superadmin', role: 'super', hash: '', salt: '', len: 0, pin: '' },
@@ -591,6 +591,20 @@
       return n;
     }
     function deleteNote(id) { S.notes = listFix('notes').filter((x) => x.id !== id); save(); }
+    // Founder chat: short messages between founders, saved with the data so every phone sees them.
+    const CHAT_MAX = 2000;
+    function chat() { return listFix('chat'); }
+    function sendChat(text, byId) {
+      const t = String(text || '').trim();
+      if (!t) fail('Write a message');
+      if (t.length > 2000) fail('Keep the message under 2000 characters');
+      const m = { id: uid('c'), at: clock ? clock().getTime() : Date.now(), by: actor || 'System', byId: String(byId || ''), text: t };
+      listFix('chat').push(m);
+      if (S.chat.length > CHAT_MAX) S.chat.splice(0, S.chat.length - CHAT_MAX);
+      save();
+      return m;
+    }
+    function deleteChat(id) { S.chat = listFix('chat').filter((x) => x.id !== id); save(); }
     /** Ads report: spend from Ads expenses (name = platform) and campaigns, leads from the lead source, revenue from converted patients. */
     function adReport(range) {
       const by = {};
@@ -2029,7 +2043,7 @@
       account, saveAccount, setAccountPin, deleteAccount, setActor, logSession,
       addListItem, removeListItem, renameListItem, renameCategory, deleteCategory, setKit, orderRequired, previewSplits, rateFor,
       updatePatient, deletePatient, daySummary,
-      invoiceFor, slipFor, issueSlip, logLeadClick, clickStats, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, founders, founder, saveFounder, setFounderActive, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
+      invoiceFor, slipFor, issueSlip, logLeadClick, clickStats, saveCampaign, deleteCampaign, campaignStats, leadSources, saveIdea, deleteIdea, saveTask, setTaskDone, deleteTask, setAttendance, attendanceMonth, setTarget, targetProgress, saveNote, deleteNote, chat, sendChat, deleteChat, founders, founder, saveFounder, setFounderActive, deleteFounder, saveCapital, deleteCapital, founderStats, adReport, alerts, nextAssignee, bulkLeads, importLeads, leadScore,
       lead, saveLead, setLeadStatus, addLeadActivity, deleteLead, convertLead, leadStats, leadDay, kindName, kinds, saveKind, deleteKind, moveKind, clinic, saveClinic, deleteClinic, findLeadByMobile, isClosedLead,
       teamReport, financialReport, stockReport, dashboard, sheetsData,
       updateSettings, saveDietPlan, exportBackup, importBackup, resetAll, exportState, loadState,

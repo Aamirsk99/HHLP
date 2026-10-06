@@ -125,17 +125,24 @@ function writeSheets(ss, sheets) {
   return written;
 }
 
-/** GET ?action=load&secret=… → the app data; GET without action → health check. */
+/**
+ * GET ?action=load&secret=… → the app data; ?action=chat&since=<ms>&secret=… → founder chat messages
+ * newer than `since` (the phone's background check); GET without action → health check.
+ */
 function doGet(e) {
   try {
     const p = (e && e.parameter) || {};
-    if (p.action !== 'load' && p.action !== 'social') {
-      return json({ ok: true, app: 'primefit-admin-sheets', version: 10, setup: !!PropertiesService.getScriptProperties().getProperty('SECRET'), sheets: SHEETS });
+    if (p.action !== 'load' && p.action !== 'social' && p.action !== 'chat') {
+      return json({ ok: true, app: 'primefit-admin-sheets', version: 11, setup: !!PropertiesService.getScriptProperties().getProperty('SECRET'), sheets: SHEETS });
     }
     const bad = secretError(p.secret);
     if (bad) return json({ ok: false, error: bad });
     if (p.action === 'social') return json(socialStats());
     const d = readData(book());
+    if (p.action === 'chat') {
+      const since = Number(p.since) || 0;
+      return json({ ok: true, updated: d.updated, chat: ((d.state && d.state.chat) || []).filter(function (m) { return m && m.at > since; }) });
+    }
     return json({ ok: true, updated: d.updated, by: d.by, state: d.state });
   } catch (err) {
     return json({ ok: false, error: 'Google Sheet script error: ' + err.message });
