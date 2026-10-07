@@ -151,7 +151,7 @@ def rasam(name, base, desc, sour='tamarind 10; tomato 150', dals='', extra='', s
         'Prepare the base: Soak the tamarind in warm water for 10 minutes and extract the juice.',
         f'Crush the spices: Coarsely crush the pepper, cumin and garlic in a mortar.',
         'Boil the base: In a pot, add the tamarind water, crushed tomatoes, turmeric, salt, jaggery, curry leaves, the crushed spices and rasam powder' +
-        (f' along with the {names(base)}' if base else '') + '. Boil for 7–8 minutes until the raw smell goes.',
+        (f' along with the {allnames(base)}' if base else '') + '. Boil for 7–8 minutes until the raw smell goes.',
         'Add water' + (' & dal' if dals else '') + ': Add the remaining water' + (' and the dal' if dals else '') + '. Heat until it turns frothy on top, then switch off. Do not boil it hard after this.',
         'Temper: Heat ghee, crackle mustard seeds, add dry red chillies, curry leaves and hing and pour over the rasam.',
         'Serve: Add coriander, cover for 5 minutes, and serve hot with rice or as a soup.',

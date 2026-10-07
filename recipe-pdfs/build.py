@@ -1,6 +1,6 @@
 """Build every recipe as an individual Hindivine-branded PDF and pack them into a zip.
 
-    python3 build.py LOGO.png OUT_DIR [--only N] [--vol 1|2]
+    python3 build.py LOGO.png OUT_DIR [--only N] [--vol 1|2|3]
 """
 import csv
 import os
@@ -13,9 +13,9 @@ import core
 import importlib
 import glob as _glob
 
-# Volume 1 modules first, then volume 2 (each module registers its recipes on import).
+# Volume 1 modules first, then volumes 2 and 3 (each module registers its recipes on import).
 _here = os.path.dirname(os.path.abspath(__file__))
-for pat in ('fam_*.py', 'fam2_*.py'):
+for pat in ('fam_*.py', 'fam2_*.py', 'fam3_*.py'):
     for f in sorted(_glob.glob(os.path.join(_here, pat))):
         importlib.import_module(os.path.basename(f)[:-3])
 

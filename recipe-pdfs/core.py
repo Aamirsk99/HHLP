@@ -4,7 +4,27 @@ from catalog import CAT
 RECIPES = []
 NAMES = set()
 VOLUME = 1      # volume 2 modules (fam2_*.py) set this to 2
-SKIPPED = []    # volume-2 names that already exist in volume 1
+SKIPPED = []    # later-volume names that already exist in an earlier volume
+KEYS = set()    # word-set keys of every recipe name, to catch near-duplicates
+
+SYN = {'palak': 'spinach', 'methi': 'fenugreek', 'gobi': 'cauliflower', 'gobhi': 'cauliflower', 'phool': 'cauliflower',
+       'matar': 'peas', 'mutter': 'peas', 'aloo': 'potato', 'bataka': 'potato', 'batata': 'potato', 'pyaz': 'onion', 'kanda': 'onion',
+       'tamatar': 'tomato', 'gajar': 'carrot', 'baingan': 'brinjal', 'vangi': 'brinjal', 'begun': 'brinjal', 'bhindi': 'okra',
+       'kaddu': 'pumpkin', 'lauki': 'bottlegourd', 'dudhi': 'bottlegourd', 'mooli': 'radish', 'mullangi': 'radish', 'shimla': 'capsicum',
+       'mirch': 'capsicum', 'makai': 'corn', 'makki': 'corn', 'chana': 'chickpea', 'chole': 'chickpea', 'kabuli': 'chickpea',
+       'dahi': 'curd', 'yogurt': 'curd', 'nachni': 'ragi', 'kambu': 'bajra', 'murgh': 'chicken', 'anda': 'egg', 'machhi': 'fish',
+       'macher': 'fish', 'meen': 'fish', 'jhinga': 'prawn', 'prawns': 'prawn', 'chingri': 'prawn', 'eggs': 'egg', 'beetroot': 'beet',
+       'sprouted': 'sprouts', 'til': 'sesame', 'suva': 'dill', 'pudina': 'mint', 'dhaniya': 'coriander', 'kothimbir': 'coriander',
+       'sooji': 'rava', 'suji': 'rava', 'semolina': 'rava', 'vegetables': 'vegetable', 'veg': 'vegetable', 'mixed': 'vegetable',
+       'chilla': 'chila', 'cheela': 'chila', 'pakoda': 'pakora', 'raitha': 'raita', 'kheema': 'keema', 'mushrooms': 'mushroom'}
+STOP = {'with', 'and', 'the', 'style', 'lighter', 'a', 'of', 'in', 'dry', 'stuffed', 'homestyle', 'curry', 'sabzi', 'indian',
+        'no', 'sugar', 'less', 'easy', 'quick', 'healthy', 'fresh', 'south', 'north'}
+
+
+def name_key(name):
+    import re
+    ws = re.findall(r'[a-z]+', name.lower())
+    return frozenset(SYN.get(w, w) for w in ws if w not in STOP)
 
 LIQUIDS = {'water', 'milk', 'coconutmilk', 'soymilk', 'coconutwater'}
 SMALL_UNITS = {'tsp', 'pinch', 'nos', 'sprig', 'clove', 'inch', 'stalk', 'slice'}
@@ -93,12 +113,17 @@ def parse_list(s):
 
 def recipe(name, cat, desc, serves, prep, cook, ings, steps, tips=(), serve=(), store='', level='Easy',
            sub='', tags=()):
+    key = name_key(name)
+    if VOLUME >= 3 and key in KEYS:
+        SKIPPED.append(name)
+        return None
     if name in NAMES:
         if VOLUME > 1:
             SKIPPED.append(name)
             return None
         raise ValueError('Duplicate recipe: ' + name)
     NAMES.add(name)
+    KEYS.add(key)
     if isinstance(ings, str):
         ings = [('Ingredients', ings)]
     groups = [(t, parse_list(s)) for t, s in ings]
