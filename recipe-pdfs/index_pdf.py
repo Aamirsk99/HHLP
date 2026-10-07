@@ -7,15 +7,15 @@ from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, 
 
 import meals as M
 from core import diet
-from render import deco, HEADER_H, CW, W, H, BLUE, SKY, TAUPE, LIGHT, INK, esc, app_band
+from render import deco, HEADER_H, CW, W, H, BLUE, SKY, TAUPE, LIGHT, INK, esc, our_services, NAVY
 
 DIET = {'vegan': 'Vegan', 'veg': 'Veg', 'egg': 'Egg', 'nonveg': 'Non-veg'}
-title = ParagraphStyle('t', fontName='Times-Bold', fontSize=28, leading=30, textColor=BLUE)
-h1 = ParagraphStyle('h1', fontName='Times-Bold', fontSize=19, leading=22, textColor=BLUE, spaceAfter=4)
-body = ParagraphStyle('b', fontName='Helvetica', fontSize=10, leading=14, textColor=INK)
+title = ParagraphStyle('t', fontName='DMSerif', fontSize=28, leading=30, textColor=NAVY)
+h1 = ParagraphStyle('h1', fontName='DMSerif', fontSize=19, leading=22, textColor=NAVY, spaceAfter=4)
+body = ParagraphStyle('b', fontName='Lato', fontSize=10, leading=14, textColor=INK)
 small = ParagraphStyle('s', parent=body, fontSize=8.5, leading=11, textColor=TAUPE)
 cell = ParagraphStyle('c', parent=body, fontSize=8, leading=10)
-cellb = ParagraphStyle('cb', parent=cell, fontName='Helvetica-Bold', textColor=colors.white)
+cellb = ParagraphStyle('cb', parent=cell, fontName='Lato-Bold', textColor=colors.white)
 
 ABOUT = {
     'Early Morning': 'Detox waters, herbal teas and shots to start the day on an empty stomach.',
@@ -47,10 +47,10 @@ def build(rs, path, logo):
         folder = f'{M.MEALS.index(m) + 1:02d}-{m}' if m in M.MEALS else '(listed only)'
         data.append([Paragraph(f'<b>{esc(m)}</b>', cell), Paragraph(str(len(groups[m])), cell), Paragraph(esc(folder), cell), Paragraph(esc(ABOUT[m]), cell)])
     t = Table(data, colWidths=[CW * 0.2, CW * 0.1, CW * 0.2, CW * 0.5], repeatRows=1)
-    t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), BLUE), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
+    t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), NAVY), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT]), ('LINEBELOW', (0, 0), (-1, -1), 0.3, colors.HexColor('#D6E6F2')),
                            ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4)]))
-    s += [t, Spacer(1, 8), Paragraph('Use the recipe number (No.) to find the PDF: file names start with the number.', small), Spacer(1, 14), app_band()]
+    s += [t, Spacer(1, 8), Paragraph('Use the recipe number (No.) to find the PDF: file names start with the number.', small), Spacer(1, 14)]
 
     for m in M.MEALS + M.EXTRA:
         s.append(PageBreak())
@@ -67,4 +67,5 @@ def build(rs, path, logo):
                                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT]),
                                ('TOPPADDING', (0, 0), (-1, -1), 2), ('BOTTOMPADDING', (0, 0), (-1, -1), 2), ('LEFTPADDING', (0, 0), (-1, -1), 4)]))
         s.append(t)
+    s += our_services()
     doc.build(s)

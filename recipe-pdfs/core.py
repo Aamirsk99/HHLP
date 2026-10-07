@@ -73,13 +73,21 @@ def quantity(key, g, note=''):
     lab, ug = chosen
     if lab == 'cup' and g / ug > 4 and key not in LIQUIDS:
         return f'{round(g):g} g'
-    n = frac(g / ug)
-    if lab == 'medium':
+    COUNT = ('nos', 'sprig', 'clove', 'slice', 'stalk', 'medium', 'inch')
+    if lab in COUNT and g / ug >= 1.75:
+        n = str(int(g / ug + 0.5))
+    elif lab in COUNT and lab != 'medium':
+        n = frac(round(g / ug * 2) / 2 or 0.5)
+    else:
+        n = frac(g / ug)
+    if lab == 'medium' and g / ug < 1.75:
         x = g / ug
         size = 'small' if x < 0.8 else 'medium' if x < 1.25 else 'large' if x < 1.6 else None
         if size:
             return f'1 {size} ({round(g):g} g)'
     if lab == 'nos':
+        if g >= 40:  # larger produce: show the weight too, e.g. '½ (100 g)'
+            return f'{n} ({round(g):g} g)'
         txt = n
     else:
         txt = f'{n} {plural(lab, n)}'
@@ -147,12 +155,26 @@ def all_items(r):
             yield it
 
 
+# Cooked weights of grains and dals: nutrition is stored per 100 g dry, so convert with typical cooked yields
+# (rice and millets about 2.8x their dry weight, quinoa 2.7x, thick-cooked dal 2.5x).
+COOKED_NOTES = {'cooked', 'cooked thick', 'cooked dal', 'cooked and cooled'}
+COOKED_FACTOR = {'rice': 0.36, 'brice': 0.36, 'rrice': 0.36, 'basmati': 0.36, 'foxtail': 0.33, 'kodo': 0.33, 'kutki': 0.33, 'sama': 0.33,
+                 'quinoa': 0.37, 'chanadal': 0.4, 'toor': 0.4}
+
+
+def dry_grams(key, g, note):
+    if note and note.strip().lower() in COOKED_NOTES and key in COOKED_FACTOR and not (key == 'toor' and note.strip() == 'cooked'):
+        return g * COOKED_FACTOR[key]
+    return g
+
+
 def nutrition(r):
     tot = dict(kcal=0, p=0, c=0, f=0, fib=0)
-    for key, g, _ in all_items(r):
+    for key, g, note in all_items(r):
         if not g:
             continue
         x = CAT[key]
+        g = dry_grams(key, g, note)
         for k in tot:
             tot[k] += x[k] * g / 100
     return {k: v / r['serves'] for k, v in tot.items()}
@@ -160,9 +182,9 @@ def nutrition(r):
 
 def grams_per_serving(r):
     out = {}
-    for key, g, _ in all_items(r):
+    for key, g, note in all_items(r):
         if g:
-            out[key] = out.get(key, 0) + g / r['serves']
+            out[key] = out.get(key, 0) + dry_grams(key, g, note) / r['serves']
     return out
 
 
