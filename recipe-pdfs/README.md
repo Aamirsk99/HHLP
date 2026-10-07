@@ -13,6 +13,10 @@ python3 build.py logo.jpg OUT_DIR --only "Masala Dosa,Rajma Masala"
 - `render.py` – the PDF layout (logo header, www.hindivine.com footer, no phone or email).
 
 Volumes: `fam_*.py` (1-1038), `fam2_*.py` (1039-2046), `fam3_*.py` (2047-3138); build one with `--vol 1|2|3`.
-`logo-small.jpg` (420 px) keeps each PDF around 23 KB; the full set of 3,138 is in `downloads/Hindivine-3138-Indian-Recipes.zip`.
+`logo-small.jpg` (420 px) keeps each PDF around 23 KB; the full set of 3,138, organised by meal time, is in `downloads/Hindivine-3138-Recipes-by-Meal-Time.zip`.
+
+`--by-meal` sorts PDFs into meal-time folders (Early Morning, Breakfast, Mid-Morning, Lunch, Evening Snacks, Dinner, Bedtime,
+Desserts & Sweets, Accompaniments) using the rules in `meals.py`, prints a "Best for" line on each recipe and adds
+`Meal-Time-Index.pdf` (`index_pdf.py`), which lists every recipe under every meal time it suits, including Vrat / Fasting.
 
 Needs `reportlab` (and Pillow for the logo).

@@ -145,6 +145,10 @@ def build(r, path, logo, number=None):
     if r['nut']['fib'] >= 6:
         badges.append('<font color="#0F6FB0"><b>High fibre</b></font>')
     s.append(Paragraph('&nbsp;&nbsp;|&nbsp;&nbsp;'.join(badges), ParagraphStyle('bd', parent=body, fontSize=9.5)))
+    if r.get('meals'):
+        s.append(Spacer(1, 3))
+        s.append(Paragraph('<font color="#7F7068"><b>Best for:</b></font> <font color="#0F6FB0"><b>' + esc(' \u00b7 '.join(r['meals'])) + '</b></font>',
+                           ParagraphStyle('bf', parent=body, fontSize=9.5)))
     s.append(Spacer(1, 5))
     s.append(Paragraph(esc(r['desc']), sub))
     s.append(Spacer(1, 10))

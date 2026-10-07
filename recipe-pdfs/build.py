@@ -1,6 +1,8 @@
 """Build every recipe as an individual Hindivine-branded PDF and pack them into a zip.
 
-    python3 build.py LOGO.png OUT_DIR [--only N] [--vol 1|2|3]
+    python3 build.py LOGO.png OUT_DIR [--only N] [--vol 1|2|3] [--by-meal]
+
+--by-meal puts each PDF in a meal-time folder (its main meal time) with category subfolders, and adds Meal-Time-Index.pdf.
 """
 import csv
 import os
@@ -20,6 +22,7 @@ for pat in ('fam_*.py', 'fam2_*.py', 'fam3_*.py'):
         importlib.import_module(os.path.basename(f)[:-3])
 
 import render
+import meals as M
 from core import diet
 
 ORDER = ['Breakfast', 'Breads & Parathas', 'Poha, Upma & Porridge', 'Dals, Sambar & Kadhi', 'Legume Curries',
@@ -32,11 +35,17 @@ def slug(s):
     return re.sub(r'[^A-Za-z0-9]+', '-', s).strip('-')
 
 
-def ordered():
+def ordered(by_meal=False):
     rs = sorted(core.RECIPES, key=lambda r: (r['vol'], ORDER.index(r['cat']), r['name'].lower()))
     for i, r in enumerate(rs, 1):
         r['no'] = i
-        r['folder'] = f'{ORDER.index(r["cat"]) + 1:02d}-{slug(r["cat"])}'
+        r['meals'] = M.meals(r)
+        cat = f'{ORDER.index(r["cat"]) + 1:02d}-{slug(r["cat"])}'
+        if by_meal:
+            m = r['meals'][0]
+            r['folder'] = f'{M.MEALS.index(m) + 1:02d}-{slug(m)}/{cat}'
+        else:
+            r['folder'] = cat
         r['file'] = f'{i:04d}-{slug(r["name"])}.pdf'
     return rs
 
@@ -53,7 +62,8 @@ def main():
     only = None
     if '--only' in sys.argv:
         only = sys.argv[sys.argv.index('--only') + 1].split(',')
-    rs = ordered()
+    by_meal = '--by-meal' in sys.argv
+    rs = ordered(by_meal)
     if '--vol' in sys.argv:
         v = int(sys.argv[sys.argv.index('--vol') + 1])
         rs = [r for r in rs if r['vol'] == v]
@@ -69,13 +79,16 @@ def main():
         return
     with open(os.path.join(out, 'Recipe-Index.csv'), 'w', newline='') as fh:
         w = csv.writer(fh)
-        w.writerow(['No', 'Recipe', 'Category', 'Type', 'Diet', 'Serves', 'Total time (min)', 'kcal/serving',
+        w.writerow(['No', 'Recipe', 'Main meal time', 'All meal times', 'Category', 'Type', 'Diet', 'Serves', 'Total time (min)', 'kcal/serving',
                     'Protein g', 'Carbs g', 'Fibre g', 'Fat g', 'File'])
         for r in rs:
             n = r['nut']
-            w.writerow([r['no'], r['name'], r['cat'], r['sub'], diet(r), r['serves'], r['prep'] + r['cook'],
+            w.writerow([r['no'], r['name'], r['meals'][0], ', '.join(r['meals']), r['cat'], r['sub'], diet(r), r['serves'], r['prep'] + r['cook'],
                         round(n['kcal']), round(n['p']), round(n['c']), round(n['fib']), round(n['f']),
                         f'{r["folder"]}/{r["file"]}'])
+    if by_meal:
+        import index_pdf
+        index_pdf.build(rs, os.path.join(out, 'Meal-Time-Index.pdf'), logo)
     print('total', len(rs), '| skipped duplicate names:', len(core.SKIPPED))
 
 
