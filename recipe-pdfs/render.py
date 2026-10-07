@@ -1,7 +1,7 @@
 """Render one recipe as a Hindivine-branded A4 PDF.
 
-Design: ivory page, white logo header edged with a gold double rule, deep navy and Hindivine blue for structure,
-gold accents, serif headings, a 3D food-icon medallion, and cards for calories, protein and timing."""
+Design: white page in the Hindivine logo palette (deep blue, logo blue, sky-blue accents, taupe), serif headings,
+coral calorie and teal protein cards, a timing card, blue ingredient tables and numbered steps."""
 from reportlab.lib.pagesizes import A4
 from reportlab.lib import colors
 from reportlab.lib.units import mm
@@ -15,23 +15,22 @@ from reportlab.pdfbase.pdfmetrics import stringWidth
 from catalog import CAT
 from core import quantity, diet
 import guidelines as G
-import icons
 
-# Palette
-NAVY = colors.HexColor('#0E2A47')
-BLUE = colors.HexColor('#0F6FB0')        # Hindivine logo blue
-GOLD = colors.HexColor('#B8913A')
-GOLD_L = colors.HexColor('#E9DCC0')
-IVORY = colors.HexColor('#FBF8F2')
-CREAM = colors.HexColor('#F4EEE2')
+# Palette - built from the Hindivine logo colours (blue #0F6FB0, sky #29A8E0, taupe #7F7068)
+NAVY = colors.HexColor('#0B3B66')        # deep Hindivine blue: headings, table headers, footer
+BLUE = colors.HexColor('#0F6FB0')        # logo blue
+GOLD = colors.HexColor('#29A8E0')        # accent: logo sky blue (rules, step numbers, bullets)
+GOLD_L = colors.HexColor('#D6E7F3')      # hairlines and card borders
+IVORY = colors.white                     # page
+CREAM = colors.HexColor('#F2F7FB')       # soft blue-grey cards
 WHITE = colors.white
-INK = colors.HexColor('#2A2A2A')
-TAUPE = colors.HexColor('#7F7068')       # Hindivine logo taupe
-TERRA = colors.HexColor('#B4532A')
-EMERALD = colors.HexColor('#1F6F4A')
-ROSE = colors.HexColor('#FBEDE7')
-MINT = colors.HexColor('#E8F2EC')
-HAIR = colors.HexColor('#E6DDCB')
+INK = colors.HexColor('#24303B')
+TAUPE = colors.HexColor('#7F7068')       # logo taupe: secondary text
+TERRA = colors.HexColor('#D9573A')       # calories, cautions
+EMERALD = colors.HexColor('#0E8A78')     # protein, recommendations
+ROSE = colors.HexColor('#FDF0EB')
+MINT = colors.HexColor('#E6F5F2')
+HAIR = colors.HexColor('#E3ECF3')
 # kept for index_pdf.py
 SKY = NAVY
 LIGHT = CREAM
@@ -41,12 +40,12 @@ CW = W - 32 * mm
 LOGO_W = 58 * mm
 LOGO_H = LOGO_W * (594 / 1697)
 HEADER_H = LOGO_H + 14 * mm
-DIET_CHIP = {'vegan': ('#1F6F4A', '#E3F1E8'), 'veg': ('#1F6F4A', '#E3F1E8'), 'egg': ('#9A6A00', '#FBF0D6'), 'nonveg': ('#A33A1F', '#F9E3DB')}
+DIET_CHIP = {'vegan': ('#2E7D32', '#E8F5E9'), 'veg': ('#2E7D32', '#E8F5E9'), 'egg': ('#9A6A00', '#FBF0D6'), 'nonveg': ('#A33A1F', '#F9E3DB')}
 
 body = ParagraphStyle('b', fontName='Helvetica', fontSize=9.8, leading=14.2, textColor=INK)
 small = ParagraphStyle('s', parent=body, fontSize=8.2, leading=11.5, textColor=TAUPE)
 title = ParagraphStyle('t', fontName='Times-Bold', fontSize=29, leading=32, textColor=NAVY)
-kicker = ParagraphStyle('k', fontName='Helvetica-Bold', fontSize=8, leading=11, textColor=GOLD)
+kicker = ParagraphStyle('k', fontName='Helvetica-Bold', fontSize=8, leading=11, textColor=BLUE)
 sub = ParagraphStyle('st', fontName='Times-Italic', fontSize=12.5, leading=17, textColor=TAUPE)
 h2 = ParagraphStyle('h2', fontName='Times-Bold', fontSize=17, leading=20, textColor=NAVY, spaceBefore=12, spaceAfter=0, keepWithNext=1)
 cell = ParagraphStyle('c', parent=body, fontSize=9.3, leading=12.5)
@@ -55,7 +54,7 @@ cellw = ParagraphStyle('cw', parent=cell, textColor=WHITE, fontName='Helvetica-B
 stephead = ParagraphStyle('sh', parent=body, fontName='Helvetica-Bold', textColor=NAVY, fontSize=10.3)
 boxhead = ParagraphStyle('bh', fontName='Helvetica-Bold', fontSize=8.5, leading=11, textColor=EMERALD)
 warnhead = ParagraphStyle('wh', parent=boxhead, textColor=TERRA)
-num = ParagraphStyle('n', fontName='Times-Bold', fontSize=13, leading=15, textColor=GOLD, alignment=TA_CENTER)
+num = ParagraphStyle('n', fontName='Helvetica-Bold', fontSize=11.5, leading=14, textColor=WHITE, alignment=TA_CENTER)
 bul = ParagraphStyle('bl', parent=body, leftIndent=12, bulletIndent=0, spaceAfter=2.5, bulletColor=GOLD, bulletFontSize=11)
 end = ParagraphStyle('end', fontName='Times-Italic', fontSize=12.5, leading=16, textColor=NAVY, alignment=TA_CENTER)
 label = ParagraphStyle('lab', fontName='Helvetica-Bold', fontSize=6.8, leading=9, textColor=TAUPE, alignment=TA_CENTER)
@@ -78,7 +77,7 @@ def deco(logo):
         # header band
         c.setFillColor(WHITE); c.rect(0, H - HEADER_H, W, HEADER_H, stroke=0, fill=1)
         c.drawImage(logo, 16 * mm, H - 7 * mm - LOGO_H, LOGO_W, LOGO_H, mask='auto')
-        c.setFont('Helvetica-Bold', 7.5); c.setFillColor(GOLD)
+        c.setFont('Helvetica-Bold', 7.5); c.setFillColor(BLUE)
         c.drawRightString(W - 16 * mm, H - 15.5 * mm, 'H E A L T H Y   R E C I P E   S E R I E S')
         c.setFont('Times-Italic', 10.5); c.setFillColor(NAVY)
         c.drawRightString(W - 16 * mm, H - 21.5 * mm, 'Nutrition  ·  Wellness  ·  Care')
@@ -92,7 +91,7 @@ def deco(logo):
         c.setFillColor(WHITE); c.setFont('Helvetica-Bold', 9.5)
         c.drawString(16 * mm, 5 * mm, 'www.hindivine.com')
         c.linkURL('https://www.hindivine.com', (16 * mm, 3 * mm, 60 * mm, 10 * mm), relative=0)
-        c.setFillColor(GOLD_L); c.setFont('Times-Italic', 9.5)
+        c.setFillColor(colors.HexColor('#BFE3F5')); c.setFont('Times-Italic', 9.5)
         c.drawCentredString(W / 2, 5 * mm, 'Hindivine Healthcare Private Limited')
         c.setFillColor(WHITE); c.setFont('Helvetica', 8.5)
         c.drawRightString(W - 16 * mm, 5 * mm, f'Page {doc.page}')
@@ -152,9 +151,9 @@ def nutri_strip(n):
                 Paragraph(f'<font color="{col}">{spaced(lab)}</font>', label)]
 
     def sm(v, lab):
-        return [Paragraph(f'<font name="Times-Bold" size="17" color="#0E2A47">{v}</font><font size="8.5" color="#0E2A47"> g</font>',
+        return [Paragraph(f'<font name="Times-Bold" size="17" color="#0B3B66">{v}</font><font size="8.5" color="#0B3B66"> g</font>',
                           ParagraphStyle('sv', alignment=TA_CENTER, leading=19)), Spacer(1, 2), Paragraph(spaced(lab), label)]
-    cells = [big(f'{n["kcal"]:.0f}', 'kcal', 'Calories', '#B4532A'), big(f'{n["p"]:.0f}', 'g', 'Protein', '#1F6F4A'),
+    cells = [big(f'{n["kcal"]:.0f}', 'kcal', 'Calories', '#D9573A'), big(f'{n["p"]:.0f}', 'g', 'Protein', '#0E8A78'),
              sm(f'{n["c"]:.0f}', 'Carbs'), sm(f'{n["fib"]:.0f}', 'Fibre'), sm(f'{n["f"]:.0f}', 'Fat')]
     w = [CW * 0.26, CW * 0.26, CW * 0.16, CW * 0.16, CW * 0.16]
     return tile_row(cells, w, [('BACKGROUND', (0, 0), (0, 0), ROSE), ('BACKGROUND', (1, 0), (1, 0), MINT), ('BACKGROUND', (2, 0), (-1, 0), WHITE),
@@ -163,7 +162,7 @@ def nutri_strip(n):
 
 
 def time_strip(items):
-    cells = [[Paragraph(spaced(k), label), Spacer(1, 3), Paragraph(f'<font name="Helvetica-Bold" size="11" color="#0E2A47">{v}</font>',
+    cells = [[Paragraph(spaced(k), label), Spacer(1, 3), Paragraph(f'<font name="Helvetica-Bold" size="11" color="#0B3B66">{v}</font>',
                                                                     ParagraphStyle('tv', alignment=TA_CENTER, leading=13))] for k, v in items]
     w = [CW / len(items)] * len(items)
     return tile_row(cells, w, [('BACKGROUND', (0, 0), (-1, -1), CREAM), ('LINEAFTER', (0, 0), (-2, 0), 0.6, GOLD_L),
@@ -211,21 +210,19 @@ def build(r, path, logo, number=None):
     items = [(G.DIET_LABEL[d].upper(), fg, bg)]
     al = G.allergens(r)
     if 'gluten (wheat)' not in al:
-        items.append(('GLUTEN-FREE', '#0E2A47', '#E7EEF6'))
+        items.append(('GLUTEN-FREE', '#0B3B66', '#E4F1FA'))
     if r['nut']['p'] >= 15:
-        items.append(('HIGH PROTEIN', '#0E2A47', '#F3E9D2'))
+        items.append(('HIGH PROTEIN', '#0B3B66', '#E6F5F2'))
     if r['nut']['fib'] >= 6:
-        items.append(('HIGH FIBRE', '#0E2A47', '#F3E9D2'))
+        items.append(('HIGH FIBRE', '#0B3B66', '#E6F5F2'))
     head.append(chips(items))
     if r.get('meals'):
         head.append(Spacer(1, 6))
-        head.append(Paragraph('<font name="Helvetica-Bold" size="7.5" color="#B8913A">' + spaced('Best for') + '</font>&nbsp;&nbsp;&nbsp;'
-                              '<font name="Helvetica-Bold" color="#0E2A47">' + esc('  ·  '.join(r['meals'])) + '</font>',
+        head.append(Paragraph('<font name="Helvetica-Bold" size="7.5" color="#0F6FB0">' + spaced('Best for') + '</font>&nbsp;&nbsp;&nbsp;'
+                              '<font name="Helvetica-Bold" color="#0B3B66">' + esc('  ·  '.join(r['meals'])) + '</font>',
                               ParagraphStyle('bf', parent=body, fontSize=9.3)))
-    ic = Image(icons.icon_for(r), width=33 * mm, height=33 * mm)
-    ht = Table([[head, ic]], colWidths=[CW - 36 * mm, 36 * mm])
-    ht.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
-                            ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+    ht = Table([[head]], colWidths=[CW])
+    ht.setStyle(TableStyle([('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
                             ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0)]))
     s.append(ht)
     s.append(Spacer(1, 7))
@@ -263,7 +260,7 @@ def build(r, path, logo, number=None):
     n = r['nut']
     s.append(KeepTogether([
         section('Nutrition per Serving'), rule(),
-        tile_row([[Paragraph(spaced(k), label), Spacer(1, 3), Paragraph(f'<font name="Helvetica-Bold" size="11" color="#0E2A47">{v}</font>',
+        tile_row([[Paragraph(spaced(k), label), Spacer(1, 3), Paragraph(f'<font name="Helvetica-Bold" size="11" color="#0B3B66">{v}</font>',
                                                                          ParagraphStyle('nv', alignment=TA_CENTER, leading=13))]
                   for k, v in [('Energy', f'~{n["kcal"]:.0f} kcal'), ('Protein', f'~{n["p"]:.0f} g'), ('Carbohydrate', f'~{n["c"]:.0f} g'),
                                ('Fibre', f'~{n["fib"]:.0f} g'), ('Fat', f'~{n["f"]:.0f} g')]],

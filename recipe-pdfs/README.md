@@ -21,9 +21,6 @@ Desserts & Sweets, Accompaniments) using the rules in `meals.py`, prints a "Best
 
 Needs `reportlab` (and Pillow for the logo).
 
-Design: ivory page, white logo header with a gold double rule, navy and Hindivine blue structure, gold accents, serif headings.
-Every recipe shows a 3D food icon in a gold-ringed medallion (`icons.py`) and a page-1 strip with calories and protein per
-serving in large figures, plus carbs, fibre and fat.
-
-Icons: Microsoft Fluent Emoji 3D (https://github.com/microsoft/fluentui-emoji), MIT licence, Copyright (c) Microsoft
-Corporation; sources and licence in `icons/fluent3d/`.
+Design: white page in the Hindivine logo palette (deep blue #0B3B66, logo blue #0F6FB0, sky-blue #29A8E0 accents,
+taupe #7F7068), serif headings, a page-1 strip with calories (coral) and protein (teal) per serving plus carbs, fibre and
+fat, a timing card, blue ingredient tables and numbered steps. No icons or images apart from the logo.
