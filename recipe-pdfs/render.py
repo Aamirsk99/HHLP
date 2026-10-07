@@ -122,7 +122,7 @@ def fmt_time(m):
 
 
 def build(r, path, logo, number=None):
-    doc = BaseDocTemplate(path, pagesize=A4, title=f'{r["name"]} - Hindivine Recipe',
+    doc = BaseDocTemplate(path, pagesize=A4, pageCompression=1, title=f'{r["name"]} - Hindivine Recipe',
                           author='Hindivine Healthcare Private Limited', subject='Healthy Indian recipe',
                           creator='www.hindivine.com')
     frame = Frame(16 * mm, 20 * mm, CW, H - 40 * mm - LOGO_H, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
