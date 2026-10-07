@@ -4,12 +4,13 @@ from reportlab.lib import colors
 from reportlab.lib.units import mm
 from reportlab.lib.styles import ParagraphStyle
 from reportlab.lib.enums import TA_CENTER
-from reportlab.platypus import (BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle,
+from reportlab.platypus import (Image, BaseDocTemplate, Frame, PageTemplate, Paragraph, Spacer, Table, TableStyle,
                                 KeepTogether)
 
 from catalog import CAT
 from core import quantity, diet
 import guidelines as G
+import icons
 
 BLUE = colors.HexColor('#0F6FB0')
 SKY = colors.HexColor('#29A8E0')
@@ -97,6 +98,23 @@ def stat_table(head, vals, hc, bc):
     return t
 
 
+def nutri_strip(n):
+    """Calories and protein in large figures on page 1, with carbs, fibre and fat beside them."""
+    big = lambda v, u, lab, col: [Paragraph(f'<font size="20" color="{col}"><b>{v}</b></font><font size="10" color="{col}"> {u}</font>',
+                                            ParagraphStyle('bv', parent=body, alignment=TA_CENTER, leading=22)),
+                                  Paragraph(f'<font color="{col}"><b>{lab}</b></font>', ParagraphStyle('bl2', parent=body, fontSize=8.5, alignment=TA_CENTER, leading=11))]
+    sm = lambda v, lab: [Paragraph(f'<font size="13"><b>{v}</b></font><font size="9"> g</font>', ParagraphStyle('sv', parent=body, alignment=TA_CENTER, leading=16)),
+                         Paragraph(f'<font color="#7F7068">{lab}</font>', ParagraphStyle('sl', parent=body, fontSize=8, alignment=TA_CENTER, leading=10))]
+    cells = [big(f'{n["kcal"]:.0f}', 'kcal', 'CALORIES PER SERVING', '#C2410C'), big(f'{n["p"]:.0f}', 'g', 'PROTEIN PER SERVING', '#2E7D32'),
+             sm(f'{n["c"]:.0f}', 'Carbs'), sm(f'{n["fib"]:.0f}', 'Fibre'), sm(f'{n["f"]:.0f}', 'Fat')]
+    t = Table([cells], colWidths=[CW * 0.27, CW * 0.27, CW * 0.1533, CW * 0.1533, CW * 0.1534])
+    t.setStyle(TableStyle([('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#FFF1E6')), ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#EAF5EA')),
+                           ('BACKGROUND', (2, 0), (-1, 0), colors.HexColor('#F5F5F4')), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                           ('LINEAFTER', (0, 0), (-2, 0), 2, colors.white), ('TOPPADDING', (0, 0), (-1, -1), 6), ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                           ('LINEABOVE', (0, 0), (0, 0), 2.5, colors.HexColor('#C2410C')), ('LINEABOVE', (1, 0), (1, 0), 2.5, colors.HexColor('#2E7D32'))]))
+    return t
+
+
 def ing_table(head, items):
     data = [[Paragraph(esc(head), cellw), '']]
     for k, g, note in items:
@@ -132,11 +150,8 @@ def build(r, path, logo, number=None):
     kick = r['cat'].upper() + (f'  ·  {r["sub"].upper()}' if r['sub'] else '')
     if number:
         kick = f'RECIPE {number}  ·  ' + kick
-    s.append(Paragraph(esc(kick), kicker))
-    s.append(Spacer(1, 3))
-    s.append(Paragraph(esc(r['name']), title))
-    s.append(Spacer(1, 4))
-    badges = [f'<font color="{DIET_COL[d]}"><b>• {G.DIET_LABEL[d]}</b></font>']
+    head = [Paragraph(esc(kick), kicker), Spacer(1, 3), Paragraph(esc(r['name']), title), Spacer(1, 4)]
+    badges = [f'<font color="{DIET_COL[d]}"><b>\u2022 {G.DIET_LABEL[d]}</b></font>']
     al = G.allergens(r)
     if 'gluten (wheat)' not in al:
         badges.append('<font color="#0F6FB0"><b>Gluten-free</b></font>')
@@ -144,14 +159,22 @@ def build(r, path, logo, number=None):
         badges.append('<font color="#0F6FB0"><b>High protein</b></font>')
     if r['nut']['fib'] >= 6:
         badges.append('<font color="#0F6FB0"><b>High fibre</b></font>')
-    s.append(Paragraph('&nbsp;&nbsp;|&nbsp;&nbsp;'.join(badges), ParagraphStyle('bd', parent=body, fontSize=9.5)))
+    head.append(Paragraph('&nbsp;&nbsp;|&nbsp;&nbsp;'.join(badges), ParagraphStyle('bd', parent=body, fontSize=9.5)))
     if r.get('meals'):
-        s.append(Spacer(1, 3))
-        s.append(Paragraph('<font color="#7F7068"><b>Best for:</b></font> <font color="#0F6FB0"><b>' + esc(' \u00b7 '.join(r['meals'])) + '</b></font>',
-                           ParagraphStyle('bf', parent=body, fontSize=9.5)))
+        head.append(Spacer(1, 3))
+        head.append(Paragraph('<font color="#7F7068"><b>Best for:</b></font> <font color="#0F6FB0"><b>' + esc(' \u00b7 '.join(r['meals'])) + '</b></font>',
+                              ParagraphStyle('bf', parent=body, fontSize=9.5)))
+    ic = Image(icons.icon_for(r), width=24 * mm, height=24 * mm)
+    ht = Table([[head, ic]], colWidths=[CW - 28 * mm, 28 * mm])
+    ht.setStyle(TableStyle([('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('ALIGN', (1, 0), (1, 0), 'RIGHT'),
+                            ('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
+                            ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0)]))
+    s.append(ht)
     s.append(Spacer(1, 5))
     s.append(Paragraph(esc(r['desc']), sub))
-    s.append(Spacer(1, 10))
+    s.append(Spacer(1, 8))
+    s.append(nutri_strip(r['nut']))
+    s.append(Spacer(1, 8))
     sv = r['serves']
     s.append(stat_table(['Prep Time', 'Cook Time', 'Total Time', 'Servings', 'Difficulty'],
                         [fmt_time(r['prep']), fmt_time(r['cook']), fmt_time(r['prep'] + r['cook']),

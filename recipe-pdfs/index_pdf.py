@@ -57,12 +57,12 @@ def build(rs, path, logo):
         s.append(Paragraph(f'{esc(m)} — {len(groups[m])} recipes', h1))
         s.append(Paragraph(esc(ABOUT[m]), small))
         s.append(Spacer(1, 6))
-        data = [[Paragraph(x, cellb) for x in ('<b>No.</b>', '<b>Recipe</b>', '<b>Category</b>', '<b>Diet</b>', '<b>kcal</b>', '<b>Also good for</b>')]]
+        data = [[Paragraph(x, cellb) for x in ('<b>No.</b>', '<b>Recipe</b>', '<b>Category</b>', '<b>Diet</b>', '<b>kcal</b>', '<b>Protein</b>', '<b>Also good for</b>')]]
         for r in sorted(groups[m], key=lambda r: (r['cat'], r['name'].lower())):
             also = [x for x in r['meals'] if x != m]
             data.append([Paragraph(str(r['no']), cell), Paragraph(esc(r['name']), cell), Paragraph(esc(r['cat']), cell),
-                         Paragraph(DIET[diet(r)], cell), Paragraph(f'{r["nut"]["kcal"]:.0f}', cell), Paragraph(esc(', '.join(also)), cell)])
-        t = Table(data, colWidths=[CW * 0.08, CW * 0.36, CW * 0.2, CW * 0.09, CW * 0.07, CW * 0.2], repeatRows=1)
+                         Paragraph(DIET[diet(r)], cell), Paragraph(f'{r["nut"]["kcal"]:.0f}', cell), Paragraph(f'{r["nut"]["p"]:.0f} g', cell), Paragraph(esc(', '.join(also)), cell)])
+        t = Table(data, colWidths=[CW * 0.07, CW * 0.34, CW * 0.19, CW * 0.08, CW * 0.06, CW * 0.08, CW * 0.18], repeatRows=1)
         t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), SKY), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT]),
                                ('TOPPADDING', (0, 0), (-1, -1), 2), ('BOTTOMPADDING', (0, 0), (-1, -1), 2), ('LEFTPADDING', (0, 0), (-1, -1), 4)]))
