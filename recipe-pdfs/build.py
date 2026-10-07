@@ -1,6 +1,6 @@
 """Build every recipe as an individual Hindivine-branded PDF and pack them into a zip.
 
-    python3 build.py LOGO.png OUT_DIR [--only N]
+    python3 build.py LOGO.png OUT_DIR [--only N] [--vol 1|2]
 """
 import csv
 import os
@@ -10,12 +10,14 @@ import zipfile
 from concurrent.futures import ProcessPoolExecutor
 
 import core
-import fam_breakfast  # noqa: F401  (each module registers its recipes)
 import importlib
 import glob as _glob
 
-for f in sorted(_glob.glob(os.path.join(os.path.dirname(os.path.abspath(__file__)), 'fam_*.py'))):
-    importlib.import_module(os.path.basename(f)[:-3])
+# Volume 1 modules first, then volume 2 (each module registers its recipes on import).
+_here = os.path.dirname(os.path.abspath(__file__))
+for pat in ('fam_*.py', 'fam2_*.py'):
+    for f in sorted(_glob.glob(os.path.join(_here, pat))):
+        importlib.import_module(os.path.basename(f)[:-3])
 
 import render
 from core import diet
@@ -31,7 +33,7 @@ def slug(s):
 
 
 def ordered():
-    rs = sorted(core.RECIPES, key=lambda r: (ORDER.index(r['cat']), r['name'].lower()))
+    rs = sorted(core.RECIPES, key=lambda r: (r['vol'], ORDER.index(r['cat']), r['name'].lower()))
     for i, r in enumerate(rs, 1):
         r['no'] = i
         r['folder'] = f'{ORDER.index(r["cat"]) + 1:02d}-{slug(r["cat"])}'
@@ -52,6 +54,9 @@ def main():
     if '--only' in sys.argv:
         only = sys.argv[sys.argv.index('--only') + 1].split(',')
     rs = ordered()
+    if '--vol' in sys.argv:
+        v = int(sys.argv[sys.argv.index('--vol') + 1])
+        rs = [r for r in rs if r['vol'] == v]
     if only:
         rs = [r for r in rs if r['name'] in only or str(r['no']) in only]
     for r in rs:
@@ -71,7 +76,7 @@ def main():
             w.writerow([r['no'], r['name'], r['cat'], r['sub'], diet(r), r['serves'], r['prep'] + r['cook'],
                         round(n['kcal']), round(n['p']), round(n['c']), round(n['fib']), round(n['f']),
                         f'{r["folder"]}/{r["file"]}'])
-    print('total', len(rs))
+    print('total', len(rs), '| skipped duplicate names:', len(core.SKIPPED))
 
 
 if __name__ == '__main__':

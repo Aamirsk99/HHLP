@@ -1,6 +1,6 @@
 """Poha, upma, sabudana, savoury and sweet porridges."""
 from core import recipe
-from util import names
+from util import names, allnames
 
 C = 'Poha, Upma & Porridge'
 TEMPER = 'oil 10; mustard 3; jeera 1.25; curryleaf 1.5; gchilli 3 chopped; hing'
@@ -136,7 +136,7 @@ def porridge(name, grain, liquid, desc, add='', sweet='jaggery 10', top='', cook
         steps = [
             f'Roast: Dry-roast the {names(grain)} on low flame for 3 minutes until aromatic.' if roast else f'Rinse: Rinse the {names(grain)} well.',
             f'Cook: Add the {lname} and salt and bring to a boil, stirring.',
-            f'Simmer: Cook on low flame for {cook} minutes, stirring often, until soft and creamy.' + (f' Add the {names(add)} halfway through.' if add else ''),
+            f'Simmer: Cook on low flame for {cook} minutes, stirring often, until soft and creamy.' + (f' Add the {allnames(add)} halfway through.' if add else ''),
             'Adjust: Add a little hot water if it becomes too thick.',
             'Serve: Serve hot' + (' with the topping.' if top else '.'),
         ]
@@ -145,7 +145,7 @@ def porridge(name, grain, liquid, desc, add='', sweet='jaggery 10', top='', cook
             f'Roast: Dry-roast the {names(grain)} on low flame for 3–4 minutes, stirring, until aromatic.' if roast else
             f'Mix: Whisk the {names(grain)} with ½ cup of cold {lname} until there are no lumps.',
             f'Cook: Add the remaining {lname} and bring to a gentle boil, stirring continuously so it does not stick.',
-            f'Simmer: Lower the flame and cook for {cook} minutes, stirring often, until thick and creamy.' + (f' Add the {names(add)} in the last 2 minutes.' if add else ''),
+            f'Simmer: Lower the flame and cook for {cook} minutes, stirring often, until thick and creamy.' + (f' Add the {allnames(add)} in the last 2 minutes.' if add else ''),
             'Sweeten: Switch off the flame and stir in the ' + (names(sweet) or 'flavouring') + '. Adding jaggery off the heat stops milk from curdling.' if sweet else
             'Rest: Switch off the flame and rest for 2 minutes; it thickens further.',
             'Serve: Pour into bowls' + (f' and top with the {names(top)}.' if top else '.'),

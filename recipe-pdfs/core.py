@@ -3,6 +3,8 @@ from catalog import CAT
 
 RECIPES = []
 NAMES = set()
+VOLUME = 1      # volume 2 modules (fam2_*.py) set this to 2
+SKIPPED = []    # volume-2 names that already exist in volume 1
 
 LIQUIDS = {'water', 'milk', 'coconutmilk', 'soymilk', 'coconutwater'}
 SMALL_UNITS = {'tsp', 'pinch', 'nos', 'sprig', 'clove', 'inch', 'stalk', 'slice'}
@@ -92,6 +94,9 @@ def parse_list(s):
 def recipe(name, cat, desc, serves, prep, cook, ings, steps, tips=(), serve=(), store='', level='Easy',
            sub='', tags=()):
     if name in NAMES:
+        if VOLUME > 1:
+            SKIPPED.append(name)
+            return None
         raise ValueError('Duplicate recipe: ' + name)
     NAMES.add(name)
     if isinstance(ings, str):
@@ -105,7 +110,7 @@ def recipe(name, cat, desc, serves, prep, cook, ings, steps, tips=(), serve=(), 
             h, t = s.split(': ', 1)
             st.append((h, t))
     r = dict(name=name, cat=cat, desc=desc, serves=serves, prep=prep, cook=cook, groups=groups, steps=st,
-             tips=list(tips), serve=list(serve), store=store, level=level, sub=sub, tags=set(tags))
+             tips=list(tips), serve=list(serve), store=store, level=level, sub=sub, tags=set(tags), vol=VOLUME)
     r['nut'] = nutrition(r)
     RECIPES.append(r)
     return r
