@@ -114,7 +114,7 @@ def meals(r):
             out = ['Breakfast', 'Mid-Morning']
         elif has('cold coffee', 'coconut water', 'watermelon'):
             out = ['Mid-Morning', 'Evening Snacks']
-        elif has(*BEDTIME):
+        elif has(*BEDTIME) or ('milk' in words and not has('rose', 'cold', 'soy')):
             out = ['Bedtime']
         elif 'water' in words or has(*[e for e in EARLY if e != 'water']):
             out = ['Early Morning']

@@ -7,7 +7,7 @@ from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, 
 
 import meals as M
 from core import diet
-from render import deco, HEADER_H, CW, W, H, BLUE, SKY, TAUPE, LIGHT, INK, esc
+from render import deco, HEADER_H, CW, W, H, BLUE, SKY, TAUPE, LIGHT, INK, esc, app_band
 
 DIET = {'vegan': 'Vegan', 'veg': 'Veg', 'egg': 'Egg', 'nonveg': 'Non-veg'}
 title = ParagraphStyle('t', fontName='Times-Bold', fontSize=28, leading=30, textColor=BLUE)
@@ -50,7 +50,7 @@ def build(rs, path, logo):
     t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, 0), BLUE), ('VALIGN', (0, 0), (-1, -1), 'TOP'),
                            ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, LIGHT]), ('LINEBELOW', (0, 0), (-1, -1), 0.3, colors.HexColor('#D6E6F2')),
                            ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 4)]))
-    s += [t, Spacer(1, 8), Paragraph('Use the recipe number (No.) to find the PDF: file names start with the number.', small)]
+    s += [t, Spacer(1, 8), Paragraph('Use the recipe number (No.) to find the PDF: file names start with the number.', small), Spacer(1, 14), app_band()]
 
     for m in M.MEALS + M.EXTRA:
         s.append(PageBreak())

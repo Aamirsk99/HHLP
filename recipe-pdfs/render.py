@@ -91,8 +91,9 @@ def deco(logo):
         c.setFillColor(WHITE); c.setFont('Helvetica-Bold', 9.5)
         c.drawString(16 * mm, 5 * mm, 'www.hindivine.com')
         c.linkURL('https://www.hindivine.com', (16 * mm, 3 * mm, 60 * mm, 10 * mm), relative=0)
-        c.setFillColor(colors.HexColor('#BFE3F5')); c.setFont('Times-Italic', 9.5)
-        c.drawCentredString(W / 2, 5 * mm, 'Hindivine Healthcare Private Limited')
+        c.setFillColor(colors.HexColor('#BFE3F5')); c.setFont('Helvetica-Bold', 9.5)
+        c.drawCentredString(W / 2, 5 * mm, 'app@hindivine.com')
+        c.linkURL('mailto:app@hindivine.com', (W / 2 - 25 * mm, 3 * mm, W / 2 + 25 * mm, 10 * mm), relative=0)
         c.setFillColor(WHITE); c.setFont('Helvetica', 8.5)
         c.drawRightString(W - 16 * mm, 5 * mm, f'Page {doc.page}')
         c.restoreState()
@@ -169,6 +170,35 @@ def time_strip(items):
                                ('BOX', (0, 0), (-1, -1), 0.6, GOLD_L)])
 
 
+def app_band():
+    """Deep-blue card asking readers to download the Hindivine App, with store buttons and the email address."""
+    def button(top, big):
+        b = Table([[[Paragraph(top, ParagraphStyle('bt', fontName='Helvetica', fontSize=6.3, leading=7.5, textColor=WHITE)),
+                     Paragraph(big, ParagraphStyle('bb', fontName='Helvetica-Bold', fontSize=11.5, leading=13, textColor=WHITE))]]],
+                  colWidths=[36 * mm])
+        b.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), colors.black), ('ROUNDEDCORNERS', [6, 6, 6, 6]),
+                               ('BOX', (0, 0), (-1, -1), 0.8, colors.HexColor('#A6A6A6')),
+                               ('LEFTPADDING', (0, 0), (-1, -1), 9), ('TOPPADDING', (0, 0), (-1, -1), 4), ('BOTTOMPADDING', (0, 0), (-1, -1), 5)]))
+        return b
+    left = [Paragraph(spaced('Hindivine App'), ParagraphStyle('ak', fontName='Helvetica-Bold', fontSize=7.5, leading=10, textColor=colors.HexColor('#8FD3F4'))),
+            Spacer(1, 3),
+            Paragraph('Download the Hindivine App', ParagraphStyle('at', fontName='Times-Bold', fontSize=17, leading=20, textColor=WHITE)),
+            Spacer(1, 4),
+            Paragraph('Personalised diet charts, healthy recipes and expert guidance in your pocket. '
+                      'Get it on the <b>Google Play Store</b> or the <b>Apple App Store</b>.',
+                      ParagraphStyle('ad', fontName='Helvetica', fontSize=8.8, leading=12.5, textColor=colors.HexColor('#D6E7F3'))),
+            Spacer(1, 5),
+            Paragraph('Questions? Write to us at <a href="mailto:app@hindivine.com" color="#8FD3F4"><b>app@hindivine.com</b></a>',
+                      ParagraphStyle('ae', fontName='Helvetica', fontSize=8.8, leading=12, textColor=WHITE))]
+    right = [button('GET IT ON', 'Google Play'), Spacer(1, 5), button('Download on the', 'App Store')]
+    t = Table([[left, right]], colWidths=[CW - 46 * mm, 46 * mm])
+    t.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), NAVY), ('ROUNDEDCORNERS', [10, 10, 10, 10]),
+                           ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('LINEABOVE', (0, 0), (-1, 0), 0, NAVY),
+                           ('LEFTPADDING', (0, 0), (0, 0), 16), ('RIGHTPADDING', (1, 0), (1, 0), 10),
+                           ('TOPPADDING', (0, 0), (-1, -1), 13), ('BOTTOMPADDING', (0, 0), (-1, -1), 13)]))
+    return t
+
+
 def ing_table(head, items):
     data = [[Paragraph(esc(head).upper(), cellw), '']]
     for k, g, note in items:
@@ -204,8 +234,12 @@ def build(r, path, logo, number=None):
     kick = r['cat'] + (f'  ·  {r["sub"]}' if r['sub'] else '')
     if number:
         kick = f'Recipe {number}  ·  ' + kick
-    head = [Paragraph(esc(kick).upper().replace(' ', '&nbsp;&nbsp;'), kicker), Spacer(1, 4), Paragraph(esc(r['name']), title),
-            HRFlowable(width=22 * mm, thickness=1.6, color=GOLD, hAlign='LEFT', spaceBefore=5, spaceAfter=7)]
+    hk = ParagraphStyle('hk', fontName='Helvetica-Bold', fontSize=7.8, leading=10, textColor=colors.HexColor('#8FD3F4'))
+    htitle = ParagraphStyle('ht', fontName='Times-Bold', fontSize=29, leading=32, textColor=WHITE)
+    hdesc = ParagraphStyle('hd', fontName='Times-Italic', fontSize=12, leading=16.5, textColor=colors.HexColor('#D6E7F3'))
+    kick = r['cat'] + (f'  \u00b7  {r["sub"]}' if r['sub'] else '')
+    head = [Paragraph(esc(kick).upper().replace(' ', '&nbsp;&nbsp;'), hk), Spacer(1, 5), Paragraph(esc(r['name']), htitle),
+            HRFlowable(width=24 * mm, thickness=1.6, color=GOLD, hAlign='LEFT', spaceBefore=6, spaceAfter=8)]
     fg, bg = DIET_CHIP[d]
     items = [(G.DIET_LABEL[d].upper(), fg, bg)]
     al = G.allergens(r)
@@ -217,16 +251,24 @@ def build(r, path, logo, number=None):
         items.append(('HIGH FIBRE', '#0B3B66', '#E6F5F2'))
     head.append(chips(items))
     if r.get('meals'):
-        head.append(Spacer(1, 6))
-        head.append(Paragraph('<font name="Helvetica-Bold" size="7.5" color="#0F6FB0">' + spaced('Best for') + '</font>&nbsp;&nbsp;&nbsp;'
-                              '<font name="Helvetica-Bold" color="#0B3B66">' + esc('  ·  '.join(r['meals'])) + '</font>',
+        head.append(Spacer(1, 7))
+        head.append(Paragraph('<font name="Helvetica-Bold" size="7.5" color="#8FD3F4">' + spaced('Best for') + '</font>&nbsp;&nbsp;&nbsp;'
+                              '<font name="Helvetica-Bold" color="#FFFFFF">' + esc('  \u00b7  '.join(r['meals'])) + '</font>',
                               ParagraphStyle('bf', parent=body, fontSize=9.3)))
-    ht = Table([[head]], colWidths=[CW])
-    ht.setStyle(TableStyle([('LEFTPADDING', (0, 0), (-1, -1), 0), ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-                            ('TOPPADDING', (0, 0), (-1, -1), 0), ('BOTTOMPADDING', (0, 0), (-1, -1), 0)]))
+    head += [Spacer(1, 8), Paragraph(esc(r['desc']), hdesc)]
+    numcol = [Paragraph(spaced('Recipe'), ParagraphStyle('rn', fontName='Helvetica-Bold', fontSize=7, leading=9, textColor=colors.HexColor('#8FD3F4'), alignment=TA_CENTER)),
+              Spacer(1, 4),
+              Paragraph(f'{number or ""}', ParagraphStyle('rnn', fontName='Times-Bold', fontSize=30 if (number or 0) < 1000 else 25, leading=32, textColor=WHITE, alignment=TA_CENTER)),
+              Spacer(1, 6),
+              Paragraph(spaced('Hindivine'), ParagraphStyle('rh', fontName='Helvetica-Bold', fontSize=6.5, leading=8, textColor=colors.HexColor('#8FD3F4'), alignment=TA_CENTER))]
+    ht = Table([[head, numcol]], colWidths=[CW - 34 * mm, 34 * mm])
+    ht.setStyle(TableStyle([('BACKGROUND', (0, 0), (-1, -1), NAVY), ('ROUNDEDCORNERS', [10, 10, 10, 10]),
+                            ('VALIGN', (0, 0), (0, 0), 'TOP'), ('VALIGN', (1, 0), (1, 0), 'MIDDLE'),
+                            ('LINEBEFORE', (1, 0), (1, 0), 0.8, colors.HexColor('#2C6A9C')),
+                            ('LEFTPADDING', (0, 0), (0, 0), 16), ('RIGHTPADDING', (0, 0), (0, 0), 14),
+                            ('LEFTPADDING', (1, 0), (1, 0), 4), ('RIGHTPADDING', (1, 0), (1, 0), 4),
+                            ('TOPPADDING', (0, 0), (-1, -1), 15), ('BOTTOMPADDING', (0, 0), (-1, -1), 16)]))
     s.append(ht)
-    s.append(Spacer(1, 7))
-    s.append(Paragraph(esc(r['desc']), sub))
     s.append(Spacer(1, 10))
     s.append(nutri_strip(r['nut']))
     s.append(Spacer(1, 6))
@@ -258,8 +300,9 @@ def build(r, path, logo, number=None):
         s.append(KeepTogether([row]))
 
     n = r['nut']
+    s.append(section('Nutrition per Serving'))
+    s.append(rule())
     s.append(KeepTogether([
-        section('Nutrition per Serving'), rule(),
         tile_row([[Paragraph(spaced(k), label), Spacer(1, 3), Paragraph(f'<font name="Helvetica-Bold" size="11" color="#0B3B66">{v}</font>',
                                                                          ParagraphStyle('nv', alignment=TA_CENTER, leading=13))]
                   for k, v in [('Energy', f'~{n["kcal"]:.0f} kcal'), ('Protein', f'~{n["p"]:.0f} g'), ('Carbohydrate', f'~{n["c"]:.0f} g'),
@@ -299,6 +342,8 @@ def build(r, path, logo, number=None):
         s += bullets(sv_items)
 
     s.append(Spacer(1, 14))
+    s.append(KeepTogether([app_band()]))
+    s.append(Spacer(1, 10))
     s.append(HRFlowable(width='100%', thickness=0.5, color=GOLD_L, spaceAfter=6))
     s.append(Paragraph('<b>Disclaimer:</b> This recipe is for general wellness information only and is not a substitute '
                        'for personalised medical or nutrition advice. People with medical conditions should follow the '
@@ -309,11 +354,13 @@ def build(r, path, logo, number=None):
 
     # Keep every section heading (and its gold rule) on the same page as the first block under it.
     out = []
+    secno = [0]
     i = 0
     while i < len(s):
         f = s[i]
         if isinstance(f, Paragraph) and f.style.name == 'h2' and i + 1 < len(s):
-            grp = [f]
+            secno[0] += 1
+            grp = [Paragraph(f'<font name="Helvetica-Bold" size="9" color="#29A8E0">{secno[0]:02d}</font>&nbsp;&nbsp;&nbsp;' + f.text, h2)]
             j = i + 1
             if isinstance(s[j], HRFlowable):
                 grp.append(s[j]); j += 1
