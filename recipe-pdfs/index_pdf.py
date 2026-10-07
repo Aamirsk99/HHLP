@@ -7,11 +7,11 @@ from reportlab.platypus import BaseDocTemplate, Frame, PageTemplate, Paragraph, 
 
 import meals as M
 from core import diet
-from render import deco, LOGO_H, CW, W, H, BLUE, SKY, TAUPE, LIGHT, INK, esc
+from render import deco, HEADER_H, CW, W, H, BLUE, SKY, TAUPE, LIGHT, INK, esc
 
 DIET = {'vegan': 'Vegan', 'veg': 'Veg', 'egg': 'Egg', 'nonveg': 'Non-veg'}
-title = ParagraphStyle('t', fontName='Helvetica-Bold', fontSize=26, leading=30, textColor=BLUE)
-h1 = ParagraphStyle('h1', fontName='Helvetica-Bold', fontSize=18, leading=22, textColor=BLUE, spaceAfter=4)
+title = ParagraphStyle('t', fontName='Times-Bold', fontSize=28, leading=30, textColor=BLUE)
+h1 = ParagraphStyle('h1', fontName='Times-Bold', fontSize=19, leading=22, textColor=BLUE, spaceAfter=4)
 body = ParagraphStyle('b', fontName='Helvetica', fontSize=10, leading=14, textColor=INK)
 small = ParagraphStyle('s', parent=body, fontSize=8.5, leading=11, textColor=TAUPE)
 cell = ParagraphStyle('c', parent=body, fontSize=8, leading=10)
@@ -34,7 +34,7 @@ ABOUT = {
 def build(rs, path, logo):
     doc = BaseDocTemplate(path, pagesize=A4, pageCompression=1, title='Hindivine Recipes - Meal-Time Index',
                           author='Hindivine Healthcare Private Limited', creator='www.hindivine.com')
-    frame = Frame(16 * mm, 20 * mm, CW, H - 40 * mm - LOGO_H, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
+    frame = Frame(16 * mm, 19 * mm, CW, H - HEADER_H - 7 * mm - 19 * mm, leftPadding=0, rightPadding=0, topPadding=0, bottomPadding=0)
     doc.addPageTemplates([PageTemplate(id='p', frames=[frame], onPage=deco(logo))])
     groups = {m: [r for r in rs if m in r['meals']] for m in M.MEALS + M.EXTRA}
 

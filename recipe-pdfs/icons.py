@@ -1,7 +1,8 @@
-"""Food icons for recipes, drawn from the Noto Color Emoji font and cached as small JPEGs in icons/."""
+"""Food icons for recipes: Microsoft Fluent 3D emoji (MIT licence, icons/fluent3d/) set in a gold-ringed medallion,
+cached as small JPEGs in icons/. Falls back to the Noto Color Emoji font if a 3D image is missing."""
 import os
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageFilter
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 DIR = os.path.join(HERE, 'icons')
@@ -22,7 +23,7 @@ KEYWORDS = [
     ('juice', '\U0001F9C3'), ('water', '\U0001F4A7'), ('lemonade', '\U0001F34B'), ('nimbu', '\U0001F34B'),
     ('mango', '\U0001F96D'), ('banana', '\U0001F34C'), ('apple', '\U0001F34E'), ('strawberry', '\U0001F353'), ('watermelon', '\U0001F349'),
     ('pineapple', '\U0001F34D'), ('coconut', '\U0001F965'), ('avocado', '\U0001F951'), ('kiwi', '\U0001F95D'), ('pear', '\U0001F350'),
-    ('orange', '\U0001F34A'), ('grape', '\U0001F347'), ('ladoo', '\U0001F361'), ('chikki', '\U0001F36C'), ('barfi', '\U0001F36C'),
+    ('orange', '\U0001F34A'), ('grape', '\U0001F347'), ('ladoo', '\U0001F9C6'), ('energy', '\U0001F9C6'), ('chikki', '\U0001F36C'), ('barfi', '\U0001F36C'),
     ('cookie', '\U0001F36A'), ('cake', '\U0001F370'), ('bread', '\U0001F35E'), ('kulfi', '\U0001F366'), ('frozen', '\U0001F366'),
     ('granita', '\U0001F367'), ('kheer', '\U0001F36E'), ('payasam', '\U0001F36E'), ('halwa', '\U0001F36F'),
     ('biryani', '\U0001F958'), ('pulao', '\U0001F35A'), ('khichdi', '\U0001F35A'), ('fried rice', '\U0001F35A'),
@@ -33,7 +34,6 @@ KEYWORDS = [
     ('spinach', '\U0001F96C'), ('methi', '\U0001F96C'), ('peanut', '\U0001F95C'), ('chickpea', '\U0001FAD8'), ('rajma', '\U0001FAD8'),
     ('chole', '\U0001FAD8'), ('salad', '\U0001F957'), ('wrap', '\U0001F32F'), ('roll', '\U0001F32F'), ('frankie', '\U0001F32F'),
     ('toast', '\U0001F35E'), ('sandwich', '\U0001F96A'), ('soup', '\U0001F35C'), ('shorba', '\U0001F35C'), ('rasam', '\U0001F35C'),
-    ('tikka', '\U0001F362'), ('kebab', '\U0001F362'), ('kabab', '\U0001F362'), ('seekh', '\U0001F362'),
 ]
 DRINK_ONLY = {'tea', 'kadha', 'kahwa', 'coffee', 'chai', 'milk', 'doodh', 'lassi', 'chaas', 'juice', 'water', 'lemonade', 'nimbu'}
 
@@ -53,24 +53,41 @@ def icon_char(r):
 _font = None
 
 
-def icon_path(ch):
-    """Path to a 96 px JPEG of the emoji on white, created on first use."""
+IVORY = (251, 248, 242)
+GOLD = (184, 145, 58)
+
+
+def _source(ch):
+    src = os.path.join(DIR, 'fluent3d', f'{ord(ch[0]):x}.png')
+    if os.path.exists(src):
+        return Image.open(src).convert('RGBA')
     global _font
+    if _font is None:
+        _font = ImageFont.truetype(FONT, 109)
+    im = Image.new('RGBA', (160, 160), (0, 0, 0, 0))
+    ImageDraw.Draw(im).text((12, 16), ch, font=_font, embedded_color=True)
+    return im.crop(im.getbbox())
+
+
+def icon_path(ch):
+    """Path to a 200 px JPEG medallion (ivory, white disc, gold ring, soft shadow, 3D icon), created on first use."""
     os.makedirs(DIR, exist_ok=True)
     path = os.path.join(DIR, '-'.join(f'{ord(c):x}' for c in ch) + '.jpg')
     if not os.path.exists(path):
-        if _font is None:
-            _font = ImageFont.truetype(FONT, 109)
-        im = Image.new('RGB', (160, 160), 'white')
-        ImageDraw.Draw(im).text((12, 16), ch, font=_font, embedded_color=True)
-        bbox = Image.eval(im.convert('L'), lambda p: 255 - p).point(lambda p: 255 if p > 8 else 0).getbbox()
-        if bbox:
-            im = im.crop(bbox)
-        side = max(im.size)
-        sq = Image.new('RGB', (side + 8, side + 8), 'white')
-        sq.paste(im, ((side + 8 - im.size[0]) // 2, (side + 8 - im.size[1]) // 2))
-        sq.thumbnail((96, 96))
-        sq.save(path, quality=80, optimize=True)
+        S = 400  # draw at 2x, then downscale for smooth edges
+        base = Image.new('RGB', (S, S), IVORY)
+        shadow = Image.new('L', (S, S), 0)
+        ImageDraw.Draw(shadow).ellipse((34, 44, S - 26, S - 16), fill=70)
+        shadow = shadow.filter(ImageFilter.GaussianBlur(14))
+        base.paste(Image.new('RGB', (S, S), (214, 202, 180)), (0, 0), shadow)
+        d = ImageDraw.Draw(base)
+        d.ellipse((24, 24, S - 24, S - 24), fill=(255, 255, 255), outline=GOLD, width=7)
+        d.ellipse((40, 40, S - 40, S - 40), outline=(233, 220, 192), width=3)
+        icon = _source(ch)
+        icon.thumbnail((236, 236), Image.LANCZOS)
+        base.paste(icon, ((S - icon.size[0]) // 2, (S - icon.size[1]) // 2), icon)
+        base = base.resize((200, 200), Image.LANCZOS)
+        base.save(path, quality=82, optimize=True)
     return path
 
 
@@ -82,4 +99,4 @@ if __name__ == '__main__':
     # Pre-build every icon so worker processes never race to create the same file.
     for ch in set(CATEGORY.values()) | {c for _, c in KEYWORDS}:
         icon_path(ch)
-    print(len(os.listdir(DIR)), 'icons in', DIR)
+    print(len([f for f in os.listdir(DIR) if f.endswith('.jpg')]), 'icons in', DIR)

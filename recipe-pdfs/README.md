@@ -21,5 +21,9 @@ Desserts & Sweets, Accompaniments) using the rules in `meals.py`, prints a "Best
 
 Needs `reportlab` (and Pillow for the logo).
 
-Every recipe PDF shows a food icon beside the title (`icons.py`, drawn from the Noto Color Emoji font and cached in `icons/`)
-and a page-1 strip with calories and protein per serving in large figures, plus carbs, fibre and fat.
+Design: ivory page, white logo header with a gold double rule, navy and Hindivine blue structure, gold accents, serif headings.
+Every recipe shows a 3D food icon in a gold-ringed medallion (`icons.py`) and a page-1 strip with calories and protein per
+serving in large figures, plus carbs, fibre and fat.
+
+Icons: Microsoft Fluent Emoji 3D (https://github.com/microsoft/fluentui-emoji), MIT licence, Copyright (c) Microsoft
+Corporation; sources and licence in `icons/fluent3d/`.
