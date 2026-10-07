@@ -35,3 +35,18 @@ Bariatric Surgery, Laparoscopic Surgeries, Anorectal Surgery, Laser Surgery, All
 
 Data checks: cooked rice, millets, quinoa and dal are converted to dry weight before nutrition is calculated (`core.dry_grams`),
 and counted items (cloves, eggs, inches of ginger) are rounded to whole or half units. No icons or images apart from the logo.
+
+## Weight-loss diet charts
+
+`dietchart.py` (layout) and `dietplan.py` (meal planner) build 5,040 seven-day weight-loss diet charts in the same branding:
+7 focus types (General, High-Protein, Diabetes-Friendly, PCOS, Thyroid-Friendly, Heart-Healthy, GLP-1 Support) ×
+6 calorie levels (1200-1800 kcal) × 4 diets (Vegetarian, Vegan, Eggetarian, Non-Vegetarian) × 30 weekly variations.
+
+    python3 dietchart.py logo-small.jpg OUT_DIR [--only 1,2,3]
+
+Every meal is a Hindivine recipe, shown with its recipe number; portions are in recipe servings (quarter steps) and are
+scaled so each day lands close to its calorie target (weekly averages within about 2%). Each focus type filters recipes
+(for example no added sugar, refined grains or large fruit portions for diabetes and PCOS; low saturated fat and salt for
+heart health; low fat and smaller portions for GLP-1). The PDFs have a week-at-a-glance page, a table for each day,
+focus-specific guidelines, and the Our Services page. Download: `downloads/diet-charts/` (one zip per focus type plus
+`Diet-Chart-Index.csv`).

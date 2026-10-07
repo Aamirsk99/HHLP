@@ -81,7 +81,7 @@ def spaced(s):
     return '&nbsp;'.join(s.upper())
 
 
-def deco(logo):
+def deco(logo, series='H E A L T H Y   R E C I P E   S E R I E S'):
     def fn(c, doc):
         c.saveState()
         c.setFillColor(IVORY); c.rect(0, 0, W, H, stroke=0, fill=1)
@@ -89,7 +89,7 @@ def deco(logo):
         c.setFillColor(WHITE); c.rect(0, H - HEADER_H, W, HEADER_H, stroke=0, fill=1)
         c.drawImage(logo, 16 * mm, H - 7 * mm - LOGO_H, LOGO_W, LOGO_H, mask='auto')
         c.setFont('Lato-Bold', 7.5); c.setFillColor(BLUE)
-        c.drawRightString(W - 16 * mm, H - 15.5 * mm, 'H E A L T H Y   R E C I P E   S E R I E S')
+        c.drawRightString(W - 16 * mm, H - 15.5 * mm, series)
         c.setFont('DMSerif-Italic', 10.5); c.setFillColor(NAVY)
         c.drawRightString(W - 16 * mm, H - 21.5 * mm, 'Nutrition  ·  Wellness  ·  Care')
         c.setStrokeColor(GOLD); c.setLineWidth(1.4)
