@@ -95,3 +95,12 @@ page for a dashboard) from three sources: IFCT 2017 (542 raw Indian foods per 10
 fat, cholesterol, calcium, iron, sodium, potassium and vitamin C; `data/ifct2017.csv`, from the MIT-licensed
 @ifct2017/compositions package), the Hindivine ingredient list (per 100 g with household measures) and the 5,165 Hindivine
 dishes (per serving). The workbook has a Portion Calculator sheet. Output: `downloads/food-list/`.
+
+## Languages
+
+The Diet Chart Maker has a Language menu with 20 languages: Hindi, Bengali, Marathi, Telugu, Tamil, Gujarati, Kannada,
+Malayalam, Odia, Punjabi, Urdu and Assamese, plus Arabic, French, Spanish, German, Portuguese, Russian, Chinese and
+Japanese. All labels, headings, guidelines and meal names are translated; in the 12 Indian languages dish names are also
+written in the local script (word by word from `i18n/dish-words.json`), while in the other languages dish names stay in
+English. Urdu and Arabic switch the page to right-to-left. Translations live in `i18n/` (see `i18n/README.md`); check one
+with `python3 i18n/check.py <code>` and rebuild with `python3 webdata.py`.
