@@ -340,7 +340,7 @@ function drawMeal() {
   return t;
 }
 $('rows').addEventListener('click', e => { const b = e.target.closest('[data-id]'); if (!b) return;
-  const x = byId[b.dataset.id]; meal.push({ id: x.id, amt: x.basis === 'per 100 g' ? 100 : 1 }); drawMeal(); $('toast').textContent = tr(`Added ${x.name}.`).replace(x.name, nameIn(x, LANG)); });
+  const x = byId[b.dataset.id]; meal.push({ id: x.id, amt: x.basis === 'per 100 g' ? 100 : 1 }); drawMeal(); $('toast').textContent = `${tr('Added')}: ${nameIn(x, LANG)}`; });
 $('items').addEventListener('input', e => { const i = e.target.dataset.i; if (i !== undefined) { meal[+i].amt = Math.max(0, +e.target.value || 0); const pos = e.target.selectionStart; drawMeal(); const el = $('amt-' + i); el.focus(); try { el.setSelectionRange(pos, pos); } catch (er) { /* number inputs */ } } });
 $('items').addEventListener('click', e => { const x = e.target.closest('[data-x]'); if (x) { meal.splice(+x.dataset.x, 1); drawMeal(); } });
 $('clear').addEventListener('click', () => { meal = []; drawMeal(); $('toast').textContent = tr('Meal cleared.'); });

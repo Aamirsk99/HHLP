@@ -26,7 +26,7 @@ PSERIES = 'P R O T E I N   D I E T   C H A R T'
 cellb = ParagraphStyle('dcb', parent=cell, fontName='Lato-Bold', textColor=NAVY)
 cellr = ParagraphStyle('dcr', parent=cell, alignment=TA_RIGHT)
 cellrb = ParagraphStyle('dcrb', parent=cellr, fontName='Lato-Bold', textColor=NAVY)
-hcell = ParagraphStyle('dhc', parent=cell, fontName='Lato-Bold', fontSize=7.2, leading=9.5, textColor=colors.HexColor('#BFE3F5'))
+hcell = ParagraphStyle('dhc', parent=cell, fontName='Lato-Bold', fontSize=6.6, leading=9.5, textColor=colors.HexColor('#BFE3F5'))
 hcellr = ParagraphStyle('dhcr', parent=hcell, alignment=TA_RIGHT)
 dayst = ParagraphStyle('dday', fontName='DMSerif', fontSize=13.5, leading=16, textColor=WHITE)
 gc = ParagraphStyle('dgc', parent=cell, fontSize=8.4, leading=10.5)
@@ -34,7 +34,7 @@ gcb = ParagraphStyle('dgcb', parent=gc, fontName='Lato-Bold', textColor=NAVY)
 gcr = ParagraphStyle('dgcr', parent=gc, alignment=TA_RIGHT)
 tcell = ParagraphStyle('dtc', parent=cell, fontSize=8.6)
 dcell = ParagraphStyle('ddc', parent=cell, fontSize=8.7, leading=10.8)
-dcellr = ParagraphStyle('ddcr', parent=dcell, alignment=TA_RIGHT)
+dcellr = ParagraphStyle('ddcr', parent=dcell, alignment=TA_RIGHT, fontSize=8.2)
 dtime = ParagraphStyle('ddt', parent=dcell, fontSize=8.3)
 dlab = ParagraphStyle('ddl', parent=dcell, fontName='Lato-Bold', textColor=NAVY)
 note = ParagraphStyle('dnote', parent=cell, fontSize=8.2, leading=10.5, textColor=TAUPE)
@@ -109,9 +109,10 @@ def day_table(di, day):
     t = D.totals(day)
     rows = [[Paragraph(f'Day {di + 1}', dayst),
              '', Paragraph(f'<font name="Lato-Bold" size="8.5" color="#BFE3F5">{t["kcal"]:.0f} kcal  ·  {t["p"]:.0f} g protein</font>',
-                           ParagraphStyle('dt', parent=cellr, textColor=WHITE)), '', '', ''],
+                           ParagraphStyle('dt', parent=cellr, textColor=WHITE)), '', '', '', '', '', ''],
             [Paragraph('TIME', hcell), Paragraph('MEAL', hcell), Paragraph('WHAT TO EAT', hcell),
-             Paragraph('PORTION', hcellr), Paragraph('KCAL', hcellr), Paragraph('PROTEIN', hcellr)]]
+             Paragraph('PORTION', hcellr), Paragraph('KCAL', hcellr), Paragraph('PROTEIN', hcellr),
+             Paragraph('CARBS', hcellr), Paragraph('FAT', hcellr), Paragraph('FIBRE', hcellr)]]
     spans, lines, slot_rows = [], [], []
     for s in day:
         first = len(rows)
@@ -126,23 +127,25 @@ def day_table(di, day):
                 what, por = esc(i['name']), 'as listed'
             rows.append([Paragraph(s['time'].replace(' ', '&nbsp;'), dtime) if k == 0 else '',
                          Paragraph(s['label'], dlab) if k == 0 else '', Paragraph(what, dcell), Paragraph(por, dcellr),
-                         Paragraph(f'{i["kcal1"] * i["mult"]:.0f}', dcellr), Paragraph(f'{i["p1"] * i["mult"]:.0f} g', dcellr)])
+                         Paragraph(f'{i["kcal1"] * i["mult"]:.0f}', dcellr), Paragraph(f'{i["p1"] * i["mult"]:.1f} g', dcellr),
+                         Paragraph(f'{i.get("c1", 0) * i["mult"]:.1f} g', dcellr), Paragraph(f'{i.get("f1", 0) * i["mult"]:.1f} g', dcellr),
+                         Paragraph(f'{i.get("fib1", 0) * i["mult"]:.1f} g', dcellr)])
         last = len(rows) - 1
         if last > first:
             spans += [('SPAN', (0, first), (0, last)), ('SPAN', (1, first), (1, last))]
         slot_rows.append((first, last))
-    rows.append(['', Paragraph('Day total', cellb), Paragraph(f'Carbs {t["c"]:.0f} g  ·  Fat {t["f"]:.0f} g  ·  Fibre {t["fib"]:.0f} g', note), '',
-                 Paragraph(f'{t["kcal"]:.0f}', cellrb), Paragraph(f'{t["p"]:.0f} g', cellrb)])
-    tb = Table(rows, colWidths=[CW * 0.10, CW * 0.15, CW * 0.42, CW * 0.14, CW * 0.08, CW * 0.11])
+    rows.append(['', Paragraph('Day total', cellb), '', '', Paragraph(f'{t["kcal"]:.0f}', cellrb), Paragraph(f'{t["p"]:.0f} g', cellrb),
+                 Paragraph(f'{t["c"]:.0f} g', cellrb), Paragraph(f'{t["f"]:.0f} g', cellrb), Paragraph(f'{t["fib"]:.0f} g', cellrb)])
+    tb = Table(rows, colWidths=[CW * 0.09, CW * 0.12, CW * 0.31, CW * 0.12, CW * 0.07, CW * 0.08, CW * 0.07, CW * 0.07, CW * 0.07])
     n = len(rows)
-    st = [('SPAN', (0, 0), (2, 0)), ('SPAN', (3, 0), (5, 0)), ('SPAN', (2, n - 1), (3, n - 1)),
+    st = [('SPAN', (0, 0), (2, 0)), ('SPAN', (3, 0), (8, 0)), ('SPAN', (2, n - 1), (3, n - 1)),
           ('BACKGROUND', (0, 0), (-1, 1), NAVY), ('LINEBELOW', (0, 1), (-1, 1), 1.4, GOLD),
           ('BACKGROUND', (0, 2), (-1, -2), WHITE), ('BACKGROUND', (0, n - 1), (-1, n - 1), CREAM),
           ('LINEABOVE', (0, n - 1), (-1, n - 1), 0.8, GOLD_L),
           ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'), ('VALIGN', (0, 2), (-1, -2), 'TOP'),
           ('TOPPADDING', (0, 0), (-1, -1), 1.3), ('BOTTOMPADDING', (0, 0), (-1, -1), 1.3),
           ('TOPPADDING', (0, 0), (-1, 0), 7), ('BOTTOMPADDING', (0, 0), (-1, 0), 2),
-          ('LEFTPADDING', (0, 0), (-1, -1), 6), ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+          ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4),
           ('BOX', (0, 0), (-1, -1), 0.6, GOLD_L), ('ROUNDEDCORNERS', [8, 8, 8, 8])]
     st += spans
     for k, (a, b) in enumerate(slot_rows):

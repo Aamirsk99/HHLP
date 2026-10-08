@@ -76,6 +76,22 @@ PLAIN = {  # simple items used when a slot has no suitable recipe
 }
 
 
+# Carbs (available), fat and fibre in grams for add-ons and simple items, for the portion in the name (same values as the
+# Diet Chart Maker): toned milk 4.7 g carbs / 3 g fat per 100 ml, double-toned 4.7 / 1.5, unsweetened soy milk 1.6 / 1.6,
+# almond milk 0.3 / 1.1; soya chunks dry 21 / 0.5 / 13 per 100 g; roasted chana 58 / 5.2 / 18; others from labels / USDA.
+MAC = {'Pea protein': (1, 2, 0.5), 'Whey protein': (3, 1.5, 0), 'Grilled chicken': (0, 3.6, 0), 'Grilled fish': (0, 2.7, 0),
+       'Boiled egg whites': (0.7, 0.2, 0), 'Low-fat hung curd': (5.4, 0.6, 0), 'Soya chunks': (5.3, 0.1, 3.3), 'Firm tofu': (2.8, 8.7, 0.3),
+       'Boiled whole eggs': (1.1, 10.6, 0), 'Unsweetened soy milk, 250': (4, 4, 1.5), 'Skimmed milk': (12.5, 0.3, 0),
+       'Roasted chana': (17.4, 1.6, 5.4), 'Warm toned milk': (7.1, 4.5, 0), 'Warm double-toned milk': (7.1, 2.3, 0),
+       'Warm unsweetened soy milk': (2.4, 2.4, 0.9), 'Warm unsweetened almond milk': (0.5, 1.7, 0.3), '4 soaked almonds': (1.4, 3.9, 0.8),
+       'Chamomile or tulsi': (0.6, 0, 0), 'Warm water with lemon': (1.5, 0, 0)}
+
+
+def simple(name, kcal, p, **extra):
+    c, f, fib = next((v for k, v in MAC.items() if name.startswith(k)), (0, 0, 0))
+    return dict(r=None, name=name, kcal1=kcal, p1=p, c1=c, f1=f, fib1=fib, mult=1, fixed=True, **extra)
+
+
 def features(r):
     gps = grams_per_serving(r)
     n = r['nut']
@@ -206,7 +222,7 @@ class Planner:
                 opts = [b for b in BEDTIME if pdiet in b[3] and focus not in b[4]]
                 nm, kc, pr = opts[di % len(opts)][:3]
                 plan.append(dict(slot=slot, time=time, label=label, share=share,
-                                 items=[dict(r=None, name=nm, kcal1=kc, p1=pr, mult=1, fixed=True)]))
+                                 items=[simple(nm, kc, pr)]))
                 continue
             items = []
             for pname, _ in comps:
@@ -225,7 +241,7 @@ class Planner:
                 if r is None:
                     if slot in PLAIN:
                         nm, kc, pr = PLAIN[slot]
-                        items.append(dict(r=None, name=nm, kcal1=kc, p1=pr, mult=1, fixed=True))
+                        items.append(simple(nm, kc, pr))
                     continue
                 f = self.feats[r['no']]
                 items.append(dict(r=r, name=r['name'], kcal1=f['kcal'], p1=f['p'], c1=f['c'], f1=f['f'], fib1=f['fib'],
@@ -255,7 +271,7 @@ class Planner:
             a = cand[(di + k) % len(cand)] if need > 12 else min(cand, key=lambda a: abs(a[2] - need))
             count[a[0]] = count.get(a[0], 0) + 1
             slot = a[4][(count[a[0]] - 1) % len(a[4])]
-            slots[slot]['items'].append(dict(r=None, name=a[0], kcal1=a[1], p1=a[2], mult=1, fixed=True, addon=True))
+            slots[slot]['items'].append(simple(a[0], a[1], a[2], addon=True))
             self.fit(plan, kcal, focus)
 
     def fit(self, plan, kcal, focus):

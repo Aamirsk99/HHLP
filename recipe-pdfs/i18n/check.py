@@ -4,6 +4,9 @@ D = os.path.dirname(os.path.abspath(__file__))
 code = sys.argv[1]
 langs = json.load(open(os.path.join(D, 'languages.json'), encoding='utf-8'))
 en = json.load(open(os.path.join(D, 'strings-en.json'), encoding='utf-8'))
+if os.path.exists(os.path.join(D, 'strings-en-2.json')):
+    en += json.load(open(os.path.join(D, 'strings-en-2.json'), encoding='utf-8'))
+foods = json.load(open(os.path.join(D, 'foods-en.json'), encoding='utf-8')) if os.path.exists(os.path.join(D, 'foods-en.json')) else []
 dw = json.load(open(os.path.join(D, 'dish-words.json'), encoding='utf-8'))
 tr = json.load(open(os.path.join(D, code + '.json'), encoding='utf-8'))
 problems = []
@@ -18,9 +21,13 @@ for k in en:
 extra = [k for k in t if k not in en]
 if extra:
     problems.append(f'{len(extra)} extra keys in t (remove them): {extra[:5]}')
+f = tr.get('f', {})
+for k in foods:
+    if k not in f or not str(f[k]).strip():
+        problems.append(f'missing f: {k!r}')
 if langs[code].get('indic'):
     w = tr.get('w', {})
-    for k in dw['words'] + dw['phrases']:
+    for k in dw['words'] + dw['phrases'] + dw.get('words2', []):
         if k not in w or not str(w[k]).strip():
             problems.append(f'missing w: {k!r}')
 SCRIPT = {'hi': 'DEVANAGARI', 'mr': 'DEVANAGARI', 'bn': 'BENGALI', 'as': 'BENGALI', 'te': 'TELUGU', 'ta': 'TAMIL', 'gu': 'GUJARATI',
@@ -31,7 +38,7 @@ if code in SCRIPT:
                                   if ord(ch) > 0x2FF and unicodedata.category(ch).startswith('L'))
         if cnt and cnt.most_common(1)[0][0] != SCRIPT[code]:
             problems.append(f'"{part}" is mostly in {cnt.most_common(1)[0][0]} script, expected {SCRIPT[code]}')
-print(f'{code}: {len(t)} strings, {len(tr.get("w", {}))} words, {len(problems)} problems')
+print(f'{code}: {len(t)} strings, {len(tr.get("w", {}))} words, {len(tr.get("f", {}))} foods, {len(problems)} problems')
 for p in problems[:40]:
     print('  ', p)
 sys.exit(1 if problems else 0)

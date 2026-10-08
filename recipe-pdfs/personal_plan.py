@@ -222,7 +222,7 @@ cellb = ParagraphStyle('vcb', parent=cell, fontName='Lato-Bold', textColor=NAVY,
 dcell = ParagraphStyle('vdc', parent=cell, fontSize=8.7, leading=10.8)
 dcellr = ParagraphStyle('vdr', parent=dcell, alignment=TA_RIGHT)
 dnote = ParagraphStyle('vdn', parent=dcell, fontSize=7.8, leading=9.8, textColor=colors.HexColor('#7F7068'))
-hcell = ParagraphStyle('vhc', parent=cell, fontName='Lato-Bold', fontSize=7.2, leading=9.5, textColor=colors.HexColor('#BFE3F5'))
+hcell = ParagraphStyle('vhc', parent=cell, fontName='Lato-Bold', fontSize=6.6, leading=9.5, textColor=colors.HexColor('#BFE3F5'))
 hcellr = ParagraphStyle('vhr', parent=hcell, alignment=TA_RIGHT)
 dayst = ParagraphStyle('vday', fontName='DMSerif', fontSize=13.5, leading=16, textColor=WHITE)
 
@@ -240,20 +240,22 @@ def tstyle(n, extra=()):
 def day_table(i, day):
     t = tot(day)
     rows = [[Paragraph(f'Day {i + 1}', dayst), '', '', Paragraph(f'<font name="Lato-Bold" size="8.5" color="#BFE3F5">{t[0]:.0f} kcal  ·  {t[1]:.0f} g protein</font>',
-                                                                ParagraphStyle('vt', parent=dcellr)), '', ''],
-            [Paragraph(x, hcell if k < 3 else hcellr) for k, x in enumerate(['TIME', 'MEAL', 'WHAT TO EAT', 'QUANTITY', 'KCAL', 'PROTEIN'])]]
+                                                                ParagraphStyle('vt', parent=dcellr)), '', '', '', '', ''],
+            [Paragraph(x, hcell if k < 3 else hcellr) for k, x in enumerate(['TIME', 'MEAL', 'WHAT TO EAT', 'QUANTITY', 'KCAL', 'PROTEIN', 'CARBS', 'FAT', 'FIBRE'])]]
+    num = ParagraphStyle('vnum', parent=dcellr, fontSize=8.2)
     for tm, meal, what, qty, v in day:
         rows.append([Paragraph(tm.replace(' ', '&nbsp;'), dcell), Paragraph(meal, cellb), Paragraph(esc(what), dcell), Paragraph(esc(qty), dnote),
-                     Paragraph(f'{v[0]:.0f}', dcellr), Paragraph(f'{v[1]:.0f} g', dcellr)])
-    rows.append(['', Paragraph('Day total', cellb), Paragraph(f'Carbs {t[2]:.0f} g · Fat {t[3]:.0f} g · Fibre {t[4]:.0f} g', dnote), '',
-                 Paragraph(f'<b>{t[0]:.0f}</b>', dcellr), Paragraph(f'<b>{t[1]:.0f} g</b>', dcellr)])
+                     Paragraph(f'{v[0]:.0f}', num), Paragraph(f'{v[1]:.1f} g', num), Paragraph(f'{v[2]:.1f} g', num), Paragraph(f'{v[3]:.1f} g', num),
+                     Paragraph(f'{v[4]:.1f} g', num)])
+    rows.append(['', Paragraph('Day total', cellb), '', '', Paragraph(f'<b>{t[0]:.0f}</b>', num), Paragraph(f'<b>{t[1]:.0f} g</b>', num),
+                 Paragraph(f'<b>{t[2]:.0f} g</b>', num), Paragraph(f'<b>{t[3]:.0f} g</b>', num), Paragraph(f'<b>{t[4]:.0f} g</b>', num)])
     n = len(rows)
-    tb = Table(rows, colWidths=[CW * 0.112, CW * 0.118, CW * 0.37, CW * 0.2, CW * 0.08, CW * 0.12])
-    st = [('SPAN', (0, 0), (2, 0)), ('SPAN', (3, 0), (5, 0)), ('SPAN', (2, n - 1), (3, n - 1)), ('BACKGROUND', (0, 0), (-1, 1), NAVY),
+    tb = Table(rows, colWidths=[CW * 0.1, CW * 0.11, CW * 0.28, CW * 0.15, CW * 0.07, CW * 0.08, CW * 0.07, CW * 0.07, CW * 0.07])
+    st = [('SPAN', (0, 0), (2, 0)), ('SPAN', (3, 0), (8, 0)), ('BACKGROUND', (0, 0), (-1, 1), NAVY),
           ('LINEBELOW', (0, 1), (-1, 1), 1.4, GOLD), ('BACKGROUND', (0, 2), (-1, -2), WHITE), ('BACKGROUND', (0, n - 1), (-1, n - 1), CREAM),
           ('LINEBELOW', (0, 2), (-1, -2), 0.4, HAIR), ('VALIGN', (0, 0), (-1, -1), 'TOP'), ('VALIGN', (0, 0), (-1, 0), 'MIDDLE'),
           ('TOPPADDING', (0, 0), (-1, -1), 2.8), ('BOTTOMPADDING', (0, 0), (-1, -1), 2.8), ('TOPPADDING', (0, 0), (-1, 0), 7),
-          ('LEFTPADDING', (0, 0), (-1, -1), 6), ('RIGHTPADDING', (0, 0), (-1, -1), 6),
+          ('LEFTPADDING', (0, 0), (-1, -1), 4), ('RIGHTPADDING', (0, 0), (-1, -1), 4),
           ('BOX', (0, 0), (-1, -1), 0.6, GOLD_L), ('ROUNDEDCORNERS', [8, 8, 8, 8])]
     st += [('BACKGROUND', (0, r), (-1, r), ZEBRA) for r in range(3, n - 1, 2)]
     tb.setStyle(TableStyle(st))
