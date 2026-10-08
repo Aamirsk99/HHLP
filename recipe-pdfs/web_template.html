@@ -23,6 +23,8 @@
   --chip: #1B3045; --focus: #8FD3F4; color-scheme: dark }
 * { box-sizing: border-box }
 [hidden] { display: none !important }
+/* Indian, Arabic and East Asian scripts: no letter-spacing (it breaks joined letters) */
+.app[data-nospace] * { letter-spacing: 0 !important; }
 body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
 .app { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 24px; max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 20px; align-items: start; }
 @media (max-width: 900px) { .app { grid-template-columns: minmax(0, 1fr); } }
@@ -302,6 +304,7 @@ function setLang(code) {
   document.documentElement.lang = LANG;
   const dir = L.rtl ? 'rtl' : 'ltr';
   document.querySelector('.app').setAttribute('dir', dir);
+  document.querySelector('.app').toggleAttribute('data-nospace', !!(L.indic || L.rtl || ['zh', 'ja'].includes(LANG)));
   if (L.font && !document.getElementById('font-' + LANG)) {
     const l = document.createElement('link'); l.rel = 'stylesheet'; l.id = 'font-' + LANG;
     l.href = 'https://fonts.googleapis.com/css2?family=' + L.font.replace(/ /g, '+') + ':wght@400;700&display=swap';
