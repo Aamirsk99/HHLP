@@ -1,5 +1,5 @@
 """Validate a translation file:  python3 i18n/check.py CODE   (run from recipe-pdfs)"""
-import json, re, sys, os
+import json, re, sys, os, unicodedata, collections
 D = os.path.dirname(os.path.abspath(__file__))
 code = sys.argv[1]
 langs = json.load(open(os.path.join(D, 'languages.json'), encoding='utf-8'))
@@ -23,6 +23,14 @@ if langs[code].get('indic'):
     for k in dw['words'] + dw['phrases']:
         if k not in w or not str(w[k]).strip():
             problems.append(f'missing w: {k!r}')
+SCRIPT = {'hi': 'DEVANAGARI', 'mr': 'DEVANAGARI', 'bn': 'BENGALI', 'as': 'BENGALI', 'te': 'TELUGU', 'ta': 'TAMIL', 'gu': 'GUJARATI',
+          'kn': 'KANNADA', 'ml': 'MALAYALAM', 'or': 'ORIYA', 'pa': 'GURMUKHI', 'ur': 'ARABIC', 'ar': 'ARABIC', 'ru': 'CYRILLIC'}
+if code in SCRIPT:
+    for part, vals in (('t', t.values()), ('w', tr.get('w', {}).values())):
+        cnt = collections.Counter(unicodedata.name(ch, '?').split()[0] for v in vals for ch in str(v)
+                                  if ord(ch) > 0x2FF and unicodedata.category(ch).startswith('L'))
+        if cnt and cnt.most_common(1)[0][0] != SCRIPT[code]:
+            problems.append(f'"{part}" is mostly in {cnt.most_common(1)[0][0]} script, expected {SCRIPT[code]}')
 print(f'{code}: {len(t)} strings, {len(tr.get("w", {}))} words, {len(problems)} problems')
 for p in problems[:40]:
     print('  ', p)
