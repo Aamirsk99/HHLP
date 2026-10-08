@@ -87,3 +87,11 @@ range, maintenance calories (Mifflin-St Jeor × activity), a calorie target abou
 kcal for women, 1,500 for men) and protein of about 1.3 g/kg of adjusted body weight, then scales each day's portions to
 within a few percent of the target. Options: `--diet veg|egg|nonveg`, `--activity sedentary|light|moderate`, `--kcal`,
 `--protein`, `--date`. Keep generated patient PDFs out of the repository.
+
+## Food list
+
+`python3 foodlist.py OUT_DIR` writes `Hindivine-Food-List.xlsx` / `.csv` and `Hindivine-Food-Finder.html` (searchable
+page for a dashboard) from three sources: IFCT 2017 (542 raw Indian foods per 100 g, with Hindi names, sugar, saturated
+fat, cholesterol, calcium, iron, sodium, potassium and vitamin C; `data/ifct2017.csv`, from the MIT-licensed
+@ifct2017/compositions package), the Hindivine ingredient list (per 100 g with household measures) and the 5,165 Hindivine
+dishes (per serving). The workbook has a Portion Calculator sheet. Output: `downloads/food-list/`.
