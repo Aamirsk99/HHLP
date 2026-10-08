@@ -50,3 +50,22 @@ scaled so each day lands close to its calorie target (weekly averages within abo
 heart health; low fat and smaller portions for GLP-1). The PDFs have a week-at-a-glance page, a table for each day,
 focus-specific guidelines, and the Our Services page. Download: `downloads/diet-charts/` (one zip per focus type plus
 `Diet-Chart-Index.csv`).
+
+## Protein diet charts (50-190 g)
+
+`python3 dietchart.py logo-small.jpg OUT_DIR --protein` builds 580 seven-day charts: protein targets from 50 g to 190 g a
+day in 5 g steps × 4 diets × 5 menu options. Calories are set from the protein target (protein supplies 17% of energy at
+50 g, rising to 28% at 190 g: 1,200 kcal at 50 g, about 1,900 kcal at 100 g, 2,700 kcal at 190 g). Recipes are chosen by
+protein density, and simple protein add-ons (egg whites, hung curd, tofu, soya chunks, chicken, fish, whey or pea protein)
+top each day up to at least 97% of the target. Charts show Day 1-7 only: no plan numbers, week numbers or weekday names.
+Download: `downloads/protein-diet-charts/`.
+
+## Auto diet chart generator
+
+- **Web page:** `diet-generator/index.html` (built by `python3 webdata.py` from `web_template.html`). It is one self-contained
+  page with all recipe data embedded: choose Weight loss (calories + health focus) or Protein target (50-190 g), the diet and
+  an optional name, and it builds a branded 7-day chart instantly; "New menu" gives another menu with the same settings,
+  "Print / Save as PDF" prints it, and "Copy chart as text" copies it for WhatsApp or email. It can be hosted on
+  www.hindivine.com as a static file.
+- **Command line:** `python3 autodiet.py --protein 120 --diet veg` or
+  `python3 autodiet.py --kcal 1500 --diet nonveg --focus diabetes --seed 2 --out chart.pdf` writes one PDF.

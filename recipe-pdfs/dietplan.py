@@ -19,6 +19,35 @@ FOCUS = {
     'glp1': 'GLP-1 Support Weight Loss',
 }
 KCALS = [1200, 1300, 1400, 1500, 1600, 1800]
+PROTEINS = list(range(50, 191, 5))   # protein diet charts: 50-190 g a day in 5 g steps
+OPTIONS = 5                          # menus per protein level and diet
+
+
+def protein_kcal(p):
+    """Calories for a protein-target chart: protein share rises from 17% (50 g) to 28% (190 g) of energy."""
+    share = 0.17 + (p - 50) / 140 * 0.11
+    return max(1200, int(round(p * 4 / share / 50)) * 50)
+
+
+# Protein add-ons used to reach a protein target: (name, kcal, protein g, diets, slots), values per portion shown.
+# Roasted chana 369 kcal/22.5 g per 100 g (IFCT); dry soya chunks 345/52; firm tofu 144/17.3; unsweetened soy milk 33/3.3
+# per 100 ml; pea or whey protein ~120 kcal/24 g per 30 g scoop (typical label); non-fat Greek yogurt 59/10.2; skimmed milk
+# 34/3.4; egg white 52/10.9; whole egg 155/12.6; cooked chicken breast 165/31; cooked fish fillet 128/26 (USDA).
+ALL = ('vegan', 'veg', 'egg', 'nonveg')
+ADDONS = [
+    ('Pea protein, 1 scoop (30 g) in water', 120, 24.0, ('vegan',), ('mid', 'evening')),
+    ('Whey protein, 1 scoop (30 g) in water or skimmed milk', 120, 24.0, ('veg', 'egg', 'nonveg'), ('mid', 'evening')),
+    ('Grilled chicken breast, 100 g cooked', 165, 31.0, ('nonveg',), ('lunch', 'dinner')),
+    ('Grilled fish fillet, 100 g cooked', 128, 26.0, ('nonveg',), ('dinner', 'lunch')),
+    ('Boiled egg whites, 4', 69, 14.4, ('egg', 'nonveg'), ('breakfast', 'evening')),
+    ('Low-fat hung curd / Greek yogurt, 150 g', 89, 15.3, ('veg', 'egg', 'nonveg'), ('lunch', 'evening')),
+    ('Soya chunks, 25 g dry (boiled, added to sabzi or pulao)', 86, 13.0, ALL, ('lunch', 'dinner')),
+    ('Firm tofu, 100 g (grilled or in curry)', 144, 17.3, ALL, ('dinner', 'lunch')),
+    ('Boiled whole eggs, 2', 155, 12.6, ('egg', 'nonveg'), ('breakfast',)),
+    ('Unsweetened soy milk, 250 ml', 83, 8.3, ALL, ('breakfast', 'bedtime')),
+    ('Skimmed milk, 250 ml', 85, 8.5, ('veg', 'egg', 'nonveg'), ('bedtime', 'breakfast')),
+    ('Roasted chana, 30 g', 111, 6.8, ALL, ('evening', 'mid')),
+]
 DIETS = {'veg': 'Vegetarian', 'vegan': 'Vegan', 'egg': 'Eggetarian', 'nonveg': 'Non-Vegetarian'}
 WEEKS = 30
 DAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
@@ -121,19 +150,24 @@ class Planner:
         self.feats, self.pools = _pools(rs)
         self._cache = {}
 
-    def pool(self, name, focus, pdiet):
-        key = (name, focus, pdiet)
+    def pool(self, name, focus, pdiet, band=None):
+        key = (name, focus, pdiet, band)
         if key not in self._cache:
             out = [r for r in self.pools[name] if allowed_diet(pdiet, self.feats[r['no']]['diet']) and focus_ok(focus, r, self.feats[r['no']])]
             if focus in ('protein', 'glp1', 'pcos') and name in ('breakfast', 'main', 'evening', 'mid', 'sabzi'):
                 out.sort(key=lambda r: -self.feats[r['no']]['pdens'])
                 out = out[:max(12, int(len(out) * (0.4 if focus != 'pcos' else 0.6)))]
+            if band and name in ('breakfast', 'main', 'evening', 'mid', 'sabzi', 'salad', 'soup', 'rice', 'onepot', 'roti', 'eggbf', 'nvmain'):
+                out.sort(key=lambda r: -self.feats[r['no']]['pdens'])
+                n = len(out)
+                lo, hi = {'vlow': (0.6, 1.0), 'low': (0.4, 1.0), 'mid': (0.0, 1.0), 'high': (0.0, 0.5), 'max': (0.0, 0.3)}[band]
+                out = out[int(n * lo):max(int(n * hi), int(n * lo) + 8)] or out
             out.sort(key=lambda r: r['no'])
             self._cache[key] = out
         return self._cache[key]
 
-    def pick(self, rnd, name, focus, pdiet, used):
-        p = self.pool(name, focus, pdiet)
+    def pick(self, rnd, name, focus, pdiet, used, band=None):
+        p = self.pool(name, focus, pdiet, band)
         if not p:
             return None
         fresh = [r for r in p if r['no'] not in used]
@@ -141,7 +175,7 @@ class Planner:
         used.add(r['no'])
         return r
 
-    def day(self, rnd, focus, pdiet, kcal, di, used):
+    def day(self, rnd, focus, pdiet, kcal, di, used, protein=None):
         """One day: list of (slot, [component dicts])."""
         nv_day = pdiet == 'nonveg' and di in (0, 2, 4, 5)
         egg_day = pdiet in ('egg', 'nonveg') and di in (1, 3, 6)
@@ -176,7 +210,14 @@ class Planner:
                 continue
             items = []
             for pname, _ in comps:
-                r = self.pick(rnd, pname, focus, pdiet, used)
+                band = None
+                if protein:
+                    ratio = protein * 4 / kcal
+                    band = 'vlow' if ratio < 0.18 else 'low' if ratio < 0.20 else 'mid' if ratio < 0.22 else 'high' if ratio < 0.25 else 'max'
+                    if pdiet == 'nonveg':  # meat and fish dishes are protein-dense already
+                        ratio -= 0.05 if slot in ('lunch', 'dinner') else 0.02
+                        band = 'vlow' if ratio < 0.18 else 'low' if ratio < 0.20 else 'mid' if ratio < 0.22 else 'high' if ratio < 0.25 else 'max'
+                r = self.pick(rnd, pname, focus, pdiet, used, band)
                 if r is None and pname in ('nvmain', 'eggbf'):
                     r = self.pick(rnd, 'main' if pname == 'nvmain' else 'breakfast', focus, pdiet, used)
                 if r is None and pname == 'onepot':
@@ -191,13 +232,40 @@ class Planner:
                                   mult=1, fixed=slot in ('early', 'bedtime')))
             plan.append(dict(slot=slot, time=time, label=label, share=share, items=items))
         self.fit(plan, kcal, focus)
+        if protein:
+            self.reach_protein(plan, kcal, focus, pdiet, protein, di)
         return plan
 
+    def reach_protein(self, plan, kcal, focus, pdiet, target, di):
+        """Add protein add-ons (each at most twice a day) until the day reaches the protein target, refitting portions."""
+        opts = [a for a in ADDONS if pdiet in a[3]]
+        opts.sort(key=lambda a: -a[2] / a[1])
+        count = {}
+        slots = {s['slot']: s for s in plan}
+        for k in range(14):
+            p = totals(plan)['p']
+            if p >= target * 0.97:
+                break
+            need = target - p
+            # rotate the order a little by day so menus differ, prefer an add-on close to what is still needed
+            cand = [a for a in opts if count.get(a[0], 0) < 2]
+            if not cand:
+                break
+            cand = cand[:4]
+            a = cand[(di + k) % len(cand)] if need > 12 else min(cand, key=lambda a: abs(a[2] - need))
+            count[a[0]] = count.get(a[0], 0) + 1
+            slot = a[4][(count[a[0]] - 1) % len(a[4])]
+            slots[slot]['items'].append(dict(r=None, name=a[0], kcal1=a[1], p1=a[2], mult=1, fixed=True, addon=True))
+            self.fit(plan, kcal, focus)
+
     def fit(self, plan, kcal, focus):
-        """Scale portions (quarter servings, 0.5-2) so each slot, then the day, is close to target."""
-        hi = 1.5 if focus == 'glp1' else 2.0
+        """Scale portions (quarter servings, 0.5-2, more for high-calorie days) so each slot, then the day, is close to target."""
+        hi = 1.5 if focus == 'glp1' else 2.0 + max(0, (kcal - 1800) / 1800)
+        hi = int(hi * 4) / 4  # portions stay in quarter servings
+        fixed = sum(i['kcal1'] * i['mult'] for s in plan for i in s['items'] if i['fixed'] and s['slot'] not in ('early', 'bedtime'))
+        scale = max(0.5, (kcal - fixed) / kcal) if fixed else 1
         for s in plan:
-            tgt = kcal * s['share']
+            tgt = kcal * s['share'] * scale
             items = [i for i in s['items'] if not i['fixed']]
             if not items:
                 continue
@@ -232,8 +300,27 @@ def totals(day):
     return t
 
 
+def make(pl, focus, kcal, d, seed, protein=None):
+    """One 7-day plan for the given settings; the same seed always gives the same plan."""
+    rnd = random.Random(seed)
+    used = set()
+    days = [pl.day(rnd, focus, d, kcal, di, used, protein) for di in range(7)]
+    return dict(focus=focus, kcal=kcal, diet=d, protein=protein, days=days)
+
+
+def protein_plans(rs):
+    """Yield every protein-target plan: 50-190 g x 4 diets x OPTIONS menus."""
+    pl = Planner(rs)
+    for p in PROTEINS:
+        for d in DIETS:
+            for opt in range(1, OPTIONS + 1):
+                plan = make(pl, 'general', protein_kcal(p), d, f'protein-{p}-{d}-{opt}', p)
+                plan['option'] = opt
+                yield plan
+
+
 def plans(rs):
-    """Yield every plan: dict(no, focus, kcal, diet, week, days)."""
+    """Yield every weight-loss plan: dict(no, focus, kcal, diet, week, days)."""
     pl = Planner(rs)
     no = 0
     for focus in FOCUS:

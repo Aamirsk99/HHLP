@@ -1,0 +1,467 @@
+<title>Hindivine Diet Chart Maker</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Lato:ital,wght@0,400;0,700;0,900;1,400&display=swap">
+<style>
+/* Layout: a control rail beside a white A4 "paper" preview of the chart; the paper keeps print colours in both themes. */
+:root {
+  --bg: #EEF3F8; --panel: #FFFFFF; --ink: #1E2A35; --muted: #5F6B76; --line: #D6E2EC; --accent: #0F6FB0; --accent-ink: #FFFFFF;
+  --chip: #E4EEF7; --focus: #29A8E0;
+  /* paper (the printed chart) - same in both themes on purpose */
+  --navy: #0B3B66; --blue: #0F6FB0; --sky: #29A8E0; --sky-l: #8FD3F4; --paper: #FFFFFF; --pink: #FDF0EB; --mint: #E6F5F2;
+  --cream: #F2F7FB; --hair: #E3ECF3; --gold-l: #D6E7F3; --zebra: #F6F9FC; --pink-ink: #D9573A; --mint-ink: #0E8A78;
+  --taupe: #7F7068; --paper-ink: #24303B;
+  --display: 'DM Serif Display', Georgia, 'Times New Roman', serif;
+  --body: 'Lato', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0C1621; --panel: #13212F; --ink: #E3ECF4; --muted: #9DB0C1; --line: #24384B; --accent: #3FA2E0; --accent-ink: #06121D;
+  --chip: #1B3045; --focus: #8FD3F4; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0C1621; --panel: #13212F; --ink: #E3ECF4; --muted: #9DB0C1; --line: #24384B; --accent: #3FA2E0; --accent-ink: #06121D;
+  --chip: #1B3045; --focus: #8FD3F4; color-scheme: dark }
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.app { display: grid; grid-template-columns: minmax(0, 320px) minmax(0, 1fr); gap: 24px; max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 20px; align-items: start; }
+@media (max-width: 900px) { .app { grid-template-columns: minmax(0, 1fr); } }
+.rail { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 18px; position: sticky; top: calc(env(safe-area-inset-top, 0px) + 16px); }
+@media (max-width: 900px) { .rail { position: static; } }
+.brand { display: grid; gap: 4px; }
+.brand h1 { font-family: var(--display); font-weight: 400; font-size: 1.6rem; line-height: 1.15; margin: 0; text-wrap: balance; }
+.brand p { margin: 0; color: var(--muted); font-size: .88rem; }
+.field { display: grid; gap: 8px; }
+.label { font-size: .72rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; background: var(--chip); padding: 4px; border-radius: 10px; }
+.seg.four { grid-template-columns: 1fr 1fr; }
+.seg button { border: 0; background: transparent; color: var(--ink); font: 700 .86rem var(--body); padding: 8px 6px; border-radius: 7px; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); }
+select, input[type="text"], input[type="number"] { width: 100%; font: 400 .95rem var(--body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
+input[type="range"] { width: 100%; accent-color: var(--accent); }
+.readout { display: flex; align-items: baseline; gap: 6px; font-variant-numeric: tabular-nums; }
+.readout b { font-family: var(--display); font-weight: 400; font-size: 2rem; line-height: 1; }
+.readout span { color: var(--muted); font-size: .85rem; }
+.actions { display: grid; gap: 8px; }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 700 .92rem var(--body); padding: 11px 12px; border-radius: 9px; cursor: pointer; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.note { font-size: .8rem; color: var(--muted); margin: 0; }
+button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.toast { font-size: .82rem; color: var(--accent); min-height: 1.2em; margin: 0; }
+
+/* ---------- the chart (paper) ---------- */
+.paper-wrap { min-width: 0; overflow-x: auto; }
+.paper { background: var(--paper); color: var(--paper-ink); max-width: 820px; margin: 0 auto; border-radius: 6px; box-shadow: 0 1px 3px rgba(11,59,102,.12), 0 12px 32px rgba(11,59,102,.10); font-size: 13px; line-height: 1.45; }
+.p-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 18px 28px 14px; border-bottom: 2px solid var(--sky); flex-wrap: wrap; }
+.p-head img { height: 46px; width: auto; }
+.p-head .series { text-align: right; }
+.p-head .series small { display: block; font-weight: 700; font-size: 9.5px; letter-spacing: .32em; color: var(--blue); }
+.p-head .series em { font-family: var(--display); font-style: italic; color: var(--navy); font-size: 14px; }
+.p-body { padding: 22px 28px 8px; display: grid; gap: 16px; }
+.p-body > *, .sec > * { min-width: 0; }
+@media (max-width: 560px) { .p-body { padding-inline: 14px; } .p-head { padding-inline: 14px; } }
+.hero { background: var(--navy); color: #fff; border-radius: 12px; display: grid; grid-template-columns: minmax(0, 1fr) 130px; overflow: hidden; }
+.hero .main { padding: 20px 22px; display: grid; gap: 8px; }
+.kick { font-size: 10px; font-weight: 700; letter-spacing: .26em; text-transform: uppercase; color: var(--sky-l); }
+.hero h2 { font-family: var(--display); font-weight: 400; font-size: 30px; line-height: 1.1; margin: 0; text-wrap: balance; }
+.hero .rule { width: 70px; height: 2px; background: var(--sky); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 9.5px; font-weight: 700; letter-spacing: .04em; padding: 3px 9px; border-radius: 99px; background: #E4F1FA; color: var(--navy); }
+.chip.g { background: #E8F5E9; color: #2E7D32; }
+.hero .lead { font-family: var(--display); font-style: italic; font-size: 15px; color: #D6E7F3; margin: 0; }
+.hero .best { font-size: 12px; margin: 0; }
+.hero .best b { font-size: 9.5px; letter-spacing: .2em; color: var(--sky-l); margin-right: 8px; }
+.hero .side { border-left: 1px solid #2C6A9C; display: grid; place-content: center; text-align: center; gap: 2px; padding: 12px; }
+.hero .side small { font-size: 9px; font-weight: 700; letter-spacing: .26em; color: var(--sky-l); text-transform: uppercase; }
+.hero .side b { font-family: var(--display); font-weight: 400; font-size: 36px; line-height: 1.05; font-variant-numeric: tabular-nums; }
+@media (max-width: 560px) { .hero { grid-template-columns: minmax(0, 1fr); } .hero .side { border-left: 0; border-top: 1px solid #2C6A9C; } }
+.strip { display: grid; grid-template-columns: 1.6fr 1.6fr 1fr 1fr 1fr; gap: 3px; border-radius: 10px; overflow: hidden; }
+@media (max-width: 560px) { .strip { grid-template-columns: 1fr 1fr; } }
+.tile { text-align: center; padding: 10px 6px; border-top: 3px solid var(--sky); background: var(--paper); }
+.tile.k { background: var(--pink); border-color: var(--pink-ink); color: var(--pink-ink); }
+.tile.p { background: var(--mint); border-color: var(--mint-ink); color: var(--mint-ink); }
+.tile b { font-family: var(--display); font-weight: 400; font-size: 26px; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.tile:not(.k):not(.p) b { font-size: 20px; color: var(--navy); }
+.tile small { display: block; font-size: 8.5px; font-weight: 700; letter-spacing: .2em; text-transform: uppercase; color: inherit; }
+.tile:not(.k):not(.p) small { color: var(--taupe); }
+.box { border-radius: 10px; padding: 12px 16px; border: 1px solid var(--gold-l); background: var(--cream); }
+.box.mint { background: var(--mint); border-color: var(--mint-ink); }
+.box.pink { background: var(--pink); border-color: var(--pink-ink); }
+.box h4 { margin: 0 0 6px; font-size: 10px; letter-spacing: .22em; text-transform: uppercase; color: var(--navy); }
+.box.mint h4 { color: var(--mint-ink); } .box.pink h4 { color: var(--pink-ink); }
+.box ul { margin: 0; padding-left: 18px; display: grid; gap: 3px; }
+.box li::marker { color: var(--sky); }
+.sec { display: grid; gap: 8px; }
+.sec h3 { font-family: var(--display); font-weight: 400; color: var(--navy); font-size: 21px; margin: 6px 0 0; }
+.sec h3 span { font-family: var(--body); font-weight: 700; font-size: 11px; color: var(--sky); margin-right: 10px; }
+.sec .bar { width: 70px; height: 2px; background: var(--sky); }
+.tbl-wrap { overflow-x: auto; border-radius: 10px; border: 1px solid var(--gold-l); }
+table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; min-width: 560px; }
+th { background: var(--navy); color: #BFE3F5; font-size: 9.5px; letter-spacing: .08em; text-transform: uppercase; text-align: left; padding: 7px 8px; font-weight: 700; }
+th.n, td.n { text-align: right; white-space: nowrap; }
+td { padding: 4px 8px; vertical-align: top; border-bottom: 0; }
+tr.first td { padding-top: 7px; } tr.last td { padding-bottom: 7px; border-bottom: 1px solid var(--hair); }
+tbody.z tr td { background: var(--zebra); }
+td.meal { font-weight: 700; color: var(--navy); white-space: nowrap; }
+td.time { white-space: nowrap; font-size: 12px; }
+.rn { color: var(--taupe); font-size: 10.5px; }
+.add { color: var(--mint-ink); font-size: 10.5px; }
+.plus { color: var(--mint-ink); font-weight: 900; }
+.dayhead { display: flex; justify-content: space-between; align-items: baseline; background: var(--navy); color: #fff; padding: 9px 10px 2px; }
+.dayhead b { font-family: var(--display); font-weight: 400; font-size: 18px; }
+.dayhead span { font-size: 11px; font-weight: 700; color: #BFE3F5; }
+tr.total td { background: var(--cream); border-top: 1px solid var(--gold-l); font-weight: 700; color: var(--navy); padding-block: 6px; }
+tr.total td.sm { font-weight: 400; color: var(--taupe); font-size: 11px; }
+.glance td { padding: 5px 8px; border-bottom: 1px solid var(--hair); }
+.glance tr:nth-child(even) td { background: var(--zebra); }
+.disc { font-size: 11px; color: var(--taupe); border-top: 1px solid var(--gold-l); padding-top: 8px; margin: 0; }
+.services { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 560px) { .services { grid-template-columns: 1fr; } }
+.svc { border: 1px solid var(--gold-l); border-radius: 10px; padding: 10px 12px; }
+.svc h5 { font-family: var(--display); font-weight: 400; font-size: 16px; color: var(--navy); margin: 0 0 4px; }
+.svc ul { margin: 0; padding-left: 16px; font-size: 12px; }
+.glp { background: var(--mint); border: 1px solid var(--mint-ink); border-radius: 10px; padding: 12px 14px; display: grid; gap: 4px; }
+.glp h5 { font-family: var(--display); font-weight: 400; font-size: 19px; color: var(--navy); margin: 0; }
+.glp ul { margin: 0; padding-left: 16px; columns: 2 220px; font-size: 12px; }
+.appband { background: var(--navy); color: #fff; border-radius: 12px; padding: 16px 18px; display: flex; gap: 16px; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+.appband h5 { font-family: var(--display); font-weight: 400; font-size: 20px; margin: 2px 0; }
+.appband p { margin: 0; color: #D6E7F3; font-size: 12px; max-width: 46ch; }
+.stores { display: grid; gap: 6px; }
+.store { background: #000; border: 1px solid #A6A6A6; border-radius: 7px; padding: 4px 12px; color: #fff; min-width: 140px; }
+.store small { display: block; font-size: 8px; } .store b { font-size: 15px; }
+.p-foot { background: var(--navy); color: #fff; display: flex; justify-content: space-between; gap: 10px; padding: 10px 28px; font-weight: 700; font-size: 12px; border-top: 2px solid var(--sky); border-radius: 0 0 6px 6px; flex-wrap: wrap; margin-top: 16px; }
+.p-foot span:nth-child(2) { color: #BFE3F5; }
+.prep { font-size: 12px; color: var(--muted); margin: 0 0 4px; }
+@media print {
+  @page { size: A4; margin: 10mm; }
+  body { background: #fff; }
+  .rail { display: none; }
+  .app { display: block; padding: 0; max-width: none; }
+  .paper { box-shadow: none; max-width: none; border-radius: 0; }
+  .day, .sec, .services, .glp, .appband, .box { break-inside: avoid; }
+  .page-break { break-before: page; }
+  * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="app">
+  <form class="rail" id="controls" aria-label="Diet chart settings">
+    <div class="brand">
+      <span class="label">Hindivine Healthcare</span>
+      <h1>Diet Chart Maker</h1>
+      <p>Pick a goal and a diet. A 7-day Indian meal plan is built from Hindivine recipes, with portions set to the target.</p>
+    </div>
+    <div class="field">
+      <span class="label" id="mode-l">Chart type</span>
+      <div class="seg" role="group" aria-labelledby="mode-l">
+        <button type="button" id="mode-wl" data-mode="wl" aria-pressed="true">Weight loss</button>
+        <button type="button" id="mode-pr" data-mode="pr" aria-pressed="false">Protein target</button>
+      </div>
+    </div>
+    <div class="field" id="f-kcal">
+      <label class="label" for="kcal">Calories a day</label>
+      <div class="readout"><b id="kcal-out">1400</b><span>kcal</span></div>
+      <input type="range" id="kcal" min="1200" max="2400" step="50" value="1400">
+    </div>
+    <div class="field" id="f-protein" hidden>
+      <label class="label" for="protein">Protein a day</label>
+      <div class="readout"><b id="protein-out">100</b><span>g protein · <span id="protein-kcal">1900</span> kcal</span></div>
+      <input type="range" id="protein" min="50" max="190" step="5" value="100">
+    </div>
+    <div class="field">
+      <span class="label" id="diet-l">Diet</span>
+      <div class="seg four" role="group" aria-labelledby="diet-l" id="diet"></div>
+    </div>
+    <div class="field" id="f-focus">
+      <label class="label" for="focus">Health focus</label>
+      <select id="focus"></select>
+    </div>
+    <div class="field">
+      <label class="label" for="who">Prepared for (optional)</label>
+      <input type="text" id="who" placeholder="Name" maxlength="40" autocomplete="off">
+    </div>
+    <div class="actions">
+      <button type="button" class="btn primary" id="again">New menu, same settings</button>
+      <button type="button" class="btn" id="print">Print / Save as PDF</button>
+      <button type="button" class="btn" id="copy">Copy chart as text</button>
+      <p class="toast" id="toast" role="status"></p>
+    </div>
+    <p class="note">Values are estimates from IFCT 2017 / USDA data. Charts are general wellness guidance; people with medical conditions should follow their doctor's or dietitian's advice.</p>
+  </form>
+  <div class="paper-wrap"><article class="paper" id="paper" aria-live="polite"></article></div>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const CAN_PRINT = /*__CANPRINT__*/true;
+const LOGO = '__LOGO__';
+
+// ---------- planner (port of dietplan.py) ----------
+const POOLS = DATA.pools, FOCUS = DATA.focus.map(f => f[0]);
+const FOCUS_NAME = Object.fromEntries(DATA.focus), DIET_NAME = Object.fromEntries(DATA.diets);
+const DIETC = { vegan: 0, veg: 1, egg: 2, nonveg: 3 };
+const R = DATA.recs.map(a => ({ no: a[0], name: a[1], k: a[2], p: a[3], c: a[4], f: a[5], fib: a[6], d: a[7], pools: a[8], fmask: a[9], cat: a[10], pd: a[3] * 4 / Math.max(a[2], 1) }));
+
+function rng(seedStr) { // mulberry32 seeded from a string
+  let h = 1779033703 ^ seedStr.length;
+  for (let i = 0; i < seedStr.length; i++) { h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; }
+  let a = h >>> 0;
+  return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
+}
+const allowed = (pd, d) => pd === 'vegan' ? d === 0 : pd === 'veg' ? d <= 1 : pd === 'egg' ? d <= 2 : true;
+const cache = new Map();
+function pool(name, focus, pdiet, band) {
+  const key = [name, focus, pdiet, band].join('|');
+  if (cache.has(key)) return cache.get(key);
+  const bit = 1 << POOLS.indexOf(name), fb = 1 << FOCUS.indexOf(focus);
+  let out = R.filter(r => (r.pools & bit) && allowed(pdiet, r.d) && (r.fmask & fb));
+  if (['protein', 'glp1', 'pcos'].includes(focus) && ['breakfast', 'main', 'evening', 'mid', 'sabzi'].includes(name)) {
+    out.sort((a, b) => b.pd - a.pd);
+    out = out.slice(0, Math.max(12, Math.floor(out.length * (focus !== 'pcos' ? 0.4 : 0.6))));
+  }
+  if (band && ['breakfast', 'main', 'evening', 'mid', 'sabzi', 'salad', 'soup', 'rice', 'onepot', 'roti', 'eggbf', 'nvmain'].includes(name)) {
+    out.sort((a, b) => b.pd - a.pd);
+    const n = out.length, [lo, hi] = { vlow: [0.6, 1], low: [0.4, 1], mid: [0, 1], high: [0, 0.5], max: [0, 0.3] }[band];
+    const s = out.slice(Math.floor(n * lo), Math.max(Math.floor(n * hi), Math.floor(n * lo) + 8));
+    out = s.length ? s : out;
+  }
+  out.sort((a, b) => a.no - b.no);
+  cache.set(key, out);
+  return out;
+}
+function pick(rnd, name, focus, pdiet, used, band) {
+  const p = pool(name, focus, pdiet, band);
+  if (!p.length) return null;
+  const fresh = p.filter(r => !used.has(r.no));
+  const src = fresh.length ? fresh : p;
+  const r = src[Math.floor(rnd() * src.length)];
+  used.add(r.no);
+  return r;
+}
+function totals(day) {
+  const t = { kcal: 0, p: 0, c: 0, f: 0, fib: 0 };
+  for (const s of day) for (const i of s.items) { t.kcal += i.k * i.m; t.p += i.p * i.m; t.c += (i.c || 0) * i.m; t.f += (i.f || 0) * i.m; t.fib += (i.fib || 0) * i.m; }
+  return t;
+}
+function fit(plan, kcal, focus) {
+  const hi = Math.floor((focus === 'glp1' ? 1.5 : 2 + Math.max(0, (kcal - 1800) / 1800)) * 4) / 4; // quarter servings
+  const fixed = plan.reduce((a, s) => a + (['early', 'bedtime'].includes(s.slot) ? 0 : s.items.filter(i => i.fixed).reduce((b, i) => b + i.k * i.m, 0)), 0);
+  const scale = fixed ? Math.max(0.5, (kcal - fixed) / kcal) : 1;
+  for (const s of plan) {
+    const items = s.items.filter(i => !i.fixed);
+    if (!items.length) continue;
+    const base = items.reduce((a, i) => a + i.k, 0), m = base ? kcal * s.share * scale / base : 1;
+    for (const i of items) i.m = Math.min(hi, Math.max(0.5, Math.round(m * 4) / 4));
+  }
+  const adj = plan.flatMap(s => s.items.filter(i => !i.fixed));
+  for (let n = 0; n < 40; n++) {
+    const diff = kcal - totals(plan).kcal;
+    if (Math.abs(diff) <= kcal * 0.03) break;
+    const step = diff > 0 ? 0.25 : -0.25;
+    const cands = adj.filter(i => i.m + step >= 0.5 && i.m + step <= hi);
+    if (!cands.length) break;
+    const best = cands.reduce((a, b) => Math.abs(diff - b.k * step) < Math.abs(diff - a.k * step) ? b : a);
+    if (Math.abs(diff - best.k * step) >= Math.abs(diff)) break;
+    best.m += step;
+  }
+}
+function reachProtein(plan, kcal, focus, pdiet, target, di) {
+  const opts = DATA.addons.filter(a => a[3].includes(pdiet)).sort((a, b) => b[2] / b[1] - a[2] / a[1]);
+  const count = {}, slots = Object.fromEntries(plan.map(s => [s.slot, s]));
+  for (let k = 0; k < 14; k++) {
+    const p = totals(plan).p;
+    if (p >= target * 0.97) break;
+    const need = target - p;
+    let cand = opts.filter(a => (count[a[0]] || 0) < 2);
+    if (!cand.length) break;
+    cand = cand.slice(0, 4);
+    const a = need > 12 ? cand[(di + k) % cand.length] : cand.reduce((x, y) => Math.abs(y[2] - need) < Math.abs(x[2] - need) ? y : x);
+    count[a[0]] = (count[a[0]] || 0) + 1;
+    const slot = a[4][(count[a[0]] - 1) % a[4].length];
+    slots[slot].items.push({ r: null, name: a[0], k: a[1], p: a[2], m: 1, fixed: true, addon: true });
+    fit(plan, kcal, focus);
+  }
+}
+function bandFor(protein, kcal, pdiet, slot) {
+  if (!protein) return null;
+  let ratio = protein * 4 / kcal;
+  if (pdiet === 'nonveg') ratio -= ['lunch', 'dinner'].includes(slot) ? 0.05 : 0.02;
+  return ratio < 0.18 ? 'vlow' : ratio < 0.20 ? 'low' : ratio < 0.22 ? 'mid' : ratio < 0.25 ? 'high' : 'max';
+}
+function makeDay(rnd, focus, pdiet, kcal, di, used, protein) {
+  const nvDay = pdiet === 'nonveg' && [0, 2, 4, 5].includes(di), eggDay = ['egg', 'nonveg'].includes(pdiet) && [1, 3, 6].includes(di);
+  const plan = [];
+  for (const [slot, time, label, share] of DATA.slots) {
+    let comps = [];
+    if (slot === 'early') comps = ['early'];
+    else if (slot === 'breakfast') comps = [eggDay ? 'eggbf' : 'breakfast'];
+    else if (slot === 'mid') comps = ['mid'];
+    else if (slot === 'lunch') {
+      const main = nvDay && di % 2 === 0 ? 'nvmain' : 'main', style = di % 3;
+      comps = style === 0 ? [main, 'roti', 'salad'] : style === 1 ? [main, 'rice', 'salad'] : [main, 'sabzi', 'roti'];
+    } else if (slot === 'evening') comps = ['evening'];
+    else if (slot === 'dinner') {
+      const main = nvDay && di % 2 === 1 ? 'nvmain' : (di % 2 ? 'main' : 'sabzi');
+      comps = di % 3 !== 2 ? ['soup', main, 'roti'] : ['onepot', 'salad'];
+    } else if (slot === 'bedtime') {
+      const opts = DATA.bedtime.filter(b => b[3].includes(pdiet) && !b[4].includes(focus));
+      const [nm, kc, pr] = opts[di % opts.length];
+      plan.push({ slot, time, label, share, items: [{ r: null, name: nm, k: kc, p: pr, m: 1, fixed: true }] });
+      continue;
+    }
+    const items = [];
+    for (const pname of comps) {
+      const band = bandFor(protein, kcal, pdiet, slot);
+      let r = pick(rnd, pname, focus, pdiet, used, band);
+      if (!r && (pname === 'nvmain' || pname === 'eggbf')) r = pick(rnd, pname === 'nvmain' ? 'main' : 'breakfast', focus, pdiet, used, band);
+      if (!r && pname === 'onepot') r = pick(rnd, 'rice', focus, pdiet, used, band);
+      if (!r) { if (DATA.plain[slot]) { const [nm, kc, pr] = DATA.plain[slot]; items.push({ r: null, name: nm, k: kc, p: pr, m: 1, fixed: true }); } continue; }
+      items.push({ r, name: r.name, k: r.k, p: r.p, c: r.c, f: r.f, fib: r.fib, m: 1, fixed: ['early', 'bedtime'].includes(slot) });
+    }
+    plan.push({ slot, time, label, share, items });
+  }
+  fit(plan, kcal, focus);
+  if (protein) reachProtein(plan, kcal, focus, pdiet, protein, di);
+  return plan;
+}
+const proteinKcal = p => Math.max(1200, Math.round(p * 4 / (0.17 + (p - 50) / 140 * 0.11) / 50) * 50);
+function makePlan(o) {
+  const rnd = rng(`${o.mode}-${o.focus}-${o.kcal}-${o.diet}-${o.protein}-${o.seed}`), used = new Set();
+  return Array.from({ length: 7 }, (_, di) => makeDay(rnd, o.focus, o.diet, o.kcal, di, used, o.protein));
+}
+
+// ---------- rendering ----------
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const FR = [[0, ''], [0.25, '¼'], [0.5, '½'], [0.75, '¾']];
+function portion(m) {
+  const w = Math.floor(m), f = FR.find(x => Math.abs(x[0] - (m - w)) < 0.01)[1];
+  const t = (w ? String(w) : '') + f || '¼';
+  return `${t} serving${m > 1 ? 's' : ''}`;
+}
+const n0 = x => Math.round(x).toLocaleString('en-IN');
+function proteinInfo(pg, kcal) {
+  const lead = `A 7-day Indian meal plan giving at least ${pg} g of protein a day at about ${n0(kcal)} kcal, built from Hindivine recipes.`;
+  const who = [pg <= 70 ? 'Less active adults meeting everyday protein needs, older adults and people on a light weight-loss plan.'
+    : pg <= 120 ? 'Active adults, people losing weight who want to keep their muscle, and anyone exercising regularly.'
+    : 'People doing regular strength training or sport, as advised by their doctor, coach or dietitian.'];
+  const dos = ['Spread protein across the day: some at every meal works better than one large serving.',
+    'Eat the protein part of each meal (dal, paneer, tofu, egg, chicken, curd, sprouts) first.',
+    'Protein powder is optional: one scoop can be replaced with 4 egg whites, 150 g hung curd or 100 g tofu.',
+    'Drink 2.5-3 litres of water a day and include vegetables at every meal for fibre.',
+    'Combine this plan with strength exercise 2-4 times a week to build or keep muscle.'];
+  const donts = ["People with kidney disease should not follow a high-protein plan without their doctor's advice.",
+    'Protein bars, shakes and drinks with added sugar.', 'Processed meats (sausages, salami) and deep-fried protein snacks.'];
+  return [lead, who, dos, donts];
+}
+function render(o, days) {
+  const pg = o.mode === 'pr' ? o.protein : null;
+  const [lead, who, dos, donts] = pg ? proteinInfo(pg, o.kcal) : DATA.info[o.focus];
+  const tots = days.map(totals), avg = k => tots.reduce((a, t) => a + t[k], 0) / 7;
+  const title = pg ? `${pg} g Protein Diet` : FOCUS_NAME[o.focus];
+  const li = xs => xs.map(x => `<li>${esc(x)}</li>`).join('');
+  const mainOf = (day, slot) => {
+    const s = day.find(s => s.slot === slot); let rs = s.items.filter(i => i.r);
+    if (slot !== 'breakfast' && rs.length > 1 && rs[0].r.cat === 'Soups') rs = rs.slice(1);
+    return rs.length ? esc(rs[0].name) : '';
+  };
+  let h = `<header class="p-head"><img src="${LOGO}" alt="Hindivine Healthcare Private Limited"><div class="series"><small>${pg ? 'PROTEIN DIET CHART' : 'WEIGHT LOSS DIET CHART'}</small><em>Nutrition · Wellness · Care</em></div></header><div class="p-body">`;
+  h += `<section class="hero"><div class="main"><span class="kick">7-Day Diet Chart</span><h2>${esc(title)}</h2><div class="rule"></div><div class="chips">`
+    + (pg ? `<span class="chip">${pg} G PROTEIN / DAY</span>` : '') + `<span class="chip">${n0(o.kcal)} KCAL / DAY</span><span class="chip g">${esc(DIET_NAME[o.diet].toUpperCase())}</span><span class="chip">7 DAYS</span></div>`
+    + `<p class="lead">${esc(lead)}</p><p class="best"><b>BEST FOR</b>${esc(who.join(' '))}</p></div>`
+    + `<div class="side"><small>${pg ? 'Protein' : 'Calories'}</small><b>${pg ? pg : n0(o.kcal)}</b><small>${pg ? 'g a day' : 'kcal a day'}</small></div></section>`;
+  if (o.who) h += `<p class="prep">Prepared for <b>${esc(o.who)}</b></p>`;
+  h += `<div class="strip"><div class="tile k"><b>${n0(avg('kcal'))}</b> kcal<small>Avg calories / day</small></div><div class="tile p"><b>${n0(avg('p'))}</b> g<small>Avg protein / day</small></div>`
+    + `<div class="tile"><b>${n0(avg('c'))}</b> g<small>Carbs</small></div><div class="tile"><b>${n0(avg('fib'))}</b> g<small>Fibre</small></div><div class="tile"><b>${n0(avg('f'))}</b> g<small>Fat</small></div></div>`;
+  h += `<div class="box"><h4>How to use this chart</h4><ul>${li([
+    'Each meal is a Hindivine recipe; the number after it (for example #0123) is the recipe number in the Hindivine Healthy Recipe Series.',
+    `"1 serving" means one serving as described in that recipe. Portions are set so each day comes close to ${n0(o.kcal)} kcal${pg ? ` and gives at least ${pg} g of protein` : ''}; calories and protein are per portion shown.`,
+    pg ? "Items marked + are simple protein add-ons that top up the day's protein." : 'Drink 2.5-3 litres of water a day unless your doctor has limited fluids. Tea or coffee: up to 2 cups a day, with no sugar.',
+    pg ? 'Drink 2.5-3 litres of water a day unless your doctor has limited fluids.' : 'Weigh yourself once a week at the same time. A healthy rate of loss is about 0.5-1 kg a week.'])}</ul></div>`;
+  h += `<section class="sec"><h3><span>01</span>Your 7 Days at a Glance</h3><div class="bar"></div><div class="tbl-wrap"><table class="glance"><thead><tr><th>Day</th><th>Breakfast</th><th>Lunch</th><th>Dinner</th><th class="n">kcal</th><th class="n">Protein</th></tr></thead><tbody>`
+    + days.map((d, i) => `<tr><td class="meal">Day ${i + 1}</td><td>${mainOf(d, 'breakfast')}</td><td>${mainOf(d, 'lunch')}</td><td>${mainOf(d, 'dinner')}</td><td class="n">${n0(tots[i].kcal)}</td><td class="n">${n0(tots[i].p)} g</td></tr>`).join('')
+    + `</tbody></table></div></section>`;
+  days.forEach((day, di) => {
+    const t = tots[di];
+    h += `<section class="day${di % 2 === 0 ? ' page-break' : ''}"><div class="tbl-wrap"><div class="dayhead"><b>Day ${di + 1}</b><span>${n0(t.kcal)} kcal · ${n0(t.p)} g protein</span></div><table><thead><tr><th>Time</th><th>Meal</th><th>What to eat</th><th class="n">Portion</th><th class="n">kcal</th><th class="n">Protein</th></tr></thead>`;
+    day.forEach((s, si) => {
+      h += `<tbody${si % 2 ? ' class="z"' : ''}>`;
+      s.items.forEach((i, k) => {
+        const what = i.r ? `${esc(i.name)} <span class="rn">#${String(i.r.no).padStart(4, '0')}</span>` : i.addon ? `<span class="plus">+</span> ${esc(i.name)} <span class="add">protein add-on</span>` : esc(i.name);
+        const cls = [k === 0 ? 'first' : '', k === s.items.length - 1 ? 'last' : ''].join(' ').trim();
+        h += `<tr${cls ? ` class="${cls}"` : ''}><td class="time">${k === 0 ? s.time : ''}</td><td class="meal">${k === 0 ? s.label : ''}</td><td>${what}</td><td class="n">${i.r ? portion(i.m) : 'as listed'}</td><td class="n">${n0(i.k * i.m)}</td><td class="n">${n0(i.p * i.m)} g</td></tr>`;
+      });
+      h += `</tbody>`;
+    });
+    h += `<tbody><tr class="total"><td></td><td>Day total</td><td class="sm" colspan="2">Carbs ${n0(t.c)} g · Fat ${n0(t.f)} g · Fibre ${n0(t.fib)} g</td><td class="n">${n0(t.kcal)}</td><td class="n">${n0(t.p)} g</td></tr></tbody></table></div></section>`;
+  });
+  h += `<section class="sec page-break"><h3><span>02</span>Guidelines for this Plan</h3><div class="bar"></div><div class="box mint"><h4>Do</h4><ul>${li(dos)}</ul></div><div class="box pink"><h4>Limit or avoid</h4><ul>${li(donts)}</ul></div></section>`;
+  let q, txt;
+  if (pg) {
+    q = `Is ${pg} g of protein right for me?`;
+    txt = `A common guide is about 1.0 g of protein per kg of body weight for less active adults, 1.2-1.6 g/kg for active adults and people losing weight, and 1.6-2.0 g/kg for regular strength training. So ${pg} g a day roughly suits a body weight of about ${n0(pg)} kg if you are less active, ${n0(pg / 1.6)}-${n0(pg / 1.2)} kg if you are active, or ${n0(pg / 2)}-${n0(pg / 1.6)} kg with regular strength training. Your doctor or dietitian can set the right amount for you; seek advice first if you have kidney or liver disease, or are pregnant or breastfeeding.`;
+  } else {
+    q = `Is ${n0(o.kcal)} kcal right for me?`;
+    txt = (o.kcal <= 1400 ? 'This calorie level is usually suited to women or smaller, less active adults.' : 'This calorie level is usually suited to men or more active adults.')
+      + ' Your dietitian can adjust it to your age, weight, height, activity and medical history. Do not go below 1,200 kcal a day without medical supervision, and seek advice before starting if you are pregnant, breastfeeding, under 18, or have a medical condition.';
+  }
+  h += `<section class="sec"><h3><span>03</span>${esc(q)}</h3><div class="bar"></div><p style="margin:0">${esc(txt)}</p></section>`;
+  h += `<p class="disc"><b>Disclaimer:</b> This diet chart is general wellness information and not a substitute for personalised medical or nutrition advice. Calorie and protein values are estimates from standard ingredient data (IFCT 2017 / USDA). People with medical conditions or on medication should follow the plan given by their doctor or dietitian.</p>`;
+  h += `<section class="sec page-break"><div class="hero"><div class="main"><span class="kick">Hindivine Healthcare</span><h2>Our Services</h2><div class="rule"></div><p class="best" style="color:#D6E7F3"><b style="color:#fff;letter-spacing:0;font-size:12px">Dr Rajat Goel</b> · Bariatric Surgeon. Expert, minimally invasive care for weight loss, metabolic health and general surgery.</p></div></div>`
+    + `<div class="glp"><span class="kick" style="color:var(--mint-ink)">New · Medical weight loss</span><h5>GLP-1 Weight Loss Injections</h5><ul>${li(DATA.glp1)}</ul></div>`
+    + `<div class="services">${DATA.services.map(([n, c, items]) => `<div class="svc" style="border-top:3px solid ${c}"><h5>${esc(n)}</h5><ul>${li(items)}</ul></div>`).join('')}</div>`
+    + `<div class="appband"><div><span class="kick">Hindivine App</span><h5>Download the Hindivine App</h5><p>Personalised diet charts, healthy recipes and expert guidance in your pocket. Get it on the Google Play Store or the Apple App Store. Questions? Write to us at <b>app@hindivine.com</b></p></div><div class="stores"><div class="store"><small>GET IT ON</small><b>Google Play</b></div><div class="store"><small>Download on the</small><b>App Store</b></div></div></div></section>`;
+  h += `</div><footer class="p-foot"><span>www.hindivine.com</span><span>app@hindivine.com</span><span>Hindivine Healthcare Private Limited</span></footer>`;
+  return h;
+}
+function asText(o, days) {
+  const pg = o.mode === 'pr' ? o.protein : null;
+  const lines = [`HINDIVINE ${pg ? `${pg} g PROTEIN` : FOCUS_NAME[o.focus].toUpperCase()} DIET CHART`, `${n0(o.kcal)} kcal a day · ${DIET_NAME[o.diet]}${o.who ? ` · for ${o.who}` : ''}`, ''];
+  days.forEach((day, di) => {
+    const t = totals(day);
+    lines.push(`DAY ${di + 1} (${n0(t.kcal)} kcal, ${n0(t.p)} g protein)`);
+    for (const s of day) lines.push(`${s.time} ${s.label}: ` + s.items.map(i => i.r ? `${i.name} #${String(i.r.no).padStart(4, '0')} (${portion(i.m)})` : i.name).join(' + '));
+    lines.push('');
+  });
+  lines.push('www.hindivine.com · app@hindivine.com');
+  return lines.join('\n');
+}
+
+// ---------- controls ----------
+const st = { mode: 'wl', kcal: 1400, protein: 100, diet: 'veg', focus: 'general', who: '', seed: 1 };
+try { Object.assign(st, JSON.parse(localStorage.getItem('hv-diet') || '{}')); } catch (e) { /* storage unavailable */ }
+const $ = id => document.getElementById(id);
+$('diet').innerHTML = DATA.diets.map(([k, v]) => `<button type="button" data-diet="${k}" id="diet-${k}">${esc(v)}</button>`).join('');
+$('focus').innerHTML = DATA.focus.map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+$('print').hidden = !CAN_PRINT;
+let current = null;
+function update() {
+  st.kcal = Math.min(2400, Math.max(1200, st.kcal));
+  const o = { ...st, focus: st.mode === 'pr' ? 'general' : st.focus, protein: st.mode === 'pr' ? st.protein : null,
+    kcal: st.mode === 'pr' ? proteinKcal(st.protein) : st.kcal };
+  $('mode-wl').setAttribute('aria-pressed', st.mode === 'wl'); $('mode-pr').setAttribute('aria-pressed', st.mode === 'pr');
+  $('f-kcal').hidden = st.mode !== 'wl'; $('f-protein').hidden = st.mode !== 'pr'; $('f-focus').hidden = st.mode !== 'wl';
+  $('kcal').value = st.kcal; $('kcal-out').textContent = n0(st.kcal);
+  $('protein').value = st.protein; $('protein-out').textContent = st.protein; $('protein-kcal').textContent = n0(proteinKcal(st.protein));
+  $('focus').value = st.focus; $('who').value = st.who;
+  document.querySelectorAll('[data-diet]').forEach(b => b.setAttribute('aria-pressed', b.dataset.diet === st.diet));
+  const days = makePlan(o);
+  current = [o, days];
+  $('paper').innerHTML = render(o, days);
+  try { localStorage.setItem('hv-diet', JSON.stringify(st)); } catch (e) { /* storage unavailable */ }
+}
+document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { st.mode = b.dataset.mode; update(); }));
+$('diet').addEventListener('click', e => { const b = e.target.closest('[data-diet]'); if (b) { st.diet = b.dataset.diet; update(); } });
+$('kcal').addEventListener('input', e => { st.kcal = +e.target.value; update(); });
+$('protein').addEventListener('input', e => { st.protein = +e.target.value; update(); });
+$('focus').addEventListener('change', e => { st.focus = e.target.value; update(); });
+$('who').addEventListener('input', e => { st.who = e.target.value; update(); });
+$('again').addEventListener('click', () => { st.seed += 1; update(); $('toast').textContent = 'New menu made.'; });
+$('print').addEventListener('click', () => window.print());
+$('copy').addEventListener('click', () => {
+  const txt = asText(...current);
+  navigator.clipboard.writeText(txt).then(() => { $('toast').textContent = 'Chart copied. Paste it into WhatsApp or an email.'; },
+    () => { $('toast').textContent = 'Copy is blocked here. Select the chart and copy it instead.'; });
+});
+$('controls').addEventListener('submit', e => e.preventDefault());
+update();
+</script>
