@@ -75,6 +75,11 @@ public class MainActivity extends Activity {
         s.setAllowFileAccess(false);
         s.setAllowContentAccess(false);
         s.setTextZoom(100);
+        // Smoother scrolling: draw the parts of the page just off screen ahead of time, keep the page's
+        // renderer at high priority, and paint the app colour (not white) while the page loads.
+        if (android.os.Build.VERSION.SDK_INT >= 23) s.setOffscreenPreRaster(true);
+        if (android.os.Build.VERSION.SDK_INT >= 26) webView.setRendererPriorityPolicy(WebView.RENDERER_PRIORITY_IMPORTANT, true);
+        webView.setBackgroundColor(0xFF0A2F55);
 
         webView.setWebViewClient(new WebViewClient() {
             @Override

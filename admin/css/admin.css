@@ -1012,3 +1012,43 @@ input:hover, select:hover, textarea:hover { border-color: color-mix(in srgb, var
 
 /* Smooth view transitions already exist (.enter); add gentle easing to toasts/badges */
 .badge { box-shadow: 0 1px 2px rgba(10,30,60,.06); }
+
+/* ══ 4.1: smoothness pass ══════════════════════════════════
+   Keeps scrolling at full frame rate on phones: no fixed-background repaints,
+   no endless paint-heavy animations, quicker screen entrances, instant taps. */
+/* Instant taps: no double-tap-zoom wait on buttons, boxes and fields. */
+button, a, input, select, textarea, label, .btn, .kpi, .hk, .lead, .card, [data-go], [data-act] { touch-action: manipulation; }
+/* The page glow sits on its own fixed layer instead of repainting the whole page on every scroll. */
+body { background: var(--bg); }
+body::before { content: ""; position: fixed; inset: 0; z-index: -1; pointer-events: none; transform: translateZ(0);
+  background:
+    radial-gradient(130% 70% at 100% -10%, color-mix(in srgb, var(--accent) 9%, transparent), transparent 60%),
+    radial-gradient(120% 60% at -10% 0%, color-mix(in srgb, var(--violet) 8%, transparent), transparent 55%); }
+/* Screen change: short, light entrance (was up to .65 s); long lists only animate their first rows. */
+@keyframes rise { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: none; } }
+#view.enter > *, #view.enter .cards > .card, #view.enter .kpis > .kpi, #view.enter .appt-list > *, #view.enter .lead-list > *, #view.enter .hero-row > * { animation-duration: .26s; animation-timing-function: cubic-bezier(.2, .8, .2, 1); }
+#view.enter > *:nth-child(2), #view.enter .kpis > .kpi:nth-child(2), #view.enter .cards > .card:nth-child(2), #view.enter .appt-list > *:nth-child(2), #view.enter .lead-list > *:nth-child(2), #view.enter .hero-row > *:nth-child(2) { animation-delay: .025s; }
+#view.enter > *:nth-child(3), #view.enter .kpis > .kpi:nth-child(3), #view.enter .cards > .card:nth-child(3), #view.enter .appt-list > *:nth-child(3), #view.enter .lead-list > *:nth-child(3), #view.enter .hero-row > *:nth-child(3) { animation-delay: .05s; }
+#view.enter > *:nth-child(4), #view.enter .kpis > .kpi:nth-child(4), #view.enter .cards > .card:nth-child(4), #view.enter .appt-list > *:nth-child(4), #view.enter .lead-list > *:nth-child(4), #view.enter .hero-row > *:nth-child(4) { animation-delay: .07s; }
+#view.enter > *:nth-child(n+5), #view.enter .kpis > .kpi:nth-child(n+5), #view.enter .cards > .card:nth-child(n+5), #view.enter .appt-list > *:nth-child(n+5), #view.enter .lead-list > *:nth-child(n+5) { animation-delay: .09s; }
+#view.enter .appt-list > *:nth-child(n+9), #view.enter .lead-list > *:nth-child(n+9), #view.enter .kpis > .kpi:nth-child(n+9) { animation: none; }
+.rem-row { animation-duration: .2s; }
+/* Endless animations: transform only (no repaint), or a few rounds instead of forever. */
+.tabs button.fab { animation: none; }
+.hero::after { left: -40%; animation-name: sheen-x; will-change: transform; }
+@keyframes sheen-x { 0%, 60% { transform: translateX(0) rotate(18deg); } 85%, 100% { transform: translateX(300%) rotate(18deg); } }
+.rp-ic, .fu-group.bad .fu-dot, .order-banner, .bell.ring svg { animation-iteration-count: 3; }
+/* Side menu: quicker slide, items arrive together instead of one by one. */
+@media (max-width: 900px) {
+  .side { transition-duration: .24s; will-change: transform; }
+  .side.open #nav button, .side.open .side-profile, .side.open .side-quick button { animation-duration: .24s; animation-delay: calc(min(var(--i, 0), 8) * 12ms + 30ms); }
+  /* Lighter shadows on phones: big soft blurs are slow to draw while scrolling. */
+  .card { box-shadow: 0 1px 2px rgba(10, 30, 60, .05), 0 8px 18px -12px rgba(10, 30, 60, .22); }
+  .lead-lux { box-shadow: 0 1px 2px rgba(10, 30, 60, .05), 0 8px 18px -14px rgba(10, 30, 60, .3); }
+  .kpi { box-shadow: 0 6px 14px -12px rgba(10, 30, 60, .4); }
+  .tabs { box-shadow: 0 10px 24px -14px rgba(5, 15, 30, .45); }
+  .tabs, .top { transform: translateZ(0); }
+}
+@media (max-width: 600px) { dialog[open] { animation-duration: .24s; } }
+/* Pressed state shows at once. */
+.btn:active, .kpi.tap:active, .hk.tap:active, .lead:active, .dq:active, .set-tile:active { transform: scale(.98); transition-duration: .06s; }

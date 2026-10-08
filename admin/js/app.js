@@ -206,7 +206,7 @@
       if (!m) return;
       const target = Number(m[2].replace(/,/g, ''));
       if (!target || target > 1e9) return;
-      const t0 = performance.now(); const dur = 650;
+      const t0 = performance.now(); const dur = 420;
       const step = (t) => {
         const k = Math.min(1, (t - t0) / dur); const e = 1 - Math.pow(1 - k, 3);
         el.textContent = m[1] + Math.round(target * e).toLocaleString('en-IN');
@@ -2084,6 +2084,18 @@
     if (!out.ok && !out.conflict) throw new Error(out.error || 'Google Sheet refused the request');
     return out;
   }
+  // New data redraws the screen, but never while the person is scrolling or touching it
+  // (a redraw mid-scroll is what makes the list jump and stutter), and never while they type.
+  var lastTouch = 0; var idleRedraw = 0;
+  ['scroll', 'touchstart', 'touchmove', 'wheel'].forEach((ev) => window.addEventListener(ev, () => { lastTouch = Date.now(); }, { passive: true }));
+  function redrawWhenIdle() {
+    clearTimeout(idleRedraw);
+    const wait = 800 - (Date.now() - lastTouch);
+    if (wait > 0) { idleRedraw = setTimeout(redrawWhenIdle, wait + 50); return; }
+    if (!role) return;
+    const editing = modal.open || screen === 'sell' || screen === 'purchase-new' || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName));
+    if (!editing && !$('#shell').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
+  }
   function applyRemote(out) {
     admin.loadState(out.state);
     setBase(out.updated);
@@ -2092,8 +2104,7 @@
     const acc = me && admin.account(me.id);
     if (!role || !acc || !acc.hash || acc.disabled) { if (role) lock(); else if (!$('#lock').hidden && !lockPin && lockMode === 'login') showLock(); return; }
     me = acc; role = acc.role;
-    const editing = modal.open || screen === 'sell' || screen === 'purchase-new' || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName));
-    if (!editing && !$('#shell').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
+    redrawWhenIdle();
   }
   // Another device saved while this one had unsaved changes: join both (newest version of every
   // record wins, deletions stay deleted) and save the result. Nothing to ask.
@@ -2114,8 +2125,7 @@
     const acc = me && admin.account(me.id);
     if (!role || !acc || !acc.hash || acc.disabled) { if (role) lock(); else if (!$('#lock').hidden && !lockPin && lockMode === 'login') showLock(); return; }
     me = acc; role = acc.role;
-    const editing = modal.open || screen === 'sell' || screen === 'purchase-new' || (document.activeElement && /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName));
-    if (!editing && !$('#shell').hidden) { const y = window.scrollY; render(); window.scrollTo(0, y); }
+    redrawWhenIdle();
   }
   /** Save this device's data to the sheet. force = overwrite even if another device saved since. */
   async function push(force) {

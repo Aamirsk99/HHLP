@@ -112,7 +112,7 @@ In Xcode, choose your Apple Developer team under *Signing & Capabilities*, then 
 
 ```sh
 VERSION_CODE=5 VERSION_NAME=5.0 ./android/build.sh    # needs Java 11+, curl, zip/unzip
-APP=admin VERSION_CODE=18 VERSION_NAME=4.0 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
+APP=admin VERSION_CODE=19 VERSION_NAME=4.0.1 ./android/build.sh   # Hindivine Admin → dist/HindivineAdmin.apk
 ```
 
 The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled in apktool), `dx`, `apksig` and the Android API jar from Maven Central into `android/.tools/`, then compiles, dexes and signs the app.
