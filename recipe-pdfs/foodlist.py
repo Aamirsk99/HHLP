@@ -223,14 +223,41 @@ def write_xlsx(rows, path):
     wb.save(path)
 
 
+def recipe_details():
+    """Ingredients and method of every recipe, with repeated text stored once in a shared table."""
+    import build as B
+    from core import quantity
+    txt, idx = [], {}
+
+    def t(x):
+        if x not in idx:
+            idx[x] = len(txt)
+            txt.append(x)
+        return idx[x]
+    out = {}
+    for r in B.ordered(True):
+        groups = []
+        for gh, items in r['groups']:
+            lines = []
+            for k, g, note in items:
+                show = note and g is not None and note.lower() not in CAT[k]['name'].lower()
+                lines.append([t(CAT[k]['name']), quantity(k, g, note), t(note) if show else -1])
+            groups.append([t(gh), lines])
+        out[r['no']] = [r['serves'], r['prep'], r['cook'], r['level'], groups, [[t(hd), t(tx)] for hd, tx in r['steps']]]
+    return out, txt
+
+
 def write_html(rows, path):
     tpl = open(os.path.join(HERE, 'foodfinder_template.html'), encoding='utf-8').read()
     keys = ['ID', 'Food', 'Hindi / local name', 'Category', 'Source', 'Diet', 'Basis', 'Household measure', 'Energy (kcal)', 'Protein (g)',
             'Carbs (g)', 'Fat (g)', 'Fibre (g)', 'Sugar (g)', 'Calcium (mg)', 'Iron (mg)', 'Sodium (mg)', 'Vitamin C (mg)', 'Recipe no.', 'Best for']
     data = {'cols': keys, 'rows': [[r.get(k) if r.get(k) != '' else None for k in keys] + [r.get('_local', '')] for r in rows]}
+    data['recipes'], data['txt'] = recipe_details()
     import base64
     logo = base64.b64encode(open(os.path.join(HERE, 'logo-small.jpg'), 'rb').read()).decode()
-    html = tpl.replace('/*__DATA__*/null', json.dumps(data, ensure_ascii=False, separators=(',', ':'))).replace('__LOGO__', 'data:image/jpeg;base64,' + logo)
+    import webdata
+    html = (tpl.replace('/*__DATA__*/null', json.dumps(data, ensure_ascii=False, separators=(',', ':'))).replace('__LOGO__', 'data:image/jpeg;base64,' + logo)
+            .replace('/*__I18N__*/{}', json.dumps(webdata.load_i18n(), ensure_ascii=False, separators=(',', ':'))))
     if '--artifact' not in sys.argv:
         t = html.index('</title>') + len('</title>')
         e = html.index('</style>') + 8

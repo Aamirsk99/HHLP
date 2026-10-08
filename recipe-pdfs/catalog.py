@@ -269,3 +269,58 @@ for key, name, unit in [
 ]:
     K(key, name, 300, 12, 50, 10, 25, unit, 'spice', '')
 CAT['hing']['kcal'] = 0
+
+
+# ---------------------------------------------------------------------------------------------------------------
+# Data consistency (checked October 2026)
+# 1. Carbohydrate is "available carbohydrate" everywhere (the IFCT 2017 method): fibre is listed separately and not
+#    included in carbs. These entries were taken from USDA "total carbohydrate" (which includes fibre), so fibre is
+#    subtracted. Energy (kcal) is unchanged - it comes straight from the source tables.
+TOTAL_CARB_KEYS = ['rrice', 'ragi', 'kuttu', 'rajgira', 'bread', 'makhana', 'noodles', 'urad', 'wurad', 'masoor', 'wmasoor', 'toor',
+                   'chanadal', 'chickpea', 'lobia', 'rajmabeans', 'mixsprouts', 'onion', 'shallot', 'tomato', 'sweetpotato', 'carrot',
+                   'beet', 'capsicum', 'cabbage', 'cauliflower', 'broccoli', 'peas', 'beans', 'bhindi', 'brinjal', 'lauki', 'tori',
+                   'karela', 'suran', 'drumstick', 'rawbanana', 'babycorn', 'zucchini', 'mooli', 'turnip', 'gwar', 'springonion',
+                   'lotusstem', 'lettuce', 'garlic', 'ginger', 'gchilli', 'coriander', 'mint', 'spinach', 'sarson', 'bathua',
+                   'amaranth', 'dill', 'gongura', 'avocado', 'banana', 'apple', 'mango', 'rawmango', 'papaya', 'pineapple',
+                   'pomegranate', 'orange', 'muskmelon', 'grapes', 'strawberry', 'guava', 'chikoo', 'kiwi', 'pear', 'custardapple',
+                   'tamarind', 'kokum', 'peanut', 'almond', 'cashew', 'walnut', 'pistachio', 'raisin', 'dates', 'dfig', 'sesame',
+                   'flax', 'chia', 'pumpkinseed', 'sunseed', 'coconut', 'poppy', 'melonseed', 'soysauce',
+                   'rajma', 'corn', 'sem', 'methi', 'moringaleaf', 'sprouts', 'mushroom']
+for _k in TOTAL_CARB_KEYS:
+    CAT[_k]['c'] = round(max(0.0, CAT[_k]['c'] - CAT[_k]['fib']), 1)
+
+# 2. Spices: real values per 100 g instead of one generic placeholder. (kcal, protein, available carbs, fat, fibre)
+#    IFCT 2017 (G0xx codes) where it lists the spice, otherwise USDA FoodData Central (SR Legacy).
+_SPICE = {
+    'jeera': (304, 13.9, 22.6, 16.6, 30.4), 'jeerapowder': (304, 13.9, 22.6, 16.6, 30.4),          # IFCT G025 cumin
+    'haldi': (281, 7.7, 49.2, 5.0, 21.4),                                                            # G033 turmeric
+    'chilli': (237, 12.7, 29.5, 6.4, 31.2), 'redchilli': (237, 12.7, 29.5, 6.4, 31.2),               # G022 red chillies
+    'kashmirichilli': (237, 12.7, 29.5, 6.4, 31.2), 'chilliflakes': (237, 12.7, 29.5, 6.4, 31.2),
+    'dhania': (269, 10.7, 13.0, 17.5, 44.8), 'dhaniaseed': (269, 10.7, 13.0, 17.5, 44.8),             # G024 coriander seed
+    'ajwain': (357, 15.9, 24.5, 21.1, 20.6),                                                         # G029 omum
+    'methiseed': (235, 25.4, 10.6, 5.7, 47.6),                                                       # G026 fenugreek seed
+    'pepper': (217, 10.1, 36.2, 2.7, 33.2), 'peppercorn': (217, 10.1, 36.2, 2.7, 33.2),              # G031 black pepper
+    'cardamom': (255, 8.1, 47.8, 2.6, 23.1), 'elaichipowder': (255, 8.1, 47.8, 2.6, 23.1),           # G020
+    'blackcardamom': (271, 6.7, 52.5, 2.8, 23.5),                                                    # G021
+    'clove': (187, 5.9, 18.7, 8.4, 34.5), 'mace': (356, 6.2, 26.5, 24.4, 20.3),                      # G023, G027
+    'nutmeg': (464, 6.3, 27.6, 36.5, 12.0),                                                          # G028
+    'mustard': (508, 26.1, 16.1, 36.2, 12.2), 'saunf': (345, 15.8, 12.5, 14.9, 39.8),                # USDA mustard seed, fennel
+    'kalonji': (345, 16.0, 30.0, 22.0, 10.5),                                                        # USDA-style nigella seed
+    'cinnamon': (247, 4.0, 27.5, 1.2, 53.1), 'bayleaf': (313, 7.6, 48.7, 8.4, 26.3),                 # USDA
+    'saffron': (310, 11.4, 61.5, 5.9, 3.9), 'dryginger': (335, 9.0, 57.5, 4.2, 14.1),                # USDA
+    'sounthpowder': (335, 9.0, 57.5, 4.2, 14.1), 'oregano': (265, 9.0, 26.3, 4.3, 42.5),             # USDA
+    'kasuri': (323, 23.0, 25.0, 6.4, 24.6),                                                          # dried fenugreek leaves
+    'amchur': (319, 2.8, 70.0, 1.9, 7.5),                                                            # dried mango powder
+    'greentea': (0, 0, 0, 0, 0), 'herbal': (0, 0, 0, 0, 0),                                          # steeped, leaves not eaten
+}
+# spice blends (garam masala, sambar powder, chaat masala, ...) and remaining dry spices: one consistent mixed-spice value
+_BLEND = (346, 12.0, 35.0, 12.0, 25.0)
+for _k, _c in CAT.items():
+    if _c['cat'] == 'spice' and (_c['kcal'], _c['p'], _c['c'], _c['f'], _c['fib']) == (300, 12, 50, 10, 25):
+        _c['kcal'], _c['p'], _c['c'], _c['f'], _c['fib'] = _SPICE.get(_k, _BLEND)
+for _k, _v in _SPICE.items():
+    if _k in CAT:
+        CAT[_k]['kcal'], CAT[_k]['p'], CAT[_k]['c'], CAT[_k]['f'], CAT[_k]['fib'] = _v
+# cocoa powder (USDA, unsweetened): available carbs = total 57.9 - fibre 37
+if 'cocoa' in CAT:
+    CAT['cocoa']['c'] = 20.9

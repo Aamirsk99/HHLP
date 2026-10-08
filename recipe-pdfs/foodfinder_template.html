@@ -7,8 +7,9 @@
 :root {
   --bg: #EEF3F8; --panel: #FFFFFF; --ink: #1E2A35; --muted: #5F6B76; --line: #D6E2EC; --accent: #0F6FB0; --accent-ink: #FFFFFF;
   --navy: #0B3B66; --sky: #29A8E0; --zebra: #F6F9FC; --kcal: #D9573A; --prot: #0E8A78; --chip: #E4EEF7; --focus: #29A8E0;
-  --display: 'DM Serif Display', Georgia, 'Times New Roman', serif;
-  --body: 'Lato', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --lang-font: ;
+  --display: var(--lang-font) 'DM Serif Display', Georgia, 'Times New Roman', serif;
+  --body: var(--lang-font) 'Lato', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0C1621; --panel: #13212F; --ink: #E3ECF4; --muted: #9DB0C1; --line: #24384B; --accent: #3FA2E0; --accent-ink: #06121D;
@@ -65,6 +66,32 @@ td.k { color: var(--kcal); font-weight: 700; } td.p { color: var(--prot); font-w
 .btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 700 .88rem var(--body); padding: 9px 10px; border-radius: 9px; cursor: pointer; }
 .note { font-size: .78rem; color: var(--muted); margin: 0; }
 .toast { font-size: .82rem; color: var(--accent); min-height: 1.1em; margin: 0; }
+.langbar { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 10px; justify-content: end; }
+@media (max-width: 600px) { .langbar { grid-template-columns: 1fr 1fr; } }
+td.name .l2 { display: block; font-weight: 400; color: var(--muted); font-size: .85rem; }
+.rlink { background: none; border: 0; padding: 0; font: inherit; color: inherit; text-align: start; cursor: pointer; text-decoration: underline; text-decoration-color: var(--line); text-underline-offset: 3px; }
+.rlink:hover { text-decoration-color: var(--accent); }
+.modal { position: fixed; inset: 0; background: rgba(6, 18, 29, .55); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.mbox { background: var(--panel); color: var(--ink); border-radius: 14px; width: min(760px, 100%); max-height: 90vh; overflow: auto; padding: 20px; display: grid; gap: 14px; }
+.mhead { display: flex; justify-content: space-between; gap: 12px; align-items: start; }
+.mhead h2 { font-family: var(--display); font-weight: 400; font-size: 1.7rem; margin: 2px 0 0; line-height: 1.15; }
+.mhead h2 .l2 { display: block; font-size: 1.05rem; color: var(--muted); font-family: var(--body); }
+.kick { font-size: .72rem; font-weight: 700; letter-spacing: .14em; text-transform: uppercase; color: var(--accent); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.facts span { background: var(--chip); border-radius: 99px; padding: 3px 10px; font-size: .82rem; }
+.nut { width: 100%; border-collapse: collapse; min-width: 0; }
+.nut th, .nut td { padding: 6px 8px; border-bottom: 1px solid var(--line); text-align: right; }
+.nut th:first-child, .nut td:first-child { text-align: start; }
+.rsec h3 { font-family: var(--display); font-weight: 400; font-size: 1.2rem; margin: 6px 0; }
+.ing { width: 100%; border-collapse: collapse; min-width: 0; }
+.ing td { padding: 5px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.ing td.q { text-align: end; white-space: nowrap; font-weight: 700; color: var(--accent); }
+.ing tr.gh td { font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: .75rem; letter-spacing: .08em; padding-top: 10px; }
+.ing small, .steps small { color: var(--muted); }
+.steps { margin: 0; padding-inline-start: 22px; display: grid; gap: 8px; }
+.steps b { display: block; }
+.l2i { color: var(--muted); }
+.wrap[data-nospace] * { letter-spacing: 0 !important; }
 </style>
 
 <div class="wrap">
@@ -75,6 +102,11 @@ td.k { color: var(--kcal); font-weight: 700; } td.p { color: var(--prot); font-w
     </div>
     <div class="count"><b id="total">0</b><span>foods</span></div>
   </header>
+
+  <div class="langbar">
+    <div class="f"><label for="lang">Language</label><select id="lang"></select></div>
+    <div class="f"><label for="lang2">Second language</label><select id="lang2"></select></div>
+  </div>
 
   <form class="bar" id="filters" aria-label="Search foods">
     <div class="f q"><label for="q">Search (English or Hindi)</label><input id="q" type="search" placeholder="e.g. paneer, rajma, bajra, chawal" autocomplete="off"></div>
@@ -109,8 +141,18 @@ td.k { color: var(--kcal); font-weight: 700; } td.p { color: var(--prot); font-w
   </div>
 </div>
 
+<div class="modal" id="modal" hidden>
+  <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="r-title">
+    <div class="mhead"><div><span class="kick" id="r-kick"></span><h2 id="r-title"></h2></div><button type="button" class="x" id="r-close" aria-label="Close">×</button></div>
+    <div id="r-body"></div>
+  </div>
+</div>
+
 <script>
 const DATA = /*__DATA__*/null;
+const I18N = /*__I18N__*/{};
+const RECIPES = DATA.recipes;   // { no: [serves, prep, cook, level, groups [[header, [[ingredient, qty, note]...]]], steps [[heading, text]]] }
+const TXT = DATA.txt;           // shared text table: indexes in RECIPES point here
 const C = Object.fromEntries(DATA.cols.map((c, i) => [c, i]));
 const F = DATA.rows.map(r => ({ id: r[C['ID']], name: r[C['Food']], hi: r[C['Hindi / local name']] || '', cat: r[C['Category']], src: r[C['Source']],
   diet: r[C['Diet']], basis: r[C['Basis']], measure: r[C['Household measure']] || '', k: r[C['Energy (kcal)']], p: r[C['Protein (g)']],
@@ -119,40 +161,168 @@ F.forEach(x => { x.s = (x.name + ' ' + x.hi + ' ' + x.local + ' ' + x.id).toLowe
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const fmt = (v, d = 0) => v == null ? '–' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: d, minimumFractionDigits: d });
+
+// ================= translation (same engine as the Diet Chart Maker) =================
+let LANG = 'en', LANG2 = '';
+const COMPILED = {};
+function compile(code) {
+  if (COMPILED[code]) return COMPILED[code];
+  const L = I18N[code] || { t: {}, w: {}, f: {} };
+  const Cc = { TR: {}, PATS: [], WORDS: {}, MAXW: 1 };
+  for (const [en, out] of Object.entries(Object.assign({}, L.f || {}, L.t || {}))) {
+    if (/\{\d+\}/.test(en)) {
+      const re = new RegExp('^' + en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{(\d+)\\\}/g, '(\\d+(?:[.,]\\d+)*)') + '$');
+      Cc.PATS.push([re, out]);
+    } else Cc.TR[en] = out;
+  }
+  for (const [en, out] of Object.entries(L.w || {})) { Cc.WORDS[en.toLowerCase()] = out; Cc.MAXW = Math.max(Cc.MAXW, en.split(' ').length); }
+  return (COMPILED[code] = Cc);
+}
+function trIn(s, code) {
+  if (!code || code === 'en' || s == null) return s;
+  const Cc = compile(code), k = String(s).trim();
+  if (!k) return s;
+  if (Cc.TR[k] !== undefined) return String(s).replace(k, Cc.TR[k]);
+  if (/\d/.test(k)) for (const [re, out] of Cc.PATS) { const m = k.match(re); if (m) return String(s).replace(k, out.replace(/\{(\d+)\}/g, (_, i) => m[+i + 1])); }
+  return s;
+}
+function trDishIn(name, code) {
+  if (!code || code === 'en') return name;
+  const Cc = compile(code);
+  if (!Object.keys(Cc.WORDS).length) return name;
+  const parts = name.split(/(\s+|[(),\/&+-])/).filter(p => p !== '');
+  const out = [];
+  for (let i = 0; i < parts.length;) {
+    if (!/[A-Za-z]/.test(parts[i])) { out.push(parts[i]); i++; continue; }
+    let done = false;
+    for (let n = Cc.MAXW; n >= 1 && !done; n--) {
+      const span = [], idx = [];
+      for (let j = i; j < parts.length && span.length < n; j++) { if (/[A-Za-z]/.test(parts[j])) { span.push(parts[j]); idx.push(j); } else if (!/^\s+$/.test(parts[j])) break; }
+      if (span.length === n) { const w = Cc.WORDS[span.join(' ').toLowerCase()]; if (w !== undefined) { out.push(w); i = idx[idx.length - 1] + 1; done = true; } }
+    }
+    if (!done) { out.push(parts[i]); i++; }
+  }
+  return out.join('').replace(/\s+/g, ' ').trim();
+}
+const tr = s => trIn(s, LANG);
+const nameIn = (x, code) => x.no ? trDishIn(x.name, code) : trIn(x.name, code);
+// text in the first language, with the second language after it (inline) or below it (block)
+function bi(en, block, dish) {
+  const one = dish ? trDishIn(en, LANG) : trIn(en, LANG);
+  const two = LANG2 ? (dish ? trDishIn(en, LANG2) : trIn(en, LANG2)) : '';
+  if (!two || two === one) return esc(one);
+  return `${esc(one)}<bdi class="${block ? 'l2' : 'l2i'}">${block ? '' : ' / '}${esc(two)}</bdi>`;
+}
+function loadFont(code) {
+  const L = I18N[code];
+  if (L && L.font && !document.getElementById('font-' + code)) {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.id = 'font-' + code;
+    l.href = 'https://fonts.googleapis.com/css2?family=' + L.font.replace(/ /g, '+') + ':wght@400;700&display=swap';
+    document.head.appendChild(l);
+  }
+}
+function setLang(code, code2) {
+  LANG = I18N[code] ? code : 'en';
+  LANG2 = code2 && code2 !== LANG && (I18N[code2] || code2 === 'en') ? code2 : '';
+  const L = I18N[LANG] || {}, L2 = I18N[LANG2] || {};
+  document.documentElement.lang = LANG;
+  const wrap = document.querySelector('.wrap');
+  wrap.setAttribute('dir', L.rtl ? 'rtl' : 'ltr');
+  $('modal').setAttribute('dir', L.rtl ? 'rtl' : 'ltr');
+  const nospace = c => { const X = I18N[c] || {}; return !!(X.indic || X.rtl || ['zh', 'ja'].includes(c)); };
+  wrap.toggleAttribute('data-nospace', nospace(LANG) || nospace(LANG2));
+  loadFont(LANG); loadFont(LANG2);
+  document.documentElement.style.setProperty('--lang-font', [L.font, L2.font].filter(Boolean).map(f => `'${f}', `).join(''));
+}
+function translateUI() {   // static labels, buttons, options and placeholders: first language
+  for (const root of [document.querySelector('header.top'), $('filters'), document.querySelector('.langbar'), document.querySelector('.rhead'),
+    document.querySelector('.results thead'), $('more'), document.querySelector('.tray')]) {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n; const nodes = [];
+    while ((n = w.nextNode())) nodes.push(n);
+    for (const node of nodes) {
+      if (node.parentElement.closest('#items, #shown, #total, .tot b, #toast, #lang, #lang2')) continue;
+      if (node._en === undefined) node._en = node.nodeValue;
+      if (node._en.trim()) node.nodeValue = tr(node._en);
+    }
+    root.querySelectorAll('[placeholder]').forEach(el => { if (el._en === undefined) el._en = el.placeholder; el.placeholder = tr(el._en); });
+  }
+}
+
+// ================= search and table =================
 $('total').textContent = F.length.toLocaleString('en-IN');
 const uniq = k => [...new Set(F.map(x => x[k]))].sort();
-$('source').innerHTML += uniq('src').map(v => `<option>${esc(v)}</option>`).join('');
-function fillCats() {
+function fillSelects() {
   const src = $('source').value, cur = $('cat').value;
+  $('source').innerHTML = `<option value="">${esc(tr('All sources'))}</option>` + uniq('src').map(v => `<option value="${esc(v)}"${v === src ? ' selected' : ''}>${esc(tr(v))}</option>`).join('');
   const cats = [...new Set(F.filter(x => !src || x.src === src).map(x => x.cat.split(' · ')[0]))].sort();
-  $('cat').innerHTML = '<option value="">All categories</option>' + cats.map(v => `<option${v === cur ? ' selected' : ''}>${esc(v)}</option>`).join('');
+  $('cat').innerHTML = `<option value="">${esc(tr('All categories'))}</option>` + cats.map(v => `<option value="${esc(v)}"${v === cur ? ' selected' : ''}>${esc(tr(v))}</option>`).join('');
 }
-fillCats();
 let limit = 100, list = [];
+function matches(x, w) {
+  if (x.s.includes(w)) return true;
+  if (LANG !== 'en' && nameIn(x, LANG).toLowerCase().includes(w)) return true;
+  return !!(LANG2 && LANG2 !== 'en' && nameIn(x, LANG2).toLowerCase().includes(w));
+}
 function filter() {
   const q = $('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean), src = $('source').value, cat = $('cat').value, diet = $('diet').value, sort = $('sort').value;
   const dietOk = x => !diet || (diet === 'Vegetarian' ? ['Vegan', 'Vegetarian'].includes(x.diet) : diet === 'Egg' ? x.diet !== 'Non-veg' : x.diet === diet);
-  list = F.filter(x => (!src || x.src === src) && (!cat || x.cat.split(' · ')[0] === cat) && dietOk(x) && q.every(w => x.s.includes(w)));
-  const by = { name: (a, b) => a.name.localeCompare(b.name), pdens: (a, b) => b.pd - a.pd, p: (a, b) => (b.p || 0) - (a.p || 0),
+  list = F.filter(x => (!src || x.src === src) && (!cat || x.cat.split(' · ')[0] === cat) && dietOk(x) && q.every(w => matches(x, w)));
+  const by = { name: (a, b) => nameIn(a, LANG).localeCompare(nameIn(b, LANG)), pdens: (a, b) => b.pd - a.pd, p: (a, b) => (b.p || 0) - (a.p || 0),
     klo: (a, b) => (a.k ?? 1e9) - (b.k ?? 1e9), khi: (a, b) => (b.k || 0) - (a.k || 0), fib: (a, b) => (b.fib || 0) - (a.fib || 0) }[sort];
   list.sort(by);
   limit = 100; draw();
 }
 function draw() {
-  const dietTag = d => `<span class="tag ${d === 'Non-veg' ? 'nv' : d === 'Egg' ? 'e' : 'v'}">${esc(d)}</span>`;
-  $('rows').innerHTML = list.slice(0, limit).map(x => `<tr><td class="name"><b>${esc(x.name)}${x.no ? ` <small>#${String(x.no).padStart(4, '0')}</small>` : ''}</b>`
-    + `<small>${dietTag(x.diet)}${x.hi ? esc(x.hi) + ' · ' : ''}${esc(x.id)}${x.measure ? ' · ' + esc(x.measure) : ''}</small></td>`
-    + `<td>${esc(x.cat)}</td><td>${esc(x.basis)}</td><td class="n k">${fmt(x.k)}</td><td class="n p">${fmt(x.p, 1)} g</td><td class="n">${fmt(x.c, 1)} g</td>`
-    + `<td class="n">${fmt(x.f, 1)} g</td><td class="n">${fmt(x.fib, 1)} g</td><td><button type="button" class="add" data-id="${esc(x.id)}" aria-label="Add ${esc(x.name)} to my meal">+ Add</button></td></tr>`).join('')
-    || '<tr><td colspan="9">No foods match. Try fewer words or another spelling (for example "dal" or "daal").</td></tr>';
-  $('shown').textContent = `${list.length.toLocaleString('en-IN')} foods${list.length > limit ? `, showing ${limit}` : ''}`;
+  const dietTag = d => `<span class="tag ${d === 'Non-veg' ? 'nv' : d === 'Egg' ? 'e' : 'v'}">${esc(tr(d))}</span>`;
+  const catText = c => c.split(' · ').map(x => esc(tr(x))).join(' · ');
+  $('rows').innerHTML = list.slice(0, limit).map(x => {
+    const name = bi(x.name, true, !!x.no);
+    return `<tr><td class="name"><b>${x.no ? `<button type="button" class="rlink" data-recipe="${x.no}">${name}</button> <small>#${String(x.no).padStart(4, '0')}</small>` : name}</b>`
+      + `<small>${dietTag(x.diet)}${x.hi ? esc(x.hi) + ' · ' : ''}${esc(x.id)}${x.measure ? ' · ' + esc(tr(x.measure)) : ''}</small></td>`
+      + `<td>${catText(x.cat)}</td><td>${esc(tr(x.basis))}</td><td class="n k">${fmt(x.k)}</td><td class="n p">${fmt(x.p, 1)} g</td><td class="n">${fmt(x.c, 1)} g</td>`
+      + `<td class="n">${fmt(x.f, 1)} g</td><td class="n">${fmt(x.fib, 1)} g</td><td><button type="button" class="add" data-id="${esc(x.id)}" aria-label="${esc(tr('Add to my meal'))}">${esc(tr('+ Add'))}</button></td></tr>`;
+  }).join('') || `<tr><td colspan="9">${esc(tr('No foods match. Try fewer words or another spelling (for example "dal" or "daal").'))}</td></tr>`;
+  $('shown').textContent = list.length > limit ? tr(`${list.length.toLocaleString('en-IN')} foods, showing ${limit}`) : tr(`${list.length.toLocaleString('en-IN')} foods`);
   $('more').hidden = list.length <= limit;
 }
-['q', 'source', 'cat', 'diet', 'sort'].forEach(id => $(id).addEventListener(id === 'q' ? 'input' : 'change', () => { if (id === 'source') fillCats(); filter(); }));
+['q', 'source', 'cat', 'diet', 'sort'].forEach(id => $(id).addEventListener(id === 'q' ? 'input' : 'change', () => { if (id === 'source') fillSelects(); filter(); }));
 $('filters').addEventListener('submit', e => e.preventDefault());
 $('more').addEventListener('click', () => { limit += 200; draw(); });
 
-// ---- my meal ----
+// ================= recipe view =================
+const byNo = Object.fromEntries(F.filter(x => x.no).map(x => [x.no, x]));
+function openRecipe(no) {
+  const x = byNo[no], R = RECIPES[no];
+  if (!x || !R) return;
+  const [serves, prep, cook, level, groups, steps] = R;
+  $('r-kick').innerHTML = `${esc(x.cat.split(' · ').map(tr).join(' · '))} · #${String(no).padStart(4, '0')}`;
+  $('r-title').innerHTML = bi(x.name, true, true);
+  const L = s => bi(s, false, false);
+  let h = `<div class="facts"><span>${L(`Serves ${serves}`)}</span><span>${L(`Prep ${prep} min`)}</span><span>${L(`Cook ${cook} min`)}</span><span>${L(level)}</span><span>${dietTagText(x.diet)}</span></div>`;
+  h += `<div class="tw"><table class="nut"><thead><tr><th>${L('Basis')}</th><th>kcal</th><th>${L('Protein')}</th><th>${L('Carbs')}</th><th>${L('Fat')}</th><th>${L('Fibre')}</th></tr></thead>`
+    + `<tbody><tr><td>${L('per serving')}</td><td>${fmt(x.k)}</td><td>${fmt(x.p, 1)} g</td><td>${fmt(x.c, 1)} g</td><td>${fmt(x.f, 1)} g</td><td>${fmt(x.fib, 1)} g</td></tr></tbody></table></div>`;
+  h += `<section class="rsec"><h3>${L('Ingredients')}</h3><div class="tw"><table class="ing"><tbody>`;
+  for (const [gh, items] of groups) {
+    h += `<tr class="gh"><td colspan="2">${L(TXT[gh])}</td></tr>`;
+    for (const [ing, qty, note] of items) {
+      h += `<tr><td>${bi(TXT[ing], false, false)}${note >= 0 ? ` <small>${L(TXT[note])}</small>` : ''}</td><td class="q">${L(qty)}</td></tr>`;
+    }
+  }
+  h += `</tbody></table></div></section>`;
+  h += `<section class="rsec"><h3>${L('Method')}</h3>${LANG !== 'en' ? `<p class="note">${esc(tr('The cooking steps are in English.'))}</p>` : ''}<ol class="steps">`
+    + steps.map(([hd, tx]) => `<li><b>${L(TXT[hd])}</b>${esc(TXT[tx])}</li>`).join('') + `</ol></section>`;
+  h += `<p class="note">${esc(tr('Values are estimates calculated from standard ingredient data (IFCT 2017 / USDA) for one serving.'))}</p>`;
+  $('r-body').innerHTML = h;
+  $('modal').hidden = false;
+  $('r-close').focus();
+}
+const dietTagText = d => esc(tr(d));
+$('rows').addEventListener('click', e => { const r = e.target.closest('[data-recipe]'); if (r) openRecipe(+r.dataset.recipe); });
+$('r-close').addEventListener('click', () => { $('modal').hidden = true; });
+$('modal').addEventListener('click', e => { if (e.target === $('modal')) $('modal').hidden = true; });
+document.addEventListener('keydown', e => { if (e.key === 'Escape') $('modal').hidden = true; });
+
+// ================= my meal =================
 const byId = Object.fromEntries(F.map(x => [x.id, x]));
 let meal = [];
 try { meal = JSON.parse(localStorage.getItem('hv-meal') || '[]').filter(m => byId[m.id]); } catch (e) { meal = []; }
@@ -160,9 +330,9 @@ const factor = m => byId[m.id].basis === 'per 100 g' ? m.amt / 100 : m.amt;
 function drawMeal() {
   $('empty').hidden = meal.length > 0;
   $('items').innerHTML = meal.map((m, i) => { const x = byId[m.id];
-    return `<div class="item"><span>${esc(x.name)}<small>${x.basis === 'per 100 g' ? 'grams' : 'servings'} · ${fmt(x.k * factor(m))} kcal · ${fmt((x.p || 0) * factor(m), 1)} g protein</small></span>`
-      + `<input type="number" min="0" step="${x.basis === 'per 100 g' ? 10 : 0.25}" value="${m.amt}" data-i="${i}" aria-label="Amount of ${esc(x.name)}" id="amt-${i}">`
-      + `<button type="button" class="x" data-x="${i}" aria-label="Remove ${esc(x.name)}">×</button></div>`; }).join('');
+    return `<div class="item"><span>${bi(x.name, true, !!x.no)}<small>${esc(tr(x.basis === 'per 100 g' ? 'grams' : 'servings'))} · ${fmt(x.k * factor(m))} kcal · ${fmt((x.p || 0) * factor(m), 1)} g ${esc(tr('protein'))}</small></span>`
+      + `<input type="number" min="0" step="${x.basis === 'per 100 g' ? 10 : 0.25}" value="${m.amt}" data-i="${i}" aria-label="${esc(tr('Amount'))}" id="amt-${i}">`
+      + `<button type="button" class="x" data-x="${i}" aria-label="${esc(tr('Remove'))}">×</button></div>`; }).join('');
   const t = { k: 0, p: 0, c: 0, f: 0, b: 0 };
   meal.forEach(m => { const x = byId[m.id], f = factor(m); t.k += (x.k || 0) * f; t.p += (x.p || 0) * f; t.c += (x.c || 0) * f; t.f += (x.f || 0) * f; t.b += (x.fib || 0) * f; });
   $('t-k').textContent = fmt(t.k); $('t-p').textContent = fmt(t.p); $('t-c').textContent = fmt(t.c); $('t-f').textContent = fmt(t.f); $('t-b').textContent = fmt(t.b);
@@ -170,15 +340,29 @@ function drawMeal() {
   return t;
 }
 $('rows').addEventListener('click', e => { const b = e.target.closest('[data-id]'); if (!b) return;
-  const x = byId[b.dataset.id]; meal.push({ id: x.id, amt: x.basis === 'per 100 g' ? 100 : 1 }); drawMeal(); $('toast').textContent = `Added ${x.name}.`; });
+  const x = byId[b.dataset.id]; meal.push({ id: x.id, amt: x.basis === 'per 100 g' ? 100 : 1 }); drawMeal(); $('toast').textContent = tr(`Added ${x.name}.`).replace(x.name, nameIn(x, LANG)); });
 $('items').addEventListener('input', e => { const i = e.target.dataset.i; if (i !== undefined) { meal[+i].amt = Math.max(0, +e.target.value || 0); const pos = e.target.selectionStart; drawMeal(); const el = $('amt-' + i); el.focus(); try { el.setSelectionRange(pos, pos); } catch (er) { /* number inputs */ } } });
 $('items').addEventListener('click', e => { const x = e.target.closest('[data-x]'); if (x) { meal.splice(+x.dataset.x, 1); drawMeal(); } });
-$('clear').addEventListener('click', () => { meal = []; drawMeal(); $('toast').textContent = 'Meal cleared.'; });
+$('clear').addEventListener('click', () => { meal = []; drawMeal(); $('toast').textContent = tr('Meal cleared.'); });
 $('copy').addEventListener('click', () => {
   const t = drawMeal();
-  const txt = 'My meal (Hindivine Food Finder)\n' + meal.map(m => { const x = byId[m.id]; return `- ${x.name}: ${m.amt}${x.basis === 'per 100 g' ? ' g' : ' serving(s)'} = ${fmt(x.k * factor(m))} kcal, ${fmt((x.p || 0) * factor(m), 1)} g protein`; }).join('\n')
-    + `\nTotal: ${fmt(t.k)} kcal, ${fmt(t.p)} g protein, ${fmt(t.c)} g carbs, ${fmt(t.f)} g fat, ${fmt(t.b)} g fibre\nwww.hindivine.com`;
-  navigator.clipboard.writeText(txt).then(() => { $('toast').textContent = 'Meal copied.'; }, () => { $('toast').textContent = 'Copy is blocked here; select the totals and copy them instead.'; });
+  const txt = `${tr('My meal')} (Hindivine Food Finder)\n` + meal.map(m => { const x = byId[m.id]; return `- ${nameIn(x, LANG)}: ${m.amt}${x.basis === 'per 100 g' ? ' g' : ' × ' + tr('serving')} = ${fmt(x.k * factor(m))} kcal, ${fmt((x.p || 0) * factor(m), 1)} g ${tr('protein')}`; }).join('\n')
+    + `\n${tr('Total')}: ${fmt(t.k)} kcal, ${fmt(t.p)} g ${tr('protein')}, ${fmt(t.c)} g ${tr('carbs')}, ${fmt(t.f)} g ${tr('fat')}, ${fmt(t.b)} g ${tr('fibre')}\nwww.hindivine.com`;
+  navigator.clipboard.writeText(txt).then(() => { $('toast').textContent = tr('Meal copied.'); }, () => { $('toast').textContent = tr('Copy is blocked here; select the totals and copy them instead.'); });
 });
-filter(); drawMeal();
+
+// ================= language menus =================
+let LS = { lang: 'en', lang2: '' };
+try { Object.assign(LS, JSON.parse(localStorage.getItem('hv-ff-lang') || '{}')); } catch (e) { /* storage unavailable */ }
+const langOpts = first => (first ? '' : '<option value="">None</option><option value="en">English</option>') + (first ? '<option value="en">English</option>' : '')
+  + Object.entries(I18N).map(([k, L]) => `<option value="${k}">${esc(L.name)}</option>`).join('');
+$('lang').innerHTML = langOpts(true); $('lang2').innerHTML = langOpts(false);
+$('lang').value = I18N[LS.lang] ? LS.lang : 'en'; $('lang2').value = LS.lang2 && (I18N[LS.lang2] || LS.lang2 === 'en') ? LS.lang2 : '';
+function applyLang() {
+  setLang($('lang').value, $('lang2').value);
+  translateUI(); fillSelects(); filter(); drawMeal();
+  try { localStorage.setItem('hv-ff-lang', JSON.stringify({ lang: $('lang').value, lang2: $('lang2').value })); } catch (e) { /* storage unavailable */ }
+}
+$('lang').addEventListener('change', applyLang); $('lang2').addEventListener('change', applyLang);
+applyLang();
 </script>

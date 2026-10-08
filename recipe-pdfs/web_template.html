@@ -23,6 +23,26 @@
   --chip: #1B3045; --focus: #8FD3F4; color-scheme: dark }
 * { box-sizing: border-box }
 [hidden] { display: none !important }
+.ed { display: flex; gap: 4px; margin-top: 4px; flex-wrap: nowrap; }
+.eb { border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 700 .78rem var(--body); border-radius: 6px; min-width: 24px; padding: 2px 6px; cursor: pointer; }
+.eb.wide { padding: 2px 9px; }
+.paper .eb { border-color: #C9D9E6; background: #fff; color: #0B3B66; }
+tr.addrow td { padding-block: 4px 8px; }
+.daytbl { min-width: 760px; }
+.row2 .field { min-width: 0; }
+.modal { position: fixed; inset: 0; background: rgba(6, 18, 29, .55); display: grid; place-items: center; padding: 16px; z-index: 50; }
+.mbox { background: var(--panel); color: var(--ink); border-radius: 14px; width: min(560px, 100%); max-height: 88vh; overflow: auto; padding: 18px; display: grid; gap: 10px; }
+.mhead { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.mhead h3 { margin: 0; font-family: var(--display); font-weight: 400; font-size: 1.35rem; }
+.mlist { display: grid; gap: 6px; }
+.mi { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; align-items: center; text-align: start; border: 1px solid var(--line); background: var(--panel); color: var(--ink); border-radius: 9px; padding: 8px 10px; cursor: pointer; font: 400 .9rem var(--body); }
+.mi:hover { border-color: var(--accent); }
+.mi small { color: var(--muted); display: block; font-size: .76rem; }
+.mi b.k { font-variant-numeric: tabular-nums; font-size: .82rem; white-space: nowrap; }
+@media print { .ed, tr.addrow, .modal { display: none !important; } }
+.l2 { opacity: .78; font-weight: 400; unicode-bidi: isolate; }
+.l2.blk { display: block; font-size: .92em; margin-top: 2px; }
+th .l2, .chip .l2, .kick .l2, small .l2 { opacity: .85; }
 /* Indian, Arabic and East Asian scripts: no letter-spacing (it breaks joined letters) */
 .app[data-nospace] * { letter-spacing: 0 !important; }
 body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
@@ -190,6 +210,10 @@ details.more .inner { display: grid; gap: 10px; padding-bottom: 12px; }
       <select id="lang"></select>
     </div>
     <div class="field">
+      <label class="label" for="lang2">Second language on the chart</label>
+      <select id="lang2"></select>
+    </div>
+    <div class="field">
       <label class="label" for="type">Type of diet</label>
       <select id="type"></select>
     </div>
@@ -230,7 +254,7 @@ details.more .inner { display: grid; gap: 10px; padding-bottom: 12px; }
       <summary>Meal pattern <small id="pattern-sum"></small></summary>
       <div class="inner">
         <div class="field"><label class="label" for="meals">Meals a day</label>
-          <select id="meals"><option value="7">7 (early morning to bedtime)</option><option value="5">5 (3 meals + 2 snacks)</option><option value="3">3 (breakfast, lunch, dinner)</option></select></div>
+          <select id="meals"><option value="2">2 (lunch and dinner)</option><option value="3">3 (breakfast, lunch, dinner)</option><option value="4">4 (3 meals + evening snack)</option><option value="5">5 (3 meals + 2 snacks)</option><option value="6">6 (early morning drink, 3 meals, 2 snacks)</option><option value="7">7 (early morning to bedtime)</option><option value="8">8 (early morning to bedtime, 3 snacks)</option></select></div>
         <div class="field"><label class="label" for="lunch">Lunch combination</label>
           <select id="lunch"><option value="mix">Mixed through the week</option><option value="roti">Dal or curry + roti + salad</option><option value="rice">Dal or curry + rice + salad</option><option value="sabzi">Dal or curry + sabzi + roti</option><option value="onepot">Khichdi or one-pot + raita / salad</option></select></div>
         <div class="field"><label class="label" for="dinner">Dinner combination</label>
@@ -271,6 +295,10 @@ details.more .inner { display: grid; gap: 10px; padding-bottom: 12px; }
         <button type="button" class="btn" id="again">New menu</button>
         <button type="button" class="btn" id="restart">Back to Day 1</button>
       </div>
+      <div class="btnrow">
+        <button type="button" class="btn" id="edit" aria-pressed="false">Edit menu</button>
+        <button type="button" class="btn" id="undo">Undo my changes</button>
+      </div>
       <button type="button" class="btn" id="print">Print / Save as PDF</button>
       <button type="button" class="btn" id="copy">Copy chart as text</button>
       <p class="toast" id="toast" role="status"></p>
@@ -278,6 +306,31 @@ details.more .inner { display: grid; gap: 10px; padding-bottom: 12px; }
     <p class="note">Values are estimates from IFCT 2017 / USDA data. Charts are general guidance; people with medical conditions, or after surgery or a procedure, should follow their doctor's or dietitian's protocol.</p>
   </form>
   <div class="paper-wrap"><article class="paper" id="paper" aria-live="polite"></article></div>
+  <div class="modal" id="modal" hidden>
+    <div class="mbox" role="dialog" aria-modal="true" aria-labelledby="m-title">
+      <div class="mhead"><h3 id="m-title">Add food</h3><button type="button" class="eb" id="m-close" aria-label="Close">×</button></div>
+      <label class="label" for="m-q">Search dishes and foods</label>
+      <input type="search" id="m-q" placeholder="e.g. paneer, dal, apple, oats" autocomplete="off">
+      <p class="note" id="m-hint">Suggestions</p>
+      <div class="mlist" id="m-list"></div>
+      <details class="more" id="m-manual">
+        <summary>Add your own item</summary>
+        <div class="inner">
+          <div class="field"><label class="label" for="mm-name">Food name</label><input type="text" id="mm-name" placeholder="e.g. Homemade vegetable sandwich"></div>
+          <div class="field"><label class="label" for="mm-qty">Amount</label><input type="text" id="mm-qty" placeholder="e.g. 1 plate, 2 pieces, 150 g"></div>
+          <div class="row2">
+            <div class="field"><label class="label" for="mm-k">kcal</label><input type="number" id="mm-k" min="0" step="1"></div>
+            <div class="field"><label class="label" for="mm-p">Protein (g)</label><input type="number" id="mm-p" min="0" step="0.1"></div>
+            <div class="field"><label class="label" for="mm-c">Carbs (g)</label><input type="number" id="mm-c" min="0" step="0.1"></div>
+            <div class="field"><label class="label" for="mm-f">Fat (g)</label><input type="number" id="mm-f" min="0" step="0.1"></div>
+            <div class="field"><label class="label" for="mm-fib">Fibre (g)</label><input type="number" id="mm-fib" min="0" step="0.1"></div>
+          </div>
+          <button type="button" class="btn primary" id="mm-add">Add this item</button>
+          <p class="warn" id="mm-err" hidden></p>
+        </div>
+      </details>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -287,66 +340,106 @@ const LOGO = '__LOGO__';
 const I18N = /*__I18N__*/{};   // { code: { name, font, rtl, t: {english: translation}, w: {english word or phrase: translation} } }
 
 // ================= translation =================
-let LANG = 'en', TR = {}, PATS = [], WORDS = {}, MAXW = 1;
-const NUM = /\d+(?:[.,]\d+)*/g;
-function setLang(code) {
-  LANG = I18N[code] ? code : 'en';
-  const L = I18N[LANG] || { t: {}, w: {} };
-  TR = {}; PATS = [];
-  for (const [en, out] of Object.entries(L.t || {})) {
+// Every English text on the page is looked up in the chosen language (I18N[code].t, .f for food names; {0} = a number);
+// dish names are translated word by word (I18N[code].w). A second language can be shown under or beside the first.
+let LANG = 'en', LANG2 = '';
+const COMPILED = {};
+function compile(code) {
+  if (COMPILED[code]) return COMPILED[code];
+  const L = I18N[code] || { t: {}, w: {}, f: {} };
+  const C = { TR: {}, PATS: [], WORDS: {}, MAXW: 1, L };
+  for (const [en, out] of Object.entries(Object.assign({}, L.f || {}, L.t || {}))) {
     if (/\{\d+\}/.test(en)) {
       const re = new RegExp('^' + en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{(\d+)\\\}/g, '(\\d+(?:[.,]\\d+)*)') + '$');
-      PATS.push([re, out]);
-    } else TR[en] = out;
+      C.PATS.push([re, out]);
+    } else C.TR[en] = out;
   }
-  WORDS = {}; MAXW = 1;
-  for (const [en, out] of Object.entries(L.w || {})) { WORDS[en.toLowerCase()] = out; MAXW = Math.max(MAXW, en.split(' ').length); }
-  document.documentElement.lang = LANG;
-  const dir = L.rtl ? 'rtl' : 'ltr';
-  document.querySelector('.app').setAttribute('dir', dir);
-  document.querySelector('.app').toggleAttribute('data-nospace', !!(L.indic || L.rtl || ['zh', 'ja'].includes(LANG)));
-  if (L.font && !document.getElementById('font-' + LANG)) {
-    const l = document.createElement('link'); l.rel = 'stylesheet'; l.id = 'font-' + LANG;
-    l.href = 'https://fonts.googleapis.com/css2?family=' + L.font.replace(/ /g, '+') + ':wght@400;700&display=swap';
-    document.head.appendChild(l);
-  }
-  document.documentElement.style.setProperty('--lang-font', L.font ? `'${L.font}', ` : '');
+  for (const [en, out] of Object.entries(L.w || {})) { C.WORDS[en.toLowerCase()] = out; C.MAXW = Math.max(C.MAXW, en.split(' ').length); }
+  return (COMPILED[code] = C);
 }
-function tr(s) {
-  if (LANG === 'en' || s == null) return s;
-  const k = String(s).trim();
+function trIn(s, code) {
+  if (!code || code === 'en' || s == null) return s;
+  const C = compile(code), k = String(s).trim();
   if (!k) return s;
-  if (TR[k] !== undefined) return String(s).replace(k, TR[k]);
-  if (/\d/.test(k)) for (const [re, out] of PATS) { const m = k.match(re); if (m) return String(s).replace(k, out.replace(/\{(\d+)\}/g, (_, i) => m[+i + 1])); }
+  if (C.TR[k] !== undefined) return String(s).replace(k, C.TR[k]);
+  if (/\d/.test(k)) for (const [re, out] of C.PATS) { const m = k.match(re); if (m) return String(s).replace(k, out.replace(/\{(\d+)\}/g, (_, i) => m[+i + 1])); }
   return s;
 }
-function trDish(name) {
-  if (LANG === 'en' || !Object.keys(WORDS).length) return name;
+function trDishIn(name, code) {
+  if (!code || code === 'en') return name;
+  const C = compile(code);
+  if (!Object.keys(C.WORDS).length) return name;
   const parts = name.split(/(\s+|[(),\/&+-])/).filter(p => p !== '');
   const out = [];
   for (let i = 0; i < parts.length;) {
     if (!/[A-Za-z]/.test(parts[i])) { out.push(parts[i]); i++; continue; }
     let done = false;
-    for (let n = MAXW; n >= 1 && !done; n--) {     // longest phrase first, e.g. "Little Millet" before "Little"
+    for (let n = C.MAXW; n >= 1 && !done; n--) {     // longest phrase first, e.g. "Little Millet" before "Little"
       const span = [], idx = [];
       for (let j = i; j < parts.length && span.length < n; j++) { if (/[A-Za-z]/.test(parts[j])) { span.push(parts[j]); idx.push(j); } else if (!/^\s+$/.test(parts[j])) break; }
-      if (span.length === n) { const w = WORDS[span.join(' ').toLowerCase()]; if (w !== undefined) { out.push(w); i = idx[idx.length - 1] + 1; done = true; } }
+      if (span.length === n) { const w = C.WORDS[span.join(' ').toLowerCase()]; if (w !== undefined) { out.push(w); i = idx[idx.length - 1] + 1; done = true; } }
     }
     if (!done) { out.push(parts[i]); i++; }
   }
   return out.join('').replace(/\s+/g, ' ').trim();
 }
-function translateAll() {
-  for (const root of [document.querySelector('.rail'), document.getElementById('paper')]) {
+const tr = s => trIn(s, LANG);
+const trDish = n => trDishIn(n, LANG);
+function loadFont(code) {
+  const L = I18N[code];
+  if (L && L.font && !document.getElementById('font-' + code)) {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.id = 'font-' + code;
+    l.href = 'https://fonts.googleapis.com/css2?family=' + L.font.replace(/ /g, '+') + ':wght@400;700&display=swap';
+    document.head.appendChild(l);
+  }
+}
+function setLang(code, code2) {
+  LANG = I18N[code] ? code : 'en';
+  LANG2 = code2 && code2 !== LANG && (I18N[code2] || code2 === 'en') ? code2 : '';
+  const L = I18N[LANG] || {}, L2 = I18N[LANG2] || {};
+  document.documentElement.lang = LANG;
+  const app = document.querySelector('.app');
+  app.setAttribute('dir', L.rtl ? 'rtl' : 'ltr');
+  const nospace = c => { const X = I18N[c] || {}; return !!(X.indic || X.rtl || ['zh', 'ja'].includes(c)); };
+  app.toggleAttribute('data-nospace', nospace(LANG) || nospace(LANG2));
+  loadFont(LANG); loadFont(LANG2);
+  const fonts = [L.font, L2.font].filter(Boolean).map(f => `'${f}', `).join('');
+  document.documentElement.style.setProperty('--lang-font', fonts);
+}
+function translateAll(chart = true) {
+  // controls: first language only
+  const rail = document.querySelector('.rail'), modal = document.getElementById('modal');
+  for (const root of [rail, modal]) {
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
     const nodes = []; let n; while ((n = walker.nextNode())) nodes.push(n);
     for (const node of nodes) {
+      if (node.parentElement && node.parentElement.closest('.mlist')) continue;
       if (node._en === undefined) node._en = node.nodeValue;
-      const src = node._en;
-      if (!src.trim()) continue;
-      node.nodeValue = node.parentElement && node.parentElement.closest('.dn') ? src.replace(src.trim(), trDish(src.trim())) : tr(src);
+      if (node._en.trim()) node.nodeValue = tr(node._en);
     }
     root.querySelectorAll('[placeholder]').forEach(el => { if (el._en === undefined) el._en = el.placeholder; el.placeholder = tr(el._en); });
+  }
+  // chart: first language, plus the second language under or beside it
+  if (!chart) return;
+  const paper = document.getElementById('paper');
+  const walker = document.createTreeWalker(paper, NodeFilter.SHOW_TEXT);
+  const nodes = []; let n; while ((n = walker.nextNode())) nodes.push(n);
+  for (const node of nodes) {
+    const src = node.nodeValue, key = src.trim();
+    if (!key || !/[A-Za-z]/.test(key) || !node.parentElement || node.parentElement.closest('button, .bi')) continue;
+    const dish = !!node.parentElement.closest('.dn');
+    const one = dish ? trDishIn(key, LANG) : trIn(key, LANG);
+    const two = LANG2 ? (dish ? trDishIn(key, LANG2) : trIn(key, LANG2)) : '';
+    if (!two || two === one || node.parentElement.closest('.status, .dayhead > span, .tile, .side')) { node.nodeValue = src.replace(key, one); continue; }
+    const block = key.length > 38 || !!node.parentElement.closest('li, p.lead, p.best, .disc, .stages td, .checkline');
+    const span = document.createElement('span');
+    span.className = 'bi';
+    span.textContent = src.replace(key, one);
+    const sec = document.createElement('bdi');
+    sec.className = block ? 'l2 blk' : 'l2';
+    sec.textContent = block ? two : ' / ' + two;
+    span.appendChild(sec);
+    node.replaceWith(span);
   }
 }
 
@@ -377,11 +470,18 @@ const STAGE_FOOD = {
 const CLEAR = [['Warm water with a squeeze of lemon, no sugar (200 ml)', 2, 0], ['Clear vegetable soup, strained (150 ml)', 20, 0.5],
   ['Coconut water (150 ml)', 29, 0.3], ['Dal water: thin moong dal water, strained (150 ml)', 35, 2.2], ['Sugar-free electrolyte or ORS water (200 ml)', 0, 0],
   ['Clear vegetable soup, strained (150 ml)', 20, 0.5], ['Dal water: thin moong dal water, strained (150 ml)', 35, 2.2], ['Jeera or chamomile water (200 ml)', 2, 0]];
-// macros of add-ons and simple items: carbs, fat (g)
-const MAC = { 'Pea protein': [1, 2], 'Whey protein': [3, 1.5], 'Grilled chicken': [0, 3.6], 'Grilled fish': [0, 2.7], 'Boiled egg whites': [0.7, 0.2],
-  'Low-fat hung curd': [5.4, 0.6], 'Soya chunks': [8, 0.1], 'Firm tofu': [2.8, 8.7], 'Boiled whole eggs': [1.1, 10.6], 'Unsweetened soy milk': [4, 4],
-  'Skimmed milk': [12.5, 0.3], 'Roasted chana': [17, 1.5], 'Low-fat lassi': [5.4, 0.6] };
-const mac = name => { for (const k in MAC) if (name.startsWith(k)) return MAC[k]; return [0, 0]; };
+// Carbs (available), fat and fibre in grams for add-ons and simple items, for the portion listed in the name.
+// Toned milk 4.7 g carbs / 3 g fat per 100 ml, double-toned 4.7 / 1.5, unsweetened soy milk 1.6 / 1.6, almond milk 0.3 / 1.1,
+// almond 1 nut = 0.3 / 0.6 / 0.15; soya chunks dry 21 / 0.5 / 13 per 100 g; roasted chana 58 / 5.2 / 18; others from labels / USDA.
+const MAC = { 'Pea protein': [1, 2, 0.5], 'Whey protein': [3, 1.5, 0], 'Grilled chicken': [0, 3.6, 0], 'Grilled fish': [0, 2.7, 0],
+  'Boiled egg whites': [0.7, 0.2, 0], 'Low-fat hung curd': [5.4, 0.6, 0], 'Soya chunks': [5.3, 0.1, 3.3], 'Firm tofu': [2.8, 8.7, 0.3],
+  'Boiled whole eggs': [1.1, 10.6, 0], 'Unsweetened soy milk, 250': [4, 4, 1.5], 'Skimmed milk': [12.5, 0.3, 0], 'Roasted chana': [17.4, 1.6, 5.4],
+  'Low-fat lassi': [5.4, 0.6, 0], 'Warm toned milk': [7.1, 4.5, 0], 'Warm double-toned milk': [7.1, 2.3, 0], 'Warm unsweetened soy milk': [2.4, 2.4, 0.9],
+  'Warm unsweetened almond milk': [0.5, 1.7, 0.3], '4 soaked almonds': [1.4, 3.9, 0.8], 'Chamomile or tulsi': [0.6, 0, 0],
+  'Warm water with lemon': [1.5, 0, 0], 'Warm water with a squeeze': [0.5, 0, 0], 'Clear vegetable soup': [4, 0.1, 0.5], 'Coconut water': [5.6, 0.3, 0.2],
+  'Dal water': [5.5, 0.2, 0.5], 'Sugar-free electrolyte': [0, 0, 0], 'Jeera or chamomile': [0.5, 0, 0] };
+const mac = name => { for (const k in MAC) if (name.startsWith(k)) return MAC[k]; return [0, 0, 0]; };
+const simple = (name, k, p, extra = {}) => { const [c, f, fib] = mac(name); return { r: null, name, k, p, c, f, fib, m: 1, fixed: true, base: true, ...extra }; };
 const ALLD = ['vegan', 'veg', 'egg', 'nonveg'];
 const ADDONS = DATA.addons.concat([['Low-fat lassi: 150 g hung curd blended with water', 89, 15.3, ['veg', 'egg', 'nonveg'], ['mid', 'evening']]]);
 const LIQ_ADD = ['Pea protein', 'Whey protein', 'Unsweetened soy milk', 'Skimmed milk', 'Low-fat lassi'];
@@ -487,8 +587,7 @@ function reachProtein(plan, kcal, pdiet, target, di, allowedNames, lo, hi) {
     // put it in its usual slot if the day has one, otherwise the meal with the fewest add-ons
     let slot = a[4].map(s => bySlot[s]).filter(Boolean)[(count[a[0]] - 1) % Math.max(1, a[4].filter(s => bySlot[s]).length)];
     if (!slot || allowedNames) slot = slotsFree.reduce((x, y) => y.items.filter(i => i.addon).length < x.items.filter(i => i.addon).length ? y : x);
-    const [c, f] = mac(a[0]);
-    slot.items.push({ r: null, name: a[0], k: a[1], p: a[2], c, f, m: 1, fixed: true, addon: true });
+    slot.items.push(simple(a[0], a[1], a[2], { base: false, addon: true }));
     fit(plan, kcal, lo, hi);
   }
 }
@@ -500,6 +599,13 @@ function bandFor(protein, kcal, pdiet, slot) {
 }
 
 const REG_SLOTS = { 7: DATA.slots.map(s => [...s]),
+  8: [['early', '6:30 AM', 'Early Morning', 0.02], ['breakfast', '8:30 AM', 'Breakfast', 0.2], ['mid', '11:00 AM', 'Mid-Morning', 0.08],
+      ['lunch', '1:30 PM', 'Lunch', 0.27], ['afternoon', '3:30 PM', 'Afternoon Snack', 0.08], ['evening', '5:30 PM', 'Evening Snack', 0.08],
+      ['dinner', '8:00 PM', 'Dinner', 0.23], ['bedtime', '9:30 PM', 'Bedtime', 0.04]],
+  6: [['early', '6:30 AM', 'Early Morning', 0.02], ['breakfast', '8:30 AM', 'Breakfast', 0.23], ['mid', '11:00 AM', 'Mid-Morning', 0.1],
+      ['lunch', '1:30 PM', 'Lunch', 0.3], ['evening', '4:30 PM', 'Evening Snack', 0.1], ['dinner', '7:30 PM', 'Dinner', 0.25]],
+  4: [['breakfast', '8:30 AM', 'Breakfast', 0.25], ['lunch', '1:30 PM', 'Lunch', 0.35], ['evening', '4:30 PM', 'Evening Snack', 0.12], ['dinner', '7:30 PM', 'Dinner', 0.28]],
+  2: [['lunch', '12:30 PM', 'Lunch', 0.55], ['dinner', '7:30 PM', 'Dinner', 0.45]],
   5: [['breakfast', '8:30 AM', 'Breakfast', 0.25], ['mid', '11:00 AM', 'Mid-Morning', 0.1], ['lunch', '1:30 PM', 'Lunch', 0.3], ['evening', '4:30 PM', 'Evening Snack', 0.1], ['dinner', '7:30 PM', 'Dinner', 0.25]],
   3: [['breakfast', '8:30 AM', 'Breakfast', 0.3], ['lunch', '1:30 PM', 'Lunch', 0.4], ['dinner', '7:30 PM', 'Dinner', 0.3]] };
 const PROC_SLOTS = [['breakfast', '8:00 AM', 'Breakfast', 0.22], ['mid', '10:30 AM', 'Mid-Morning', 0.14], ['lunch', '1:00 PM', 'Lunch', 0.26],
@@ -533,7 +639,7 @@ function dayPlan(rnd, o, di, used) {
   const meta = { absDay, texture, kcal, protein, stage, pref, diet };
   const plan = [];
   if (texture === 'clear') {
-    CLEAR.forEach(([nm, k, p], i) => { const s = LIQ_SLOTS[i]; plan.push({ slot: s[0], time: s[1], label: s[2], share: 0, items: [{ r: null, name: nm, k, p, m: 1, fixed: true, base: true }] }); });
+    CLEAR.forEach(([nm, k, p], i) => { const s = LIQ_SLOTS[i]; plan.push({ slot: s[0], time: s[1], label: s[2], share: 0, items: [simple(nm, k, p)] }); });
     return { plan, meta };
   }
   const small = TEXTURED.includes(o.type);
@@ -564,7 +670,7 @@ function dayPlan(rnd, o, di, used) {
     let comps = [];
     if (slot === 'early') comps = ['early'];
     else if (slot === 'breakfast') comps = [soft ? (di % 2 ? 'porridge' : 'breakfast') : eggDay ? 'eggbf' : 'breakfast'];
-    else if (slot === 'mid') comps = [soft ? 'ldrink' : 'mid'];
+    else if (slot === 'mid' || slot === 'afternoon') comps = [soft ? 'ldrink' : 'mid'];
     else if (slot === 'lunch') {
       const main = nvDay && di % 2 === 0 ? 'nvmain' : 'main';
       let l = o.lunch === 'mix' ? ['roti', 'rice', 'sabzi'][di % 3] : o.lunch;
@@ -580,7 +686,7 @@ function dayPlan(rnd, o, di, used) {
     } else if (slot === 'bedtime') {
       const opts = DATA.bedtime.filter(b => b[3].includes(diet) && !b[4].includes(o.focusMask) && !(o.avoidMask & (1 << 2) && /milk/.test(b[0]) && !/soy|almond/.test(b[0])));
       const [nm, kc, pr] = opts[absDay % opts.length];
-      plan.push({ slot, time, label, share, items: [{ r: null, name: nm, k: kc, p: pr, m: 1, fixed: true, base: true }] });
+      plan.push({ slot, time, label, share, items: [simple(nm, kc, pr)] });
       continue;
     }
     const items = [];
@@ -590,7 +696,7 @@ function dayPlan(rnd, o, di, used) {
       if (!r && (pname === 'nvmain' || pname === 'eggbf')) r = pick(rnd, pname === 'nvmain' ? 'main' : 'breakfast', ctx, used, o.pref);
       if (!r && pname === 'onepot') r = pick(rnd, 'rice', ctx, used, o.pref);
       if (!r && vrat && ['breakfast', 'lunch', 'dinner'].includes(slot)) r = pick(rnd, 'breakfast', ctx, used, o.pref);
-      if (!r) { if (DATA.plain[slot]) { const [nm, kc, pr] = DATA.plain[slot]; items.push({ r: null, name: nm, k: kc, p: pr, m: 1, fixed: true, base: true }); } continue; }
+      if (!r) { if (DATA.plain[slot]) { const [nm, kc, pr] = DATA.plain[slot]; items.push(simple(nm, kc, pr)); } continue; }
       if (slot === 'early') items.push({ r, name: r.name, k: r.k, p: r.p, c: r.c, f: r.f, fib: r.fib, m: 1, fixed: true, base: true });
       else addItem(items, r);
     }
@@ -616,6 +722,14 @@ function portion(m) {
   return `${(w ? String(w) : '') + f || '¼'} serving${m > 1 ? 's' : ''}`;
 }
 const n0 = x => Math.round(x).toLocaleString('en-IN');
+const n1 = x => (Math.round(x * 10) / 10).toLocaleString('en-IN', { maximumFractionDigits: 1 });
+let editing = false;
+function portionText(i) {
+  if (i.r) return portion(i.m);
+  if (i.unit === 'g') return `${Math.round(i.m * 100)} g`;
+  if (i.qty) return i.m === 1 ? i.qty : `${i.qty} ×${n1(i.m)}`;
+  return i.m === 1 ? 'as listed' : `×${n1(i.m)}`;
+}
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 function dateOf(o, absDay) {
   if (!o.start) return '';
@@ -720,19 +834,24 @@ function render(o, res) {
     const t = tots[di], m = d.meta, [sc, sl] = statuses[di];
     const tags = [o.start ? dateOf(o, m.absDay) : '', m.stage ? STAGE_NAME[m.texture] : '', m.pref === 'vrat' ? 'Fasting (vrat) day' : m.pref === 'light' ? 'Light day' : '',
       m.pref && ['veg', 'egg', 'nonveg'].includes(m.pref) && m.diet !== o.diet ? `${DIET_NAME[m.diet]} day` : ''].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join(' · ');
-    h += `<section class="day${di % 2 === 0 ? ' page-break' : ''}"><div class="tbl-wrap"><div class="dayhead"><b>Day ${m.absDay}${tags ? `<em>${tags}</em>` : ''}</b><span>${n0(t.kcal)} kcal · ${n0(t.p)} g protein<span class="status ${sc}">${esc(sl)}</span></span></div><table><thead><tr><th>Time</th><th>Meal</th><th>What to eat</th><th class="n">Portion</th><th class="n">kcal</th><th class="n">Protein</th></tr></thead>`;
+    h += `<section class="day${di % 2 === 0 ? ' page-break' : ''}"><div class="tbl-wrap"><div class="dayhead"><b>Day ${m.absDay}${tags ? `<em>${tags}</em>` : ''}</b><span>${n0(t.kcal)} kcal · ${n0(t.p)} g protein<span class="status ${sc}">${esc(sl)}</span></span></div><table class="daytbl"><thead><tr><th>Time</th><th>Meal</th><th>What to eat</th><th class="n">Portion</th><th class="n">kcal</th><th class="n">Protein</th><th class="n">Carbs</th><th class="n">Fat</th><th class="n">Fibre</th></tr></thead>`;
     d.plan.forEach((s, si) => {
-      if (!s.items.length) return;
+      if (!s.items.length && !editing) return;
       h += `<tbody${si % 2 ? ' class="z"' : ''}>`;
+      if (!s.items.length) h += `<tr class="first last"><td class="time">${s.time}</td><td class="meal">${s.label}</td><td colspan="7" class="rn">–</td></tr>`;
       s.items.forEach((i, k) => {
         const what = i.r ? `<span class="dn">${esc(i.name)}</span> <span class="rn">#${String(i.r.no).padStart(4, '0')}</span>${m.texture === 'liquid' && i.r.cat !== 'Drinks & Smoothies' ? ' <span class="add">blend smooth</span>' : m.texture === 'semi' && !['Drinks & Smoothies', 'Soups'].includes(i.r.cat) ? ' <span class="add">mash or blend</span>' : ''}`
           : i.addon ? `<span class="plus">+</span> ${esc(i.name)} <span class="add">protein add-on</span>` : esc(i.name);
         const cls = [k === 0 ? 'first' : '', k === s.items.length - 1 ? 'last' : ''].join(' ').trim();
-        h += `<tr${cls ? ` class="${cls}"` : ''}><td class="time">${k === 0 ? s.time : ''}</td><td class="meal">${k === 0 ? s.label : ''}</td><td>${what}</td><td class="n">${i.r ? portion(i.m) : 'as listed'}</td><td class="n">${n0(i.k * i.m)}</td><td class="n">${n0(i.p * i.m)} g</td></tr>`;
+        const ref = `data-d="${di}" data-s="${si}" data-i="${k}"`;
+        const ed = editing ? `<span class="ed"><button type="button" class="eb" data-act="minus" ${ref} aria-label="Smaller portion">−</button><button type="button" class="eb" data-act="plus" ${ref} aria-label="Bigger portion">+</button><button type="button" class="eb wide" data-act="swap" ${ref}>Swap</button><button type="button" class="eb" data-act="del" ${ref} aria-label="Remove">×</button></span>` : '';
+        h += `<tr${cls ? ` class="${cls}"` : ''}><td class="time">${k === 0 ? s.time : ''}</td><td class="meal">${k === 0 ? s.label : ''}</td><td>${what}${ed}</td><td class="n">${portionText(i)}</td>`
+          + `<td class="n">${n0(i.k * i.m)}</td><td class="n">${n1(i.p * i.m)} g</td><td class="n">${n1((i.c || 0) * i.m)} g</td><td class="n">${n1((i.f || 0) * i.m)} g</td><td class="n">${n1((i.fib || 0) * i.m)} g</td></tr>`;
       });
+      if (editing) h += `<tr class="addrow"><td></td><td></td><td colspan="7"><button type="button" class="eb wide" data-act="add" data-d="${di}" data-s="${si}">+ Add food</button></td></tr>`;
       h += `</tbody>`;
     });
-    h += `<tbody><tr class="total"><td></td><td>Day total</td><td class="sm" colspan="2">Target ${m.kcal ? `${n0(m.kcal)} kcal` : 'fluids'}${m.protein ? ` · ${m.protein} g protein` : ''} · Carbs ${n0(t.c)} g · Fat ${n0(t.f)} g · Fibre ${n0(t.fib)} g</td><td class="n">${n0(t.kcal)}</td><td class="n">${n0(t.p)} g</td></tr></tbody></table></div></section>`;
+    h += `<tbody><tr class="total"><td></td><td>Day total</td><td class="sm" colspan="2">Target ${m.kcal ? `${n0(m.kcal)} kcal` : 'fluids'}${m.protein ? ` · ${m.protein} g protein` : ''}</td><td class="n">${n0(t.kcal)}</td><td class="n">${n0(t.p)} g</td><td class="n">${n0(t.c)} g</td><td class="n">${n0(t.f)} g</td><td class="n">${n0(t.fib)} g</td></tr></tbody></table></div></section>`;
   });
   h += `<section class="sec page-break"><h3><span>0${sec++}</span>Guidelines for this Plan</h3><div class="bar"></div><div class="box mint"><h4>Do</h4><ul>${li(dos)}</ul></div><div class="box pink"><h4>Limit or avoid</h4><ul>${li(donts)}</ul></div></section>`;
   let q, txt;
@@ -771,7 +890,7 @@ function asText(o, res) {
 
 // ================= controls =================
 const DEF = { type: 'general', goal: 'kcal', kcal: 1400, protein: 100, diet: 'veg', start: '', days: 7, procDay: 1, meals: 7, lunch: 'mix', dinner: 'mix',
-  dayPrefs: ['', '', '', '', '', '', ''], prefer: [], avoid: [], preferText: '', avoidText: '', who: '', seed: 1, offset: 0, lang: 'en' };
+  dayPrefs: ['', '', '', '', '', '', ''], prefer: [], avoid: [], preferText: '', avoidText: '', who: '', seed: 1, offset: 0, lang: 'en', lang2: '' };
 const st = JSON.parse(JSON.stringify(DEF));
 try { Object.assign(st, JSON.parse(localStorage.getItem('hv-diet2') || '{}')); } catch (e) { /* storage unavailable */ }
 let prevUsed = [], current = null, lastUsed = null;
@@ -784,9 +903,14 @@ $('prefer').innerHTML = pills('pf', ''); $('avoid').innerHTML = pills('av', 'avo
 const DAYPREF = [['', 'As selected'], ['veg', 'Vegetarian day'], ['egg', 'Eggetarian day'], ['nonveg', 'Non-veg day'], ['vrat', 'Fasting (vrat) day'], ['light', 'Light day (15% fewer kcal)']];
 $('print').hidden = !CAN_PRINT;
 $('lang').innerHTML = '<option value="en">English</option>' + Object.entries(I18N).map(([k, L]) => `<option value="${k}">${esc(L.name)}</option>`).join('');
+$('lang2').innerHTML = '<option value="">None</option><option value="en">English</option>' + Object.entries(I18N).map(([k, L]) => `<option value="${k}">${esc(L.name)}</option>`).join('');
 $('lang').value = I18N[st.lang] ? st.lang : 'en';
-setLang($('lang').value);
-$('lang').addEventListener('change', e => { st.lang = e.target.value; setLang(st.lang); update(true); });
+$('lang2').value = st.lang2 && (I18N[st.lang2] || st.lang2 === 'en') ? st.lang2 : '';
+setLang($('lang').value, $('lang2').value);
+const langChange = () => { st.lang = $('lang').value; st.lang2 = $('lang2').value; setLang(st.lang, st.lang2); syncControls(current[0]); redraw();
+  try { localStorage.setItem('hv-diet2', JSON.stringify(st)); } catch (er) { /* storage unavailable */ } };
+$('lang').addEventListener('change', langChange);
+$('lang2').addEventListener('change', langChange);
 
 function options() {
   const proc = PROC.includes(st.type), textured = TEXTURED.includes(st.type);
@@ -841,10 +965,109 @@ function update(keepPrev) {
   syncControls(o);
   const res = makePlan(o);
   current = [o, res]; lastUsed = res.used;
-  $('paper').innerHTML = render(o, res);
-  translateAll();
+  redraw();
   try { localStorage.setItem('hv-diet2', JSON.stringify(st)); } catch (e) { /* storage unavailable */ }
 }
+function redraw() {   // re-render the current (possibly edited) chart without making a new menu
+  current[0].who = st.who;
+  $('paper').innerHTML = render(current[0], current[1]);
+  translateAll();
+}
+
+// ================= editing the menu =================
+// Every recipe (including those not used by the planner) and every per-100 g food, for search and suggestions
+const ALLR = R.concat(DATA.extra.map(a => ({ no: a[0], name: a[1], k: a[2], p: a[3], c: a[4], f: a[5], fib: a[6], d: a[7], cat: a[8], grp: a[9], pools: 0, fmask: 0, tex: 0, ing: [], lname: a[1].toLowerCase(), pd: a[3] * 4 / Math.max(a[2], 1) })));
+const FOODS = DATA.foods.map(a => ({ name: a[0], k: a[1], p: a[2], c: a[3], f: a[4], fib: a[5], src: a[6], d: a[7], lname: a[0].toLowerCase() }));
+const SLOT_POOL = { early: 'early', breakfast: 'breakfast', mid: 'mid', afternoon: 'mid', lunch: 'main', evening: 'evening', dinner: 'main', bedtime: 'ldrink' };
+let target = null;   // { d, s, i (or null to add) }
+const round4 = x => Math.max(0.25, Math.round(x * 4) / 4);
+const okDiet = r => allowed(current[0].diet === 'vegan' ? 'vegan' : current[0].diet, r.d) && !(r.grp & current[0].avoidMask);
+function itemFrom(x, kcalWanted) {
+  if (x.no !== undefined) return { r: x, name: x.name, k: x.k, p: x.p, c: x.c, f: x.f, fib: x.fib, m: kcalWanted ? Math.min(3, round4(kcalWanted / Math.max(x.k, 1))) : 1, fixed: false, edited: true };
+  return { r: null, name: x.name, k: x.k, p: x.p, c: x.c, f: x.f, fib: x.fib, unit: 'g', m: kcalWanted ? Math.min(5, round4(kcalWanted / Math.max(x.k, 1))) : 1, fixed: true, edited: true };
+}
+function row(x) {
+  const basis = x.no !== undefined ? tr('1 serving') : tr('100 g');
+  const nm = x.no !== undefined ? trDish(x.name) : tr(x.name);
+  return `<button type="button" class="mi" data-pick="${x.no !== undefined ? 'r' + x.no : 'f' + FOODS.indexOf(x)}"><span>${esc(nm)}<small>${esc(basis)} · ${n0(x.p)} g ${esc(tr('protein'))}${x.no !== undefined ? ` · #${String(x.no).padStart(4, '0')}` : ''}</small></span><b class="k">${n0(x.k)} kcal</b></button>`;
+}
+function suggestions() {
+  const day = current[1].days[target.d].plan, slot = day[target.s];
+  if (target.i !== null) {    // swap: same kind of dish, similar calories
+    const it = slot.items[target.i], want = it.k * it.m;
+    if (it.r) return ALLR.filter(r => r.cat === it.r.cat && r.no !== it.r.no && okDiet(r)).sort((a, b) => Math.abs(a.k - want) - Math.abs(b.k - want)).slice(0, 12);
+    return FOODS.filter(f => okDiet(f)).sort((a, b) => Math.abs(a.k - it.k) - Math.abs(b.k - it.k)).slice(0, 12);
+  }
+  const used = new Set(day.flatMap(s => s.items.filter(i => i.r).map(i => i.r.no)));
+  const ctx = { focus: current[0].focusMask, diet: current[0].diet, band: null, tex: null, vrat: false, nosugar: TEXTURED.includes(current[0].type),
+    lowfat: PROC.includes(current[0].type), avoidMask: current[0].avoidMask, avoidWords: current[0].avoidWords };
+  const pool = basePool(SLOT_POOL[slot.slot] || 'mid', ctx).filter(r => !used.has(r.no));
+  const seed = rng('add' + target.d + target.s + pool.length);
+  return pool.map(r => [seed(), r]).sort((a, b) => a[0] - b[0]).slice(0, 12).map(x => x[1]);
+}
+function search(q) {
+  const ws = q.toLowerCase().split(/\s+/).filter(Boolean);
+  const hit = x => ws.every(w => x.lname.includes(w) || (LANG !== 'en' && (x.no !== undefined ? trDish(x.name) : tr(x.name)).toLowerCase().includes(w)));
+  return ALLR.filter(r => okDiet(r) && hit(r)).slice(0, 15).concat(FOODS.filter(f => okDiet(f) && hit(f)).slice(0, 10));
+}
+function openModal(t) {
+  target = t;
+  const slot = current[1].days[t.d].plan[t.s];
+  $('m-title').textContent = t.i !== null ? tr('Swap dish') : `${tr('Add food')} · ${tr(slot.label)}`;
+  $('m-q').value = ''; $('mm-err').hidden = true;
+  ['mm-name', 'mm-qty', 'mm-k', 'mm-p', 'mm-c', 'mm-f', 'mm-fib'].forEach(id => { $(id).value = ''; });
+  $('m-manual').hidden = t.i !== null;
+  fillList();
+  $('modal').hidden = false;
+  translateAll(false);
+  $('m-q').focus();
+}
+function fillList() {
+  const q = $('m-q').value.trim();
+  const list = q ? search(q) : suggestions();
+  $('m-hint').textContent = q ? tr(list.length ? 'Search results' : 'No matches. Try another word, or add your own item below.') : tr('Suggestions');
+  $('m-list').innerHTML = list.map(row).join('');
+}
+function closeModal() { $('modal').hidden = true; target = null; }
+$('m-close').addEventListener('click', closeModal);
+$('modal').addEventListener('click', e => { if (e.target === $('modal')) closeModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !$('modal').hidden) closeModal(); });
+$('m-q').addEventListener('input', fillList);
+$('m-list').addEventListener('click', e => {
+  const b = e.target.closest('[data-pick]'); if (!b || !target) return;
+  const id = b.dataset.pick, x = id[0] === 'r' ? ALLR.find(r => r.no === +id.slice(1)) : FOODS[+id.slice(1)];
+  const items = current[1].days[target.d].plan[target.s].items;
+  if (target.i !== null) { const old = items[target.i]; items[target.i] = itemFrom(x, old.k * old.m); }
+  else items.push(itemFrom(x, null));
+  closeModal(); redraw();
+  $('toast').textContent = tr('Menu updated.');
+});
+$('mm-add').addEventListener('click', () => {
+  const name = $('mm-name').value.trim(), k = +$('mm-k').value;
+  if (!name || !(k >= 0) || $('mm-k').value === '') { $('mm-err').hidden = false; $('mm-err').textContent = tr('Enter a food name and its kcal.'); return; }
+  const num = id => Math.max(0, +$(id).value || 0);
+  current[1].days[target.d].plan[target.s].items.push({ r: null, name, qty: $('mm-qty').value.trim() || tr('1 portion'), k, p: num('mm-p'), c: num('mm-c'), f: num('mm-f'), fib: num('mm-fib'), m: 1, fixed: true, edited: true, manual: true });
+  closeModal(); redraw();
+  $('toast').textContent = tr('Menu updated.');
+});
+$('paper').addEventListener('click', e => {
+  const b = e.target.closest('[data-act]'); if (!b) return;
+  const d = +b.dataset.d, si = +b.dataset.s, i = b.dataset.i === undefined ? null : +b.dataset.i;
+  const items = current[1].days[d].plan[si].items;
+  const act = b.dataset.act;
+  if (act === 'add') return openModal({ d, s: si, i: null });
+  if (act === 'swap') return openModal({ d, s: si, i });
+  if (act === 'del') items.splice(i, 1);
+  if (act === 'minus' || act === 'plus') {
+    const it = items[i], step = 0.25;
+    it.m = Math.max(0.25, Math.round((it.m + (act === 'plus' ? step : -step)) * 4) / 4);
+    it.edited = true;
+  }
+  redraw();
+});
+$('edit').addEventListener('click', () => { editing = !editing; $('edit').setAttribute('aria-pressed', editing); redraw();
+  $('toast').textContent = tr(editing ? 'Editing is on: use − and + to change portions, Swap to change a dish, × to remove, and + Add food to add.' : 'Editing is off.'); });
+$('undo').addEventListener('click', () => { update(true); $('toast').textContent = tr('Your changes were removed.'); });
 const change = fn => e => { fn(e); st.offset = 0; update(); };
 $('type').addEventListener('change', change(e => {
   st.type = e.target.value;
@@ -865,7 +1088,7 @@ $('prefer').addEventListener('click', change(e => { const b = e.target.closest('
 $('avoid').addEventListener('click', change(e => { const b = e.target.closest('[data-g]'); if (b) { st.avoid = toggle(st.avoid, b.dataset.g); st.prefer = st.prefer.filter(x => x !== b.dataset.g); } }));
 $('prefer-text').addEventListener('change', change(e => { st.preferText = e.target.value; }));
 $('avoid-text').addEventListener('change', change(e => { st.avoidText = e.target.value; }));
-$('who').addEventListener('input', e => { st.who = e.target.value; update(true); });
+$('who').addEventListener('input', e => { st.who = e.target.value; redraw(); try { localStorage.setItem('hv-diet2', JSON.stringify(st)); } catch (er) { /* storage unavailable */ } });
 $('again').addEventListener('click', () => { st.seed += 1; update(true); $('toast').textContent = tr('New menu made for the same days.'); });
 $('next').addEventListener('click', () => {
   prevUsed = [...lastUsed]; st.offset += current[0].days; update(true);

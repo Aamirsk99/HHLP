@@ -96,6 +96,43 @@ def group_bits(r):
     return bits
 
 
+def extra_recipes(rs, member, feats):
+    """Recipes the planner does not pick (sweets, chutneys...) - offered when editing a chart."""
+    out = []
+    for r in rs:
+        if r['no'] in member or 'soft' in r['tags'] or r['cat'] in ('Drinks & Smoothies', 'Soups', 'Dals, Sambar & Kadhi'):
+            continue
+        f = feats[r['no']]
+        out.append([r['no'], r['name'], round(f['kcal'], 1), round(f['p'], 1), round(f['c'], 1), round(f['f'], 1), round(f['fib'], 1),
+                    DIETC[f['diet']], r['cat'], group_bits(r)])
+    return out
+
+
+def diet_code(r):
+    """0 vegan, 1 vegetarian (dairy or honey), 2 egg, 3 non-veg."""
+    if r['Diet'] == 'Non-veg':
+        return 3
+    if r['Diet'] == 'Egg':
+        return 2
+    if r['Category'] in ('Milk and Milk Products', 'Milk & Dairy') or 'honey' in r['Food'].lower() or 'ghee' in r['Food'].lower() \
+            or 'butter' in r['Food'].lower() and 'peanut' not in r['Food'].lower():
+        return 1
+    return 0
+
+
+def food_rows():
+    """Per-100 g foods (IFCT 2017 and the ingredient list) for adding to a chart: name, kcal, protein, carbs, fat, fibre, source, diet."""
+    import foodlist
+    dc = {'Vegan': 0, 'Vegetarian': 1, 'Egg': 2, 'Non-veg': 3}
+    out = []
+    for r in foodlist.ifct_rows() + foodlist.ingredient_rows():
+        if r['Energy (kcal)'] is None or r['Energy (kcal)'] <= 0:
+            continue
+        out.append([r['Food'], r['Energy (kcal)'], r['Protein (g)'] or 0, r['Carbs (g)'] or 0, r['Fat (g)'] or 0, r['Fibre (g)'] or 0,
+                    'IFCT' if r['Source'].startswith('IFCT') else 'Ingredient', diet_code(r)])
+    return out
+
+
 def data():
     rs = B.ordered(True)
     feats, pools = D._pools(rs)
@@ -119,6 +156,7 @@ def data():
         slots=[list(s) for s in D.SLOTS], bedtime=[list(b) for b in D.BEDTIME], addons=[list(a) for a in D.ADDONS],
         plain={k: list(v) for k, v in D.PLAIN.items()},
         info={k: list(v) for k, v in C.FOCUS_INFO.items()},
+        extra=extra_recipes(rs, member, feats), foods=food_rows(),
         services=[list(s) for s in R.SERVICES], glp1=R.GLP1, tex=TEX,
         groups=[[k, n] for k, n, _ in GROUP_KEYS] + [[k, n] for k, n, _ in REGIONS],
         ingr=[CAT[k]['name'] for k in ingr])
