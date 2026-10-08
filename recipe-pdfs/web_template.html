@@ -11,8 +11,9 @@
   --navy: #0B3B66; --blue: #0F6FB0; --sky: #29A8E0; --sky-l: #8FD3F4; --paper: #FFFFFF; --pink: #FDF0EB; --mint: #E6F5F2;
   --cream: #F2F7FB; --hair: #E3ECF3; --gold-l: #D6E7F3; --zebra: #F6F9FC; --pink-ink: #D9573A; --mint-ink: #0E8A78;
   --taupe: #7F7068; --paper-ink: #24303B;
-  --display: 'DM Serif Display', Georgia, 'Times New Roman', serif;
-  --body: 'Lato', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --lang-font: ;
+  --display: var(--lang-font) 'DM Serif Display', Georgia, 'Times New Roman', serif;
+  --body: var(--lang-font) 'Lato', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
 }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
   --bg: #0C1621; --panel: #13212F; --ink: #E3ECF4; --muted: #9DB0C1; --line: #24384B; --accent: #3FA2E0; --accent-ink: #06121D;
@@ -183,6 +184,10 @@ details.more .inner { display: grid; gap: 10px; padding-bottom: 12px; }
       <p>Choose the diet, the target and any food preferences. The chart is built from Hindivine recipes with portions set to the target.</p>
     </div>
     <div class="field">
+      <label class="label" for="lang">Language</label>
+      <select id="lang"></select>
+    </div>
+    <div class="field">
       <label class="label" for="type">Type of diet</label>
       <select id="type"></select>
     </div>
@@ -277,6 +282,70 @@ details.more .inner { display: grid; gap: 10px; padding-bottom: 12px; }
 const DATA = /*__DATA__*/null;
 const CAN_PRINT = /*__CANPRINT__*/true;
 const LOGO = '__LOGO__';
+const I18N = /*__I18N__*/{};   // { code: { name, font, rtl, t: {english: translation}, w: {english word or phrase: translation} } }
+
+// ================= translation =================
+let LANG = 'en', TR = {}, PATS = [], WORDS = {}, MAXW = 1;
+const NUM = /\d+(?:[.,]\d+)*/g;
+function setLang(code) {
+  LANG = I18N[code] ? code : 'en';
+  const L = I18N[LANG] || { t: {}, w: {} };
+  TR = {}; PATS = [];
+  for (const [en, out] of Object.entries(L.t || {})) {
+    if (/\{\d+\}/.test(en)) {
+      const re = new RegExp('^' + en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{(\d+)\\\}/g, '(\\d+(?:[.,]\\d+)*)') + '$');
+      PATS.push([re, out]);
+    } else TR[en] = out;
+  }
+  WORDS = {}; MAXW = 1;
+  for (const [en, out] of Object.entries(L.w || {})) { WORDS[en.toLowerCase()] = out; MAXW = Math.max(MAXW, en.split(' ').length); }
+  document.documentElement.lang = LANG;
+  const dir = L.rtl ? 'rtl' : 'ltr';
+  document.querySelector('.app').setAttribute('dir', dir);
+  if (L.font && !document.getElementById('font-' + LANG)) {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.id = 'font-' + LANG;
+    l.href = 'https://fonts.googleapis.com/css2?family=' + L.font.replace(/ /g, '+') + ':wght@400;700&display=swap';
+    document.head.appendChild(l);
+  }
+  document.documentElement.style.setProperty('--lang-font', L.font ? `'${L.font}', ` : '');
+}
+function tr(s) {
+  if (LANG === 'en' || s == null) return s;
+  const k = String(s).trim();
+  if (!k) return s;
+  if (TR[k] !== undefined) return String(s).replace(k, TR[k]);
+  if (/\d/.test(k)) for (const [re, out] of PATS) { const m = k.match(re); if (m) return String(s).replace(k, out.replace(/\{(\d+)\}/g, (_, i) => m[+i + 1])); }
+  return s;
+}
+function trDish(name) {
+  if (LANG === 'en' || !Object.keys(WORDS).length) return name;
+  const parts = name.split(/(\s+|[(),\/&+-])/).filter(p => p !== '');
+  const out = [];
+  for (let i = 0; i < parts.length;) {
+    if (!/[A-Za-z]/.test(parts[i])) { out.push(parts[i]); i++; continue; }
+    let done = false;
+    for (let n = MAXW; n >= 1 && !done; n--) {     // longest phrase first, e.g. "Little Millet" before "Little"
+      const span = [], idx = [];
+      for (let j = i; j < parts.length && span.length < n; j++) { if (/[A-Za-z]/.test(parts[j])) { span.push(parts[j]); idx.push(j); } else if (!/^\s+$/.test(parts[j])) break; }
+      if (span.length === n) { const w = WORDS[span.join(' ').toLowerCase()]; if (w !== undefined) { out.push(w); i = idx[idx.length - 1] + 1; done = true; } }
+    }
+    if (!done) { out.push(parts[i]); i++; }
+  }
+  return out.join('').replace(/\s+/g, ' ').trim();
+}
+function translateAll() {
+  for (const root of [document.querySelector('.rail'), document.getElementById('paper')]) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    const nodes = []; let n; while ((n = walker.nextNode())) nodes.push(n);
+    for (const node of nodes) {
+      if (node._en === undefined) node._en = node.nodeValue;
+      const src = node._en;
+      if (!src.trim()) continue;
+      node.nodeValue = node.parentElement && node.parentElement.closest('.dn') ? src.replace(src.trim(), trDish(src.trim())) : tr(src);
+    }
+    root.querySelectorAll('[placeholder]').forEach(el => { if (el._en === undefined) el._en = el.placeholder; el.placeholder = tr(el._en); });
+  }
+}
 
 // ================= data =================
 const POOLS = DATA.pools, FOCUS = DATA.focus.map(f => f[0]), TEX = DATA.tex, GROUPS = DATA.groups;
@@ -602,35 +671,36 @@ function render(o, res) {
   const tots = days.map(d => totals(d.plan)), avg = k => tots.reduce((a, t) => a + t[k], 0) / days.length;
   const title = TYPE_NAME[o.type] && o.type !== 'general' ? TYPE_NAME[o.type] : (pg ? `${pg} g Protein Diet` : 'General Weight Loss');
   const series = proc ? (o.type === 'bariatric' ? 'BARIATRIC DIET CHART' : 'ALLURION BALLOON DIET CHART') : textured ? 'THERAPEUTIC DIET CHART' : pg ? 'PROTEIN DIET CHART' : 'WEIGHT LOSS DIET CHART';
-  const li = xs => xs.map(x => `<li>${esc(x)}</li>`).join('');
+  const li = xs => xs.map(x => `<li>${x && x.html ? x.html : esc(x)}</li>`).join('');
   const first = o.offset + 1, last = o.offset + days.length;
   const statuses = days.map((d, i) => dayStatus(tots[i], d.meta)), offCount = statuses.filter(s => s[0] !== 'ok').length;
   const mainOf = (day, slot) => {
     const s = day.find(s => s.slot === slot); if (!s) return '';
     let rs = s.items.filter(i => i.r || i.base);
     if (slot !== 'breakfast' && rs.length > 1 && rs[0].r && rs[0].r.cat === 'Soups') rs = rs.slice(1);
-    return rs.length ? esc(rs[0].name) : '';
+    return rs.length ? (rs[0].r ? `<span class="dn">${esc(rs[0].name)}</span>` : esc(rs[0].name)) : '';
   };
   let h = `<header class="p-head"><img src="${LOGO}" alt="Hindivine Healthcare Private Limited"><div class="series"><small>${series}</small><em>Nutrition · Wellness · Care</em></div></header><div class="p-body">`;
   const chips = [];
   if (proc) chips.push('TARGETS SET BY STAGE');
   else { if (o.protein) chips.push(`${o.protein} G PROTEIN / DAY`); chips.push(`${n0(o.kcal)} KCAL / DAY`); }
-  h += `<section class="hero"><div class="main"><span class="kick">${days.length}-Day Diet Chart${first > 1 ? ` · Days ${first}-${last}` : ''}</span><h2>${esc(title)}</h2><div class="rule"></div><div class="chips">`
+  h += `<section class="hero"><div class="main"><span class="kick"><span>${days.length}-Day Diet Chart</span>${first > 1 ? ` · <span>Days ${first}-${last}</span>` : ''}</span><h2>${esc(title)}</h2><div class="rule"></div><div class="chips">`
     + chips.map(c => `<span class="chip">${c}</span>`).join('') + `<span class="chip g">${esc(DIET_NAME[o.diet].toUpperCase())}</span><span class="chip">${days.length} DAYS</span></div>`
     + `<p class="lead">${esc(lead)}</p><p class="best"><b>BEST FOR</b>${esc(who.join(' '))}</p></div>`
     + (proc ? `<div class="side"><small>Starts on</small><b>Day ${o.procDay}</b><small>after the procedure</small></div>`
       : `<div class="side"><small>${o.goal === 'protein' ? 'Protein' : 'Calories'}</small><b>${o.goal === 'protein' ? o.protein : n0(o.kcal)}</b><small>${o.goal === 'protein' ? 'g a day' : 'kcal a day'}</small></div>`)
     + `</section>`;
-  if (o.who || o.start) h += `<p class="prep">${o.who ? `Prepared for <b>${esc(o.who)}</b>` : ''}${o.who && o.start ? ' · ' : ''}${o.start ? `From ${dateOf(o, first)} to ${dateOf(o, last)}` : ''}</p>`;
+  if (o.who || o.start) h += `<p class="prep">${o.who ? `Prepared for <b>${esc(o.who)}</b>` : ''}${o.who && o.start ? ' · ' : ''}${o.start ? `<span>From</span> <span>${dateOf(o, first)}</span> <span>to</span> <span>${dateOf(o, last)}</span>` : ''}</p>`;
   h += `<div class="strip"><div class="tile k"><b>${n0(avg('kcal'))}</b> kcal<small>Avg calories / day</small></div><div class="tile p"><b>${n0(avg('p'))}</b> g<small>Avg protein / day</small></div>`
     + `<div class="tile"><b>${n0(avg('c'))}</b> g<small>Carbs</small></div><div class="tile"><b>${n0(avg('fib'))}</b> g<small>Fibre</small></div><div class="tile"><b>${n0(avg('f'))}</b> g<small>Fat</small></div></div>`;
   h += `<p class="checkline">Target check: ${offCount ? `<b class="c">${days.length - offCount} of ${days.length} days on target</b>; the days marked "check" are shown with their totals.` : `<b>all ${days.length} days are within 5% of the calorie target${proc || o.protein ? ' and meet the protein target' : ''}</b>.`}</p>`;
-  const picks = [...o.prefNames, ...o.prefWords].join(', '), avoids = [...o.avoidNames, ...o.avoidWords].join(', ');
+  const picks = [...o.prefNames, ...o.prefWords], avoids = [...o.avoidNames, ...o.avoidWords];
   h += `<div class="box"><h4>How to use this chart</h4><ul>${li([
     'Each dish is a Hindivine recipe; the number after it (for example #0123) is its number in the Hindivine Healthy Recipe Series.',
     '"1 serving" means one serving as described in that recipe; calories and protein are given for the portion shown.',
     ...(o.protein || proc ? ["Items marked + are simple protein add-ons that top up the day's protein."] : []),
-    ...(picks ? [`Preferred foods used where possible: ${picks}.`] : []), ...(avoids ? [`Foods left out: ${avoids}.`] : []),
+    ...(picks.length ? [{ html: `<span>Preferred foods used where possible:</span> ${picks.map(x => `<span>${esc(x)}</span>`).join(', ')}` }] : []),
+    ...(avoids.length ? [{ html: `<span>Foods left out:</span> ${avoids.map(x => `<span>${esc(x)}</span>`).join(', ')}` }] : []),
     textured ? 'Sip water between meals. Follow the texture your doctor or dietitian has advised.' : 'Drink 2.5-3 litres of water a day unless your doctor has limited fluids.'])}</ul></div>`;
   let sec = 1;
   if (proc) {
@@ -646,13 +716,13 @@ function render(o, res) {
   days.forEach((d, di) => {
     const t = tots[di], m = d.meta, [sc, sl] = statuses[di];
     const tags = [o.start ? dateOf(o, m.absDay) : '', m.stage ? STAGE_NAME[m.texture] : '', m.pref === 'vrat' ? 'Fasting (vrat) day' : m.pref === 'light' ? 'Light day' : '',
-      m.pref && ['veg', 'egg', 'nonveg'].includes(m.pref) && m.diet !== o.diet ? `${DIET_NAME[m.diet]} day` : ''].filter(Boolean).join(' · ');
-    h += `<section class="day${di % 2 === 0 ? ' page-break' : ''}"><div class="tbl-wrap"><div class="dayhead"><b>Day ${m.absDay}${tags ? `<em>${esc(tags)}</em>` : ''}</b><span>${n0(t.kcal)} kcal · ${n0(t.p)} g protein<span class="status ${sc}">${esc(sl)}</span></span></div><table><thead><tr><th>Time</th><th>Meal</th><th>What to eat</th><th class="n">Portion</th><th class="n">kcal</th><th class="n">Protein</th></tr></thead>`;
+      m.pref && ['veg', 'egg', 'nonveg'].includes(m.pref) && m.diet !== o.diet ? `${DIET_NAME[m.diet]} day` : ''].filter(Boolean).map(x => `<span>${esc(x)}</span>`).join(' · ');
+    h += `<section class="day${di % 2 === 0 ? ' page-break' : ''}"><div class="tbl-wrap"><div class="dayhead"><b>Day ${m.absDay}${tags ? `<em>${tags}</em>` : ''}</b><span>${n0(t.kcal)} kcal · ${n0(t.p)} g protein<span class="status ${sc}">${esc(sl)}</span></span></div><table><thead><tr><th>Time</th><th>Meal</th><th>What to eat</th><th class="n">Portion</th><th class="n">kcal</th><th class="n">Protein</th></tr></thead>`;
     d.plan.forEach((s, si) => {
       if (!s.items.length) return;
       h += `<tbody${si % 2 ? ' class="z"' : ''}>`;
       s.items.forEach((i, k) => {
-        const what = i.r ? `${esc(i.name)} <span class="rn">#${String(i.r.no).padStart(4, '0')}</span>${m.texture === 'liquid' && i.r.cat !== 'Drinks & Smoothies' ? ' <span class="add">blend smooth</span>' : m.texture === 'semi' && !['Drinks & Smoothies', 'Soups'].includes(i.r.cat) ? ' <span class="add">mash or blend</span>' : ''}`
+        const what = i.r ? `<span class="dn">${esc(i.name)}</span> <span class="rn">#${String(i.r.no).padStart(4, '0')}</span>${m.texture === 'liquid' && i.r.cat !== 'Drinks & Smoothies' ? ' <span class="add">blend smooth</span>' : m.texture === 'semi' && !['Drinks & Smoothies', 'Soups'].includes(i.r.cat) ? ' <span class="add">mash or blend</span>' : ''}`
           : i.addon ? `<span class="plus">+</span> ${esc(i.name)} <span class="add">protein add-on</span>` : esc(i.name);
         const cls = [k === 0 ? 'first' : '', k === s.items.length - 1 ? 'last' : ''].join(' ').trim();
         h += `<tr${cls ? ` class="${cls}"` : ''}><td class="time">${k === 0 ? s.time : ''}</td><td class="meal">${k === 0 ? s.label : ''}</td><td>${what}</td><td class="n">${i.r ? portion(i.m) : 'as listed'}</td><td class="n">${n0(i.k * i.m)}</td><td class="n">${n0(i.p * i.m)} g</td></tr>`;
@@ -684,12 +754,12 @@ function render(o, res) {
   return h;
 }
 function asText(o, res) {
-  const lines = [`HINDIVINE ${TYPE_NAME[o.type].toUpperCase()} DIET CHART`,
-    `${PROC.includes(o.type) ? 'Targets set by stage' : `${n0(o.kcal)} kcal${o.protein ? `, ${o.protein} g protein` : ''} a day`} · ${DIET_NAME[o.diet]}${o.who ? ` · for ${o.who}` : ''}`, ''];
+  const lines = [`HINDIVINE · ${tr(TYPE_NAME[o.type])}`,
+    `${PROC.includes(o.type) ? tr('Targets set by stage') : tr(`${n0(o.kcal)} kcal`) + (o.protein ? ', ' + tr(`${o.protein} g protein`) : '')} · ${tr(DIET_NAME[o.diet])}${o.who ? ` · ${o.who}` : ''}`, ''];
   res.days.forEach(d => {
     const t = totals(d.plan);
-    lines.push(`DAY ${d.meta.absDay}${o.start ? ` (${dateOf(o, d.meta.absDay)})` : ''}${d.meta.stage ? ` - ${STAGE_NAME[d.meta.texture]}` : ''}: ${n0(t.kcal)} kcal, ${n0(t.p)} g protein`);
-    for (const s of d.plan) if (s.items.length) lines.push(`${s.time} ${s.label}: ` + s.items.map(i => i.r ? `${i.name} #${String(i.r.no).padStart(4, '0')} (${portion(i.m)})` : i.name).join(' + '));
+    lines.push(`${tr(`Day ${d.meta.absDay}`)}${o.start ? ` (${tr(dateOf(o, d.meta.absDay))})` : ''}${d.meta.stage ? ` - ${tr(STAGE_NAME[d.meta.texture])}` : ''}: ${tr(`${n0(t.kcal)} kcal`)}, ${tr(`${n0(t.p)} g protein`)}`);
+    for (const s of d.plan) if (s.items.length) lines.push(`${tr(s.time)} ${tr(s.label)}: ` + s.items.map(i => i.r ? `${trDish(i.name)} #${String(i.r.no).padStart(4, '0')} (${tr(portion(i.m))})` : tr(i.name)).join(' + '));
     lines.push('');
   });
   lines.push('www.hindivine.com · app@hindivine.com');
@@ -698,7 +768,7 @@ function asText(o, res) {
 
 // ================= controls =================
 const DEF = { type: 'general', goal: 'kcal', kcal: 1400, protein: 100, diet: 'veg', start: '', days: 7, procDay: 1, meals: 7, lunch: 'mix', dinner: 'mix',
-  dayPrefs: ['', '', '', '', '', '', ''], prefer: [], avoid: [], preferText: '', avoidText: '', who: '', seed: 1, offset: 0 };
+  dayPrefs: ['', '', '', '', '', '', ''], prefer: [], avoid: [], preferText: '', avoidText: '', who: '', seed: 1, offset: 0, lang: 'en' };
 const st = JSON.parse(JSON.stringify(DEF));
 try { Object.assign(st, JSON.parse(localStorage.getItem('hv-diet2') || '{}')); } catch (e) { /* storage unavailable */ }
 let prevUsed = [], current = null, lastUsed = null;
@@ -710,6 +780,10 @@ const pills = (id, cls) => GROUPS.map(([k, n]) => `<button type="button" class="
 $('prefer').innerHTML = pills('pf', ''); $('avoid').innerHTML = pills('av', 'avoid');
 const DAYPREF = [['', 'As selected'], ['veg', 'Vegetarian day'], ['egg', 'Eggetarian day'], ['nonveg', 'Non-veg day'], ['vrat', 'Fasting (vrat) day'], ['light', 'Light day (15% fewer kcal)']];
 $('print').hidden = !CAN_PRINT;
+$('lang').innerHTML = '<option value="en">English</option>' + Object.entries(I18N).map(([k, L]) => `<option value="${k}">${esc(L.name)}</option>`).join('');
+$('lang').value = I18N[st.lang] ? st.lang : 'en';
+setLang($('lang').value);
+$('lang').addEventListener('change', e => { st.lang = e.target.value; setLang(st.lang); update(true); });
 
 function options() {
   const proc = PROC.includes(st.type), textured = TEXTURED.includes(st.type);
@@ -765,6 +839,7 @@ function update(keepPrev) {
   const res = makePlan(o);
   current = [o, res]; lastUsed = res.used;
   $('paper').innerHTML = render(o, res);
+  translateAll();
   try { localStorage.setItem('hv-diet2', JSON.stringify(st)); } catch (e) { /* storage unavailable */ }
 }
 const change = fn => e => { fn(e); st.offset = 0; update(); };
@@ -788,17 +863,17 @@ $('avoid').addEventListener('click', change(e => { const b = e.target.closest('[
 $('prefer-text').addEventListener('change', change(e => { st.preferText = e.target.value; }));
 $('avoid-text').addEventListener('change', change(e => { st.avoidText = e.target.value; }));
 $('who').addEventListener('input', e => { st.who = e.target.value; update(true); });
-$('again').addEventListener('click', () => { st.seed += 1; update(true); $('toast').textContent = 'New menu made for the same days.'; });
+$('again').addEventListener('click', () => { st.seed += 1; update(true); $('toast').textContent = tr('New menu made for the same days.'); });
 $('next').addEventListener('click', () => {
   prevUsed = [...lastUsed]; st.offset += current[0].days; update(true);
-  $('toast').textContent = `Showing days ${st.offset + 1}-${st.offset + current[0].days}, with dishes not used in the previous days.`;
+  $('toast').textContent = tr(`Showing days ${st.offset + 1}-${st.offset + current[0].days}, with dishes not used in the previous days.`);
 });
-$('restart').addEventListener('click', () => { st.offset = 0; update(); $('toast').textContent = 'Back to Day 1.'; });
+$('restart').addEventListener('click', () => { st.offset = 0; update(); $('toast').textContent = tr('Back to Day 1.'); });
 $('print').addEventListener('click', () => window.print());
 $('copy').addEventListener('click', () => {
   const txt = asText(...current);
-  navigator.clipboard.writeText(txt).then(() => { $('toast').textContent = 'Chart copied. Paste it into WhatsApp or an email.'; },
-    () => { $('toast').textContent = 'Copy is blocked here. Select the chart and copy it instead.'; });
+  navigator.clipboard.writeText(txt).then(() => { $('toast').textContent = tr('Chart copied. Paste it into WhatsApp or an email.'); },
+    () => { $('toast').textContent = tr('Copy is blocked here. Select the chart and copy it instead.'); });
 });
 $('controls').addEventListener('submit', e => e.preventDefault());
 update();

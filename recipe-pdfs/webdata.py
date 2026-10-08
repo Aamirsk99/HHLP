@@ -124,6 +124,20 @@ def data():
         ingr=[CAT[k]['name'] for k in ingr])
 
 
+def load_i18n():
+    """Translations from i18n/<code>.json (see i18n/README.md); languages listed in i18n/languages.json order."""
+    d = os.path.join(HERE, 'i18n')
+    out = {}
+    if not os.path.exists(os.path.join(d, 'languages.json')):
+        return out
+    for code, meta in json.load(open(os.path.join(d, 'languages.json'), encoding='utf-8')).items():
+        p = os.path.join(d, code + '.json')
+        if os.path.exists(p):
+            data = json.load(open(p, encoding='utf-8'))
+            out[code] = dict(meta, t=data.get('t', {}), w=data.get('w', {}))
+    return out
+
+
 def main():
     noprint = '--no-print' in sys.argv
     args = [a for a in sys.argv[1:] if a != '--no-print']
@@ -132,7 +146,8 @@ def main():
     logo = base64.b64encode(open(os.path.join(HERE, 'logo-small.jpg'), 'rb').read()).decode()
     html = (tpl.replace('/*__DATA__*/null', json.dumps(data(), separators=(',', ':')))
             .replace('__LOGO__', 'data:image/jpeg;base64,' + logo)
-            .replace('/*__CANPRINT__*/true', 'false' if noprint else 'true'))
+            .replace('/*__CANPRINT__*/true', 'false' if noprint else 'true')
+            .replace('/*__I18N__*/{}', json.dumps(load_i18n(), ensure_ascii=False, separators=(',', ':'))))
     if not noprint:  # standalone file for a website or dashboard: a complete HTML document
         title_end = html.index('</title>') + len('</title>')
         html = ('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">\n'

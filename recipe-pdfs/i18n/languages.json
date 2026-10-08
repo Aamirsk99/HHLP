@@ -1,0 +1,22 @@
+{
+  "hi": {"name": "हिन्दी (Hindi)", "font": "Noto Sans Devanagari", "indic": true},
+  "bn": {"name": "বাংলা (Bengali)", "font": "Noto Sans Bengali", "indic": true},
+  "mr": {"name": "मराठी (Marathi)", "font": "Noto Sans Devanagari", "indic": true},
+  "te": {"name": "తెలుగు (Telugu)", "font": "Noto Sans Telugu", "indic": true},
+  "ta": {"name": "தமிழ் (Tamil)", "font": "Noto Sans Tamil", "indic": true},
+  "gu": {"name": "ગુજરાતી (Gujarati)", "font": "Noto Sans Gujarati", "indic": true},
+  "kn": {"name": "ಕನ್ನಡ (Kannada)", "font": "Noto Sans Kannada", "indic": true},
+  "ml": {"name": "മലയാളം (Malayalam)", "font": "Noto Sans Malayalam", "indic": true},
+  "or": {"name": "ଓଡ଼ିଆ (Odia)", "font": "Noto Sans Oriya", "indic": true},
+  "pa": {"name": "ਪੰਜਾਬੀ (Punjabi)", "font": "Noto Sans Gurmukhi", "indic": true},
+  "ur": {"name": "اردو (Urdu)", "font": "Noto Naskh Arabic", "rtl": true, "indic": true},
+  "as": {"name": "অসমীয়া (Assamese)", "font": "Noto Sans Bengali", "indic": true},
+  "ar": {"name": "العربية (Arabic)", "font": "Noto Naskh Arabic", "rtl": true},
+  "fr": {"name": "Français (French)"},
+  "es": {"name": "Español (Spanish)"},
+  "de": {"name": "Deutsch (German)"},
+  "pt": {"name": "Português (Portuguese)"},
+  "ru": {"name": "Русский (Russian)", "font": "Noto Sans"},
+  "zh": {"name": "中文 (Chinese, Simplified)", "font": "Noto Sans SC"},
+  "ja": {"name": "日本語 (Japanese)", "font": "Noto Sans JP"}
+}
