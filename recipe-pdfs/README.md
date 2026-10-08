@@ -77,3 +77,13 @@ Download: `downloads/protein-diet-charts/`.
   - Print / Save as PDF, and Copy chart as text.
 - **Command line:** `python3 autodiet.py --protein 120 --diet veg` or
   `python3 autodiet.py --kcal 1500 --diet nonveg --focus diabetes --seed 2 --out chart.pdf` writes one PDF.
+
+## Personal GLP-1 programme plan
+
+`python3 personal_plan.py --name "Full Name" --age 35 --sex F --height 163 --weight 96 --diet nonveg --out plan.pdf`
+builds one branded 7-day plan for one person from the standard sample menu: a detox drink every morning, a protein shake
+twice a day, simple breakfasts, office-friendly lunches and soup or salad dinners. It calculates BMI, the healthy weight
+range, maintenance calories (Mifflin-St Jeor × activity), a calorie target about 650 kcal below maintenance (at least 1,200
+kcal for women, 1,500 for men) and protein of about 1.3 g/kg of adjusted body weight, then scales each day's portions to
+within a few percent of the target. Options: `--diet veg|egg|nonveg`, `--activity sedentary|light|moderate`, `--kcal`,
+`--protein`, `--date`. Keep generated patient PDFs out of the repository.
