@@ -62,10 +62,18 @@ Download: `downloads/protein-diet-charts/`.
 
 ## Auto diet chart generator
 
-- **Web page:** `diet-generator/index.html` (built by `python3 webdata.py` from `web_template.html`). It is one self-contained
-  page with all recipe data embedded: choose Weight loss (calories + health focus) or Protein target (50-190 g), the diet and
-  an optional name, and it builds a branded 7-day chart instantly; "New menu" gives another menu with the same settings,
-  "Print / Save as PDF" prints it, and "Copy chart as text" copies it for WhatsApp or email. It can be hosted on
-  www.hindivine.com as a static file.
+- **Web page / dashboard file:** `diet-generator/index.html` (built by `python3 webdata.py` from `web_template.html`). One
+  self-contained HTML file with all recipe data embedded; upload it to any website or dashboard (it needs no server). Options:
+  - Type of diet: the 7 weight-loss types, plus Liquid, Semi-liquid, Bariatric surgery and Allurion balloon diets. Bariatric
+    and Allurion charts follow stages counted from the procedure day (bariatric: clear liquids days 1-2, full liquids 3-14,
+    semi-liquid 15-28, soft 29-56, regular small meals from day 57; Allurion: liquids 1-3, semi-liquid 4-7, soft 8-14,
+    regular from day 15), each with its own calorie and protein targets.
+  - Plan by calories, protein or both; diet (vegetarian, vegan, eggetarian, non-vegetarian).
+  - Start date and 1-30 days; "Next N days" continues the day numbers with dishes not used in the previous days.
+  - Meal pattern: 3, 5 or 7 meals a day, and lunch and dinner combinations.
+  - Day-wise preferences for each day of the 7-day cycle: vegetarian, eggetarian or non-veg day, fasting (vrat) day, light day.
+  - Foods to prefer and foods to avoid (25 groups including Jain, dairy, gluten, nuts, regions), plus free text.
+  - Every day is checked against its targets (within 5% of calories, at least 95% of protein) and marked "On target".
+  - Print / Save as PDF, and Copy chart as text.
 - **Command line:** `python3 autodiet.py --protein 120 --diet veg` or
   `python3 autodiet.py --kcal 1500 --diet nonveg --focus diabetes --seed 2 --out chart.pdf` writes one PDF.

@@ -142,6 +142,37 @@ tr.total td.sm { font-weight: 400; color: var(--taupe); font-size: 11px; }
   * { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+/* ---- v2 controls ---- */
+.seg.three { grid-template-columns: repeat(3, 1fr); }
+.row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.row2 > * { min-width: 0; }
+details.more { border: 1px solid var(--line); border-radius: 10px; padding: 0 12px; }
+details.more > summary { cursor: pointer; list-style: none; padding: 11px 0; font-weight: 700; font-size: .9rem; display: flex; justify-content: space-between; gap: 8px; }
+details.more > summary::-webkit-details-marker { display: none; }
+details.more > summary::after { content: '+'; color: var(--muted); font-weight: 400; }
+details.more[open] > summary::after { content: '\2212'; }
+details.more > summary small { color: var(--accent); font-weight: 700; font-size: .78rem; margin-left: auto; }
+details.more .inner { display: grid; gap: 10px; padding-bottom: 12px; }
+.pills { display: flex; flex-wrap: wrap; gap: 6px; }
+.pill { border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 400 .8rem var(--body); padding: 5px 10px; border-radius: 99px; cursor: pointer; }
+.pill[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.pill.avoid[aria-pressed="true"] { background: #B9472B; border-color: #B9472B; color: #fff; }
+.daypref { display: grid; grid-template-columns: 84px minmax(0, 1fr); gap: 8px; align-items: center; font-size: .85rem; }
+.daypref span { font-weight: 700; }
+.daypref span small { display: block; font-weight: 400; color: var(--muted); font-size: .72rem; }
+.warn { font-size: .8rem; color: #B9472B; margin: 0; }
+.btnrow { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+/* ---- v2 chart ---- */
+.status { display: inline-block; font-size: 9.5px; font-weight: 700; letter-spacing: .06em; padding: 2px 8px; border-radius: 99px; margin-left: 8px; vertical-align: middle; }
+.status.ok { background: #E6F5F2; color: #0E8A78; }
+.status.chk { background: #FDF0EB; color: #B9472B; }
+.dayhead em { font-style: normal; font-family: var(--body); font-size: 11px; color: var(--sky-l); margin-left: 8px; font-weight: 700; letter-spacing: .04em; }
+.stages { width: 100%; }
+.stages td { padding: 6px 8px; border-bottom: 1px solid var(--hair); vertical-align: top; }
+.stages tr.now td { background: var(--mint); }
+.checkline { font-size: 12px; color: var(--paper-ink); margin: 0; }
+.checkline b { color: var(--mint-ink); }
+.checkline b.c { color: #B9472B; }
 </style>
 
 <div class="app">
@@ -149,44 +180,95 @@ tr.total td.sm { font-weight: 400; color: var(--taupe); font-size: 11px; }
     <div class="brand">
       <span class="label">Hindivine Healthcare</span>
       <h1>Diet Chart Maker</h1>
-      <p>Pick a goal and a diet. A 7-day Indian meal plan is built from Hindivine recipes, with portions set to the target.</p>
+      <p>Choose the diet, the target and any food preferences. The chart is built from Hindivine recipes with portions set to the target.</p>
     </div>
     <div class="field">
-      <span class="label" id="mode-l">Chart type</span>
-      <div class="seg" role="group" aria-labelledby="mode-l">
-        <button type="button" id="mode-wl" data-mode="wl" aria-pressed="true">Weight loss</button>
-        <button type="button" id="mode-pr" data-mode="pr" aria-pressed="false">Protein target</button>
+      <label class="label" for="type">Type of diet</label>
+      <select id="type"></select>
+    </div>
+    <div class="field" id="f-goal">
+      <span class="label" id="goal-l">Plan by</span>
+      <div class="seg three" role="group" aria-labelledby="goal-l">
+        <button type="button" data-goal="kcal" id="goal-kcal">Calories</button>
+        <button type="button" data-goal="protein" id="goal-protein">Protein</button>
+        <button type="button" data-goal="both" id="goal-both">Both</button>
       </div>
     </div>
     <div class="field" id="f-kcal">
       <label class="label" for="kcal">Calories a day</label>
       <div class="readout"><b id="kcal-out">1400</b><span>kcal</span></div>
-      <input type="range" id="kcal" min="1200" max="2400" step="50" value="1400">
+      <input type="range" id="kcal" min="600" max="3000" step="50" value="1400">
     </div>
-    <div class="field" id="f-protein" hidden>
+    <div class="field" id="f-protein">
       <label class="label" for="protein">Protein a day</label>
-      <div class="readout"><b id="protein-out">100</b><span>g protein · <span id="protein-kcal">1900</span> kcal</span></div>
-      <input type="range" id="protein" min="50" max="190" step="5" value="100">
+      <div class="readout"><b id="protein-out">100</b><span>g protein <span id="protein-kcal"></span></span></div>
+      <input type="range" id="protein" min="40" max="190" step="5" value="100">
+    </div>
+    <p class="warn" id="goal-warn" hidden></p>
+    <div class="field" id="f-proc" hidden>
+      <label class="label" for="procday" id="procday-l">Days since the procedure on Day 1</label>
+      <input type="number" id="procday" min="1" max="120" value="1">
+      <p class="note" id="proc-note"></p>
     </div>
     <div class="field">
       <span class="label" id="diet-l">Diet</span>
       <div class="seg four" role="group" aria-labelledby="diet-l" id="diet"></div>
     </div>
-    <div class="field" id="f-focus">
-      <label class="label" for="focus">Health focus</label>
-      <select id="focus"></select>
+    <div class="row2">
+      <div class="field"><label class="label" for="start">Start date</label><input type="date" id="start"></div>
+      <div class="field"><label class="label" for="days">Number of days</label><input type="number" id="days" min="1" max="30" value="7"></div>
     </div>
+
+    <details class="more" id="d-pattern">
+      <summary>Meal pattern <small id="pattern-sum"></small></summary>
+      <div class="inner">
+        <div class="field"><label class="label" for="meals">Meals a day</label>
+          <select id="meals"><option value="7">7 (early morning to bedtime)</option><option value="5">5 (3 meals + 2 snacks)</option><option value="3">3 (breakfast, lunch, dinner)</option></select></div>
+        <div class="field"><label class="label" for="lunch">Lunch combination</label>
+          <select id="lunch"><option value="mix">Mixed through the week</option><option value="roti">Dal or curry + roti + salad</option><option value="rice">Dal or curry + rice + salad</option><option value="sabzi">Dal or curry + sabzi + roti</option><option value="onepot">Khichdi or one-pot + raita / salad</option></select></div>
+        <div class="field"><label class="label" for="dinner">Dinner combination</label>
+          <select id="dinner"><option value="mix">Mixed through the week</option><option value="soup">Soup + curry + roti</option><option value="roti">Curry or sabzi + roti</option><option value="onepot">Khichdi or one-pot + salad</option><option value="light">Light: soup + curry + salad (no grain)</option></select></div>
+        <p class="note" id="pattern-note" hidden>Liquid, semi-liquid and procedure stages use their own small-meal pattern.</p>
+      </div>
+    </details>
+
+    <details class="more" id="d-days">
+      <summary>Day-wise preferences <small id="days-sum"></small></summary>
+      <div class="inner" id="dayprefs"></div>
+    </details>
+
+    <details class="more" id="d-prefer">
+      <summary>Foods to prefer <small id="prefer-sum"></small></summary>
+      <div class="inner">
+        <div class="pills" id="prefer"></div>
+        <label class="label" for="prefer-text">Other foods to prefer</label>
+        <input type="text" id="prefer-text" placeholder="e.g. ragi, palak, moong" autocomplete="off">
+      </div>
+    </details>
+    <details class="more" id="d-avoid">
+      <summary>Foods to avoid <small id="avoid-sum"></small></summary>
+      <div class="inner">
+        <div class="pills" id="avoid"></div>
+        <label class="label" for="avoid-text">Other foods to avoid</label>
+        <input type="text" id="avoid-text" placeholder="e.g. karela, cauliflower" autocomplete="off">
+      </div>
+    </details>
+
     <div class="field">
       <label class="label" for="who">Prepared for (optional)</label>
       <input type="text" id="who" placeholder="Name" maxlength="40" autocomplete="off">
     </div>
     <div class="actions">
-      <button type="button" class="btn primary" id="again">New menu, same settings</button>
+      <button type="button" class="btn primary" id="next">Next 7 days</button>
+      <div class="btnrow">
+        <button type="button" class="btn" id="again">New menu</button>
+        <button type="button" class="btn" id="restart">Back to Day 1</button>
+      </div>
       <button type="button" class="btn" id="print">Print / Save as PDF</button>
       <button type="button" class="btn" id="copy">Copy chart as text</button>
       <p class="toast" id="toast" role="status"></p>
     </div>
-    <p class="note">Values are estimates from IFCT 2017 / USDA data. Charts are general wellness guidance; people with medical conditions should follow their doctor's or dietitian's advice.</p>
+    <p class="note">Values are estimates from IFCT 2017 / USDA data. Charts are general guidance; people with medical conditions, or after surgery or a procedure, should follow their doctor's or dietitian's protocol.</p>
   </form>
   <div class="paper-wrap"><article class="paper" id="paper" aria-live="polite"></article></div>
 </div>
@@ -196,32 +278,75 @@ const DATA = /*__DATA__*/null;
 const CAN_PRINT = /*__CANPRINT__*/true;
 const LOGO = '__LOGO__';
 
-// ---------- planner (port of dietplan.py) ----------
-const POOLS = DATA.pools, FOCUS = DATA.focus.map(f => f[0]);
+// ================= data =================
+const POOLS = DATA.pools, FOCUS = DATA.focus.map(f => f[0]), TEX = DATA.tex, GROUPS = DATA.groups;
 const FOCUS_NAME = Object.fromEntries(DATA.focus), DIET_NAME = Object.fromEntries(DATA.diets);
-const DIETC = { vegan: 0, veg: 1, egg: 2, nonveg: 3 };
-const R = DATA.recs.map(a => ({ no: a[0], name: a[1], k: a[2], p: a[3], c: a[4], f: a[5], fib: a[6], d: a[7], pools: a[8], fmask: a[9], cat: a[10], pd: a[3] * 4 / Math.max(a[2], 1) }));
+const R = DATA.recs.map(a => ({ no: a[0], name: a[1], k: a[2], p: a[3], c: a[4], f: a[5], fib: a[6], d: a[7], pools: a[8], fmask: a[9], cat: a[10],
+  tex: a[11], grp: a[12], ing: a[13], pd: a[3] * 4 / Math.max(a[2], 1), lname: a[1].toLowerCase() }));
+const TB = Object.fromEntries(TEX.map((t, i) => [t, 1 << i]));
+const PROC = ['bariatric', 'allurion'], TEXTURED = ['liquid', 'semi', 'bariatric', 'allurion'];
+const TYPES = [...DATA.focus, ['liquid', 'Liquid Diet'], ['semi', 'Semi-Liquid Diet'], ['bariatric', 'Bariatric Surgery Diet'], ['allurion', 'Allurion Balloon Diet']];
+const TYPE_NAME = Object.fromEntries(TYPES);
 
-function rng(seedStr) { // mulberry32 seeded from a string
+// Stages after a procedure: [last day, texture, kcal, protein g]
+const STAGES = {
+  bariatric: [[2, 'clear', 0, 0], [14, 'liquid', 600, 60], [28, 'semi', 800, 60], [56, 'soft', 900, 65], [9999, 'regular', 1100, 70]],
+  allurion: [[3, 'liquid', 800, 60], [7, 'semi', 900, 60], [14, 'soft', 1000, 65], [9999, 'regular', 1200, 70]],
+};
+const STAGE_NAME = { clear: 'Clear liquids', liquid: 'Full liquids', semi: 'Semi-liquid (pureed)', soft: 'Soft foods', regular: 'Regular small meals' };
+const STAGE_FOOD = {
+  clear: 'Water, clear strained soup, dal water, coconut water and sugar-free electrolyte drinks; about 1.5 litres a day, 30 ml at a time.',
+  liquid: 'Smooth soups, thin dal and rasam, buttermilk, milk, unsweetened smoothies and protein shakes.',
+  semi: 'Porridge, blended dal, soft khichdi, curd and raita, smooth soups.',
+  soft: 'Soft idli, upma, dal, khichdi, curd, paneer and well-cooked vegetables.',
+  regular: 'Balanced small meals with protein first; chew well and stop at the first sign of fullness.',
+};
+// Clear-liquid feeds (no recipe): name, kcal, protein
+const CLEAR = [['Warm water with a squeeze of lemon, no sugar (200 ml)', 2, 0], ['Clear vegetable soup, strained (150 ml)', 20, 0.5],
+  ['Coconut water (150 ml)', 29, 0.3], ['Dal water: thin moong dal water, strained (150 ml)', 35, 2.2], ['Sugar-free electrolyte or ORS water (200 ml)', 0, 0],
+  ['Clear vegetable soup, strained (150 ml)', 20, 0.5], ['Dal water: thin moong dal water, strained (150 ml)', 35, 2.2], ['Jeera or chamomile water (200 ml)', 2, 0]];
+// macros of add-ons and simple items: carbs, fat (g)
+const MAC = { 'Pea protein': [1, 2], 'Whey protein': [3, 1.5], 'Grilled chicken': [0, 3.6], 'Grilled fish': [0, 2.7], 'Boiled egg whites': [0.7, 0.2],
+  'Low-fat hung curd': [5.4, 0.6], 'Soya chunks': [8, 0.1], 'Firm tofu': [2.8, 8.7], 'Boiled whole eggs': [1.1, 10.6], 'Unsweetened soy milk': [4, 4],
+  'Skimmed milk': [12.5, 0.3], 'Roasted chana': [17, 1.5], 'Low-fat lassi': [5.4, 0.6] };
+const mac = name => { for (const k in MAC) if (name.startsWith(k)) return MAC[k]; return [0, 0]; };
+const ALLD = ['vegan', 'veg', 'egg', 'nonveg'];
+const ADDONS = DATA.addons.concat([['Low-fat lassi: 150 g hung curd blended with water', 89, 15.3, ['veg', 'egg', 'nonveg'], ['mid', 'evening']]]);
+const LIQ_ADD = ['Pea protein', 'Whey protein', 'Unsweetened soy milk', 'Skimmed milk', 'Low-fat lassi'];
+const SEMI_ADD = LIQ_ADD.concat(['Low-fat hung curd', 'Firm tofu']);
+const SOFT_ADD = SEMI_ADD.concat(['Boiled egg whites', 'Soya chunks', 'Grilled fish']);
+
+// ================= helpers =================
+function rng(seedStr) {
   let h = 1779033703 ^ seedStr.length;
   for (let i = 0; i < seedStr.length; i++) { h = Math.imul(h ^ seedStr.charCodeAt(i), 3432918353); h = h << 13 | h >>> 19; }
   let a = h >>> 0;
   return () => { a |= 0; a = a + 0x6D2B79F5 | 0; let t = Math.imul(a ^ a >>> 15, 1 | a); t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t; return ((t ^ t >>> 14) >>> 0) / 4294967296; };
 }
 const allowed = (pd, d) => pd === 'vegan' ? d === 0 : pd === 'veg' ? d <= 1 : pd === 'egg' ? d <= 2 : true;
+const words = s => s.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 1);
+const INGR = DATA.ingr.map(n => n.toLowerCase());
+const textMatch = (r, ws) => ws.some(w => r.lname.includes(w) || r.ing.some(i => INGR[i].includes(w)));
+const proteinKcal = p => Math.max(1200, Math.round(p * 4 / (0.17 + (Math.min(p, 190) - 50) / 140 * 0.11) / 50) * 50);
+
+// ================= planner =================
+// ctx: focus, diet, band, tex (texture bit name or null), vrat, nosugar, lowfat, avoidMask, avoidWords
 const cache = new Map();
-function pool(name, focus, pdiet, band) {
-  const key = [name, focus, pdiet, band].join('|');
+function basePool(name, ctx) {
+  const key = [name, ctx.focus, ctx.diet, ctx.band, ctx.tex, ctx.vrat, ctx.nosugar, ctx.lowfat, ctx.avoidMask, ctx.avoidWords.join('|')].join('#');
   if (cache.has(key)) return cache.get(key);
-  const bit = 1 << POOLS.indexOf(name), fb = 1 << FOCUS.indexOf(focus);
-  let out = R.filter(r => (r.pools & bit) && allowed(pdiet, r.d) && (r.fmask & fb));
-  if (['protein', 'glp1', 'pcos'].includes(focus) && ['breakfast', 'main', 'evening', 'mid', 'sabzi'].includes(name)) {
+  const fb = 1 << FOCUS.indexOf(ctx.focus);
+  const pbit = POOLS.includes(name) ? 1 << POOLS.indexOf(name) : 0, tbit = TB[name] || 0;
+  let out = R.filter(r => (pbit ? r.pools & pbit : r.tex & tbit) && allowed(ctx.diet, r.d) && (r.fmask & fb)
+    && (!ctx.tex || r.tex & TB[ctx.tex]) && (!ctx.vrat || r.tex & TB.vrat) && (!ctx.nosugar || r.tex & TB.nosugar)
+    && (!ctx.lowfat || r.tex & TB.lowfat) && !(r.grp & ctx.avoidMask) && !(ctx.avoidWords.length && textMatch(r, ctx.avoidWords)));
+  if (['protein', 'glp1', 'pcos'].includes(ctx.focus) && ['breakfast', 'main', 'evening', 'mid', 'sabzi'].includes(name)) {
     out.sort((a, b) => b.pd - a.pd);
-    out = out.slice(0, Math.max(12, Math.floor(out.length * (focus !== 'pcos' ? 0.4 : 0.6))));
+    out = out.slice(0, Math.max(12, Math.floor(out.length * (ctx.focus !== 'pcos' ? 0.4 : 0.6))));
   }
-  if (band && ['breakfast', 'main', 'evening', 'mid', 'sabzi', 'salad', 'soup', 'rice', 'onepot', 'roti', 'eggbf', 'nvmain'].includes(name)) {
+  if (ctx.band && !['early', 'bedtime', 'ldrink'].includes(name)) {
     out.sort((a, b) => b.pd - a.pd);
-    const n = out.length, [lo, hi] = { vlow: [0.6, 1], low: [0.4, 1], mid: [0, 1], high: [0, 0.5], max: [0, 0.3] }[band];
+    const n = out.length, [lo, hi] = { vlow: [0.6, 1], low: [0.4, 1], mid: [0, 1], high: [0, 0.5], max: [0, 0.3] }[ctx.band];
     const s = out.slice(Math.floor(n * lo), Math.max(Math.floor(n * hi), Math.floor(n * lo) + 8));
     out = s.length ? s : out;
   }
@@ -229,11 +354,16 @@ function pool(name, focus, pdiet, band) {
   cache.set(key, out);
   return out;
 }
-function pick(rnd, name, focus, pdiet, used, band) {
-  const p = pool(name, focus, pdiet, band);
+function pick(rnd, name, ctx, used, pref) {
+  let p = basePool(name, ctx);
+  if (!p.length && ctx.tex === 'soft') p = basePool(name, { ...ctx, tex: null }).filter(r => r.tex & TB.semi);
   if (!p.length) return null;
   const fresh = p.filter(r => !used.has(r.no));
-  const src = fresh.length ? fresh : p;
+  let src = fresh.length ? fresh : p;
+  if (pref.mask || pref.words.length) {
+    const liked = src.filter(r => (r.grp & pref.mask) || (pref.words.length && textMatch(r, pref.words)));
+    if (liked.length && rnd() < 0.8) src = liked;
+  }
   const r = src[Math.floor(rnd() * src.length)];
   used.add(r.no);
   return r;
@@ -243,43 +373,51 @@ function totals(day) {
   for (const s of day) for (const i of s.items) { t.kcal += i.k * i.m; t.p += i.p * i.m; t.c += (i.c || 0) * i.m; t.f += (i.f || 0) * i.m; t.fib += (i.fib || 0) * i.m; }
   return t;
 }
-function fit(plan, kcal, focus) {
-  const hi = Math.floor((focus === 'glp1' ? 1.5 : 2 + Math.max(0, (kcal - 1800) / 1800)) * 4) / 4; // quarter servings
-  const fixed = plan.reduce((a, s) => a + (['early', 'bedtime'].includes(s.slot) ? 0 : s.items.filter(i => i.fixed).reduce((b, i) => b + i.k * i.m, 0)), 0);
-  const scale = fixed ? Math.max(0.5, (kcal - fixed) / kcal) : 1;
+function fit(plan, kcal, lo, hiMax) {
+  const hi = Math.floor(hiMax * 4) / 4;
+  const fixed = plan.reduce((a, s) => a + s.items.filter(i => i.fixed && !i.base).reduce((b, i) => b + i.k * i.m, 0), 0);
+  const scale = fixed ? Math.max(0.4, (kcal - fixed) / kcal) : 1;
   for (const s of plan) {
     const items = s.items.filter(i => !i.fixed);
     if (!items.length) continue;
     const base = items.reduce((a, i) => a + i.k, 0), m = base ? kcal * s.share * scale / base : 1;
-    for (const i of items) i.m = Math.min(hi, Math.max(0.5, Math.round(m * 4) / 4));
+    for (const i of items) i.m = Math.min(hi, Math.max(lo, Math.round(m * 4) / 4));
   }
   const adj = plan.flatMap(s => s.items.filter(i => !i.fixed));
-  for (let n = 0; n < 40; n++) {
+  for (let n = 0; n < 60; n++) {
     const diff = kcal - totals(plan).kcal;
-    if (Math.abs(diff) <= kcal * 0.03) break;
+    if (Math.abs(diff) <= kcal * 0.025) break;
     const step = diff > 0 ? 0.25 : -0.25;
-    const cands = adj.filter(i => i.m + step >= 0.5 && i.m + step <= hi);
+    const cands = adj.filter(i => i.m + step >= lo && i.m + step <= hi);
     if (!cands.length) break;
     const best = cands.reduce((a, b) => Math.abs(diff - b.k * step) < Math.abs(diff - a.k * step) ? b : a);
     if (Math.abs(diff - best.k * step) >= Math.abs(diff)) break;
     best.m += step;
   }
 }
-function reachProtein(plan, kcal, focus, pdiet, target, di) {
-  const opts = DATA.addons.filter(a => a[3].includes(pdiet)).sort((a, b) => b[2] / b[1] - a[2] / a[1]);
-  const count = {}, slots = Object.fromEntries(plan.map(s => [s.slot, s]));
-  for (let k = 0; k < 14; k++) {
+function reachProtein(plan, kcal, pdiet, target, di, allowedNames, lo, hi) {
+  let opts = ADDONS.filter(a => a[3].includes(pdiet));
+  if (allowedNames) opts = opts.filter(a => allowedNames.some(n => a[0].startsWith(n)));
+  opts.sort((a, b) => b[2] / b[1] - a[2] / a[1]);
+  const count = {}, bySlot = Object.fromEntries(plan.map(s => [s.slot, s]));
+  const slotsFree = plan.filter(s => s.slot !== 'early');
+  for (let k = 0; k < 16; k++) {
     const p = totals(plan).p;
     if (p >= target * 0.97) break;
     const need = target - p;
     let cand = opts.filter(a => (count[a[0]] || 0) < 2);
     if (!cand.length) break;
-    cand = cand.slice(0, 4);
+    // rotate only among add-ons close to the best protein per kcal, so tight calorie budgets stay on target
+    const best = cand[0][2] / cand[0][1];
+    cand = cand.filter(a => a[2] / a[1] >= best * (kcal < 1200 ? 0.8 : 0.7)).slice(0, 4);
     const a = need > 12 ? cand[(di + k) % cand.length] : cand.reduce((x, y) => Math.abs(y[2] - need) < Math.abs(x[2] - need) ? y : x);
     count[a[0]] = (count[a[0]] || 0) + 1;
-    const slot = a[4][(count[a[0]] - 1) % a[4].length];
-    slots[slot].items.push({ r: null, name: a[0], k: a[1], p: a[2], m: 1, fixed: true, addon: true });
-    fit(plan, kcal, focus);
+    // put it in its usual slot if the day has one, otherwise the meal with the fewest add-ons
+    let slot = a[4].map(s => bySlot[s]).filter(Boolean)[(count[a[0]] - 1) % Math.max(1, a[4].filter(s => bySlot[s]).length)];
+    if (!slot || allowedNames) slot = slotsFree.reduce((x, y) => y.items.filter(i => i.addon).length < x.items.filter(i => i.addon).length ? y : x);
+    const [c, f] = mac(a[0]);
+    slot.items.push({ r: null, name: a[0], k: a[1], p: a[2], c, f, m: 1, fixed: true, addon: true });
+    fit(plan, kcal, lo, hi);
   }
 }
 function bandFor(protein, kcal, pdiet, slot) {
@@ -288,124 +426,256 @@ function bandFor(protein, kcal, pdiet, slot) {
   if (pdiet === 'nonveg') ratio -= ['lunch', 'dinner'].includes(slot) ? 0.05 : 0.02;
   return ratio < 0.18 ? 'vlow' : ratio < 0.20 ? 'low' : ratio < 0.22 ? 'mid' : ratio < 0.25 ? 'high' : 'max';
 }
-function makeDay(rnd, focus, pdiet, kcal, di, used, protein) {
-  const nvDay = pdiet === 'nonveg' && [0, 2, 4, 5].includes(di), eggDay = ['egg', 'nonveg'].includes(pdiet) && [1, 3, 6].includes(di);
+
+const REG_SLOTS = { 7: DATA.slots.map(s => [...s]),
+  5: [['breakfast', '8:30 AM', 'Breakfast', 0.25], ['mid', '11:00 AM', 'Mid-Morning', 0.1], ['lunch', '1:30 PM', 'Lunch', 0.3], ['evening', '4:30 PM', 'Evening Snack', 0.1], ['dinner', '7:30 PM', 'Dinner', 0.25]],
+  3: [['breakfast', '8:30 AM', 'Breakfast', 0.3], ['lunch', '1:30 PM', 'Lunch', 0.4], ['dinner', '7:30 PM', 'Dinner', 0.3]] };
+const PROC_SLOTS = [['breakfast', '8:00 AM', 'Breakfast', 0.22], ['mid', '10:30 AM', 'Mid-Morning', 0.14], ['lunch', '1:00 PM', 'Lunch', 0.26],
+  ['evening', '4:00 PM', 'Evening', 0.14], ['dinner', '7:00 PM', 'Dinner', 0.24]];
+const LIQ_SLOTS = [['early', '7:00 AM', 'Early Morning', 'ldrink'], ['breakfast', '9:00 AM', 'Breakfast', 'ldrink'], ['mid', '11:00 AM', 'Mid-Morning', 'lsoup'],
+  ['lunch', '1:00 PM', 'Lunch', 'lthin'], ['afternoon', '3:00 PM', 'Afternoon', 'ldrink'], ['evening', '5:00 PM', 'Evening', 'lsoup'],
+  ['dinner', '7:00 PM', 'Dinner', 'lthin'], ['bedtime', '9:00 PM', 'Bedtime', 'ldrink']];
+const SEMI_SLOTS = [['early', '7:00 AM', 'Early Morning', ['ldrink'], 0.08], ['breakfast', '8:30 AM', 'Breakfast', ['porridge'], 0.2],
+  ['mid', '11:00 AM', 'Mid-Morning', ['ldrink'], 0.1], ['lunch', '1:00 PM', 'Lunch', ['sdal', 'khichdi'], 0.24],
+  ['evening', '4:00 PM', 'Evening', ['raita|lsoup'], 0.1], ['dinner', '7:00 PM', 'Dinner', ['lsoup', 'sdal|khichdi'], 0.22], ['bedtime', '9:00 PM', 'Bedtime', ['ldrink'], 0.06]];
+
+function dayPlan(rnd, o, di, used) {
+  const absDay = o.offset + di + 1;                 // day number on the chart
+  const pref = o.dayPrefs[(absDay - 1) % 7] || '';
+  let diet = o.diet;
+  if (pref === 'veg') diet = diet === 'vegan' ? 'vegan' : 'veg';
+  if (pref === 'egg') diet = diet === 'vegan' ? 'vegan' : 'egg';
+  if (pref === 'nonveg') diet = 'nonveg';
+  if (pref === 'vrat') diet = diet === 'vegan' ? 'vegan' : 'veg';   // no egg, meat or fish on a fasting day
+  let texture = o.type === 'liquid' ? 'liquid' : o.type === 'semi' ? 'semi' : 'regular';
+  let kcal = o.kcal, protein = o.protein, stage = null;
+  if (PROC.includes(o.type)) {
+    const n = o.procDay + absDay - 1;
+    stage = STAGES[o.type].find(s => n <= s[0]);
+    texture = stage[1]; kcal = stage[2]; protein = stage[3];
+  }
+  if (pref === 'light' && texture === 'regular' && !PROC.includes(o.type)) kcal = Math.round(kcal * 0.85 / 10) * 10;
+  const vrat = pref === 'vrat' && texture === 'regular';
+  const ctx = { focus: o.focusMask, diet, band: null, tex: null, vrat, nosugar: TEXTURED.includes(o.type), lowfat: PROC.includes(o.type),
+    avoidMask: o.avoidMask, avoidWords: o.avoidWords };
+  const meta = { absDay, texture, kcal, protein, stage, pref, diet };
   const plan = [];
-  for (const [slot, time, label, share] of DATA.slots) {
+  if (texture === 'clear') {
+    CLEAR.forEach(([nm, k, p], i) => { const s = LIQ_SLOTS[i]; plan.push({ slot: s[0], time: s[1], label: s[2], share: 0, items: [{ r: null, name: nm, k, p, m: 1, fixed: true, base: true }] }); });
+    return { plan, meta };
+  }
+  const small = TEXTURED.includes(o.type);
+  const lo = small ? 0.25 : 0.5, hi = small ? 1.5 : (o.type === 'glp1' ? 1.5 : 2 + Math.max(0, (kcal - 1800) / 1800));
+  const addItem = (items, r) => items.push({ r, name: r.name, k: r.k, p: r.p, c: r.c, f: r.f, fib: r.fib, m: 1, fixed: false });
+  if (texture === 'liquid' || texture === 'semi') {
+    const rows = texture === 'liquid' ? LIQ_SLOTS.map(s => [s[0], s[1], s[2], [s[3]], 1 / 8]) : SEMI_SLOTS;
+    for (const [slot, time, label, pools, share] of rows) {
+      const items = [];
+      for (const pn of pools) {
+        const alts = pn.split('|'), name = alts[(absDay + slot.length) % alts.length];
+        const r = pick(rnd, name, ctx, used, o.pref) || pick(rnd, 'ldrink', ctx, used, o.pref);
+        if (r) addItem(items, r);
+      }
+      plan.push({ slot, time, label, share, items });
+    }
+    fit(plan, kcal, lo, hi);
+    reachProtein(plan, kcal, diet, protein, di, texture === 'liquid' ? LIQ_ADD : SEMI_ADD, lo, hi);
+    return { plan, meta };
+  }
+  // soft and regular meals
+  const soft = texture === 'soft';
+  if (soft) ctx.tex = 'soft';
+  const nvDay = diet === 'nonveg' && (pref === 'nonveg' || [0, 2, 4, 5].includes(di % 7));
+  const eggDay = ['egg', 'nonveg'].includes(diet) && (pref === 'egg' || [1, 3, 6].includes(di % 7));
+  const slots = PROC.includes(o.type) ? PROC_SLOTS : REG_SLOTS[o.meals];
+  for (const [slot, time, label, share] of slots) {
     let comps = [];
     if (slot === 'early') comps = ['early'];
-    else if (slot === 'breakfast') comps = [eggDay ? 'eggbf' : 'breakfast'];
-    else if (slot === 'mid') comps = ['mid'];
+    else if (slot === 'breakfast') comps = [soft ? (di % 2 ? 'porridge' : 'breakfast') : eggDay ? 'eggbf' : 'breakfast'];
+    else if (slot === 'mid') comps = [soft ? 'ldrink' : 'mid'];
     else if (slot === 'lunch') {
-      const main = nvDay && di % 2 === 0 ? 'nvmain' : 'main', style = di % 3;
-      comps = style === 0 ? [main, 'roti', 'salad'] : style === 1 ? [main, 'rice', 'salad'] : [main, 'sabzi', 'roti'];
-    } else if (slot === 'evening') comps = ['evening'];
+      const main = nvDay && di % 2 === 0 ? 'nvmain' : 'main';
+      let l = o.lunch === 'mix' ? ['roti', 'rice', 'sabzi'][di % 3] : o.lunch;
+      if (soft) comps = ['sdal', di % 2 ? 'khichdi' : 'main', 'raita'];
+      else comps = l === 'roti' ? [main, 'roti', 'salad'] : l === 'rice' ? [main, 'rice', 'salad'] : l === 'sabzi' ? [main, 'sabzi', 'roti'] : ['onepot', 'salad'];
+      if (o.meals === 3 && !soft) comps = comps.concat([]);
+    } else if (slot === 'evening') comps = [soft ? 'lsoup' : 'evening'];
     else if (slot === 'dinner') {
       const main = nvDay && di % 2 === 1 ? 'nvmain' : (di % 2 ? 'main' : 'sabzi');
-      comps = di % 3 !== 2 ? ['soup', main, 'roti'] : ['onepot', 'salad'];
+      let d = o.dinner === 'mix' ? (di % 3 !== 2 ? 'soup' : 'onepot') : o.dinner;
+      if (soft) comps = ['lsoup', di % 2 ? 'sdal' : 'khichdi'];
+      else comps = d === 'soup' ? ['soup', main, 'roti'] : d === 'roti' ? [main, 'roti'] : d === 'onepot' ? ['onepot', 'salad'] : ['soup', main === 'sabzi' ? 'main' : main, 'salad'];
     } else if (slot === 'bedtime') {
-      const opts = DATA.bedtime.filter(b => b[3].includes(pdiet) && !b[4].includes(focus));
-      const [nm, kc, pr] = opts[di % opts.length];
-      plan.push({ slot, time, label, share, items: [{ r: null, name: nm, k: kc, p: pr, m: 1, fixed: true }] });
+      const opts = DATA.bedtime.filter(b => b[3].includes(diet) && !b[4].includes(o.focusMask) && !(o.avoidMask & (1 << 2) && /milk/.test(b[0]) && !/soy|almond/.test(b[0])));
+      const [nm, kc, pr] = opts[absDay % opts.length];
+      plan.push({ slot, time, label, share, items: [{ r: null, name: nm, k: kc, p: pr, m: 1, fixed: true, base: true }] });
       continue;
     }
     const items = [];
     for (const pname of comps) {
-      const band = bandFor(protein, kcal, pdiet, slot);
-      let r = pick(rnd, pname, focus, pdiet, used, band);
-      if (!r && (pname === 'nvmain' || pname === 'eggbf')) r = pick(rnd, pname === 'nvmain' ? 'main' : 'breakfast', focus, pdiet, used, band);
-      if (!r && pname === 'onepot') r = pick(rnd, 'rice', focus, pdiet, used, band);
-      if (!r) { if (DATA.plain[slot]) { const [nm, kc, pr] = DATA.plain[slot]; items.push({ r: null, name: nm, k: kc, p: pr, m: 1, fixed: true }); } continue; }
-      items.push({ r, name: r.name, k: r.k, p: r.p, c: r.c, f: r.f, fib: r.fib, m: 1, fixed: ['early', 'bedtime'].includes(slot) });
+      ctx.band = bandFor(protein, kcal, diet, slot);
+      let r = pick(rnd, pname, ctx, used, o.pref);
+      if (!r && (pname === 'nvmain' || pname === 'eggbf')) r = pick(rnd, pname === 'nvmain' ? 'main' : 'breakfast', ctx, used, o.pref);
+      if (!r && pname === 'onepot') r = pick(rnd, 'rice', ctx, used, o.pref);
+      if (!r && vrat && ['breakfast', 'lunch', 'dinner'].includes(slot)) r = pick(rnd, 'breakfast', ctx, used, o.pref);
+      if (!r) { if (DATA.plain[slot]) { const [nm, kc, pr] = DATA.plain[slot]; items.push({ r: null, name: nm, k: kc, p: pr, m: 1, fixed: true, base: true }); } continue; }
+      if (slot === 'early') items.push({ r, name: r.name, k: r.k, p: r.p, c: r.c, f: r.f, fib: r.fib, m: 1, fixed: true, base: true });
+      else addItem(items, r);
     }
+    if (vrat && !items.length) items.push({ r: null, name: 'Fruit bowl: papaya, apple or guava (150 g) with roasted makhana (15 g)', k: 130, p: 3, c: 25, f: 1, fib: 4, m: 1, fixed: false });
     plan.push({ slot, time, label, share, items });
   }
-  fit(plan, kcal, focus);
-  if (protein) reachProtein(plan, kcal, focus, pdiet, protein, di);
-  return plan;
+  fit(plan, kcal, lo, hi);
+  if (protein) reachProtein(plan, kcal, diet, protein, di, soft ? SOFT_ADD : null, lo, hi);
+  return { plan, meta };
 }
-const proteinKcal = p => Math.max(1200, Math.round(p * 4 / (0.17 + (p - 50) / 140 * 0.11) / 50) * 50);
 function makePlan(o) {
-  const rnd = rng(`${o.mode}-${o.focus}-${o.kcal}-${o.diet}-${o.protein}-${o.seed}`), used = new Set();
-  return Array.from({ length: 7 }, (_, di) => makeDay(rnd, o.focus, o.diet, o.kcal, di, used, o.protein));
+  const rnd = rng(`${o.type}-${o.goal}-${o.kcal}-${o.protein}-${o.diet}-${o.seed}-${o.offset}-${o.procDay}`);
+  const used = new Set(o.prevUsed || []);
+  const days = Array.from({ length: o.days }, (_, di) => dayPlan(rnd, o, di, used));
+  return { days, used };
 }
 
-// ---------- rendering ----------
+// ================= rendering =================
 const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 const FR = [[0, ''], [0.25, '¼'], [0.5, '½'], [0.75, '¾']];
 function portion(m) {
-  const w = Math.floor(m), f = FR.find(x => Math.abs(x[0] - (m - w)) < 0.01)[1];
-  const t = (w ? String(w) : '') + f || '¼';
-  return `${t} serving${m > 1 ? 's' : ''}`;
+  const w = Math.floor(m), f = (FR.find(x => Math.abs(x[0] - (m - w)) < 0.01) || [0, ''])[1];
+  return `${(w ? String(w) : '') + f || '¼'} serving${m > 1 ? 's' : ''}`;
 }
 const n0 = x => Math.round(x).toLocaleString('en-IN');
-function proteinInfo(pg, kcal) {
-  const lead = `A 7-day Indian meal plan giving at least ${pg} g of protein a day at about ${n0(kcal)} kcal, built from Hindivine recipes.`;
-  const who = [pg <= 70 ? 'Less active adults meeting everyday protein needs, older adults and people on a light weight-loss plan.'
-    : pg <= 120 ? 'Active adults, people losing weight who want to keep their muscle, and anyone exercising regularly.'
-    : 'People doing regular strength training or sport, as advised by their doctor, coach or dietitian.'];
-  const dos = ['Spread protein across the day: some at every meal works better than one large serving.',
-    'Eat the protein part of each meal (dal, paneer, tofu, egg, chicken, curd, sprouts) first.',
-    'Protein powder is optional: one scoop can be replaced with 4 egg whites, 150 g hung curd or 100 g tofu.',
-    'Drink 2.5-3 litres of water a day and include vegetables at every meal for fibre.',
-    'Combine this plan with strength exercise 2-4 times a week to build or keep muscle.'];
-  const donts = ["People with kidney disease should not follow a high-protein plan without their doctor's advice.",
-    'Protein bars, shakes and drinks with added sugar.', 'Processed meats (sausages, salami) and deep-fried protein snacks.'];
-  return [lead, who, dos, donts];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+function dateOf(o, absDay) {
+  if (!o.start) return '';
+  const d = new Date(o.start + 'T12:00:00'); d.setDate(d.getDate() + absDay - 1);
+  return `${d.getDate()} ${MONTHS[d.getMonth()]} ${d.getFullYear()}`;
 }
-function render(o, days) {
-  const pg = o.mode === 'pr' ? o.protein : null;
-  const [lead, who, dos, donts] = pg ? proteinInfo(pg, o.kcal) : DATA.info[o.focus];
-  const tots = days.map(totals), avg = k => tots.reduce((a, t) => a + t[k], 0) / 7;
-  const title = pg ? `${pg} g Protein Diet` : FOCUS_NAME[o.focus];
+const TYPE_INFO = {
+  liquid: ['Smooth, sugar-free liquids every 2 hours to meet protein and fluid needs while the stomach rests or heals.',
+    ['People told by their doctor to follow a full liquid diet, for example after surgery or a procedure, or during recovery.'],
+    ['Sip slowly; take 20-30 minutes for each feed.', 'Blend soups and dals until completely smooth; strain them if your doctor asks for no bits.',
+      'Aim for 1.5-2 litres of total fluids a day, including water between feeds.', 'Take the protein drinks listed: protein is the priority on a liquid diet.',
+      "Follow your doctor's advice on how many days to stay on liquids."],
+    ['Sugar, honey, jaggery, sweetened juices and soft drinks.', 'Fizzy drinks and alcohol.', 'Very hot drinks, and solid pieces in soups or dals.']],
+  semi: ['Soft, smooth foods with the texture of thick soup or mash: porridge, blended dal, khichdi, curd and soups.',
+    ['People moving from liquids to solid food after surgery, a gastric balloon or illness, or with chewing or swallowing difficulty, as advised by their doctor.'],
+    ['Blend or mash food to a smooth, lump-free texture.', 'Eat 6-7 small meals and stop at the first feeling of fullness.',
+      'Eat the protein part (dal, curd, protein drink) first.', 'Sip water between meals, not with them; wait 30 minutes after eating.'],
+    ['Dry, hard, crunchy, fried or spicy food.', 'Raw salads, whole nuts, seeds and tough skins.', 'Sugar, sweets and sweetened drinks.']],
+  bariatric: ['A stage-by-stage diet after bariatric (weight-loss) surgery: clear liquids, full liquids, semi-liquid, soft and then regular small meals, with protein first.',
+    ["People after sleeve gastrectomy, gastric bypass (RYGB / MGB) or other bariatric surgery, following their surgeon's and dietitian's protocol."],
+    ['Aim for at least 60-70 g of protein a day; eat or drink the protein first.', 'Sip 1.5-2 litres of fluids a day, 30 ml at a time, between meals.',
+      'Keep liquids and solids 30 minutes apart once you start solid food.', 'Eat slowly, chew each bite 20-25 times, and stop at the first sign of fullness.',
+      'Take vitamins, calcium, iron and B12 exactly as your surgeon prescribes.'],
+    ['Sugar, sweets, sweetened drinks and juices (they can cause dumping syndrome).', 'Fizzy drinks, alcohol and, early on, drinking through a straw.',
+      'Fried, greasy and very spicy food; dry or tough meat, bread and rice in the early stages.', 'Moving to the next stage before your surgeon or dietitian advises.']],
+  allurion: ['A stage-by-stage diet for the Allurion gastric balloon: liquids for the first days, then semi-liquid, soft and regular small meals.',
+    ["People who have swallowed an Allurion gastric balloon, following their doctor's and dietitian's programme."],
+    ['Days 1-3: sip liquids only, in small amounts often, to settle nausea.', 'Eat 5 small meals a day and stop at the first feeling of fullness.',
+      'Eat protein first and aim for 60-70 g of protein a day.', 'Sip 2 litres of water a day between meals.', 'Take anti-nausea or acid medicines exactly as prescribed.'],
+    ['Fizzy drinks and alcohol.', 'Large meals, eating late at night and lying down soon after eating.', 'Sugary, fried and greasy food.',
+      'Contact your doctor at once if you have persistent vomiting, severe stomach pain or cannot keep fluids down.']],
+};
+function proteinInfo(pg, kcal) {
+  return [`A meal plan giving at least ${pg} g of protein a day at about ${n0(kcal)} kcal, built from Hindivine recipes.`,
+    [pg <= 70 ? 'Less active adults meeting everyday protein needs, older adults and people on a light weight-loss plan.'
+      : pg <= 120 ? 'Active adults, people losing weight who want to keep their muscle, and anyone exercising regularly.'
+      : 'People doing regular strength training or sport, as advised by their doctor, coach or dietitian.'],
+    ['Spread protein across the day: some at every meal works better than one large serving.',
+      'Eat the protein part of each meal (dal, paneer, tofu, egg, chicken, curd, sprouts) first.',
+      'Protein powder is optional: one scoop can be replaced with 4 egg whites, 150 g hung curd or 100 g tofu.',
+      'Drink 2.5-3 litres of water a day and include vegetables at every meal for fibre.',
+      'Combine this plan with strength exercise 2-4 times a week to build or keep muscle.'],
+    ["People with kidney disease should not follow a high-protein plan without their doctor's advice.",
+      'Protein bars, shakes and drinks with added sugar.', 'Processed meats (sausages, salami) and deep-fried protein snacks.']];
+}
+function dayStatus(t, m) {
+  if (m.texture === 'clear') return ['ok', 'Fluids day'];
+  const kOk = Math.abs(t.kcal - m.kcal) <= m.kcal * 0.05, pOk = !m.protein || t.p >= m.protein * 0.95;
+  return kOk && pOk ? ['ok', 'On target'] : ['chk', !kOk ? `${n0(t.kcal)} of ${n0(m.kcal)} kcal` : `${n0(t.p)} of ${m.protein} g protein`];
+}
+function render(o, res) {
+  const days = res.days, proc = PROC.includes(o.type), textured = TEXTURED.includes(o.type);
+  const pg = o.protein && !proc ? o.protein : null;
+  const info = TYPE_INFO[o.type] || (o.goal === 'protein' && o.type === 'general' ? proteinInfo(o.protein, o.kcal) : DATA.info[o.type]);
+  const [lead, who, dos, donts] = o.goal !== 'kcal' && o.type === 'general' && !textured ? proteinInfo(o.protein, o.kcal) : info;
+  const tots = days.map(d => totals(d.plan)), avg = k => tots.reduce((a, t) => a + t[k], 0) / days.length;
+  const title = TYPE_NAME[o.type] && o.type !== 'general' ? TYPE_NAME[o.type] : (pg ? `${pg} g Protein Diet` : 'General Weight Loss');
+  const series = proc ? (o.type === 'bariatric' ? 'BARIATRIC DIET CHART' : 'ALLURION BALLOON DIET CHART') : textured ? 'THERAPEUTIC DIET CHART' : pg ? 'PROTEIN DIET CHART' : 'WEIGHT LOSS DIET CHART';
   const li = xs => xs.map(x => `<li>${esc(x)}</li>`).join('');
+  const first = o.offset + 1, last = o.offset + days.length;
+  const statuses = days.map((d, i) => dayStatus(tots[i], d.meta)), offCount = statuses.filter(s => s[0] !== 'ok').length;
   const mainOf = (day, slot) => {
-    const s = day.find(s => s.slot === slot); let rs = s.items.filter(i => i.r);
-    if (slot !== 'breakfast' && rs.length > 1 && rs[0].r.cat === 'Soups') rs = rs.slice(1);
+    const s = day.find(s => s.slot === slot); if (!s) return '';
+    let rs = s.items.filter(i => i.r || i.base);
+    if (slot !== 'breakfast' && rs.length > 1 && rs[0].r && rs[0].r.cat === 'Soups') rs = rs.slice(1);
     return rs.length ? esc(rs[0].name) : '';
   };
-  let h = `<header class="p-head"><img src="${LOGO}" alt="Hindivine Healthcare Private Limited"><div class="series"><small>${pg ? 'PROTEIN DIET CHART' : 'WEIGHT LOSS DIET CHART'}</small><em>Nutrition · Wellness · Care</em></div></header><div class="p-body">`;
-  h += `<section class="hero"><div class="main"><span class="kick">7-Day Diet Chart</span><h2>${esc(title)}</h2><div class="rule"></div><div class="chips">`
-    + (pg ? `<span class="chip">${pg} G PROTEIN / DAY</span>` : '') + `<span class="chip">${n0(o.kcal)} KCAL / DAY</span><span class="chip g">${esc(DIET_NAME[o.diet].toUpperCase())}</span><span class="chip">7 DAYS</span></div>`
+  let h = `<header class="p-head"><img src="${LOGO}" alt="Hindivine Healthcare Private Limited"><div class="series"><small>${series}</small><em>Nutrition · Wellness · Care</em></div></header><div class="p-body">`;
+  const chips = [];
+  if (proc) chips.push('TARGETS SET BY STAGE');
+  else { if (o.protein) chips.push(`${o.protein} G PROTEIN / DAY`); chips.push(`${n0(o.kcal)} KCAL / DAY`); }
+  h += `<section class="hero"><div class="main"><span class="kick">${days.length}-Day Diet Chart${first > 1 ? ` · Days ${first}-${last}` : ''}</span><h2>${esc(title)}</h2><div class="rule"></div><div class="chips">`
+    + chips.map(c => `<span class="chip">${c}</span>`).join('') + `<span class="chip g">${esc(DIET_NAME[o.diet].toUpperCase())}</span><span class="chip">${days.length} DAYS</span></div>`
     + `<p class="lead">${esc(lead)}</p><p class="best"><b>BEST FOR</b>${esc(who.join(' '))}</p></div>`
-    + `<div class="side"><small>${pg ? 'Protein' : 'Calories'}</small><b>${pg ? pg : n0(o.kcal)}</b><small>${pg ? 'g a day' : 'kcal a day'}</small></div></section>`;
-  if (o.who) h += `<p class="prep">Prepared for <b>${esc(o.who)}</b></p>`;
+    + (proc ? `<div class="side"><small>Starts on</small><b>Day ${o.procDay}</b><small>after the procedure</small></div>`
+      : `<div class="side"><small>${o.goal === 'protein' ? 'Protein' : 'Calories'}</small><b>${o.goal === 'protein' ? o.protein : n0(o.kcal)}</b><small>${o.goal === 'protein' ? 'g a day' : 'kcal a day'}</small></div>`)
+    + `</section>`;
+  if (o.who || o.start) h += `<p class="prep">${o.who ? `Prepared for <b>${esc(o.who)}</b>` : ''}${o.who && o.start ? ' · ' : ''}${o.start ? `From ${dateOf(o, first)} to ${dateOf(o, last)}` : ''}</p>`;
   h += `<div class="strip"><div class="tile k"><b>${n0(avg('kcal'))}</b> kcal<small>Avg calories / day</small></div><div class="tile p"><b>${n0(avg('p'))}</b> g<small>Avg protein / day</small></div>`
     + `<div class="tile"><b>${n0(avg('c'))}</b> g<small>Carbs</small></div><div class="tile"><b>${n0(avg('fib'))}</b> g<small>Fibre</small></div><div class="tile"><b>${n0(avg('f'))}</b> g<small>Fat</small></div></div>`;
+  h += `<p class="checkline">Target check: ${offCount ? `<b class="c">${days.length - offCount} of ${days.length} days on target</b>; the days marked "check" are shown with their totals.` : `<b>all ${days.length} days are within 5% of the calorie target${proc || o.protein ? ' and meet the protein target' : ''}</b>.`}</p>`;
+  const picks = [...o.prefNames, ...o.prefWords].join(', '), avoids = [...o.avoidNames, ...o.avoidWords].join(', ');
   h += `<div class="box"><h4>How to use this chart</h4><ul>${li([
-    'Each meal is a Hindivine recipe; the number after it (for example #0123) is the recipe number in the Hindivine Healthy Recipe Series.',
-    `"1 serving" means one serving as described in that recipe. Portions are set so each day comes close to ${n0(o.kcal)} kcal${pg ? ` and gives at least ${pg} g of protein` : ''}; calories and protein are per portion shown.`,
-    pg ? "Items marked + are simple protein add-ons that top up the day's protein." : 'Drink 2.5-3 litres of water a day unless your doctor has limited fluids. Tea or coffee: up to 2 cups a day, with no sugar.',
-    pg ? 'Drink 2.5-3 litres of water a day unless your doctor has limited fluids.' : 'Weigh yourself once a week at the same time. A healthy rate of loss is about 0.5-1 kg a week.'])}</ul></div>`;
-  h += `<section class="sec"><h3><span>01</span>Your 7 Days at a Glance</h3><div class="bar"></div><div class="tbl-wrap"><table class="glance"><thead><tr><th>Day</th><th>Breakfast</th><th>Lunch</th><th>Dinner</th><th class="n">kcal</th><th class="n">Protein</th></tr></thead><tbody>`
-    + days.map((d, i) => `<tr><td class="meal">Day ${i + 1}</td><td>${mainOf(d, 'breakfast')}</td><td>${mainOf(d, 'lunch')}</td><td>${mainOf(d, 'dinner')}</td><td class="n">${n0(tots[i].kcal)}</td><td class="n">${n0(tots[i].p)} g</td></tr>`).join('')
+    'Each dish is a Hindivine recipe; the number after it (for example #0123) is its number in the Hindivine Healthy Recipe Series.',
+    '"1 serving" means one serving as described in that recipe; calories and protein are given for the portion shown.',
+    ...(o.protein || proc ? ["Items marked + are simple protein add-ons that top up the day's protein."] : []),
+    ...(picks ? [`Preferred foods used where possible: ${picks}.`] : []), ...(avoids ? [`Foods left out: ${avoids}.`] : []),
+    textured ? 'Sip water between meals. Follow the texture your doctor or dietitian has advised.' : 'Drink 2.5-3 litres of water a day unless your doctor has limited fluids.'])}</ul></div>`;
+  let sec = 1;
+  if (proc) {
+    const st = STAGES[o.type]; let prev = 0;
+    const cur = new Set(days.map(d => d.meta.stage[0]));
+    h += `<section class="sec"><h3><span>0${sec++}</span>Diet Stages after the ${o.type === 'bariatric' ? 'Surgery' : 'Balloon'}</h3><div class="bar"></div><div class="tbl-wrap"><table class="stages"><thead><tr><th>Days after procedure</th><th>Stage</th><th>Foods</th><th class="n">Target</th></tr></thead><tbody>`
+      + st.map(s => { const r = `<tr${cur.has(s[0]) ? ' class="now"' : ''}><td>${s[0] > 999 ? `Day ${prev + 1} onwards` : `Days ${prev + 1}-${s[0]}`}</td><td><b>${STAGE_NAME[s[1]]}</b></td><td>${esc(STAGE_FOOD[s[1]])}</td><td class="n">${s[2] ? `${n0(s[2])} kcal<br>${s[3]} g protein` : 'Fluids'}</td></tr>`; prev = s[0]; return r; }).join('')
+      + `</tbody></table></div><p class="checkline">Highlighted rows are the stages in this chart. Stage timing differs between surgeons and patients; move to the next stage only when your surgeon or dietitian advises.</p></section>`;
+  }
+  h += `<section class="sec"><h3><span>0${sec++}</span>Your Days at a Glance</h3><div class="bar"></div><div class="tbl-wrap"><table class="glance"><thead><tr><th>Day</th><th>Breakfast</th><th>Lunch</th><th>Dinner</th><th class="n">kcal</th><th class="n">Protein</th></tr></thead><tbody>`
+    + days.map((d, i) => `<tr><td class="meal">Day ${d.meta.absDay}${o.start ? `<br><span class="rn">${dateOf(o, d.meta.absDay)}</span>` : ''}</td><td>${mainOf(d.plan, 'breakfast')}</td><td>${mainOf(d.plan, 'lunch')}</td><td>${mainOf(d.plan, 'dinner')}</td><td class="n">${n0(tots[i].kcal)}</td><td class="n">${n0(tots[i].p)} g</td></tr>`).join('')
     + `</tbody></table></div></section>`;
-  days.forEach((day, di) => {
-    const t = tots[di];
-    h += `<section class="day${di % 2 === 0 ? ' page-break' : ''}"><div class="tbl-wrap"><div class="dayhead"><b>Day ${di + 1}</b><span>${n0(t.kcal)} kcal · ${n0(t.p)} g protein</span></div><table><thead><tr><th>Time</th><th>Meal</th><th>What to eat</th><th class="n">Portion</th><th class="n">kcal</th><th class="n">Protein</th></tr></thead>`;
-    day.forEach((s, si) => {
+  days.forEach((d, di) => {
+    const t = tots[di], m = d.meta, [sc, sl] = statuses[di];
+    const tags = [o.start ? dateOf(o, m.absDay) : '', m.stage ? STAGE_NAME[m.texture] : '', m.pref === 'vrat' ? 'Fasting (vrat) day' : m.pref === 'light' ? 'Light day' : '',
+      m.pref && ['veg', 'egg', 'nonveg'].includes(m.pref) && m.diet !== o.diet ? `${DIET_NAME[m.diet]} day` : ''].filter(Boolean).join(' · ');
+    h += `<section class="day${di % 2 === 0 ? ' page-break' : ''}"><div class="tbl-wrap"><div class="dayhead"><b>Day ${m.absDay}${tags ? `<em>${esc(tags)}</em>` : ''}</b><span>${n0(t.kcal)} kcal · ${n0(t.p)} g protein<span class="status ${sc}">${esc(sl)}</span></span></div><table><thead><tr><th>Time</th><th>Meal</th><th>What to eat</th><th class="n">Portion</th><th class="n">kcal</th><th class="n">Protein</th></tr></thead>`;
+    d.plan.forEach((s, si) => {
+      if (!s.items.length) return;
       h += `<tbody${si % 2 ? ' class="z"' : ''}>`;
       s.items.forEach((i, k) => {
-        const what = i.r ? `${esc(i.name)} <span class="rn">#${String(i.r.no).padStart(4, '0')}</span>` : i.addon ? `<span class="plus">+</span> ${esc(i.name)} <span class="add">protein add-on</span>` : esc(i.name);
+        const what = i.r ? `${esc(i.name)} <span class="rn">#${String(i.r.no).padStart(4, '0')}</span>${m.texture === 'liquid' && i.r.cat !== 'Drinks & Smoothies' ? ' <span class="add">blend smooth</span>' : m.texture === 'semi' && !['Drinks & Smoothies', 'Soups'].includes(i.r.cat) ? ' <span class="add">mash or blend</span>' : ''}`
+          : i.addon ? `<span class="plus">+</span> ${esc(i.name)} <span class="add">protein add-on</span>` : esc(i.name);
         const cls = [k === 0 ? 'first' : '', k === s.items.length - 1 ? 'last' : ''].join(' ').trim();
         h += `<tr${cls ? ` class="${cls}"` : ''}><td class="time">${k === 0 ? s.time : ''}</td><td class="meal">${k === 0 ? s.label : ''}</td><td>${what}</td><td class="n">${i.r ? portion(i.m) : 'as listed'}</td><td class="n">${n0(i.k * i.m)}</td><td class="n">${n0(i.p * i.m)} g</td></tr>`;
       });
       h += `</tbody>`;
     });
-    h += `<tbody><tr class="total"><td></td><td>Day total</td><td class="sm" colspan="2">Carbs ${n0(t.c)} g · Fat ${n0(t.f)} g · Fibre ${n0(t.fib)} g</td><td class="n">${n0(t.kcal)}</td><td class="n">${n0(t.p)} g</td></tr></tbody></table></div></section>`;
+    h += `<tbody><tr class="total"><td></td><td>Day total</td><td class="sm" colspan="2">Target ${m.kcal ? `${n0(m.kcal)} kcal` : 'fluids'}${m.protein ? ` · ${m.protein} g protein` : ''} · Carbs ${n0(t.c)} g · Fat ${n0(t.f)} g · Fibre ${n0(t.fib)} g</td><td class="n">${n0(t.kcal)}</td><td class="n">${n0(t.p)} g</td></tr></tbody></table></div></section>`;
   });
-  h += `<section class="sec page-break"><h3><span>02</span>Guidelines for this Plan</h3><div class="bar"></div><div class="box mint"><h4>Do</h4><ul>${li(dos)}</ul></div><div class="box pink"><h4>Limit or avoid</h4><ul>${li(donts)}</ul></div></section>`;
+  h += `<section class="sec page-break"><h3><span>0${sec++}</span>Guidelines for this Plan</h3><div class="bar"></div><div class="box mint"><h4>Do</h4><ul>${li(dos)}</ul></div><div class="box pink"><h4>Limit or avoid</h4><ul>${li(donts)}</ul></div></section>`;
   let q, txt;
-  if (pg) {
-    q = `Is ${pg} g of protein right for me?`;
-    txt = `A common guide is about 1.0 g of protein per kg of body weight for less active adults, 1.2-1.6 g/kg for active adults and people losing weight, and 1.6-2.0 g/kg for regular strength training. So ${pg} g a day roughly suits a body weight of about ${n0(pg)} kg if you are less active, ${n0(pg / 1.6)}-${n0(pg / 1.2)} kg if you are active, or ${n0(pg / 2)}-${n0(pg / 1.6)} kg with regular strength training. Your doctor or dietitian can set the right amount for you; seek advice first if you have kidney or liver disease, or are pregnant or breastfeeding.`;
+  if (proc || textured) {
+    q = 'Is this plan right for me?';
+    txt = "Liquid, semi-liquid and post-procedure diets must be supervised. Calorie and protein targets here follow a common schedule; your surgeon or dietitian may set different ones, and their advice always comes first. Do not continue a very low-calorie liquid diet longer than advised.";
+  } else if (o.goal !== 'kcal') {
+    const p = o.protein; q = `Is ${p} g of protein right for me?`;
+    txt = `A common guide is about 1.0 g of protein per kg of body weight for less active adults, 1.2-1.6 g/kg for active adults and people losing weight, and 1.6-2.0 g/kg for regular strength training. So ${p} g a day roughly suits a body weight of about ${n0(p)} kg if you are less active, ${n0(p / 1.6)}-${n0(p / 1.2)} kg if you are active, or ${n0(p / 2)}-${n0(p / 1.6)} kg with regular strength training. Seek advice first if you have kidney or liver disease, or are pregnant or breastfeeding.`;
   } else {
     q = `Is ${n0(o.kcal)} kcal right for me?`;
     txt = (o.kcal <= 1400 ? 'This calorie level is usually suited to women or smaller, less active adults.' : 'This calorie level is usually suited to men or more active adults.')
       + ' Your dietitian can adjust it to your age, weight, height, activity and medical history. Do not go below 1,200 kcal a day without medical supervision, and seek advice before starting if you are pregnant, breastfeeding, under 18, or have a medical condition.';
   }
-  h += `<section class="sec"><h3><span>03</span>${esc(q)}</h3><div class="bar"></div><p style="margin:0">${esc(txt)}</p></section>`;
-  h += `<p class="disc"><b>Disclaimer:</b> This diet chart is general wellness information and not a substitute for personalised medical or nutrition advice. Calorie and protein values are estimates from standard ingredient data (IFCT 2017 / USDA). People with medical conditions or on medication should follow the plan given by their doctor or dietitian.</p>`;
+  h += `<section class="sec"><h3><span>0${sec++}</span>${esc(q)}</h3><div class="bar"></div><p style="margin:0">${esc(txt)}</p></section>`;
+  h += `<p class="disc"><b>Disclaimer:</b> This diet chart is general wellness information and not a substitute for personalised medical or nutrition advice. Calorie and protein values are estimates from standard ingredient data (IFCT 2017 / USDA). People with medical conditions, on medication, or recovering from surgery or a procedure should follow the plan given by their doctor or dietitian.</p>`;
   h += `<section class="sec page-break"><div class="hero"><div class="main"><span class="kick">Hindivine Healthcare</span><h2>Our Services</h2><div class="rule"></div><p class="best" style="color:#D6E7F3"><b style="color:#fff;letter-spacing:0;font-size:12px">Dr Rajat Goel</b> · Bariatric Surgeon. Expert, minimally invasive care for weight loss, metabolic health and general surgery.</p></div></div>`
     + `<div class="glp"><span class="kick" style="color:var(--mint-ink)">New · Medical weight loss</span><h5>GLP-1 Weight Loss Injections</h5><ul>${li(DATA.glp1)}</ul></div>`
     + `<div class="services">${DATA.services.map(([n, c, items]) => `<div class="svc" style="border-top:3px solid ${c}"><h5>${esc(n)}</h5><ul>${li(items)}</ul></div>`).join('')}</div>`
@@ -413,49 +683,117 @@ function render(o, days) {
   h += `</div><footer class="p-foot"><span>www.hindivine.com</span><span>app@hindivine.com</span><span>Hindivine Healthcare Private Limited</span></footer>`;
   return h;
 }
-function asText(o, days) {
-  const pg = o.mode === 'pr' ? o.protein : null;
-  const lines = [`HINDIVINE ${pg ? `${pg} g PROTEIN` : FOCUS_NAME[o.focus].toUpperCase()} DIET CHART`, `${n0(o.kcal)} kcal a day · ${DIET_NAME[o.diet]}${o.who ? ` · for ${o.who}` : ''}`, ''];
-  days.forEach((day, di) => {
-    const t = totals(day);
-    lines.push(`DAY ${di + 1} (${n0(t.kcal)} kcal, ${n0(t.p)} g protein)`);
-    for (const s of day) lines.push(`${s.time} ${s.label}: ` + s.items.map(i => i.r ? `${i.name} #${String(i.r.no).padStart(4, '0')} (${portion(i.m)})` : i.name).join(' + '));
+function asText(o, res) {
+  const lines = [`HINDIVINE ${TYPE_NAME[o.type].toUpperCase()} DIET CHART`,
+    `${PROC.includes(o.type) ? 'Targets set by stage' : `${n0(o.kcal)} kcal${o.protein ? `, ${o.protein} g protein` : ''} a day`} · ${DIET_NAME[o.diet]}${o.who ? ` · for ${o.who}` : ''}`, ''];
+  res.days.forEach(d => {
+    const t = totals(d.plan);
+    lines.push(`DAY ${d.meta.absDay}${o.start ? ` (${dateOf(o, d.meta.absDay)})` : ''}${d.meta.stage ? ` - ${STAGE_NAME[d.meta.texture]}` : ''}: ${n0(t.kcal)} kcal, ${n0(t.p)} g protein`);
+    for (const s of d.plan) if (s.items.length) lines.push(`${s.time} ${s.label}: ` + s.items.map(i => i.r ? `${i.name} #${String(i.r.no).padStart(4, '0')} (${portion(i.m)})` : i.name).join(' + '));
     lines.push('');
   });
   lines.push('www.hindivine.com · app@hindivine.com');
   return lines.join('\n');
 }
 
-// ---------- controls ----------
-const st = { mode: 'wl', kcal: 1400, protein: 100, diet: 'veg', focus: 'general', who: '', seed: 1 };
-try { Object.assign(st, JSON.parse(localStorage.getItem('hv-diet') || '{}')); } catch (e) { /* storage unavailable */ }
+// ================= controls =================
+const DEF = { type: 'general', goal: 'kcal', kcal: 1400, protein: 100, diet: 'veg', start: '', days: 7, procDay: 1, meals: 7, lunch: 'mix', dinner: 'mix',
+  dayPrefs: ['', '', '', '', '', '', ''], prefer: [], avoid: [], preferText: '', avoidText: '', who: '', seed: 1, offset: 0 };
+const st = JSON.parse(JSON.stringify(DEF));
+try { Object.assign(st, JSON.parse(localStorage.getItem('hv-diet2') || '{}')); } catch (e) { /* storage unavailable */ }
+let prevUsed = [], current = null, lastUsed = null;
 const $ = id => document.getElementById(id);
+$('type').innerHTML = `<optgroup label="Weight loss">${DATA.focus.map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</optgroup>`
+  + `<optgroup label="Medical and procedure diets">${TYPES.slice(DATA.focus.length).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('')}</optgroup>`;
 $('diet').innerHTML = DATA.diets.map(([k, v]) => `<button type="button" data-diet="${k}" id="diet-${k}">${esc(v)}</button>`).join('');
-$('focus').innerHTML = DATA.focus.map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join('');
+const pills = (id, cls) => GROUPS.map(([k, n]) => `<button type="button" class="pill ${cls}" data-g="${k}" id="${id}-${k}">${esc(n)}</button>`).join('');
+$('prefer').innerHTML = pills('pf', ''); $('avoid').innerHTML = pills('av', 'avoid');
+const DAYPREF = [['', 'As selected'], ['veg', 'Vegetarian day'], ['egg', 'Eggetarian day'], ['nonveg', 'Non-veg day'], ['vrat', 'Fasting (vrat) day'], ['light', 'Light day (15% fewer kcal)']];
 $('print').hidden = !CAN_PRINT;
-let current = null;
-function update() {
-  st.kcal = Math.min(2400, Math.max(1200, st.kcal));
-  const o = { ...st, focus: st.mode === 'pr' ? 'general' : st.focus, protein: st.mode === 'pr' ? st.protein : null,
-    kcal: st.mode === 'pr' ? proteinKcal(st.protein) : st.kcal };
-  $('mode-wl').setAttribute('aria-pressed', st.mode === 'wl'); $('mode-pr').setAttribute('aria-pressed', st.mode === 'pr');
-  $('f-kcal').hidden = st.mode !== 'wl'; $('f-protein').hidden = st.mode !== 'pr'; $('f-focus').hidden = st.mode !== 'wl';
-  $('kcal').value = st.kcal; $('kcal-out').textContent = n0(st.kcal);
-  $('protein').value = st.protein; $('protein-out').textContent = st.protein; $('protein-kcal').textContent = n0(proteinKcal(st.protein));
-  $('focus').value = st.focus; $('who').value = st.who;
-  document.querySelectorAll('[data-diet]').forEach(b => b.setAttribute('aria-pressed', b.dataset.diet === st.diet));
-  const days = makePlan(o);
-  current = [o, days];
-  $('paper').innerHTML = render(o, days);
-  try { localStorage.setItem('hv-diet', JSON.stringify(st)); } catch (e) { /* storage unavailable */ }
+
+function options() {
+  const proc = PROC.includes(st.type), textured = TEXTURED.includes(st.type);
+  let kcal = st.kcal, protein = null, goal = textured ? 'both' : st.goal;
+  if (!proc) {
+    if (goal === 'protein') { protein = st.protein; kcal = proteinKcal(st.protein); }
+    else if (goal === 'both') { protein = st.protein; }
+  }
+  let warn = '';
+  if (protein && protein * 4 > kcal * 0.4) { const cap = Math.floor(kcal * 0.4 / 4 / 5) * 5; warn = `${protein} g of protein is more than 40% of ${n0(kcal)} kcal, so the chart uses ${cap} g. Raise the calories for more protein.`; protein = cap; }
+  const mask = keys => GROUPS.reduce((a, [k], i) => keys.includes(k) ? a | (1 << i) : a, 0);
+  const gname = keys => GROUPS.filter(([k]) => keys.includes(k)).map(g => g[1]);
+  return { type: st.type, goal, kcal, protein, diet: st.diet, start: st.start, days: Math.min(30, Math.max(1, st.days | 0 || 7)), procDay: Math.max(1, st.procDay | 0 || 1),
+    meals: +st.meals, lunch: st.lunch, dinner: st.dinner, dayPrefs: st.dayPrefs, seed: st.seed, offset: st.offset, who: st.who,
+    focusMask: proc ? 'glp1' : textured ? 'general' : st.type,
+    pref: { mask: mask(st.prefer), words: words(st.preferText) }, prefNames: gname(st.prefer), prefWords: words(st.preferText),
+    avoidMask: mask(st.avoid), avoidWords: words(st.avoidText), avoidNames: gname(st.avoid), prevUsed, warn };
 }
-document.querySelectorAll('[data-mode]').forEach(b => b.addEventListener('click', () => { st.mode = b.dataset.mode; update(); }));
-$('diet').addEventListener('click', e => { const b = e.target.closest('[data-diet]'); if (b) { st.diet = b.dataset.diet; update(); } });
-$('kcal').addEventListener('input', e => { st.kcal = +e.target.value; update(); });
-$('protein').addEventListener('input', e => { st.protein = +e.target.value; update(); });
-$('focus').addEventListener('change', e => { st.focus = e.target.value; update(); });
-$('who').addEventListener('input', e => { st.who = e.target.value; update(); });
-$('again').addEventListener('click', () => { st.seed += 1; update(); $('toast').textContent = 'New menu made.'; });
+function syncControls(o) {
+  const proc = PROC.includes(st.type), textured = TEXTURED.includes(st.type);
+  $('type').value = st.type;
+  $('f-goal').hidden = textured;
+  document.querySelectorAll('[data-goal]').forEach(b => b.setAttribute('aria-pressed', b.dataset.goal === st.goal));
+  $('f-kcal').hidden = proc || (!textured && st.goal === 'protein');
+  $('f-protein').hidden = proc || (!textured && st.goal === 'kcal');
+  $('kcal').value = st.kcal; $('kcal-out').textContent = n0(st.kcal);
+  $('protein').value = st.protein; $('protein-out').textContent = st.protein;
+  $('protein-kcal').textContent = !textured && st.goal === 'protein' ? `· ${n0(proteinKcal(st.protein))} kcal` : '';
+  $('goal-warn').hidden = !o.warn; $('goal-warn').textContent = o.warn;
+  $('f-proc').hidden = !proc;
+  $('procday-l').textContent = st.type === 'bariatric' ? 'Days since surgery on Day 1' : 'Days since balloon placement on Day 1';
+  $('procday').value = st.procDay;
+  $('proc-note').textContent = proc ? STAGES[st.type].map((s, i, a) => `${STAGE_NAME[s[1]]}: ${i ? `day ${a[i - 1][0] + 1}` : 'day 1'}${s[0] < 999 ? `-${s[0]}` : '+'}`).join(' · ') : '';
+  $('start').value = st.start; $('days').value = st.days;
+  $('meals').value = st.meals; $('lunch').value = st.lunch; $('dinner').value = st.dinner;
+  $('pattern-note').hidden = !textured; ['meals', 'lunch', 'dinner'].forEach(id => { $(id).disabled = textured; });
+  $('pattern-sum').textContent = textured ? 'stage pattern' : `${st.meals} meals`;
+  document.querySelectorAll('[data-diet]').forEach(b => b.setAttribute('aria-pressed', b.dataset.diet === st.diet));
+  document.querySelectorAll('#prefer [data-g]').forEach(b => b.setAttribute('aria-pressed', st.prefer.includes(b.dataset.g)));
+  document.querySelectorAll('#avoid [data-g]').forEach(b => b.setAttribute('aria-pressed', st.avoid.includes(b.dataset.g)));
+  $('prefer-text').value = st.preferText; $('avoid-text').value = st.avoidText; $('who').value = st.who;
+  const np = st.prefer.length + words(st.preferText).length, na = st.avoid.length + words(st.avoidText).length;
+  $('prefer-sum').textContent = np ? `${np} chosen` : ''; $('avoid-sum').textContent = na ? `${na} chosen` : '';
+  const nd = st.dayPrefs.filter(Boolean).length; $('days-sum').textContent = nd ? `${nd} set` : '';
+  $('dayprefs').innerHTML = st.dayPrefs.map((v, i) => `<div class="daypref"><span>Day ${i + 1}${st.days > 7 ? `<small>and day ${i + 8}${st.days > 14 ? '…' : ''}</small>` : ''}</span><select data-day="${i}" id="dp-${i}" aria-label="Day ${i + 1} preference">${DAYPREF.map(([k, n]) => `<option value="${k}"${k === v ? ' selected' : ''}>${n}</option>`).join('')}</select></div>`).join('');
+  $('next').textContent = `Next ${o.days} day${o.days > 1 ? 's' : ''}`;
+  $('restart').disabled = !st.offset;
+}
+function update(keepPrev) {
+  if (!keepPrev) prevUsed = [];
+  const o = options();
+  syncControls(o);
+  const res = makePlan(o);
+  current = [o, res]; lastUsed = res.used;
+  $('paper').innerHTML = render(o, res);
+  try { localStorage.setItem('hv-diet2', JSON.stringify(st)); } catch (e) { /* storage unavailable */ }
+}
+const change = fn => e => { fn(e); st.offset = 0; update(); };
+$('type').addEventListener('change', change(e => {
+  st.type = e.target.value;
+  if (st.type === 'liquid') { st.kcal = 900; st.protein = 60; }
+  if (st.type === 'semi') { st.kcal = 1000; st.protein = 60; }
+}));
+document.querySelectorAll('[data-goal]').forEach(b => b.addEventListener('click', change(() => { st.goal = b.dataset.goal; })));
+$('diet').addEventListener('click', change(e => { const b = e.target.closest('[data-diet]'); if (b) st.diet = b.dataset.diet; }));
+$('kcal').addEventListener('input', change(e => { st.kcal = +e.target.value; }));
+$('protein').addEventListener('input', change(e => { st.protein = +e.target.value; }));
+$('procday').addEventListener('change', change(e => { st.procDay = Math.max(1, Math.min(120, +e.target.value || 1)); }));
+$('start').addEventListener('change', change(e => { st.start = e.target.value; }));
+$('days').addEventListener('change', change(e => { st.days = Math.max(1, Math.min(30, +e.target.value || 7)); }));
+['meals', 'lunch', 'dinner'].forEach(id => $(id).addEventListener('change', change(e => { st[id] = id === 'meals' ? +e.target.value : e.target.value; })));
+$('dayprefs').addEventListener('change', change(e => { const i = e.target.dataset.day; if (i !== undefined) st.dayPrefs[+i] = e.target.value; }));
+const toggle = (list, k) => list.includes(k) ? list.filter(x => x !== k) : list.concat(k);
+$('prefer').addEventListener('click', change(e => { const b = e.target.closest('[data-g]'); if (b) { st.prefer = toggle(st.prefer, b.dataset.g); st.avoid = st.avoid.filter(x => x !== b.dataset.g); } }));
+$('avoid').addEventListener('click', change(e => { const b = e.target.closest('[data-g]'); if (b) { st.avoid = toggle(st.avoid, b.dataset.g); st.prefer = st.prefer.filter(x => x !== b.dataset.g); } }));
+$('prefer-text').addEventListener('change', change(e => { st.preferText = e.target.value; }));
+$('avoid-text').addEventListener('change', change(e => { st.avoidText = e.target.value; }));
+$('who').addEventListener('input', e => { st.who = e.target.value; update(true); });
+$('again').addEventListener('click', () => { st.seed += 1; update(true); $('toast').textContent = 'New menu made for the same days.'; });
+$('next').addEventListener('click', () => {
+  prevUsed = [...lastUsed]; st.offset += current[0].days; update(true);
+  $('toast').textContent = `Showing days ${st.offset + 1}-${st.offset + current[0].days}, with dishes not used in the previous days.`;
+});
+$('restart').addEventListener('click', () => { st.offset = 0; update(); $('toast').textContent = 'Back to Day 1.'; });
 $('print').addEventListener('click', () => window.print());
 $('copy').addEventListener('click', () => {
   const txt = asText(...current);
