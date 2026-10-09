@@ -1,0 +1,366 @@
+<title>Hindivine Recipe Book</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=Lato:wght@400;700;900&display=swap">
+<style>
+/* Layout: brand header, meal-time tabs and filters, a grid of recipe cards; a recipe opens as a full reading view with previous / next. */
+:root {
+  --bg: #EEF3F8; --panel: #FFFFFF; --ink: #1E2A35; --muted: #5F6B76; --line: #D6E2EC; --accent: #0F6FB0; --accent-ink: #FFFFFF;
+  --navy: #0B3B66; --sky: #29A8E0; --kcal: #C24A2C; --prot: #0B7A6A; --chip: #E4EEF7; --focus: #29A8E0; --leaf: #2E7D32; --meat: #B9472B; --egg: #9A6A00;
+  --lang-font: ;
+  --display: var(--lang-font) 'DM Serif Display', Georgia, 'Times New Roman', serif;
+  --body: var(--lang-font) 'Lato', 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0C1621; --panel: #13212F; --ink: #E3ECF4; --muted: #9DB0C1; --line: #24384B; --accent: #3FA2E0; --accent-ink: #06121D;
+  --navy: #0B3B66; --kcal: #F08A6E; --prot: #4CC3AE; --chip: #1B3045; --focus: #8FD3F4; --leaf: #7BC67E; --meat: #F08A6E; --egg: #E0B54A; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0C1621; --panel: #13212F; --ink: #E3ECF4; --muted: #9DB0C1; --line: #24384B; --accent: #3FA2E0; --accent-ink: #06121D;
+  --navy: #0B3B66; --kcal: #F08A6E; --prot: #4CC3AE; --chip: #1B3045; --focus: #8FD3F4; --leaf: #7BC67E; --meat: #F08A6E; --egg: #E0B54A; color-scheme: dark }
+* { box-sizing: border-box }
+[hidden] { display: none !important }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; margin: 0; }
+.wrap { max-width: 1240px; margin: 0 auto; padding-inline: 16px; padding-block: 18px 48px; display: grid; gap: 14px; }
+header.top { background: var(--navy); color: #fff; border-radius: 14px; padding: 18px 20px; display: flex; gap: 16px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+header.top img { height: 40px; background: #fff; border-radius: 6px; padding: 4px 8px; }
+header.top h1 { font-family: var(--display); font-weight: 400; font-size: 1.9rem; margin: 0; line-height: 1.1; }
+header.top p { margin: 2px 0 0; color: #BFE3F5; font-size: .9rem; max-width: 60ch; }
+.brand { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; min-width: 0; }
+.count { font-variant-numeric: tabular-nums; text-align: end; }
+.count b { font-family: var(--display); font-weight: 400; font-size: 2.1rem; display: block; line-height: 1; }
+.count span { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: #8FD3F4; font-weight: 700; }
+.langbar { display: grid; grid-template-columns: repeat(2, minmax(0, 220px)); gap: 10px; justify-content: end; }
+@media (max-width: 600px) { .langbar { grid-template-columns: 1fr 1fr; } }
+.tabs { display: flex; gap: 6px; overflow-x: auto; padding-bottom: 2px; scrollbar-width: thin; }
+.tabs button { flex: none; border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 700 .86rem var(--body); border-radius: 99px; padding: 7px 13px; cursor: pointer; white-space: nowrap; }
+.tabs button small { color: var(--muted); font-weight: 400; margin-inline-start: 4px; font-variant-numeric: tabular-nums; }
+.tabs button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.tabs button[aria-pressed="true"] small { color: var(--accent-ink); opacity: .8; }
+.bar { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)) auto; gap: 10px; align-items: end; }
+@media (max-width: 900px) { .bar { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } .bar .q { grid-column: 1 / -1; } }
+.f { display: grid; gap: 4px; min-width: 0; }
+.f label { font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+input, select { width: 100%; font: 400 .95rem var(--body); color: var(--ink); background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 9px 10px; }
+input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+.btn { border: 1px solid var(--line); background: var(--panel); color: var(--ink); font: 700 .88rem var(--body); padding: 9px 12px; border-radius: 9px; cursor: pointer; white-space: nowrap; }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); }
+.shown { font-size: .85rem; color: var(--muted); }
+.grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 12px; }
+.card { background: var(--panel); border: 1px solid var(--line); border-radius: 12px; padding: 14px; display: grid; gap: 8px; align-content: start; text-align: start; font: inherit; color: inherit; cursor: pointer; min-width: 0; }
+.card:hover { border-color: var(--accent); }
+.kick { font-size: .7rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.card h2 { font-family: var(--display); font-weight: 400; font-size: 1.22rem; line-height: 1.2; margin: 0; text-wrap: balance; }
+.card h2 .l2 { display: block; font-family: var(--body); font-size: .86rem; color: var(--muted); margin-top: 2px; }
+.card p { margin: 0; font-size: .85rem; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.stats { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: .82rem; font-variant-numeric: tabular-nums; color: var(--muted); }
+.stats b { color: var(--ink); }
+.stats .k b { color: var(--kcal); } .stats .p b { color: var(--prot); }
+.dot { display: inline-flex; align-items: center; gap: 5px; font-size: .74rem; font-weight: 700; }
+.dot::before { content: ""; width: 9px; height: 9px; border-radius: 2px; border: 1.5px solid currentColor; background: radial-gradient(circle, currentColor 45%, transparent 50%); }
+.d0, .d1 { color: var(--leaf); } .d2 { color: var(--egg); } .d3 { color: var(--meat); }
+.more { justify-self: center; }
+.empty { background: var(--panel); border: 1px dashed var(--line); border-radius: 12px; padding: 24px; text-align: center; color: var(--muted); }
+/* recipe view */
+.view { display: grid; gap: 14px; }
+.vnav { display: flex; gap: 8px; justify-content: space-between; flex-wrap: wrap; }
+.vnav div { display: flex; gap: 8px; flex-wrap: wrap; }
+.paper { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: clamp(16px, 3vw, 32px); display: grid; gap: 20px; }
+.rhead h2 { font-family: var(--display); font-weight: 400; font-size: clamp(1.7rem, 4vw, 2.5rem); line-height: 1.1; margin: 4px 0 6px; text-wrap: balance; }
+.rhead h2 .l2 { display: block; font-family: var(--body); font-size: 1.1rem; color: var(--muted); margin-top: 4px; }
+.rhead p { margin: 0; max-width: 70ch; color: var(--muted); }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.facts span { background: var(--chip); border-radius: 99px; padding: 3px 11px; font-size: .84rem; }
+.nutrow { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
+.nutrow div { padding: 10px 8px; text-align: center; border-inline-end: 1px solid var(--line); min-width: 0; }
+.nutrow div:last-child { border-inline-end: 0; }
+.nutrow b { display: block; font-family: var(--display); font-weight: 400; font-size: 1.6rem; line-height: 1.1; font-variant-numeric: tabular-nums; }
+.nutrow b small { font-family: var(--body); font-size: .8rem; color: var(--muted); }
+.nutrow span { font-size: .68rem; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.nutrow .k b { color: var(--kcal); } .nutrow .p b { color: var(--prot); }
+.basis { font-size: .78rem; color: var(--muted); margin: 6px 0 0; }
+.cols { display: grid; grid-template-columns: minmax(0, 5fr) minmax(0, 7fr); gap: 28px; align-items: start; }
+@media (max-width: 860px) { .cols { grid-template-columns: minmax(0, 1fr); } }
+.rsec h3 { font-family: var(--display); font-weight: 400; font-size: 1.35rem; margin: 0 0 8px; }
+.ing { width: 100%; border-collapse: collapse; }
+.ing td { padding: 6px 4px; border-bottom: 1px solid var(--line); vertical-align: top; font-size: .92rem; }
+.ing td.q { text-align: end; white-space: nowrap; font-weight: 700; color: var(--accent); padding-inline-start: 10px; }
+.ing tr.gh td { font-weight: 700; color: var(--muted); text-transform: uppercase; font-size: .72rem; letter-spacing: .1em; padding-top: 12px; }
+.ing td.q .l2 { display: block; font-weight: 400; color: var(--muted); font-size: .82rem; }
+.ing small, .steps small, .l2i { color: var(--muted); }
+.steps { margin: 0; padding-inline-start: 24px; display: grid; gap: 12px; }
+.steps li::marker { font-family: var(--display); color: var(--accent); }
+.steps b { display: block; }
+.extra { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; }
+.extra section { background: var(--chip); border-radius: 12px; padding: 14px; }
+.extra h4 { margin: 0 0 6px; font-size: .74rem; letter-spacing: .12em; text-transform: uppercase; color: var(--accent); }
+.extra ul { margin: 0; padding-inline-start: 18px; display: grid; gap: 4px; font-size: .9rem; }
+.extra p { margin: 0; font-size: .9rem; }
+.note { font-size: .78rem; color: var(--muted); margin: 0; }
+.toast { font-size: .84rem; color: var(--accent); min-height: 1.2em; margin: 0; }
+.foot { font-size: .8rem; color: var(--muted); text-align: center; }
+.wrap[data-nospace] * { letter-spacing: 0 !important; }
+@media (prefers-reduced-motion: no-preference) { .card { transition: border-color .15s; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <div class="brand">
+      <img src="__LOGO__" alt="Hindivine Healthcare">
+      <div><h1>Recipe Book</h1><p>Healthy Indian recipes with calories, protein, carbs, fat and fibre per serving.</p></div>
+    </div>
+    <div class="count"><b id="total">0</b><span>recipes</span></div>
+  </header>
+
+  <div class="langbar">
+    <div class="f"><label for="lang">Language</label><select id="lang"></select></div>
+    <div class="f"><label for="lang2">Second language</label><select id="lang2"></select></div>
+  </div>
+
+  <div id="browse" class="view">
+    <nav class="tabs" id="tabs" aria-label="Meal time"></nav>
+    <form class="bar" id="filters" aria-label="Search recipes">
+      <div class="f q"><label for="q">Search</label><input id="q" type="search" placeholder="Search recipes or ingredients" autocomplete="off"></div>
+      <div class="f"><label for="cat">Category</label><select id="cat"></select></div>
+      <div class="f"><label for="diet">Diet</label><select id="diet"></select></div>
+      <div class="f"><label for="sort">Sort by</label><select id="sort">
+        <option value="name">Name A-Z</option><option value="pdens">Most protein per 100 kcal</option><option value="p">Most protein</option>
+        <option value="klo">Lowest calories</option><option value="fib">Most fibre</option><option value="time">Quickest</option></select></div>
+      <button type="button" class="btn" id="random">Random recipe</button>
+    </form>
+    <div class="shown" id="shown" role="status"></div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="none" hidden>No recipes match. Try fewer words or another spelling.</div>
+    <button type="button" class="btn more" id="more">Show more</button>
+  </div>
+
+  <div id="recipe" class="view" hidden>
+    <div class="vnav">
+      <button type="button" class="btn" id="back">← <span>Recipe Book</span></button>
+      <div><button type="button" class="btn" id="prev">Previous</button><button type="button" class="btn" id="next">Next</button><button type="button" class="btn primary" id="copy">Copy recipe</button></div>
+    </div>
+    <p class="toast" id="toast" role="status"></p>
+    <article class="paper" id="paper"></article>
+  </div>
+
+  <p class="foot">Hindivine Healthcare · www.hindivine.com · app@hindivine.com</p>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const I18N = /*__I18N__*/{};
+const TXT = DATA.txt;
+// recipe rows: [no, name, cat, sub, meals, diet, serves, prep, cook, level, [kcal, p, c, f, fib], desc, groups, steps, tips, serve, store]
+const R = DATA.recipes.map(r => ({ no: r[0], name: r[1], cat: DATA.cats[r[2]], sub: r[3], meals: r[4], diet: r[5], serves: r[6], prep: r[7], cook: r[8],
+  level: r[9], k: r[10][0], p: r[10][1], c: r[10][2], f: r[10][3], fib: r[10][4], desc: r[11], groups: r[12], steps: r[13], tips: r[14], serve: r[15], store: r[16] }));
+R.forEach(x => { x.s = (x.name + ' ' + x.sub + ' ' + x.cat + ' ' + x.groups.map(g => g[1].map(i => TXT[i[0]]).join(' ')).join(' ')).toLowerCase(); x.pd = x.k ? x.p * 100 / x.k : 0; });
+const byNo = Object.fromEntries(R.map(x => [x.no, x]));
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+const fmt = (v, d = 0) => v == null ? '–' : Number(v).toLocaleString('en-IN', { maximumFractionDigits: d, minimumFractionDigits: d });
+const num = no => '#' + String(no).padStart(4, '0');
+
+// ================= translation (same engine as the Diet Chart Maker and Food Finder) =================
+let LANG = 'en', LANG2 = '';
+const COMPILED = {};
+function compile(code) {
+  if (COMPILED[code]) return COMPILED[code];
+  const L = I18N[code] || { t: {}, w: {}, f: {} };
+  const Cc = { TR: {}, PATS: [], WORDS: {}, MAXW: 1 };
+  for (const [en, out] of Object.entries(Object.assign({}, L.f || {}, L.t || {}))) {
+    if (/\{\d+\}/.test(en)) {
+      const re = new RegExp('^' + en.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\\\{(\d+)\\\}/g, '(\\d+(?:[.,]\\d+)*)') + '$');
+      Cc.PATS.push([re, out]);
+    } else Cc.TR[en] = out;
+  }
+  for (const [en, out] of Object.entries(L.w || {})) { Cc.WORDS[en.toLowerCase()] = out; Cc.MAXW = Math.max(Cc.MAXW, en.split(/[\s-]+/).length); }
+  return (COMPILED[code] = Cc);
+}
+function trIn(s, code) {
+  if (!code || code === 'en' || s == null) return s;
+  const Cc = compile(code), k = String(s).trim();
+  if (!k) return s;
+  if (Cc.TR[k] !== undefined) return String(s).replace(k, Cc.TR[k]);
+  if (/\d/.test(k)) for (const [re, out] of Cc.PATS) { const m = k.match(re); if (m) return String(s).replace(k, out.replace(/\{(\d+)\}/g, (_, i) => m[+i + 1])); }
+  return s;
+}
+function trDishIn(name, code) {
+  if (!code || code === 'en') return name;
+  const Cc = compile(code);
+  if (!Object.keys(Cc.WORDS).length) return name;
+  const parts = name.split(/(\s+|[(),\/&+-])/).filter(p => p !== '');
+  const out = [];
+  for (let i = 0; i < parts.length;) {
+    if (!/[A-Za-z]/.test(parts[i])) { out.push(parts[i]); i++; continue; }
+    let done = false;
+    for (let n = Cc.MAXW; n >= 1 && !done; n--) {
+      const span = [], idx = [];
+      for (let j = i; j < parts.length && span.length < n; j++) { if (/[A-Za-z]/.test(parts[j])) { span.push(parts[j]); idx.push(j); } else if (!/^(\s+|-)$/.test(parts[j])) break; }
+      if (span.length === n) { const w = Cc.WORDS[parts.slice(i, idx[idx.length - 1] + 1).join('').replace(/\s+/g, ' ').toLowerCase()]; if (w !== undefined) { out.push(w); i = idx[idx.length - 1] + 1; done = true; } }
+    }
+    if (!done) { out.push(parts[i]); i++; }
+  }
+  return out.join('').replace(/\s+/g, ' ').trim();
+}
+const tr = s => trIn(s, LANG);
+const dish = (name, code = LANG) => trDishIn(name, code);
+// text in the first language, with the second language after it (inline) or below it (block)
+function bi(en, block, kind) {
+  const t = code => kind === 'ing' ? (trIn(en, code) !== en ? trIn(en, code) : trDishIn(en, code)) : kind ? trDishIn(en, code) : trIn(en, code);
+  const one = t(LANG), two = LANG2 ? t(LANG2) : '';
+  if (!two || two === one) return esc(one);
+  return `${esc(one)}<bdi class="${block ? 'l2' : 'l2i'}">${block ? '' : ' / '}${esc(two)}</bdi>`;
+}
+function loadFont(code) {
+  const L = I18N[code];
+  if (L && L.font && !document.getElementById('font-' + code)) {
+    const l = document.createElement('link'); l.rel = 'stylesheet'; l.id = 'font-' + code;
+    l.href = 'https://fonts.googleapis.com/css2?family=' + L.font.replace(/ /g, '+') + ':wght@400;700&display=swap';
+    document.head.appendChild(l);
+  }
+}
+function setLang(code, code2) {
+  LANG = I18N[code] ? code : 'en';
+  LANG2 = code2 && code2 !== LANG && (I18N[code2] || code2 === 'en') ? code2 : '';
+  const L = I18N[LANG] || {}, L2 = I18N[LANG2] || {};
+  document.documentElement.lang = LANG;
+  const wrap = document.querySelector('.wrap');
+  wrap.setAttribute('dir', L.rtl ? 'rtl' : 'ltr');
+  const nospace = c => { const X = I18N[c] || {}; return !!(X.indic || X.rtl || ['zh', 'ja'].includes(c)); };
+  wrap.toggleAttribute('data-nospace', nospace(LANG) || nospace(LANG2));
+  loadFont(LANG); loadFont(LANG2);
+  document.documentElement.style.setProperty('--lang-font', [L.font, L2.font].filter(Boolean).map(f => `'${f}', `).join(''));
+}
+function translateUI() {   // static labels, buttons, options and placeholders: first language
+  for (const root of [document.querySelector('header.top'), document.querySelector('.langbar'), $('filters'), $('none'), $('more'), document.querySelector('.vnav')]) {
+    const w = document.createTreeWalker(root, NodeFilter.SHOW_TEXT); let n; const nodes = [];
+    while ((n = w.nextNode())) nodes.push(n);
+    for (const node of nodes) {
+      if (node.parentElement.closest('#total, #lang, #lang2, #cat, #diet')) continue;
+      if (node._en === undefined) node._en = node.nodeValue;
+      if (node._en.trim()) node.nodeValue = tr(node._en);
+    }
+    root.querySelectorAll('[placeholder]').forEach(el => { if (el._en === undefined) el._en = el.placeholder; el.placeholder = tr(el._en); });
+  }
+}
+
+// ================= browse =================
+$('total').textContent = R.length.toLocaleString('en-IN');
+let MEAL = -1, limit = 60, list = [];
+function fillSelects() {
+  const cat = $('cat').value, diet = $('diet').value;
+  $('cat').innerHTML = `<option value="">${esc(tr('All categories'))}</option>` + DATA.cats.map(c => `<option value="${esc(c)}"${c === cat ? ' selected' : ''}>${esc(tr(c))}</option>`).join('');
+  $('diet').innerHTML = `<option value="">${esc(tr('Any diet'))}</option>` + DATA.diets.map((d, i) => `<option value="${i}"${String(i) === diet ? ' selected' : ''}>${esc(tr(d))}</option>`).join('');
+  const n = i => R.filter(x => x.meals.includes(i)).length;
+  $('tabs').innerHTML = `<button type="button" data-meal="-1" aria-pressed="${MEAL === -1}">${esc(tr('All meal times'))}<small>${fmt(R.length)}</small></button>`
+    + DATA.meals.map((m, i) => [m, i, n(i)]).filter(a => a[2]).map(([m, i, c]) => `<button type="button" data-meal="${i}" aria-pressed="${MEAL === i}">${esc(tr(m))}<small>${fmt(c)}</small></button>`).join('');
+}
+function filter() {
+  const q = $('q').value.trim().toLowerCase().split(/\s+/).filter(Boolean), cat = $('cat').value, diet = $('diet').value, sort = $('sort').value;
+  const dietOk = x => diet === '' || (diet === '1' ? x.diet <= 1 : diet === '2' ? x.diet <= 2 : x.diet === +diet);
+  // search also matches the dish name as shown in the chosen languages
+  const shown = x => (dish(x.name) + ' ' + (LANG2 ? dish(x.name, LANG2) : '')).toLowerCase();
+  list = R.filter(x => (MEAL < 0 || x.meals.includes(MEAL)) && (!cat || x.cat === cat) && dietOk(x) && q.every(w => x.s.includes(w) || (LANG !== 'en' || LANG2) && shown(x).includes(w)));
+  const by = { name: (a, b) => dish(a.name).localeCompare(dish(b.name)), pdens: (a, b) => b.pd - a.pd, p: (a, b) => b.p - a.p,
+    klo: (a, b) => a.k - b.k, fib: (a, b) => b.fib - a.fib, time: (a, b) => (a.prep + a.cook) - (b.prep + b.cook) }[sort];
+  list.sort(by);
+  limit = 60; draw();
+}
+function card(x) {
+  return `<button type="button" class="card" data-no="${x.no}"><span class="kick">${esc(tr(x.cat))} · ${num(x.no)}</span>`
+    + `<h2>${bi(x.name, true, true)}</h2><p>${esc(TXT[x.desc])}</p>`
+    + `<span class="stats"><span class="k"><b>${fmt(x.k)}</b> kcal</span><span class="p"><b>${fmt(x.p, 1)} g</b> ${esc(tr('Protein'))}</span><span>${esc(tr(`Total ${x.prep + x.cook} min`))}</span></span>`
+    + `<span class="dot d${x.diet}">${esc(tr(DATA.diets[x.diet]))}</span></button>`;
+}
+function draw() {
+  $('grid').innerHTML = list.slice(0, limit).map(card).join('');
+  $('none').hidden = list.length > 0;
+  $('shown').textContent = list.length > limit ? tr(`${fmt(list.length)} recipes, showing ${limit}`) : tr(`${fmt(list.length)} recipes`);
+  $('more').hidden = list.length <= limit;
+}
+['q', 'cat', 'diet', 'sort'].forEach(id => $(id).addEventListener(id === 'q' ? 'input' : 'change', filter));
+$('filters').addEventListener('submit', e => e.preventDefault());
+$('tabs').addEventListener('click', e => { const b = e.target.closest('[data-meal]'); if (!b) return; MEAL = +b.dataset.meal;
+  $('tabs').querySelectorAll('button').forEach(x => x.setAttribute('aria-pressed', x === b)); filter(); });
+$('more').addEventListener('click', () => { limit += 120; draw(); });
+$('grid').addEventListener('click', e => { const c = e.target.closest('[data-no]'); if (c) openRecipe(+c.dataset.no); });
+$('random').addEventListener('click', () => { const pool = list.length ? list : R; openRecipe(pool[Math.floor(Math.random() * pool.length)].no); });
+
+// ================= recipe view =================
+let CUR = null, scrollY0 = 0;
+function openRecipe(no, fromHash) {
+  const x = byNo[no]; if (!x) return;
+  if (!CUR) scrollY0 = window.scrollY;
+  CUR = no;
+  const L = s => bi(s, false, false);
+  const meals = x.meals.map(i => L(DATA.meals[i])).join(', ');
+  let h = `<header class="rhead"><span class="kick">${esc(tr(x.cat))}${x.sub ? ' · ' + esc(tr(x.sub)) : ''} · ${num(no)}</span><h2>${bi(x.name, true, true)}</h2>`
+    + `<p>${esc(TXT[x.desc])}</p>`
+    + `<div class="facts"><span>${L(`Serves ${x.serves}`)}</span><span>${L(`Prep ${x.prep} min`)}</span><span>${L(`Cook ${x.cook} min`)}</span><span>${L(x.level)}</span>`
+    + `<span class="dot d${x.diet}">${L(DATA.diets[x.diet])}</span></div></header>`;
+  h += `<div><div class="nutrow"><div class="k"><b>${fmt(x.k)}</b><span>kcal</span></div><div class="p"><b>${fmt(x.p, 1)}<small> g</small></b><span>${L('Protein')}</span></div>`
+    + `<div><b>${fmt(x.c, 1)}<small> g</small></b><span>${L('Carbs')}</span></div><div><b>${fmt(x.f, 1)}<small> g</small></b><span>${L('Fat')}</span></div><div><b>${fmt(x.fib, 1)}<small> g</small></b><span>${L('Fibre')}</span></div></div>`
+    + `<p class="basis">${L('per serving')} · ${L('Good for')}: ${meals}</p></div>`;
+  h += `<div class="cols"><section class="rsec"><h3>${L('Ingredients')}</h3><table class="ing"><tbody>`;
+  for (const [gh, items] of x.groups) {
+    if (TXT[gh] && !(x.groups.length === 1 && TXT[gh] === 'Ingredients')) h += `<tr class="gh"><td colspan="2">${L(TXT[gh])}</td></tr>`;
+    for (const [ing, qty, note] of items) h += `<tr><td>${bi(TXT[ing], false, 'ing')}${note >= 0 ? ` <small>${L(TXT[note])}</small>` : ''}</td><td class="q">${bi(qty, true, false)}</td></tr>`;
+  }
+  h += `</tbody></table></section><section class="rsec"><h3>${L('Method')}</h3>${LANG !== 'en' ? `<p class="note">${esc(tr('The cooking steps are in English.'))}</p>` : ''}<ol class="steps">`
+    + x.steps.map(([hd, tx]) => `<li><b>${L(TXT[hd])}</b>${esc(TXT[tx])}</li>`).join('') + `</ol></section></div>`;
+  const ex = [];
+  if (x.tips.length) ex.push(`<section><h4>${L('Tips')}</h4><ul>${x.tips.map(i => `<li>${esc(TXT[i])}</li>`).join('')}</ul></section>`);
+  if (x.serve.length) ex.push(`<section><h4>${L('Serving ideas')}</h4><ul>${x.serve.map(i => `<li>${esc(TXT[i])}</li>`).join('')}</ul></section>`);
+  if (TXT[x.store]) ex.push(`<section><h4>${L('Storage')}</h4><p>${esc(TXT[x.store].charAt(0).toUpperCase() + TXT[x.store].slice(1))}</p></section>`);
+  if (ex.length) h += `<div class="extra">${ex.join('')}</div>`;
+  h += `<p class="note">${esc(tr('Values are estimates calculated from standard ingredient data (IFCT 2017 / USDA) for one serving.'))}</p>`;
+  $('paper').innerHTML = h;
+  $('browse').hidden = true; $('recipe').hidden = false; $('toast').textContent = '';
+  const i = list.findIndex(r => r.no === no);
+  $('prev').disabled = i <= 0; $('next').disabled = i < 0 || i >= list.length - 1;
+  if (!fromHash) { try { history.replaceState(null, '', '#r' + no); } catch (e) { /* hash not available */ } }
+  window.scrollTo(0, 0);
+  $('back').focus({ preventScroll: true });
+}
+function closeRecipe() {
+  CUR = null; $('recipe').hidden = true; $('browse').hidden = false;
+  try { history.replaceState(null, '', location.pathname + location.search); } catch (e) { /* hash not available */ }
+  window.scrollTo(0, scrollY0);
+}
+function step(d) { const i = list.findIndex(r => r.no === CUR); const n = list[i + d]; if (n) openRecipe(n.no); }
+$('back').addEventListener('click', closeRecipe);
+$('prev').addEventListener('click', () => step(-1));
+$('next').addEventListener('click', () => step(1));
+document.addEventListener('keydown', e => {
+  if (!CUR || /INPUT|SELECT|TEXTAREA/.test(document.activeElement.tagName)) return;
+  if (e.key === 'Escape') closeRecipe(); else if (e.key === 'ArrowLeft') step(-1); else if (e.key === 'ArrowRight') step(1);
+});
+$('copy').addEventListener('click', () => {
+  const x = byNo[CUR];
+  const lines = [`${dish(x.name)} (${num(x.no)})`, TXT[x.desc], '',
+    `${tr(`Serves ${x.serves}`)} · ${tr(`Prep ${x.prep} min`)} · ${tr(`Cook ${x.cook} min`)} · ${tr(DATA.diets[x.diet])}`,
+    `${tr('per serving')}: ${fmt(x.k)} kcal · ${tr('Protein')} ${fmt(x.p, 1)} g · ${tr('Carbs')} ${fmt(x.c, 1)} g · ${tr('Fat')} ${fmt(x.f, 1)} g · ${tr('Fibre')} ${fmt(x.fib, 1)} g`, '', tr('Ingredients') + ':'];
+  for (const [gh, items] of x.groups) { if (TXT[gh]) lines.push(tr(TXT[gh]) + ':'); for (const [ing, qty, note] of items) lines.push(`- ${trIn(TXT[ing], LANG) !== TXT[ing] ? tr(TXT[ing]) : dish(TXT[ing])}${note >= 0 ? ' (' + tr(TXT[note]) + ')' : ''}: ${tr(qty)}`); }
+  lines.push('', tr('Method') + ':', ...x.steps.map(([hd, tx], i) => `${i + 1}. ${tr(TXT[hd])}: ${TXT[tx]}`));
+  if (x.tips.length) lines.push('', tr('Tips') + ':', ...x.tips.map(i => '- ' + TXT[i]));
+  lines.push('', 'Hindivine Healthcare · www.hindivine.com');
+  const txt = lines.join('\n');
+  navigator.clipboard.writeText(txt).then(() => { $('toast').textContent = tr('Recipe copied.'); }, () => { $('toast').textContent = tr('Copy is blocked here; select the text and copy it instead.'); });
+});
+
+// ================= language menus =================
+let LS = { lang: 'en', lang2: '' };
+try { Object.assign(LS, JSON.parse(localStorage.getItem('hv-rb-lang') || '{}')); } catch (e) { /* storage unavailable */ }
+const langOpts = first => (first ? '<option value="en">English</option>' : '<option value="">None</option><option value="en">English</option>')
+  + Object.entries(I18N).map(([k, L]) => `<option value="${k}">${esc(L.name)}</option>`).join('');
+$('lang').innerHTML = langOpts(true); $('lang2').innerHTML = langOpts(false);
+$('lang').value = I18N[LS.lang] ? LS.lang : 'en'; $('lang2').value = LS.lang2 && (I18N[LS.lang2] || LS.lang2 === 'en') ? LS.lang2 : '';
+function applyLang() {
+  setLang($('lang').value, $('lang2').value);
+  translateUI(); fillSelects(); filter();
+  if (CUR) openRecipe(CUR, true);
+  try { localStorage.setItem('hv-rb-lang', JSON.stringify({ lang: $('lang').value, lang2: $('lang2').value })); } catch (e) { /* storage unavailable */ }
+}
+$('lang').addEventListener('change', applyLang); $('lang2').addEventListener('change', applyLang);
+applyLang();
+const m = /^#r(\d+)$/.exec(location.hash); if (m) openRecipe(+m[1], true);
+</script>

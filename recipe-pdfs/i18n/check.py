@@ -6,6 +6,8 @@ langs = json.load(open(os.path.join(D, 'languages.json'), encoding='utf-8'))
 en = json.load(open(os.path.join(D, 'strings-en.json'), encoding='utf-8'))
 if os.path.exists(os.path.join(D, 'strings-en-2.json')):
     en += json.load(open(os.path.join(D, 'strings-en-2.json'), encoding='utf-8'))
+if os.path.exists(os.path.join(D, 'strings-en-3.json')):
+    en += json.load(open(os.path.join(D, 'strings-en-3.json'), encoding='utf-8'))
 foods = json.load(open(os.path.join(D, 'foods-en.json'), encoding='utf-8')) if os.path.exists(os.path.join(D, 'foods-en.json')) else []
 dw = json.load(open(os.path.join(D, 'dish-words.json'), encoding='utf-8'))
 tr = json.load(open(os.path.join(D, code + '.json'), encoding='utf-8'))
