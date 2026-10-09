@@ -180,7 +180,7 @@ function compile(code) {
       Cc.PATS.push([re, out]);
     } else Cc.TR[en] = out;
   }
-  for (const [en, out] of Object.entries(L.w || {})) { Cc.WORDS[en.toLowerCase()] = out; Cc.MAXW = Math.max(Cc.MAXW, en.split(' ').length); }
+  for (const [en, out] of Object.entries(L.w || {})) { Cc.WORDS[en.toLowerCase()] = out; Cc.MAXW = Math.max(Cc.MAXW, en.split(/[\s-]+/).length); }
   return (COMPILED[code] = Cc);
 }
 function trIn(s, code) {
@@ -202,8 +202,8 @@ function trDishIn(name, code) {
     let done = false;
     for (let n = Cc.MAXW; n >= 1 && !done; n--) {
       const span = [], idx = [];
-      for (let j = i; j < parts.length && span.length < n; j++) { if (/[A-Za-z]/.test(parts[j])) { span.push(parts[j]); idx.push(j); } else if (!/^\s+$/.test(parts[j])) break; }
-      if (span.length === n) { const w = Cc.WORDS[span.join(' ').toLowerCase()]; if (w !== undefined) { out.push(w); i = idx[idx.length - 1] + 1; done = true; } }
+      for (let j = i; j < parts.length && span.length < n; j++) { if (/[A-Za-z]/.test(parts[j])) { span.push(parts[j]); idx.push(j); } else if (!/^(\s+|-)$/.test(parts[j])) break; }
+      if (span.length === n) { const w = Cc.WORDS[parts.slice(i, idx[idx.length - 1] + 1).join('').replace(/\s+/g, ' ').toLowerCase()]; if (w !== undefined) { out.push(w); i = idx[idx.length - 1] + 1; done = true; } }
     }
     if (!done) { out.push(parts[i]); i++; }
   }
