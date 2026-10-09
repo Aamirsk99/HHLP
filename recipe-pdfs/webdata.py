@@ -172,7 +172,7 @@ def load_i18n():
         p = os.path.join(d, code + '.json')
         if os.path.exists(p):
             data = json.load(open(p, encoding='utf-8'))
-            out[code] = dict(meta, t=data.get('t', {}), w=data.get('w', {}))
+            out[code] = dict(meta, t=data.get('t', {}), w=data.get('w', {}), f=data.get('f', {}))
     return out
 
 

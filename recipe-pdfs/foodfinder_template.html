@@ -208,8 +208,10 @@ const tr = s => trIn(s, LANG);
 const nameIn = (x, code) => x.no ? trDishIn(x.name, code) : trIn(x.name, code);
 // text in the first language, with the second language after it (inline) or below it (block)
 function bi(en, block, dish) {
-  const one = dish ? trDishIn(en, LANG) : trIn(en, LANG);
-  const two = LANG2 ? (dish ? trDishIn(en, LANG2) : trIn(en, LANG2)) : '';
+  // dish === 'ing': ingredient name, exact match first, then word by word
+  const t = code => dish === 'ing' ? (trIn(en, code) !== en ? trIn(en, code) : trDishIn(en, code)) : dish ? trDishIn(en, code) : trIn(en, code);
+  const one = t(LANG);
+  const two = LANG2 ? t(LANG2) : '';
   if (!two || two === one) return esc(one);
   return `${esc(one)}<bdi class="${block ? 'l2' : 'l2i'}">${block ? '' : ' / '}${esc(two)}</bdi>`;
 }
@@ -305,7 +307,7 @@ function openRecipe(no) {
   for (const [gh, items] of groups) {
     h += `<tr class="gh"><td colspan="2">${L(TXT[gh])}</td></tr>`;
     for (const [ing, qty, note] of items) {
-      h += `<tr><td>${bi(TXT[ing], false, false)}${note >= 0 ? ` <small>${L(TXT[note])}</small>` : ''}</td><td class="q">${L(qty)}</td></tr>`;
+      h += `<tr><td>${bi(TXT[ing], false, 'ing')}${note >= 0 ? ` <small>${L(TXT[note])}</small>` : ''}</td><td class="q">${L(qty)}</td></tr>`;
     }
   }
   h += `</tbody></table></div></section>`;
