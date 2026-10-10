@@ -74,7 +74,6 @@ html,body{width:1920px;height:1080px}
 .bcard{min-height:300px}
 #cta{flex-direction:row;gap:120px;text-align:left}
 #ctaT{margin-top:0 !important}
-
 .ov{top:400px !important}
 .ovi{padding:56px 12px !important}
 .bgrid{top:290px !important;gap:24px !important}
@@ -119,10 +118,7 @@ html,body{width:1920px;height:1080px}
   <div id="ctaLogo" style="width:300px;height:300px;border-radius:80px;background:url(logo.png) center/cover;box-shadow:0 40px 100px rgba(0,0,0,.4)"></div>
   <div style="display:flex;flex-direction:column;align-items:flex-start"><div id="ctaT" class="h1" style="font-size:96px;line-height:1.05;margin-top:70px">Start your<br>healthy journey<br>today</div>
   <div id="ctaS" style="font-size:40px;color:#cfe6fa;margin-top:36px;font-weight:500">Download the Hindivine Patient App</div>
-  <div id="ctaPlay" style="margin-top:44px;display:flex;align-items:center;gap:26px;background:#000;border:3px solid #9aa4ad;border-radius:28px;padding:26px 50px">
-    <svg width="74" height="82" viewBox="0 0 30 33"><path d="M1 1l16 16L1 32z" fill="#00d7fe"/><path d="M1 1l21 12-5 4z" fill="#00f076"/><path d="M1 32l16-15 5 4z" fill="#f83a4b"/><path d="M22 13l6 3.5-6 3.5-5-3.5z" fill="#ffd400"/></svg>
-    <div style="text-align:left"><div style="font-size:24px;letter-spacing:2px;font-weight:600">GET IT ON</div><div style="font-size:52px;font-weight:700;margin-top:-4px">Google Play</div></div>
-  </div>
+  <div id="ctaPlay" style="margin-top:44px;display:flex;gap:24px"><div style="display:flex;align-items:center;gap:18px;background:#000;border:3px solid #9aa4ad;border-radius:24px;padding:18px 32px"><svg width="54" height="60" viewBox="0 0 30 33"><path d="M1 1l16 16L1 32z" fill="#00d7fe"/><path d="M1 1l21 12-5 4z" fill="#00f076"/><path d="M1 32l16-15 5 4z" fill="#f83a4b"/><path d="M22 13l6 3.5-6 3.5-5-3.5z" fill="#ffd400"/></svg><div style="text-align:left"><div style="font-size:19px;letter-spacing:1px;font-weight:600">GET IT ON</div><div style="font-size:40px;font-weight:700;margin-top:-4px;white-space:nowrap">Google Play</div></div></div><div style="display:flex;align-items:center;gap:18px;background:#000;border:3px solid #9aa4ad;border-radius:24px;padding:18px 32px"><svg width="50" height="60" viewBox="0 0 17 20"><path fill="#fff" d="M14 10.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8C4.6 5.4 3.1 6.3 2.3 7.8c-1.7 2.9-.4 7.2 1.2 9.6.8 1.2 1.7 2.4 2.9 2.4 1.2 0 1.6-.8 3-.8s1.8.8 3 .8 2-1.2 2.8-2.3c.9-1.3 1.2-2.6 1.3-2.7-.1 0-2.5-.9-2.5-4.2zM11.8 3.8c.6-.8 1.1-1.8 1-2.8-.9 0-2 .6-2.7 1.4-.6.7-1.1 1.7-1 2.7 1 .1 2.1-.5 2.7-1.3z"/></svg><div style="text-align:left"><div style="font-size:19px;letter-spacing:1px;font-weight:600">Download on the</div><div style="font-size:40px;font-weight:700;margin-top:-4px;white-space:nowrap">App Store</div></div></div></div>
   <div id="ctaW" style="margin-top:50px;font-size:38px;font-weight:700;letter-spacing:2px">www.hindivine.com</div>
   <div id="ctaC" style="margin-top:16px;font-size:26px;color:#9fc6e6">Hindivine Healthcare Private Limited</div></div>
 </div>
@@ -153,30 +149,32 @@ const CHATHEAD=`<div style="position:absolute;inset:0 0 auto;height:200px;backgr
  <div class="row" style="position:absolute;top:100px;left:30px;z-index:3"><div style="font-size:34px;color:var(--blue)">‹</div><div class="av" style="width:70px;height:70px;border-radius:20px"></div><div><div style="font-size:26px;font-weight:800">Hindivine Dietitian</div><div style="font-size:20px;color:var(--green);font-weight:700">● online</div></div></div>`;
 const INPUT=`<div style="position:absolute;left:24px;right:24px;bottom:30px;display:flex;gap:16px;align-items:center">
   <div class="card" style="flex:1;padding:24px;font-size:24px;color:#9aa9b8;border-radius:999px">📎 Type a message…</div>
-  <div class="mic" style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#29A8E0,#1170B5);display:flex;align-items:center;justify-content:center;font-size:42px">🎙️</div></div>`;
+  <div class="mic" style="width:96px;height:96px;border-radius:50%;background:linear-gradient(135deg,#29A8E0,#1170B5);display:flex;align-items:center;justify-content:center;font-size:40px;color:#fff">➤</div></div>`;
 const WAVE=(n,cls='wv',col='var(--sky)')=>`<div style="display:flex;gap:5px;align-items:center;height:50px">${Array.from({length:n},(_,i)=>`<i class="${cls}" style="display:block;width:6px;border-radius:3px;background:${col};height:${12+Math.abs(Math.sin(i*1.7))*36}px"></i>`).join('')}</div>`;
 const FOODS=[['🥗','#bbf7d0','#22c55e'],['🍛','#fde68a','#f59e0b'],['🥣','#fecaca','#f87171'],['🍎','#fecdd3','#e11d48'],['🫓','#fed7aa','#ea580c'],['🍵','#d9f99d','#65a30d'],['🥛','#e0f2fe','#38bdf8'],['🍳','#fef08a','#eab308'],['🥜','#e7e5e4','#a8a29e']];
 const ftile=(f,h)=>`<div class="ftile" style="height:${h}px;background:linear-gradient(135deg,${f[1]},${f[2]})">${f[0]}</div>`;
 
 const SCENES=[
-{key:'download',badge:'STEP 1',t:'Download the app',s:'Search “Hindivine” on Google Play and tap Install.',html:`
+{key:'download',badge:'STEP 1',t:'Download the app',s:'Get it free on Google Play or the App Store.',html:`
  <div class="pad" style="background:#fff">
-  <div style="font-size:30px;font-weight:800;color:#202124;margin:20px 0 24px">▶ Google Play</div>
+  <div style="display:flex;gap:12px;margin:20px 0 24px">
+   <div class="stA" style="flex:1;text-align:center;padding:16px 0;border-radius:18px;font-size:23px;font-weight:800;background:#e6f4ea;color:#01875f">▶ Google Play</div>
+   <div class="stB" style="flex:1;text-align:center;padding:16px 0;border-radius:18px;font-size:23px;font-weight:800;background:#e8f1ff;color:#0a66d8"><svg width="20" height="24" viewBox="0 0 17 20" style="vertical-align:-3px"><path fill="currentColor" d="M14 10.6c0-2.3 1.9-3.4 2-3.5-1.1-1.6-2.8-1.8-3.4-1.8-1.4-.1-2.8.9-3.5.9-.7 0-1.8-.8-3-.8C4.6 5.4 3.1 6.3 2.3 7.8c-1.7 2.9-.4 7.2 1.2 9.6.8 1.2 1.7 2.4 2.9 2.4 1.2 0 1.6-.8 3-.8s1.8.8 3 .8 2-1.2 2.8-2.3c.9-1.3 1.2-2.6 1.3-2.7-.1 0-2.5-.9-2.5-4.2zM11.8 3.8c.6-.8 1.1-1.8 1-2.8-.9 0-2 .6-2.7 1.4-.6.7-1.1 1.7-1 2.7 1 .1 2.1-.5 2.7-1.3z"/></svg> App Store</div></div>
   <div style="background:#f1f3f4;border-radius:999px;padding:22px 28px;font-size:26px;color:#202124;display:flex;gap:16px"><span>🔍</span><span class="ty1" style="white-space:nowrap">Hindivine</span></div>
   <div class="app1" style="margin-top:50px">
    <div class="row"><div class="av" style="width:150px;height:150px;border-radius:36px"></div>
-    <div><div style="font-size:38px;font-weight:800;color:#202124">Hindivine</div><div style="font-size:22px;color:#01875f;font-weight:700;margin-top:8px">Hindivine Healthcare Pvt Ltd</div><div style="font-size:20px;color:#5f6368;margin-top:6px">Patient app · Diet &amp; nutrition</div></div></div>
+    <div><div style="font-size:38px;font-weight:800;color:#202124">Hindivine</div><div style="font-size:22px;color:var(--blue);font-weight:700;margin-top:8px">Hindivine Healthcare Pvt Ltd</div><div style="font-size:20px;color:#5f6368;margin-top:6px">Patient app · Diet &amp; nutrition</div></div></div>
    <div style="position:relative;margin-top:44px;height:84px">
-    <div style="position:absolute;inset:0;border-radius:20px;background:#01875f;color:#fff;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center">Install</div>
-    <div class="prog" style="position:absolute;inset:0;border-radius:20px;background:#e6f4ea;overflow:hidden"><div class="bar" style="height:100%;background:#01875f;width:0"></div></div>
-    <div class="open" style="position:absolute;inset:0;border-radius:20px;background:#01875f;color:#fff;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center">Open</div>
+    <div style="position:absolute;inset:0;border-radius:20px;background:var(--blue);color:#fff;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center">Install / Get</div>
+    <div class="prog" style="position:absolute;inset:0;border-radius:20px;background:#e6f2fb;overflow:hidden"><div class="bar" style="height:100%;background:var(--blue);width:0"></div></div>
+    <div class="open" style="position:absolute;inset:0;border-radius:20px;background:var(--blue);color:#fff;font-size:28px;font-weight:700;display:flex;align-items:center;justify-content:center">Open</div>
    </div>
-   <div style="display:flex;gap:16px;margin-top:40px">${['💬 Chat','🎙️ Voice','🥗 Diet'].map(x=>`<div style="flex:1;height:300px;border-radius:24px;background:linear-gradient(160deg,#29A8E0,#1170B5);color:#fff;font-weight:800;font-size:26px;display:flex;align-items:flex-end;padding:20px">${x}</div>`).join('')}</div>
+   <div style="display:flex;gap:16px;margin-top:40px">${['💬 Chat','🥗 Diet','📄 Reports'].map(x=>`<div style="flex:1;height:300px;border-radius:24px;background:linear-gradient(160deg,#29A8E0,#1170B5);color:#fff;font-weight:800;font-size:26px;display:flex;align-items:flex-end;padding:20px">${x}</div>`).join('')}</div>
   </div></div>`,
- run(sc,t){typeIn(q(sc,'.ty1'),t+.6,1,9);fadeUp(q(sc,'.app1'),t+1.8,.7,40);
-  tap(sc,270,535,t+2.9);show(q(sc,'.prog'),t+3.1,.2);
-  an(q(sc,'.bar'),[{width:'0%'},{width:'100%'}],t+3.2,1.6,{ease:'ease-in-out'});
-  show(q(sc,'.open'),t+4.9,.3);tap(sc,270,535,t+5.6);}},
+ run(sc,t){popIn(q(sc,'.stA'),t+.4,.5);popIn(q(sc,'.stB'),t+.6,.5);typeIn(q(sc,'.ty1'),t+1,1,9);fadeUp(q(sc,'.app1'),t+2.1,.7,40);
+  tap(sc,270,600,t+3.1);show(q(sc,'.prog'),t+3.3,.2);
+  an(q(sc,'.bar'),[{width:'0%'},{width:'100%'}],t+3.4,1.5,{ease:'ease-in-out'});
+  show(q(sc,'.open'),t+5,.3);tap(sc,270,600,t+5.6);}},
 {key:'login',badge:'STEP 2',t:'Login with your mobile',s:'Enter your number and OTP — or continue with Google.',html:`
  <div class="pad">
   <div style="text-align:center;margin-top:30px"><img src="branding.png" style="width:170px;border-radius:20px"></div>
@@ -194,26 +192,7 @@ const SCENES=[
   qa(sc,'.od').forEach((e,i)=>popIn(e,t+3.1+i*.22,.35));
   show(q(sc,'.b2'),t+4.5,.4);tap(sc,270,665,t+5.1);
   an(q(sc,'.gg'),[{boxShadow:'0 0 0 0 rgba(66,133,244,.6)'},{boxShadow:'0 0 0 14px rgba(66,133,244,0)'}],t+5.8,.9,{fill:'none',it:2});}},
-{key:'notify',badge:'STEP 3',t:'Allow notifications',s:'Never miss a reply, a reminder or your new diet chart.',html:`
- <div class="pad">
-  <div style="position:absolute;inset:-80px 0 0;padding:110px 30px 0">
-   <div style="font-size:34px;font-weight:800">Namaste 👋</div>
-   ${[1,2,3].map(()=>'<div class="card" style="height:200px;margin-top:24px"></div>').join('')}
-  </div>
-  <div class="shade" style="position:absolute;inset:-80px 0 0;background:rgba(6,25,45,.55)"></div>
-  <div class="dlg card" style="position:absolute;left:40px;right:40px;top:330px;padding:40px;text-align:center;border-radius:36px">
-   <div style="font-size:60px">🔔</div>
-   <div style="font-size:28px;font-weight:800;margin-top:14px;line-height:1.3">Allow <span style="color:var(--blue)">Hindivine</span> to send you notifications?</div>
-   <div style="display:flex;flex-direction:column;gap:14px;margin-top:30px"><div class="btn">Allow</div><div style="padding:20px;font-size:26px;font-weight:700;color:var(--mut)">Don't allow</div></div>
-  </div>
-  ${[['Your dietitian sent a message 💬','now'],['Reminder: drink a glass of water 💧','2m'],['Your new diet chart is ready 🥗','5m']].map(([m,w],i)=>`<div class="ban" style="position:absolute;left:20px;right:20px;top:${i*140}px;background:rgba(255,255,255,.97);border-radius:30px;padding:22px;box-shadow:0 20px 40px rgba(0,0,0,.2)">
-   <div class="row"><div class="av" style="width:64px;height:64px;border-radius:16px"></div><div><div style="font-size:20px;color:var(--mut);font-weight:700">HINDIVINE · ${w}</div><div style="font-size:24px;font-weight:800;margin-top:4px">${m}</div></div></div></div>`).join('')}
- </div>`,
- run(sc,t){const d=q(sc,'.dlg');popIn(d,t+.7,.7);tap(sc,270,700,t+2.4);
-  an(d,[{opacity:1,transform:'scale(1)'},{opacity:0,transform:'scale(.85)'}],t+2.8,.4,{fill:'forwards'});
-  hide(q(sc,'.shade'),t+2.8,.5);
-  qa(sc,'.ban').forEach((b,i)=>an(b,[{opacity:0,transform:'translateY(-300px)'},{opacity:1,transform:'translateY(0)'}],t+3.4+i*.8,.7,{ease:'cubic-bezier(.34,1.4,.64,1)'}));}},
-{key:'home',badge:'STEP 4',t:'Meet your care team',s:'Your Home screen connects you to your Hindivine dietitian.',html:`
+{key:'home',badge:'STEP 3',t:'Meet your care team',s:'Your Home screen connects you to your Hindivine dietitian.',html:`
  <div style="position:absolute;inset:0 0 auto;height:420px;background:linear-gradient(150deg,#29A8E0,#1170B5)"></div>
  <div class="pad" style="color:#fff">
   <div class="h0" style="margin-top:24px"><div style="font-size:24px;opacity:.85;font-weight:600">Good morning</div><div style="font-size:42px;font-weight:800">Namaste, Priya 👋</div></div>
@@ -225,7 +204,7 @@ const SCENES=[
   </div></div>`,
  run(sc,t){fadeUp(q(sc,'.h0'),t+.5,.6,30);popIn(q(sc,'.c0'),t+1,.7);
   qa(sc,'.tile').forEach((e,i)=>popIn(e,t+1.7+i*.2,.6));tap(sc,270,435,t+4.4);}},
-{key:'chat',badge:'STEP 5',t:'Chat with your dietitian',s:'Reply to messages, react with emojis and see read receipts.',html:`${CHATHEAD}
+{key:'chat',badge:'STEP 4',t:'Chat with your dietitian',s:'Reply to messages, react with emojis and see read receipts.',html:`${CHATHEAD}
  <div class="pad" style="top:230px">
    <div class="bub in m1">Hello! How was your breakfast today? 😊</div>
    <div style="position:relative;margin-left:auto;width:fit-content" class="m2"><div class="bub out" style="margin-bottom:6px">Had vegetable poha and green tea 🍵</div>
@@ -241,27 +220,6 @@ const SCENES=[
   an(q(sc,'.m3'),[{opacity:0,transform:'translateY(40px)'},{opacity:1,transform:'none'}],t+4.4,.5);
   an(q(sc,'.m4'),[{opacity:0},{opacity:1}],t+5.6,.3);
   qa(sc,'.td').forEach((d,i)=>an(d,[{transform:'translateY(0)'},{transform:'translateY(-10px)'},{transform:'translateY(0)'}],t+5.6+i*.15,.6,{fill:'none',it:6}));}},
-{key:'voice',badge:'FEATURE',t:'Voice notes',s:'Hold the mic and speak in your own language.',html:`${CHATHEAD}
- <div class="pad" style="top:230px">
-   <div class="bub out v1" style="display:flex;align-items:center;gap:14px;width:390px;margin-left:auto"><div style="width:56px;height:56px;border-radius:50%;background:#fff;color:var(--blue);display:flex;align-items:center;justify-content:center;font-size:24px;flex:none">▶</div>${WAVE(20,'w1','#fff')}<span style="font-size:20px">0:08</span></div>
-   <div class="bub in v2" style="display:flex;align-items:center;gap:14px;width:410px;position:relative;overflow:hidden"><div style="width:56px;height:56px;border-radius:50%;background:var(--blue);color:#fff;display:flex;align-items:center;justify-content:center;font-size:24px;flex:none">❚❚</div>${WAVE(20,'w2')}<span style="font-size:20px;color:var(--mut)">0:15</span>
-     <div class="pl" style="position:absolute;left:0;top:0;bottom:0;width:100%;background:rgba(41,168,224,.15);transform-origin:left"></div></div>
- </div>
- <div class="rec" style="position:absolute;left:0;right:0;bottom:0;height:420px;background:linear-gradient(180deg,rgba(255,255,255,0),#fff 30%);display:flex;flex-direction:column;align-items:center;justify-content:flex-end;padding-bottom:40px">
-   <div style="font-size:30px;font-weight:800;color:#dc2626;margin-bottom:16px">● Recording <span>0:07</span></div>
-   ${WAVE(28,'w3','#ef4444')}
-   <div style="font-size:22px;color:var(--mut);margin:16px 0 20px">‹ Slide to cancel</div>
-   <div class="micr" style="width:150px;height:150px;border-radius:50%;background:linear-gradient(135deg,#ef4444,#b91c1c);display:flex;align-items:center;justify-content:center;font-size:66px;box-shadow:0 0 0 0 rgba(239,68,68,.5)">🎙️</div>
- </div>`,
- run(sc,t){const r=q(sc,'.rec');an(r,[{opacity:0,transform:'translateY(200px)'},{opacity:1,transform:'none'}],t+.5,.5);
-  an(q(sc,'.micr'),[{boxShadow:'0 0 0 0 rgba(239,68,68,.5)'},{boxShadow:'0 0 0 40px rgba(239,68,68,0)'}],t+1,.9,{fill:'none',it:3});
-  qa(sc,'.w3').forEach((w,i)=>an(w,[{transform:'scaleY(.3)'},{transform:'scaleY(1)'},{transform:'scaleY(.3)'}],t+1+(i%6)*.07,.5,{it:5,fill:'none',ease:'ease-in-out'}));
-  hide(r,t+3.6,.4);
-  an(q(sc,'.v1'),[{opacity:0,transform:'translateY(60px) scale(.9)'},{opacity:1,transform:'none'}],t+3.8,.5);
-  an(q(sc,'.v2'),[{opacity:0,transform:'translateY(60px) scale(.9)'},{opacity:1,transform:'none'}],t+4.8,.5);
-  tap(sc,70,370,t+5.4);
-  an(q(sc,'.pl'),[{transform:'scaleX(0)'},{transform:'scaleX(1)'}],t+5.6,3,{ease:'linear'});
-  qa(sc,'.w2').forEach((w,i)=>an(w,[{transform:'scaleY(.4)'},{transform:'scaleY(1)'},{transform:'scaleY(.4)'}],t+5.6+(i%5)*.08,.6,{it:5,fill:'none',ease:'ease-in-out'}));}},
 {key:'photos',badge:'FEATURE',t:'Share meal photos',s:'Send photos from your camera or gallery.',html:`${CHATHEAD}
  <div class="pad" style="top:230px">
    <div class="bub in">Send me a photo of your lunch 📸</div>
@@ -384,8 +342,8 @@ const SCENES=[
   an(q(sc,'.on'),[{transform:'translateY(-170px)'},{transform:'none'}],t+5.4,.5);hide(q(sc,'.off'),t+5.6,.3);}}
 ];
 
-const OV=[['⬇️','Easy install'],['📱','Mobile OTP login'],['🔔','Smart alerts'],['💬','Private chat'],['🎙️','Voice notes'],['📸','Meal photos'],['📄','Reports & PDFs'],['🎬','Health videos'],['🥗','Diet charts'],['📖','Recipes'],['↗️','Save & share'],['🔒','Secure & offline']];
-const BEN=[['💬','Private chat','Talk to your dietitian anytime, one-to-one.'],['🎙️','Voice notes','Just speak — in your own language.'],['🥗','Personal diet charts','Made for your body, goals and routine.'],['🩺','Health conditions','Diabetes, PCOS, thyroid, BP, heart & more.'],['🌱','Your food style','Veg, Jain, egg, non-veg or vegan.'],['📖','Recipe for every dish','Easy, home-style Indian meals.'],['🔔','Instant alerts','Replies, reminders & new charts.'],['🔒','Secure & private','Safe login, chats saved on your phone.']];
+const OV=[['⬇️','Easy install'],['📱','Mobile OTP login'],['🩺','Care team'],['💬','Private chat'],['📈','Weekly progress'],['📸','Meal photos'],['📄','Reports & PDFs'],['🎬','Health videos'],['🥗','Diet charts'],['📖','Recipes'],['↗️','Save & share'],['🔒','Secure & offline']];
+const BEN=[['💬','Private chat','Talk to your dietitian anytime, one-to-one.'],['📈','Weekly follow-up','New chart with fresh foods every week.'],['🥗','Personal diet charts','Made for your body, goals and routine.'],['🩺','Health conditions','Diabetes, PCOS, thyroid, BP, heart & more.'],['🌱','Your food style','Veg, Jain, egg, non-veg or vegan.'],['📖','Recipe for every dish','Easy, home-style Indian meals.'],['🎬','Health videos','Exercise & recipe guides in the app.'],['🔒','Secure & private','Safe login, chats saved on your phone.']];
 
 // timeline from voiceover durations
 const VO=window.VO||{};

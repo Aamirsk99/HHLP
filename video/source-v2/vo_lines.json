@@ -1,19 +1,62 @@
 [
-["intro","Welcome to the Hindivine Patient App. Your health, guided by experts, right in your pocket."],
-["overview","Here is everything the app can do for you, step by step."],
-["download","Step one. Search for Hindivine on the Google Play Store. Tap Install, then open the app."],
-["login","Step two. Log in securely with your mobile number. Enter the one time password, or simply continue with Google."],
-["notify","Step three. Allow notifications, so you never miss a reply, a reminder, or your new diet chart."],
-["home","Step four. Your home screen connects you directly with your Hindivine dietitian and care team."],
-["chat","Step five. Chat privately with your dietitian. Ask questions, reply to any message, react with an emoji, and see when your message is read."],
-["voice","Prefer speaking? Hold the mic to record a voice note in your own language, and play back replies anytime."],
-["photos","Share photos of your meals, straight from your camera or gallery, so your dietitian can guide you better."],
-["docs","Upload lab reports and documents, and open any P D F with a single tap."],
-["videos","Watch videos shared by your care team, like exercise and recipe guides, right inside the app."],
-["diet","Receive your personalised diet chart. One to seven days of meals, with a recipe for every dish, in your language."],
-["share","Save charts and photos to your gallery, or share them with your family in one tap."],
-["progress","Every week, share your check in, and get next week's chart with fresh new foods."],
-["secure","Your account is protected with secure login, and your chats stay saved on your phone. The app even shows you when you are offline."],
-["benefits","Expert guidance, personalised plans, and quick support. All in one premium app."],
-["cta","Download the Hindivine Patient App on Google Play today. Hindivine. Your health, guided by experts."]
+[
+"intro",
+"Welcome to the Hindivine Patient App. Your health, guided by experts, right in your pocket."
+],
+[
+"overview",
+"Here is everything the app can do for you, step by step."
+],
+[
+"download",
+"Step one. Download Hindivine for free from the Google Play Store or the Apple App Store, then open the app."
+],
+[
+"login",
+"Step two. Log in securely with your mobile number. Enter the one time password, or simply continue with Google."
+],
+[
+"home",
+"Step three. Your home screen connects you directly with your Hindivine dietitian and care team."
+],
+[
+"chat",
+"Step four. Chat privately with your dietitian. Ask questions, reply to any message, react with an emoji, and see when your message is read."
+],
+[
+"photos",
+"Share photos of your meals, straight from your camera or gallery, so your dietitian can guide you better."
+],
+[
+"docs",
+"Upload lab reports and documents, and open any P D F with a single tap."
+],
+[
+"videos",
+"Watch videos shared by your care team, like exercise and recipe guides, right inside the app."
+],
+[
+"diet",
+"Receive your personalised diet chart. One to seven days of meals, with a recipe for every dish, in your language."
+],
+[
+"share",
+"Save charts and photos to your gallery, or share them with your family in one tap."
+],
+[
+"progress",
+"Every week, share your check in, and get next week's chart with fresh new foods."
+],
+[
+"secure",
+"Your account is protected with secure login, and your chats stay saved on your phone. The app even shows you when you are offline."
+],
+[
+"benefits",
+"Expert guidance, personalised plans, and quick support. All in one premium app."
+],
+[
+"cta",
+"Download the Hindivine Patient App today, on Google Play or the App Store. Hindivine. Your health, guided by experts."
+]
 ]
