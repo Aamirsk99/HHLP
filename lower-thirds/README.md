@@ -9,6 +9,7 @@ a green-screen / chroma key effect to remove the green.
 | Hindivine Healthcare | `videos/video/hindivine_healthcare_video_1920x1080.mp4` | `videos/reel/hindivine_healthcare_reel_1080x1920.mp4` |
 | Dr. Rajat Goel | `videos/video/dr_rajat_goel_video_1920x1080.mp4` | `videos/reel/dr_rajat_goel_reel_1080x1920.mp4` |
 | Dr. Rajat Goel + Hindivine Healthcare | `videos/video/dr_rajat_goel_hindivine_video_1920x1080.mp4` | `videos/reel/dr_rajat_goel_hindivine_reel_1080x1920.mp4` |
+| ⭐ **Luxury medico-legal MEDICAL DISCLAIMER** card (24 s) | `videos/video/medical_disclaimer_luxury_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_luxury_reel_1080x1920.mp4` |
 | Full medical **DISCLAIMER** (multi-line, 14 s) | `videos/video/medical_disclaimer_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_reel_1080x1920.mp4` |
 | "For Educational Purposes Only" disclaimer | `videos/video/educational_disclaimer_video_1920x1080.mp4` | `videos/reel/educational_disclaimer_reel_1080x1920.mp4` |
 
@@ -23,6 +24,17 @@ Still frames of each are in `previews/`.
 
 Reel versions sit higher (bottom at y=1500) so they stay clear of the
 Instagram / YouTube Shorts caption and button area.
+
+## Luxury medical disclaimer
+
+`luxury_disclaimer.py` renders a navy card with gold trim, a Playfair Display
+serif heading and gold diamond bullets. The points reveal one by one, then a
+gold shine sweeps across the card. Edit `TITLE`, `POINTS`, `LIABILITY` and
+`FOOTER` at the top of the script, then run `python3 lower-thirds/luxury_disclaimer.py`.
+Playfair Display is included in `fonts/` (SIL Open Font License).
+
+The wording is a general template. Have it reviewed by your legal or medical
+adviser before publishing.
 
 ## Using the green screen
 
