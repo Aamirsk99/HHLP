@@ -25,13 +25,15 @@ GOLD_DARK = (160, 120, 30)
 SOFT_WHITE = (236, 241, 247)
 MUTED = (178, 196, 216)
 
-DURATION = 24.0
+DURATION = 26.0
 
 TITLE = "MEDICAL DISCLAIMER"
 POINTS = [
     "This video is for general educational and awareness purposes only and "
     "does not constitute medical advice.",
     "Watching this content does not create a doctor–patient relationship.",
+    "In this video, we do not promote, endorse or sell any product, medicine, "
+    "brand or treatment.",
     "It is not a substitute for diagnosis or treatment by a qualified, "
     "registered medical practitioner.",
     "Do not start, stop or change any medicine, diet or therapy without "
