@@ -9,7 +9,8 @@ a green-screen / chroma key effect to remove the green.
 | Hindivine Healthcare | `videos/video/hindivine_healthcare_video_1920x1080.mp4` | `videos/reel/hindivine_healthcare_reel_1080x1920.mp4` |
 | Dr. Rajat Goel | `videos/video/dr_rajat_goel_video_1920x1080.mp4` | `videos/reel/dr_rajat_goel_reel_1080x1920.mp4` |
 | Dr. Rajat Goel + Hindivine Healthcare | `videos/video/dr_rajat_goel_hindivine_video_1920x1080.mp4` | `videos/reel/dr_rajat_goel_hindivine_reel_1080x1920.mp4` |
-| ⭐ **Luxury medico-legal MEDICAL DISCLAIMER** card (26 s) | `videos/video/medical_disclaimer_luxury_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_luxury_reel_1080x1920.mp4` |
+| ⭐ **Premium MEDICAL DISCLAIMER** – split card with icons (26 s, newest design) | `videos/video/medical_disclaimer_premium_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_premium_reel_1080x1920.mp4` |
+| Luxury medico-legal MEDICAL DISCLAIMER card (26 s) | `videos/video/medical_disclaimer_luxury_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_luxury_reel_1080x1920.mp4` |
 | Full medical **DISCLAIMER** (multi-line, 14 s) | `videos/video/medical_disclaimer_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_reel_1080x1920.mp4` |
 | "For Educational Purposes Only" disclaimer | `videos/video/educational_disclaimer_video_1920x1080.mp4` | `videos/reel/educational_disclaimer_reel_1080x1920.mp4` |
 
@@ -24,6 +25,16 @@ Still frames of each are in `previews/`.
 
 Reel versions sit higher (bottom at y=1500) so they stay clear of the
 Instagram / YouTube Shorts caption and button area.
+
+## Premium medical disclaimer (newest design)
+
+`premium_disclaimer.py` renders a split card: a navy brand panel (logo, gold
+serif "MEDICAL DISCLAIMER") and an ivory panel with six icon points. They are
+Educational Only, No Doctor–Patient Relationship, No Promotion, Consult a
+Professional, Do Not Self-Medicate and In an Emergency. The landscape version
+uses two columns; the reel stacks the header above a single column. Edit
+`POINTS`, `LIABILITY`, `TAGLINE` and `BRAND` at the top of the script. Icons are
+from Font Awesome Free (`fonts/fa-solid-900.ttf`, SIL OFL / CC BY 4.0).
 
 ## Luxury medical disclaimer
 
