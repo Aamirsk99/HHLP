@@ -14,7 +14,8 @@
     ?loop=0          play in once and stay on screen (default: loop in/out)
     ?static=1        no animation (used for PNG export)
     ?handle=@name    social media handle shown next to the icons
-    ?phone=...  ?web=...   override contact text
+    ?phone=... ?phone2=... ?web=... ?email=...   override contact text
+    ?t=ms           freeze at a point in the animation (used for video export)
 -->
 <style>
   :root {
@@ -27,6 +28,7 @@
   * { box-sizing: border-box; margin: 0; padding: 0; }
   html, body { width: 1920px; height: 1080px; overflow: hidden; background: transparent; }
   body.bg-green { background: #00b140; }
+  body.bg-green .lt { filter: none; } /* clean chroma key: no soft shadow */
   body.bg-dark { background: linear-gradient(135deg, #1d2733, #3b4a5c); }
   body { font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif; }
 
@@ -55,7 +57,7 @@
     padding: 18px 34px 18px 26px;
     clip-path: inset(0 100% 0 0);
   }
-  .logo img { height: 112px; display: block; }
+  .logo img { height: 150px; display: block; }
 
   /* Info panel */
   .info {
@@ -64,8 +66,8 @@
     display: flex;
     flex-direction: column;
     justify-content: center;
-    gap: 14px;
-    padding: 18px 44px 18px 36px;
+    gap: 12px;
+    padding: 20px 48px 18px 36px;
     border-radius: 0 8px 8px 0;
     clip-path: inset(0 100% 0 0);
     position: relative;
@@ -81,7 +83,7 @@
   }
 
   .row { display: flex; align-items: center; gap: 30px; opacity: 0; }
-  .item { display: flex; align-items: center; gap: 12px; font-size: 34px; font-weight: 600; letter-spacing: .3px; white-space: nowrap; }
+  .item { display: flex; align-items: center; gap: 12px; font-size: 32px; font-weight: 600; letter-spacing: .3px; white-space: nowrap; }
   .item svg { width: 34px; height: 34px; flex: none; fill: var(--sky); }
   .sep { width: 2px; height: 34px; background: rgba(255, 255, 255, .28); }
 
@@ -99,8 +101,9 @@
   .play .logo { animation: wipe .6s cubic-bezier(.2,.8,.2,1) .25s both; }
   .play .info { animation: wipe .7s cubic-bezier(.2,.8,.2,1) .55s both; }
   .play .row1 { animation: rise .5s ease-out 1.05s both; }
-  .play .row2 { animation: rise .5s ease-out 1.25s both; }
-  .play.out .lt { animation: fadeOut .5s ease-in both; }
+  .play .row2 { animation: rise .5s ease-out 1.2s both; }
+  .play .row3 { animation: rise .5s ease-out 1.35s both; }
+  .play.out .lt { animation: fadeOut .5s cubic-bezier(.6,0,.8,.2) both; }
 
   .static .logo, .static .info { clip-path: none; }
   .static .row { opacity: 1; }
@@ -108,7 +111,7 @@
   @keyframes barIn { from { transform: scaleY(0); } to { transform: scaleY(1); } }
   @keyframes wipe  { from { clip-path: inset(0 100% 0 0); } to { clip-path: inset(0 0 0 0); } }
   @keyframes rise  { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
-  @keyframes fadeOut { to { opacity: 0; transform: translateX(-40px); } }
+  @keyframes fadeOut { from { clip-path: inset(-60px -60px -60px -60px); } to { clip-path: inset(-60px 100% -60px -60px); } }
 </style>
 </head>
 <body>
@@ -125,12 +128,24 @@
         </div>
         <div class="sep"></div>
         <div class="item">
+          <svg viewBox="0 0 24 24"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg>
+          <span id="phone2">+91 99589 00473</span>
+        </div>
+      </div>
+      <div class="row row2">
+        <div class="item">
           <!-- globe -->
           <svg viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 0 20 10 10 0 0 0 0-20zm6.9 6h-2.95a15.7 15.7 0 0 0-1.38-3.56A8 8 0 0 1 18.9 8zM12 4.04A14 14 0 0 1 13.91 8h-3.82A14 14 0 0 1 12 4.04zM4.26 14a8.2 8.2 0 0 1 0-4h3.38a16.5 16.5 0 0 0 0 4zm.84 2h2.95a15.7 15.7 0 0 0 1.38 3.56A8 8 0 0 1 5.1 16zM8.05 8H5.1a8 8 0 0 1 4.33-3.56A15.7 15.7 0 0 0 8.05 8zM12 19.96A14 14 0 0 1 10.09 16h3.82A14 14 0 0 1 12 19.96zM14.34 14H9.66a14.7 14.7 0 0 1 0-4h4.68a14.7 14.7 0 0 1 0 4zm.25 5.56A15.7 15.7 0 0 0 15.95 16h2.95a8 8 0 0 1-4.31 3.56zM16.36 14a16.5 16.5 0 0 0 0-4h3.38a8.2 8.2 0 0 1 0 4z"/></svg>
           <span id="web">www.hindivine.com</span>
         </div>
+        <div class="sep"></div>
+        <div class="item">
+          <!-- mail -->
+          <svg viewBox="0 0 24 24"><path d="M20 4H4a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V6a2 2 0 0 0-2-2zm0 4.24-8 5-8-5V6l8 5 8-5z"/></svg>
+          <span id="email">info@hindivine.com</span>
+        </div>
       </div>
-      <div class="row row2 social">
+      <div class="row row3 social">
         <!-- Facebook -->
         <span class="ico"><svg viewBox="0 0 24 24"><path d="M13.5 21v-7.5h2.5l.4-3h-2.9V8.6c0-.87.25-1.46 1.5-1.46h1.55V4.47A21 21 0 0 0 14.3 4.3c-2.25 0-3.8 1.37-3.8 3.9v2.3H8v3h2.5V21z"/></svg></span>
         <!-- Instagram -->
@@ -154,14 +169,26 @@
     var stage = document.getElementById('stage');
     if (q.get('bg') === 'green') document.body.classList.add('bg-green');
     if (q.get('bg') === 'dark') document.body.classList.add('bg-dark');
-    ['handle', 'phone', 'web'].forEach(function (k) {
+    ['handle', 'phone', 'phone2', 'web', 'email'].forEach(function (k) {
       if (q.get(k)) document.getElementById(k).textContent = q.get(k);
     });
 
     if (q.get('static') === '1') { stage.className = 'static'; return; }
 
-    var loop = q.get('loop') !== '0';
     var HOLD = 8000, GAP = 3000;
+
+    // Frame-accurate seek, used by the video exporter: window.seek(ms)
+    window.seek = function (t) {
+      stage.className = t < HOLD ? 'play' : 'play out';
+      document.getAnimations().forEach(function (a) {
+        a.pause();
+        var isOut = a.animationName === 'fadeOut';
+        a.currentTime = isOut ? t - HOLD : Math.min(t, HOLD);
+      });
+    };
+    if (q.has('t')) { window.seek(+q.get('t')); return; }
+
+    var loop = q.get('loop') !== '0';
     function play() {
       stage.className = '';
       void stage.offsetWidth; // restart CSS animations
