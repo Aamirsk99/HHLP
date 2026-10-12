@@ -32,8 +32,7 @@ POINTS = [
     "This video is for general educational and awareness purposes only and "
     "does not constitute medical advice.",
     "Watching this content does not create a doctor–patient relationship.",
-    "In this video, we do not promote, endorse or sell any product, medicine, "
-    "brand or treatment.",
+    "In this video, we are not promoting/selling any products or treatments.",
     "It is not a substitute for diagnosis or treatment by a qualified, "
     "registered medical practitioner.",
     "Do not start, stop or change any medicine, diet or therapy without "
