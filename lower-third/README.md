@@ -11,8 +11,10 @@ the handle.
 |------|------|--------|
 | `hindivine-lower-third-16x9-15s-greenscreen.mp4` | 1920×1080 (YouTube, landscape) | 15 s |
 | `hindivine-lower-third-16x9-10s-greenscreen.mp4` | 1920×1080 | 10 s |
+| `hindivine-lower-third-16x9-5s-greenscreen.mp4` | 1920×1080 | 5 s |
 | `hindivine-lower-third-reels-9x16-15s-greenscreen.mp4` | 1080×1920 (Reels, Shorts, Stories) | 15 s |
 | `hindivine-lower-third-reels-9x16-10s-greenscreen.mp4` | 1080×1920 | 10 s |
+| `hindivine-lower-third-reels-9x16-5s-greenscreen.mp4` | 1080×1920 | 5 s |
 
 Animation: accent bar grows → logo wipes in with a zoom → info panel wipes in
 → each contact line rises in turn → social icons pop one by one → handle types
@@ -53,8 +55,10 @@ handle, and a Subscribe button.
 |------|------|--------|
 | `hindivine-endscreen-16x9-15s.mp4` | 1920×1080 | 15 s |
 | `hindivine-endscreen-16x9-10s.mp4` | 1920×1080 | 10 s |
+| `hindivine-endscreen-16x9-5s.mp4` | 1920×1080 | 5 s (animation at 1.6× speed) |
 | `hindivine-endscreen-reels-9x16-15s.mp4` | 1080×1920 | 15 s |
 | `hindivine-endscreen-reels-9x16-10s.mp4` | 1080×1920 | 10 s |
+| `hindivine-endscreen-reels-9x16-5s.mp4` | 1080×1920 | 5 s (animation at 1.6× speed) |
 | `hindivine-endscreen-16x9.png`, `hindivine-endscreen-reels-9x16.png` | stills | — |
 
 Animation: soft lights drift and medical crosses float up in the background,
