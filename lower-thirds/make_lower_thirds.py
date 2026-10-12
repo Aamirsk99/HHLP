@@ -35,8 +35,9 @@ LOWER_THIRDS = [
      "Consult your doctor before making health changes"),
     ("medical_disclaimer", "DISCLAIMER",
      "This video is for educational and informational purposes only and does not "
-     "replace professional medical advice, diagnosis, or treatment. Always consult "
-     "a qualified healthcare professional for individual medical guidance.", 14.0),
+     "replace professional medical advice, diagnosis, or treatment. In this video, we "
+     "are not promoting any products or treatments. Always consult a qualified "
+     "healthcare professional for individual medical guidance.", 17.0),
 ]
 
 FORMATS = {

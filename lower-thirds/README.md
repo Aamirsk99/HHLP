@@ -11,7 +11,7 @@ a green-screen / chroma key effect to remove the green.
 | Dr. Rajat Goel + Hindivine Healthcare | `videos/video/dr_rajat_goel_hindivine_video_1920x1080.mp4` | `videos/reel/dr_rajat_goel_hindivine_reel_1080x1920.mp4` |
 | ⭐ **Premium MEDICAL DISCLAIMER** – split card with icons (26 s, newest design) | `videos/video/medical_disclaimer_premium_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_premium_reel_1080x1920.mp4` |
 | Luxury medico-legal MEDICAL DISCLAIMER card (26 s) | `videos/video/medical_disclaimer_luxury_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_luxury_reel_1080x1920.mp4` |
-| Full medical **DISCLAIMER** (multi-line, 14 s) | `videos/video/medical_disclaimer_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_reel_1080x1920.mp4` |
+| Full medical **DISCLAIMER** (multi-line, 17 s) | `videos/video/medical_disclaimer_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_reel_1080x1920.mp4` |
 | "For Educational Purposes Only" disclaimer | `videos/video/educational_disclaimer_video_1920x1080.mp4` | `videos/reel/educational_disclaimer_reel_1080x1920.mp4` |
 
 Still frames of each are in `previews/`.
