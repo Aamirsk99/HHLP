@@ -42,3 +42,27 @@ size 1920×1080 (or 1080×1920 with `?format=reel`). Query options:
 - `?bg=green` — green background
 - `?handle=@yourhandle` — change the social handle
 - `?phone=...` / `?phone2=...` / `?web=...` / `?email=...` — change the contact text
+
+## End screen (outro)
+
+Full-frame closing page to put at the end of your videos: logo, "Thank You
+for Watching", both phone numbers, website, email, social icons with the
+handle, and a Subscribe button.
+
+| File | Size | Length |
+|------|------|--------|
+| `hindivine-endscreen-16x9-15s.mp4` | 1920×1080 | 15 s |
+| `hindivine-endscreen-16x9-10s.mp4` | 1920×1080 | 10 s |
+| `hindivine-endscreen-reels-9x16-15s.mp4` | 1080×1920 | 15 s |
+| `hindivine-endscreen-reels-9x16-10s.mp4` | 1080×1920 | 10 s |
+| `hindivine-endscreen-16x9.png`, `hindivine-endscreen-reels-9x16.png` | stills | — |
+
+Animation: soft lights drift and medical crosses float up in the background,
+a heartbeat line draws across behind the title, the logo card drops in and
+gets a shine, "Thank You" and "for Watching" slide in from opposite sides
+with a glow, contact chips slide in with pulsing icons, social icons pop and
+wave, the handle types on, and a cursor clicks Subscribe (it turns into
+"Subscribed" with a ringing bell). The last 0.6 s fades to dark.
+
+Source: `endscreen.html` (same `?format=reel`, `?hold=`, `?static=1` and text
+override options as the lower third).
