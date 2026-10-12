@@ -9,6 +9,7 @@ a green-screen / chroma key effect to remove the green.
 | Hindivine Healthcare | `videos/video/hindivine_healthcare_video_1920x1080.mp4` | `videos/reel/hindivine_healthcare_reel_1080x1920.mp4` |
 | Dr. Rajat Goel | `videos/video/dr_rajat_goel_video_1920x1080.mp4` | `videos/reel/dr_rajat_goel_reel_1080x1920.mp4` |
 | Dr. Rajat Goel + Hindivine Healthcare | `videos/video/dr_rajat_goel_hindivine_video_1920x1080.mp4` | `videos/reel/dr_rajat_goel_hindivine_reel_1080x1920.mp4` |
+| Full medical **DISCLAIMER** (multi-line, 14 s) | `videos/video/medical_disclaimer_video_1920x1080.mp4` | `videos/reel/medical_disclaimer_reel_1080x1920.mp4` |
 | "For Educational Purposes Only" disclaimer | `videos/video/educational_disclaimer_video_1920x1080.mp4` | `videos/reel/educational_disclaimer_reel_1080x1920.mp4` |
 
 Still frames of each are in `previews/`.
@@ -33,7 +34,8 @@ Instagram / YouTube Shorts caption and button area.
 ## Changing text
 
 Edit `LOWER_THIRDS` at the top of `make_lower_thirds.py` (title, subtitle or
-`None`), then run:
+`None`, and an optional duration in seconds). Long subtitles are wrapped onto
+several lines automatically. Then run:
 
 ```
 python3 lower-thirds/make_lower_thirds.py
