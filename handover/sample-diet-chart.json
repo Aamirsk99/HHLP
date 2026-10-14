@@ -1,0 +1,729 @@
+{
+ "input": {
+  "type": "diabetes",
+  "goal": "both",
+  "kcal": 1500,
+  "protein": 80,
+  "diet": "veg",
+  "start": "2026-11-02",
+  "days": 2,
+  "procDay": 1,
+  "meals": 5,
+  "lunch": "mix",
+  "dinner": "mix",
+  "dayPrefs": [
+   "",
+   "light",
+   "",
+   "",
+   "",
+   "",
+   ""
+  ],
+  "prefer": [
+   "millets"
+  ],
+  "avoid": [
+   "mushroom"
+  ],
+  "preferText": "",
+  "avoidText": "karela",
+  "who": "Sample Patient",
+  "seed": 1,
+  "offset": 0,
+  "lang": "en",
+  "lang2": ""
+ },
+ "output": {
+  "header": {
+   "series": "PROTEIN DIET CHART",
+   "title": "Diabetes-Friendly Weight Loss",
+   "chips": [
+    "80 G PROTEIN / DAY",
+    "1,500 KCAL / DAY",
+    "VEGETARIAN",
+    "2 DAYS"
+   ],
+   "lead": "Low-GI, high-fibre meals with no added sugar to support weight loss and blood-sugar control.",
+   "best_for": "Adults with type 2 diabetes or prediabetes who need to lose weight. People with high fasting sugar or HbA1c.",
+   "prepared_line": "Prepared for Sample Patient · From 2 Nov 2026 to 3 Nov 2026"
+  },
+  "summary": {
+   "averages_per_day": {
+    "kcal": 1398,
+    "protein_g": 84,
+    "carbs_g": 165,
+    "fibre_g": 38,
+    "fat_g": 37
+   },
+   "target_check": "Target check: all 2 days are within 5% of the calorie target and meet the protein target."
+  },
+  "how_to_use": [
+   "Each dish is a Hindivine recipe; the number after it (for example #0123) is its number in the Hindivine Healthy Recipe Series.",
+   "\"1 serving\" means one serving as described in that recipe; calories and protein are given for the portion shown.",
+   "Items marked + are simple protein add-ons that top up the day's protein.",
+   "Preferred foods used where possible: Millets",
+   "Foods left out: Mushroom, karela",
+   "Drink 2.5-3 litres of water a day unless your doctor has limited fluids."
+  ],
+  "days": [
+   {
+    "day": 1,
+    "date": "2 Nov 2026",
+    "diet_for_day": "veg",
+    "day_preference": null,
+    "target": {
+     "kcal": 1500,
+     "protein_g": 80
+    },
+    "texture": "regular",
+    "meals": [
+     {
+      "slot": "breakfast",
+      "time": "8:30 AM",
+      "label": "Breakfast",
+      "kcal_share": 0.25,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Beetroot Quinoa Chila",
+        "recipe_id": 2068,
+        "recipe_code": "#2068",
+        "per_unit": {
+         "kcal": 257.1,
+         "protein_g": 9.5,
+         "carbs_g": 34.9,
+         "fat_g": 8.4,
+         "fibre_g": 5.7
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 1.25,
+        "portion_text": "1¼ servings",
+        "amount": {
+         "kcal": 321,
+         "protein_g": 11.9,
+         "carbs_g": 43.6,
+         "fat_g": 10.5,
+         "fibre_g": 7.1
+        }
+       }
+      ]
+     },
+     {
+      "slot": "mid",
+      "time": "11:00 AM",
+      "label": "Mid-Morning",
+      "kcal_share": 0.1,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Pear Ragi Smoothie",
+        "recipe_id": 5128,
+        "recipe_code": "#5128",
+        "per_unit": {
+         "kcal": 139.8,
+         "protein_g": 4.7,
+         "carbs_g": 19.4,
+         "fat_g": 3.9,
+         "fibre_g": 3.2
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 1,
+        "portion_text": "1 serving",
+        "amount": {
+         "kcal": 140,
+         "protein_g": 4.7,
+         "carbs_g": 19.4,
+         "fat_g": 3.9,
+         "fibre_g": 3.2
+        }
+       },
+       {
+        "type": "protein_add_on",
+        "name": "Whey protein, 1 scoop (30 g) in water or skimmed milk",
+        "recipe_id": null,
+        "recipe_code": null,
+        "per_unit": {
+         "kcal": 120,
+         "protein_g": 24,
+         "carbs_g": 3,
+         "fat_g": 1.5,
+         "fibre_g": 0
+        },
+        "unit": "portion named in the item",
+        "multiplier": 1,
+        "portion_text": "as listed",
+        "amount": {
+         "kcal": 120,
+         "protein_g": 24,
+         "carbs_g": 3,
+         "fat_g": 1.5,
+         "fibre_g": 0
+        }
+       }
+      ]
+     },
+     {
+      "slot": "lunch",
+      "time": "1:30 PM",
+      "label": "Lunch",
+      "kcal_share": 0.3,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Bengali Rajma",
+        "recipe_id": 1296,
+        "recipe_code": "#1296",
+        "per_unit": {
+         "kcal": 226.3,
+         "protein_g": 12.5,
+         "carbs_g": 21.5,
+         "fat_g": 4.6,
+         "fibre_g": 14.4
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.5,
+        "portion_text": "½ serving",
+        "amount": {
+         "kcal": 113,
+         "protein_g": 6.3,
+         "carbs_g": 10.8,
+         "fat_g": 2.3,
+         "fibre_g": 7.2
+        }
+       },
+       {
+        "type": "recipe",
+        "name": "Makki di Roti",
+        "recipe_id": 148,
+        "recipe_code": "#0148",
+        "per_unit": {
+         "kcal": 325.6,
+         "protein_g": 7.2,
+         "carbs_g": 58.4,
+         "fat_g": 7,
+         "fibre_g": 5.6
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.5,
+        "portion_text": "½ serving",
+        "amount": {
+         "kcal": 163,
+         "protein_g": 3.6,
+         "carbs_g": 29.2,
+         "fat_g": 3.5,
+         "fibre_g": 2.8
+        }
+       },
+       {
+        "type": "recipe",
+        "name": "Quinoa Cucumber Tomato Salad",
+        "recipe_id": 2918,
+        "recipe_code": "#2918",
+        "per_unit": {
+         "kcal": 181,
+         "protein_g": 6.2,
+         "carbs_g": 27.9,
+         "fat_g": 5,
+         "fibre_g": 4.1
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.5,
+        "portion_text": "½ serving",
+        "amount": {
+         "kcal": 91,
+         "protein_g": 3.1,
+         "carbs_g": 14,
+         "fat_g": 2.5,
+         "fibre_g": 2.1
+        }
+       },
+       {
+        "type": "protein_add_on",
+        "name": "Soya chunks, 25 g dry (boiled, added to sabzi or pulao)",
+        "recipe_id": null,
+        "recipe_code": null,
+        "per_unit": {
+         "kcal": 86,
+         "protein_g": 13,
+         "carbs_g": 5.3,
+         "fat_g": 0.1,
+         "fibre_g": 3.3
+        },
+        "unit": "portion named in the item",
+        "multiplier": 1,
+        "portion_text": "as listed",
+        "amount": {
+         "kcal": 86,
+         "protein_g": 13,
+         "carbs_g": 5.3,
+         "fat_g": 0.1,
+         "fibre_g": 3.3
+        }
+       }
+      ]
+     },
+     {
+      "slot": "evening",
+      "time": "4:30 PM",
+      "label": "Evening Snack",
+      "kcal_share": 0.1,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Spinach Cauliflower Soup",
+        "recipe_id": 4675,
+        "recipe_code": "#4675",
+        "per_unit": {
+         "kcal": 74.4,
+         "protein_g": 4,
+         "carbs_g": 6.3,
+         "fat_g": 3.2,
+         "fibre_g": 3.7
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 1.75,
+        "portion_text": "1¾ servings",
+        "amount": {
+         "kcal": 130,
+         "protein_g": 7,
+         "carbs_g": 11,
+         "fat_g": 5.6,
+         "fibre_g": 6.5
+        }
+       }
+      ]
+     },
+     {
+      "slot": "dinner",
+      "time": "7:30 PM",
+      "label": "Dinner",
+      "kcal_share": 0.25,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Quinoa Vegetable Soup",
+        "recipe_id": 1627,
+        "recipe_code": "#1627",
+        "per_unit": {
+         "kcal": 113.9,
+         "protein_g": 3.7,
+         "carbs_g": 15.1,
+         "fat_g": 3.7,
+         "fibre_g": 3.3
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.75,
+        "portion_text": "¾ serving",
+        "amount": {
+         "kcal": 85,
+         "protein_g": 2.8,
+         "carbs_g": 11.3,
+         "fat_g": 2.8,
+         "fibre_g": 2.5
+        }
+       },
+       {
+        "type": "recipe",
+        "name": "Bhindi Masala (Dry)",
+        "recipe_id": 361,
+        "recipe_code": "#0361",
+        "per_unit": {
+         "kcal": 94.7,
+         "protein_g": 3.3,
+         "carbs_g": 9.2,
+         "fat_g": 3.9,
+         "fibre_g": 5.5
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.75,
+        "portion_text": "¾ serving",
+        "amount": {
+         "kcal": 71,
+         "protein_g": 2.5,
+         "carbs_g": 6.9,
+         "fat_g": 2.9,
+         "fibre_g": 4.1
+        }
+       },
+       {
+        "type": "recipe",
+        "name": "Moringa Foxtail Roti",
+        "recipe_id": 3664,
+        "recipe_code": "#3664",
+        "per_unit": {
+         "kcal": 288.1,
+         "protein_g": 9.5,
+         "carbs_g": 42.6,
+         "fat_g": 7.2,
+         "fibre_g": 5.8
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.75,
+        "portion_text": "¾ serving",
+        "amount": {
+         "kcal": 216,
+         "protein_g": 7.1,
+         "carbs_g": 32,
+         "fat_g": 5.4,
+         "fibre_g": 4.4
+        }
+       }
+      ]
+     }
+    ],
+    "totals": {
+     "kcal": 1536,
+     "protein_g": 86,
+     "carbs_g": 186,
+     "fat_g": 41,
+     "fibre_g": 43
+    },
+    "status": {
+     "code": "ok",
+     "text": "On target"
+    }
+   },
+   {
+    "day": 2,
+    "date": "3 Nov 2026",
+    "diet_for_day": "veg",
+    "day_preference": "light",
+    "target": {
+     "kcal": 1280,
+     "protein_g": 80
+    },
+    "texture": "regular",
+    "meals": [
+     {
+      "slot": "breakfast",
+      "time": "8:30 AM",
+      "label": "Breakfast",
+      "kcal_share": 0.25,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Foxtail Millet Idli",
+        "recipe_id": 28,
+        "recipe_code": "#0028",
+        "per_unit": {
+         "kcal": 317.6,
+         "protein_g": 13.1,
+         "carbs_g": 50.5,
+         "fat_g": 4.6,
+         "fibre_g": 7.8
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.75,
+        "portion_text": "¾ serving",
+        "amount": {
+         "kcal": 238,
+         "protein_g": 9.8,
+         "carbs_g": 37.9,
+         "fat_g": 3.5,
+         "fibre_g": 5.9
+        }
+       }
+      ]
+     },
+     {
+      "slot": "mid",
+      "time": "11:00 AM",
+      "label": "Mid-Morning",
+      "kcal_share": 0.1,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Guava Ragi Smoothie",
+        "recipe_id": 5085,
+        "recipe_code": "#5085",
+        "per_unit": {
+         "kcal": 137.9,
+         "protein_g": 6,
+         "carbs_g": 15.8,
+         "fat_g": 4.4,
+         "fibre_g": 4.1
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.75,
+        "portion_text": "¾ serving",
+        "amount": {
+         "kcal": 103,
+         "protein_g": 4.5,
+         "carbs_g": 11.9,
+         "fat_g": 3.3,
+         "fibre_g": 3.1
+        }
+       }
+      ]
+     },
+     {
+      "slot": "lunch",
+      "time": "1:30 PM",
+      "label": "Lunch",
+      "kcal_share": 0.3,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Moringa Leaf Toor Dal",
+        "recipe_id": 2471,
+        "recipe_code": "#2471",
+        "per_unit": {
+         "kcal": 161.1,
+         "protein_g": 9.6,
+         "carbs_g": 19.5,
+         "fat_g": 3.1,
+         "fibre_g": 6.2
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.5,
+        "portion_text": "½ serving",
+        "amount": {
+         "kcal": 81,
+         "protein_g": 4.8,
+         "carbs_g": 9.8,
+         "fat_g": 1.6,
+         "fibre_g": 3.1
+        }
+       },
+       {
+        "type": "recipe",
+        "name": "Quinoa Lobia Pulao",
+        "recipe_id": 4486,
+        "recipe_code": "#4486",
+        "per_unit": {
+         "kcal": 368.9,
+         "protein_g": 15.3,
+         "carbs_g": 54.9,
+         "fat_g": 8.5,
+         "fibre_g": 8.1
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.5,
+        "portion_text": "½ serving",
+        "amount": {
+         "kcal": 184,
+         "protein_g": 7.7,
+         "carbs_g": 27.5,
+         "fat_g": 4.3,
+         "fibre_g": 4.1
+        }
+       },
+       {
+        "type": "recipe",
+        "name": "Tofu Salad",
+        "recipe_id": 591,
+        "recipe_code": "#0591",
+        "per_unit": {
+         "kcal": 113,
+         "protein_g": 9.8,
+         "carbs_g": 6,
+         "fat_g": 6.3,
+         "fibre_g": 2.1
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.5,
+        "portion_text": "½ serving",
+        "amount": {
+         "kcal": 57,
+         "protein_g": 4.9,
+         "carbs_g": 3,
+         "fat_g": 3.2,
+         "fibre_g": 1.1
+        }
+       },
+       {
+        "type": "protein_add_on",
+        "name": "Low-fat hung curd / Greek yogurt, 150 g",
+        "recipe_id": null,
+        "recipe_code": null,
+        "per_unit": {
+         "kcal": 89,
+         "protein_g": 15.3,
+         "carbs_g": 5.4,
+         "fat_g": 0.6,
+         "fibre_g": 0
+        },
+        "unit": "portion named in the item",
+        "multiplier": 1,
+        "portion_text": "as listed",
+        "amount": {
+         "kcal": 89,
+         "protein_g": 15.3,
+         "carbs_g": 5.4,
+         "fat_g": 0.6,
+         "fibre_g": 0
+        }
+       },
+       {
+        "type": "protein_add_on",
+        "name": "Soya chunks, 25 g dry (boiled, added to sabzi or pulao)",
+        "recipe_id": null,
+        "recipe_code": null,
+        "per_unit": {
+         "kcal": 86,
+         "protein_g": 13,
+         "carbs_g": 5.3,
+         "fat_g": 0.1,
+         "fibre_g": 3.3
+        },
+        "unit": "portion named in the item",
+        "multiplier": 1,
+        "portion_text": "as listed",
+        "amount": {
+         "kcal": 86,
+         "protein_g": 13,
+         "carbs_g": 5.3,
+         "fat_g": 0.1,
+         "fibre_g": 3.3
+        }
+       }
+      ]
+     },
+     {
+      "slot": "evening",
+      "time": "4:30 PM",
+      "label": "Evening Snack",
+      "kcal_share": 0.1,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Pudina Baby Corn Tikka",
+        "recipe_id": 4814,
+        "recipe_code": "#4814",
+        "per_unit": {
+         "kcal": 142.5,
+         "protein_g": 7.5,
+         "carbs_g": 11.8,
+         "fat_g": 6.2,
+         "fibre_g": 4.9
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.75,
+        "portion_text": "¾ serving",
+        "amount": {
+         "kcal": 107,
+         "protein_g": 5.6,
+         "carbs_g": 8.9,
+         "fat_g": 4.7,
+         "fibre_g": 3.7
+        }
+       }
+      ]
+     },
+     {
+      "slot": "dinner",
+      "time": "7:30 PM",
+      "label": "Dinner",
+      "kcal_share": 0.25,
+      "items": [
+       {
+        "type": "recipe",
+        "name": "Spinach Broccoli Soup",
+        "recipe_id": 4674,
+        "recipe_code": "#4674",
+        "per_unit": {
+         "kcal": 81.9,
+         "protein_g": 4.8,
+         "carbs_g": 7.1,
+         "fat_g": 3.3,
+         "fibre_g": 4.2
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.5,
+        "portion_text": "½ serving",
+        "amount": {
+         "kcal": 41,
+         "protein_g": 2.4,
+         "carbs_g": 3.6,
+         "fat_g": 1.7,
+         "fibre_g": 2.1
+        }
+       },
+       {
+        "type": "recipe",
+        "name": "Soya Coconut Curry",
+        "recipe_id": 2737,
+        "recipe_code": "#2737",
+        "per_unit": {
+         "kcal": 243.7,
+         "protein_g": 19.3,
+         "carbs_g": 18.1,
+         "fat_g": 10.5,
+         "fibre_g": 6.3
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.5,
+        "portion_text": "½ serving",
+        "amount": {
+         "kcal": 122,
+         "protein_g": 9.7,
+         "carbs_g": 9.1,
+         "fat_g": 5.3,
+         "fibre_g": 3.2
+        }
+       },
+       {
+        "type": "recipe",
+        "name": "Methi Rajgira Roti",
+        "recipe_id": 3662,
+        "recipe_code": "#3662",
+        "per_unit": {
+         "kcal": 303.1,
+         "protein_g": 10.2,
+         "carbs_g": 41,
+         "fat_g": 9,
+         "fibre_g": 5.4
+        },
+        "unit": "1 recipe serving",
+        "multiplier": 0.5,
+        "portion_text": "½ serving",
+        "amount": {
+         "kcal": 152,
+         "protein_g": 5.1,
+         "carbs_g": 20.5,
+         "fat_g": 4.5,
+         "fibre_g": 2.7
+        }
+       }
+      ]
+     }
+    ],
+    "totals": {
+     "kcal": 1259,
+     "protein_g": 83,
+     "carbs_g": 143,
+     "fat_g": 32,
+     "fibre_g": 32
+    },
+    "status": {
+     "code": "ok",
+     "text": "On target"
+    }
+   }
+  ],
+  "guidelines": {
+   "do": [
+    "Eat at regular times and do not skip meals, especially if you take insulin or sugar-lowering tablets.",
+    "Eat salad and vegetables first, then protein, then roti or rice.",
+    "Prefer whole grains and millets (jowar, bajra, ragi, brown rice) over white rice and maida.",
+    "Check your blood sugar as your doctor advises and walk 10-15 minutes after meals."
+   ],
+   "limit_or_avoid": [
+    "Sugar, jaggery, honey, sweets, fruit juices and sweetened drinks.",
+    "White rice, maida, bread and potato in large amounts.",
+    "Mangoes, grapes, chikoo and bananas in large portions; prefer guava, apple, orange or papaya."
+   ]
+  },
+  "question": {
+   "heading": "Is 80 g of protein right for me?",
+   "text": "A common guide is about 1.0 g of protein per kg of body weight for less active adults, 1.2-1.6 g/kg for active adults and people losing weight, and 1.6-2.0 g/kg for regular strength training. So 80 g a day roughly suits a body weight of about 80 kg if you are less active, 50-67 kg if you are active, or 40-50 kg with regular strength training. Seek advice first if you have kidney or liver disease, or are pregnant or breastfeeding."
+  },
+  "disclaimer": "Disclaimer: This diet chart is general wellness information and not a substitute for personalised medical or nutrition advice. Calorie and protein values are estimates from standard ingredient data (IFCT 2017 / USDA). People with medical conditions, on medication, or recovering from surgery or a procedure should follow the plan given by their doctor or dietitian.",
+  "fixed_pages": [
+   "Our Services (clinic branding, GLP-1 programme, services list, app download band)",
+   "footer: www.hindivine.com · app@hindivine.com"
+  ],
+  "copy_as_text": "HINDIVINE · Diabetes-Friendly Weight Loss\n1,500 kcal, 80 g protein · Vegetarian · Sample Patient\n\nDay 1 (2 Nov 2026): 1,536 kcal, 86 g protein\n8:30 AM Breakfast: Beetroot Quinoa Chila #2068 (1¼ servings)\n11:00 AM Mid-Morning: Pear Ragi Smoothie #5128 (1 serving) + Whey protein, 1 scoop (30 g) in water or skimmed milk\n1:30 PM Lunch: Bengali Rajma #1296 (½ serving) + Makki di Roti #0148 (½ serving) + Quinoa Cucumber Tomato Salad #2918 (½ serving) + Soya chunks, 25 g dry (boiled, added to sabzi or pulao)\n4:30 PM Evening Snack: Spinach Cauliflower Soup #4675 (1¾ servings)\n7:30 PM Dinner: Quinoa Vegetable Soup #1627 (¾ serving) + Bhindi Masala (Dry) #0361 (¾ serving) + Moringa Foxtail Roti #3664 (¾ serving)\n\nDay 2 (3 Nov 2026): 1,259 kcal, 83 g protein\n8:30 AM Breakfast: Foxtail Millet Idli #0028 (¾ serving)\n11:00 AM Mid-Morning: Guava Ragi Smoothie #5085 (¾ serving)\n1:30 PM Lunch: Moringa Leaf Toor Dal #2471 (½ serving) + Quinoa Lobia Pulao #4486 (½ serving) + Tofu Salad #0591 (½ serving) + Low-fat hung curd / Greek yogurt, 150 g + Soya chunks, 25 g dry (boiled, added to sabzi or pulao)\n4:30 PM Evening Snack: Pudina Baby Corn Tikka #4814 (¾ serving)\n7:30 PM Dinner: Spinach Broccoli Soup #4674 (½ serving) + Soya Coconut Curry #2737 (½ serving) + Methi Rajgira Roti #3662 (½ serving)\n\nwww.hindivine.com · app@hindivine.com"
+ }
+}
