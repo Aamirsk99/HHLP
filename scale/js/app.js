@@ -473,18 +473,26 @@
 
   // ── Manual entry and sample ──────────────────────────────────
   const manualForm = $('manual-form');
-  const MANUAL_FIELDS = ['weightKg', 'fatPct', 'waterPct', 'musclePct', 'boneKg', 'visceral', 'bmrKcal'];
-  $('manual').addEventListener('click', () => {
+  const MANUAL_FIELDS = ['weightKg', 'fatPct', 'waterPct', 'musclePct', 'boneKg', 'visceral', 'bmrKcal', 'amrKcal', 'skeletalPct', 'proteinPct', 'subcutKg', 'bodyAge', 'bodyScore'];
+  function openManual() {
     MANUAL_FIELDS.forEach((k) => { manualForm[k].value = reading && reading[k] != null ? reading[k] : ''; });
     $('manual-dialog').showModal();
-  });
+  }
+  $('manual').addEventListener('click', openManual);
+  $('edit-values').addEventListener('click', openManual);
   $('manual-dialog').addEventListener('close', () => {
     if ($('manual-dialog').returnValue !== 'ok') return;
-    const data = { source: 'Entered manually' };
-    MANUAL_FIELDS.forEach((k) => { if (manualForm[k].value !== '') data[k] = Number(manualForm[k].value); });
-    if (data.weightKg == null) { toast('Enter the weight'); return; }
-    setReading(data);
-    show('dash');
+    if (manualForm.weightKg.value === '') { toast('Enter the weight'); return; }
+    // Correcting a machine reading keeps what the machine sent (impedance, heart rate) and its time.
+    const base = reading && !reading.sample ? reading : null;
+    const data = base ? Object.assign({}, base) : { source: 'Entered manually' };
+    if (base && !/edited|manually/i.test(base.source || '')) data.source = (base.source || 'Reading') + ', edited';
+    MANUAL_FIELDS.forEach((k) => { if (manualForm[k].value !== '') data[k] = Number(manualForm[k].value); else delete data[k]; });
+    const keep = base ? { at: measuredAt, id: savedId } : null;
+    setReading(data, keep && keep.at);
+    if (keep) savedId = keep.id;
+    save(true);
+    if (current !== 'detail') show('dash');
   });
 
   $('demo').addEventListener('click', () => {

@@ -204,3 +204,10 @@ test('rows: weight only still gives BMI, BMR and standard weight; nothing invent
   assert.deepStrictEqual(M.buildRows({ weightKg: 60 }, {}).map((r) => r.key), ['weight']);
   assert.deepStrictEqual(M.buildRows({}, user), []);
 });
+
+test('typed values replace the calculated ones', () => {
+  const person = { age: 60, sex: 'female', heightCm: 152 };
+  const by = keyed(M.buildRows({ weightKg: 76, fatPct: 45.7, skeletalPct: 33.9, proteinPct: 11, subcutKg: 31.7, bodyAge: 59, bodyScore: 57, visceral: 12, bmrKcal: 1415, amrKcal: 1868 }, person));
+  assert.deepStrictEqual([by.skeletal.value, by.subcut.value, by.bodyAge.value, by.score.value, by.visceral.value, by.bmr.value, by.amr.value], [33.9, 31.7, 59, 57, 12, 1415, 1868]);
+  ['skeletal', 'protein', 'subcut', 'bodyAge', 'score', 'visceral', 'bmr', 'amr'].forEach((k) => assert.strictEqual(by[k].calculated, false, k));
+});

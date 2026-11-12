@@ -85,6 +85,7 @@
         <p class="hint pad" id="detail-note"></p>
         <div class="actions pad">
           <button type="button" class="btn primary" id="print3">Print report / PDF</button>
+          <button type="button" class="btn" id="edit-values">Edit values</button>
         </div>
       </section>
 
@@ -210,7 +211,8 @@
 
   <dialog id="manual-dialog">
     <form method="dialog" id="manual-form">
-      <h2>Enter body data</h2>
+      <h2>Enter or correct values</h2>
+      <p class="hint">Only weight is required. Blank boxes are calculated by the app; a typed value replaces the calculated one.</p>
       <div class="row">
         <label>Weight (kg) <input name="weightKg" type="number" step="0.1" min="2" max="300" inputmode="decimal"></label>
         <label>Body fat (%) <input name="fatPct" type="number" step="0.1" min="2" max="75" inputmode="decimal"></label>
@@ -223,7 +225,19 @@
         <label>Bone mass (kg) <input name="boneKg" type="number" step="0.1" min="0.5" max="8" inputmode="decimal"></label>
         <label>Visceral fat <input name="visceral" type="number" step="0.5" min="1" max="59" inputmode="decimal"></label>
       </div>
-      <label>BMR (kcal/day) <input name="bmrKcal" type="number" step="1" min="500" max="4000" inputmode="numeric" placeholder="Leave blank to calculate"></label>
+      <div class="row">
+        <label>BMR (kcal) <input name="bmrKcal" type="number" step="1" min="500" max="4000" inputmode="numeric"></label>
+        <label>AMR (kcal) <input name="amrKcal" type="number" step="1" min="500" max="6000" inputmode="numeric"></label>
+      </div>
+      <div class="row">
+        <label>Skeletal muscle (%) <input name="skeletalPct" type="number" step="0.1" min="5" max="70" inputmode="decimal"></label>
+        <label>Protein (%) <input name="proteinPct" type="number" step="0.1" min="3" max="30" inputmode="decimal"></label>
+      </div>
+      <div class="row">
+        <label>Subcutaneous fat (kg) <input name="subcutKg" type="number" step="0.1" min="0.5" max="150" inputmode="decimal"></label>
+        <label>Body age <input name="bodyAge" type="number" step="1" min="10" max="99" inputmode="numeric"></label>
+      </div>
+      <label>Body score <input name="bodyScore" type="number" step="1" min="1" max="100" inputmode="numeric"></label>
       <div class="actions">
         <button type="submit" class="btn primary" value="ok">Use these values</button>
         <button type="submit" class="btn" value="cancel" formnovalidate>Cancel</button>

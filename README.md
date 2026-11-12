@@ -99,7 +99,7 @@ A separate app in [`scale/`](scale/) that works like the MovingLife scale app, w
 Install [`dist/HindivineScale.apk`](dist/HindivineScale.apk) (Android 7.0+). Android asks for the Location permission because it requires it for Bluetooth searches; the app does not read location. In Chrome (HTTPS) `scale/index.html` works with Web Bluetooth for connectable scales only.
 
 ```sh
-VERSION_CODE=4 VERSION_NAME=2.2 ./scale/android/build.sh   # same tools and signing key as the diet app
+VERSION_CODE=5 VERSION_NAME=2.3 ./scale/android/build.sh   # same tools and signing key as the diet app
 ```
 
 ## Test

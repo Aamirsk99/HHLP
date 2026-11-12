@@ -151,13 +151,14 @@
       const sk = sex === 'male' ? [33, 39] : [24, 31];
       const ownMuscle = num(reading.musclePct) != null ? num(reading.musclePct) : (num(reading.muscleKg) != null ? pct(num(reading.muscleKg)) : null);
       // A machine value under 62 % is skeletal muscle; above that it is total muscle.
-      const ownSkeletal = ownMuscle != null && ownMuscle < 62 ? ownMuscle : null;
+      const ownSkeletal = num(reading.skeletalPct) != null ? num(reading.skeletalPct) : ownMuscle != null && ownMuscle < 62 ? ownMuscle : null;
       const skeletal = ownSkeletal != null ? ownSkeletal : pct(lean * (sex === 'male' ? 0.48 : 0.43));
       add('skeletal', 'Skeletal muscle', r1(skeletal), '%', sex ? text(sk) : '', sex ? statusUp(skeletal, sk) : null, ownSkeletal == null, sex ? band(sk, 10, 10, UP) : null);
       add('bonePct', 'Bone', pct(mineral), '%', '', null, mineralKg == null);
       add('bone', 'Inorganic salt', r1(mineral), 'kg', '', null, mineralKg == null);
       const pr = sex === 'male' ? [16, 20] : [14, 18];
-      add('protein', 'Protein', pct(lean * 0.203), '%', text(pr), statusUp(pct(lean * 0.203), pr), true, band(pr, 6, 6, UP));
+      const protein = num(reading.proteinPct) != null ? num(reading.proteinPct) : pct(lean * 0.203);
+      add('protein', 'Protein', r1(protein), '%', text(pr), statusUp(protein, pr), num(reading.proteinPct) == null, band(pr, 6, 6, UP));
       const ownTotal = ownMuscle != null && ownMuscle >= 62 ? ownMuscle : null;
       const muscle = ownTotal != null ? ownTotal : pct(lean - mineral);
       const mr = sex === 'male' ? [67, 80] : [60, 72];
@@ -171,15 +172,17 @@
         { min: 1, max: 20, cuts: [9.5, 14.5], labels: ['Standard', 'High', 'Very high'] });
     }
     if (fat != null) {
-      add('subcut', 'Subcutaneous fat', r1(fatMass * 0.9), 'kg', '', null, true);
+      add('subcut', 'Subcutaneous fat', num(reading.subcutKg) != null ? r1(num(reading.subcutKg)) : r1(fatMass * 0.9), 'kg', '', null, num(reading.subcutKg) == null);
       add('lean', 'Lean body mass', r1(lean), 'kg', '', null, true);
       if (bmi != null && age && sex) {
         const mid = (fr[0] + fr[1]) / 2;
-        const bodyAge = Math.round(Math.max(age - 10, Math.min(age + 10, age + 0.5 * (fat - mid) + 0.6 * (bmi - 21.7))));
-        add('bodyAge', 'Body age', Math.max(18, bodyAge), 'years', '', bodyAge <= age ? ['Good', 'ok'] : null, true);
+        const ownAge = num(reading.bodyAge);
+        const bodyAge = ownAge != null ? Math.round(ownAge) : Math.round(Math.max(age - 10, Math.min(age + 10, age + 0.5 * (fat - mid) + 0.6 * (bmi - 21.7))));
+        add('bodyAge', 'Body age', ownAge != null ? bodyAge : Math.max(18, bodyAge), 'years', '', bodyAge <= age ? ['Good', 'ok'] : null, ownAge == null);
         const penalty = 3 * Math.max(0, bmi - 23, 18.5 - bmi) + 2 * Math.max(0, fat - fr[1], fr[0] - fat);
-        const score = Math.round(Math.max(30, 100 - penalty));
-        add('score', 'Body score', score, '/ 100', '', score >= 90 ? ['Excellent', 'ok'] : score >= 75 ? ['Standard', 'ok'] : score >= 60 ? ['Low', 'high'] : ['Poor', 'vhigh'], true);
+        const ownScore = num(reading.bodyScore);
+        const score = ownScore != null ? Math.round(ownScore) : Math.round(Math.max(30, 100 - penalty));
+        add('score', 'Body score', score, '/ 100', '', score >= 90 ? ['Excellent', 'ok'] : score >= 75 ? ['Standard', 'ok'] : score >= 60 ? ['Low', 'high'] : ['Poor', 'vhigh'], ownScore == null);
         add('type', 'Somatotype', somatotype(bmi, fat, fr), '', '', null, true);
       }
     }
@@ -192,7 +195,7 @@
     }
     if (bmr != null) {
       add('bmr', 'BMR', Math.round(bmr), 'kcal', '', null, bmrCalc);
-      add('amr', 'AMR', Math.round(bmr * 1.3), 'kcal', '', null, true);
+      add('amr', 'AMR', num(reading.amrKcal) != null ? Math.round(num(reading.amrKcal)) : Math.round(bmr * 1.3), 'kcal', '', null, num(reading.amrKcal) == null);
     }
     const hr = num(reading.heartRate);
     if (hr != null) add('heart', 'Heart rate', Math.round(hr), 'bpm', '60 – 100', status(hr, [60, 100]));
@@ -212,7 +215,7 @@
         add('muscleControl', 'Muscle control', signed((standard - w) - fatControl), 'kg', '', null, true);
       }
     }
-    if (est) rows.forEach((r) => { if (r.key !== 'weight' && r.key !== 'bmi' && r.key !== 'impedance' && r.key !== 'heart' && r.key !== 'standard' && r.key !== 'weightControl' && r.key !== 'bmr' && r.key !== 'amr' && r.key !== 'visceral' && r.key !== 'standard') r.estimated = true; });
+    if (est) rows.forEach((r) => { if (r.calculated && r.key !== 'weight' && r.key !== 'bmi' && r.key !== 'impedance' && r.key !== 'heart' && r.key !== 'standard' && r.key !== 'weightControl' && r.key !== 'bmr' && r.key !== 'amr' && r.key !== 'visceral' && r.key !== 'standard') r.estimated = true; });
     return rows;
   }
 
