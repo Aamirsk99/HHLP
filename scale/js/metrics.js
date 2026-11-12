@@ -215,7 +215,7 @@
         add('muscleControl', 'Muscle control', signed((standard - w) - fatControl), 'kg', '', null, true);
       }
     }
-    if (est) rows.forEach((r) => { if (r.calculated && r.key !== 'weight' && r.key !== 'bmi' && r.key !== 'impedance' && r.key !== 'heart' && r.key !== 'standard' && r.key !== 'weightControl' && r.key !== 'bmr' && r.key !== 'amr' && r.key !== 'visceral' && r.key !== 'standard') r.estimated = true; });
+    if (est) rows.forEach((r) => { if ((r.calculated || r.key === 'fat' || r.key === 'water') && r.key !== 'weight' && r.key !== 'bmi' && r.key !== 'impedance' && r.key !== 'heart' && r.key !== 'standard' && r.key !== 'weightControl' && r.key !== 'bmr' && r.key !== 'amr' && r.key !== 'visceral' && r.key !== 'standard') r.estimated = true; });
     return rows;
   }
 
