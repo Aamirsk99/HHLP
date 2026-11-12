@@ -5,20 +5,150 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Hindivine Scale</title>
   <meta name="description" content="Hindivine Scale — connect a Bluetooth body scale, read weight and body composition, and print the patient report.">
-  <meta name="theme-color" content="#1F6FC4">
+  <meta name="theme-color" content="#6E87BD">
   <link rel="icon" type="image/png" href="img/icon-192.png">
   <link rel="stylesheet" href="css/app.css">
 </head>
 <body>
   <div class="app no-print">
-    <header class="appbar">
-      <img src="img/logo.jpg" alt="Hindivine Healthcare" class="appbar-logo" width="900" height="308">
-      <span class="appbar-tag">Body Scale</span>
-    </header>
-
     <main>
-      <!-- ── Measure ─────────────────────────────── -->
-      <section class="screen" data-screen="measure">
+      <!-- ── Dashboard ───────────────────────────── -->
+      <section class="screen" data-screen="dash">
+        <div class="hero">
+          <div class="hero-top">
+            <button type="button" class="who" id="who" aria-label="Edit patient details">
+              <span class="avatar" id="avatar">+</span>
+              <span class="who-text"><b id="who-name">Add patient</b><small id="who-sub">Tap to enter details</small></span>
+            </button>
+            <button type="button" class="chip" id="dev-chip"><i></i><span id="dev-chip-text">Unconnected</span></button>
+          </div>
+          <h1>Dashboard</h1>
+          <button type="button" class="dial" id="dial" aria-label="Connect machine">
+            <svg viewBox="0 0 240 240" aria-hidden="true">
+              <circle cx="120" cy="120" r="108" class="ring-bg"/>
+              <circle cx="120" cy="120" r="108" class="ring-arc"/>
+              <circle cx="120" cy="120" r="92" class="ring-in"/>
+            </svg>
+            <span class="dial-in">
+              <small id="dial-status">Unconnected</small>
+              <b id="dial-kg">- -</b>
+              <em>kg</em>
+            </span>
+          </button>
+          <p class="dial-note" id="dial-note" role="status">Tap the circle to connect the machine</p>
+        </div>
+
+        <div class="summary">
+          <p class="when" id="when">No reading yet</p>
+          <div class="sum-row">
+            <div><b id="sum-weight">- -</b><small>Weight (kg)</small></div>
+            <div><b id="sum-bmi">- -</b><small>BMI</small></div>
+            <div><b id="sum-fat">- -</b><small>Body Fat (%)</small></div>
+          </div>
+        </div>
+
+        <div class="tiles" id="tiles"></div>
+        <div class="tile-range" id="tile-range" hidden></div>
+        <button type="button" class="more-row" id="more" disabled><span>More</span><svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg></button>
+
+        <div class="actions pad">
+          <button type="button" class="btn primary" id="print" disabled>Print report / PDF</button>
+          <button type="button" class="btn" id="new">New patient</button>
+        </div>
+      </section>
+
+      <!-- ── Health report (all values) ──────────── -->
+      <section class="screen" data-screen="detail" hidden>
+        <header class="titlebar">
+          <button type="button" class="back" data-back="dash" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <b>Health Report</b>
+          <button type="button" class="tb-action" id="open-a4">A4</button>
+        </header>
+        <div class="detail-head">
+          <p id="detail-who"></p>
+          <div class="sum-row light">
+            <div><b id="d-weight">- -</b><small>Weight (kg)</small></div>
+            <div><b id="d-bmi">- -</b><small>BMI</small></div>
+            <div><b id="d-fat">- -</b><small>Body Fat (%)</small></div>
+          </div>
+          <p class="when" id="d-when"></p>
+        </div>
+        <h2 class="group">Body composition</h2>
+        <div class="items" id="items"></div>
+        <p class="hint pad" id="detail-note"></p>
+        <div class="actions pad">
+          <button type="button" class="btn primary" id="print3">Print report / PDF</button>
+        </div>
+      </section>
+
+      <!-- ── A4 report preview ───────────────────── -->
+      <section class="screen" data-screen="a4" hidden>
+        <header class="titlebar">
+          <button type="button" class="back" data-back="detail" aria-label="Back"><svg viewBox="0 0 24 24"><path d="M15 5l-7 7 7 7"/></svg></button>
+          <b>A4 Report</b><span></span>
+        </header>
+        <div class="pad">
+          <p class="hint">Patient details and tests on the left, body data in the middle, right side blank.</p>
+          <div class="preview" id="preview"><div class="preview-page" id="preview-page"></div></div>
+          <div class="actions"><button type="button" class="btn primary" id="print2">Print / Save as PDF</button></div>
+        </div>
+      </section>
+
+      <!-- ── History ─────────────────────────────── -->
+      <section class="screen" data-screen="history" hidden>
+        <header class="titlebar plain"><b>History</b></header>
+        <div class="card">
+          <div class="card-head"><h2>Weight trend</h2><small id="trend-who"></small></div>
+          <div class="trend" id="trend"></div>
+        </div>
+        <div class="card">
+          <input id="search" type="search" placeholder="Search by name" autocomplete="off">
+          <div class="list" id="history"></div>
+        </div>
+      </section>
+
+      <!-- ── Device ──────────────────────────────── -->
+      <section class="screen" data-screen="device" hidden>
+        <header class="titlebar plain"><b>Device</b></header>
+        <div class="search-box">
+          <div class="ripple" id="ripple"><i></i><i></i><i></i><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10-5 5V2l5 5L7 17"/></svg></div>
+          <p class="status" id="bt-status" role="status">Switch on the machine, then tap Search.</p>
+        </div>
+        <div class="devices" id="devices" hidden></div>
+        <div class="actions pad">
+          <button type="button" class="btn primary" id="connect">Search for machine</button>
+          <button type="button" class="btn" id="disconnect" hidden>Disconnect</button>
+        </div>
+        <div class="card">
+          <h2>No machine?</h2>
+          <div class="actions">
+            <button type="button" class="btn small" id="manual">Enter values manually</button>
+            <button type="button" class="btn small" id="demo">Show sample reading</button>
+          </div>
+          <p class="hint">The sample is marked SAMPLE and is not a real measurement.</p>
+        </div>
+        <div class="card">
+          <h2>How to measure</h2>
+          <ol class="steps">
+            <li>Enter the patient's age, height and sex (Patient tab). The machine needs them for body fat.</li>
+            <li>Turn on Bluetooth (and Location on Android), then search and bind the machine.</li>
+            <li>Stand on it barefoot, on the metal pads, and stay still until the reading appears.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h2>Machine data log</h2>
+          <p class="hint">Everything the machine sends. If it connects but no values appear, copy this and send it to support.</p>
+          <pre class="log" id="log">Nothing yet.</pre>
+          <div class="actions">
+            <button type="button" class="btn small" id="copy-log">Copy log</button>
+            <button type="button" class="btn small" id="clear-log">Clear</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Patient ─────────────────────────────── -->
+      <section class="screen" data-screen="patient" hidden>
+        <header class="titlebar plain"><b>Patient</b><img src="img/logo.jpg" alt="Hindivine Healthcare" class="tb-logo" width="900" height="308"></header>
         <div class="card">
           <h2>Patient details</h2>
           <form id="patient" novalidate>
@@ -41,52 +171,9 @@
             <p class="hint" id="height-hint"></p>
           </form>
         </div>
-
-        <div class="card machine">
-          <div class="machine-head">
-            <h2>Machine</h2>
-            <span class="pill" id="bt-pill">Not connected</span>
-          </div>
-          <p class="status" id="bt-status" role="status">Switch on the machine, then tap Connect machine.</p>
-          <div class="devices" id="devices" hidden></div>
-          <div class="live" id="live" hidden>
-            <b id="live-kg">0.0</b><span>kg</span>
-            <small id="live-note">Measuring…</small>
-          </div>
-          <div class="actions">
-            <button type="button" class="btn primary" id="connect">Connect machine</button>
-            <button type="button" class="btn" id="disconnect" hidden>Disconnect</button>
-          </div>
-        </div>
-
-        <div class="card">
-          <div class="machine-head">
-            <h2>Body data</h2>
-            <button type="button" class="link" id="manual">Enter manually</button>
-          </div>
-          <p class="hint" id="result-meta">No reading yet. Connect the machine and stand on it barefoot.</p>
-          <div class="rows" id="rows"></div>
-          <div class="actions">
-            <button type="button" class="btn primary" id="print" disabled>Print report / PDF</button>
-            <button type="button" class="btn" id="save" disabled>Save</button>
-            <button type="button" class="btn" id="new">New patient</button>
-          </div>
-        </div>
-      </section>
-
-      <!-- ── Report preview ──────────────────────── -->
-      <section class="screen" data-screen="report" hidden>
-        <div class="card">
-          <div class="machine-head">
-            <h2>Report preview</h2>
-            <button type="button" class="btn primary small" id="print2">Print / PDF</button>
-          </div>
-          <p class="hint">A4 page: patient details and tests on the left, body data in the middle, right side blank.</p>
-          <div class="preview" id="preview"><div class="preview-page" id="preview-page"></div></div>
-        </div>
         <div class="card">
           <h2>Tests advised</h2>
-          <p class="hint">Ticked tests print with a tick. Untick the ones not advised for this patient.</p>
+          <p class="hint">Ticked tests print with a tick on the report.</p>
           <div class="tests" id="tests"></div>
           <div class="add-test">
             <input id="new-test" type="text" placeholder="Add another test" autocomplete="off">
@@ -94,51 +181,15 @@
           </div>
           <label class="check"><input type="checkbox" id="hide-unticked"> Leave unticked tests out of the report</label>
         </div>
-      </section>
-
-      <!-- ── History ─────────────────────────────── -->
-      <section class="screen" data-screen="history" hidden>
-        <div class="card">
-          <h2>Saved readings</h2>
-          <input id="search" type="search" placeholder="Search by name" autocomplete="off">
-          <div class="list" id="history"></div>
-        </div>
-      </section>
-
-      <!-- ── Help ────────────────────────────────── -->
-      <section class="screen" data-screen="help" hidden>
-        <div class="card">
-          <h2>How to measure</h2>
-          <ol class="steps">
-            <li>Fill in the patient's age, height and sex. The machine needs them to work out body fat.</li>
-            <li>Turn on Bluetooth (and Location on Android). Tap <b>Connect machine</b> and choose your machine.</li>
-            <li>Stand on the machine barefoot, on the metal pads, and stay still until the reading appears.</li>
-            <li>Tap <b>Print report / PDF</b>.</li>
-          </ol>
-        </div>
-        <div class="card">
-          <h2>Try without a machine</h2>
-          <p class="hint">Shows a sample reading so you can see the report. It is marked SAMPLE and is not a real measurement.</p>
-          <button type="button" class="btn" id="demo">Show sample reading</button>
-        </div>
-        <div class="card">
-          <h2>Machine data log</h2>
-          <p class="hint">Everything the machine sends. If your machine connects but no values appear, copy this and send it to support.</p>
-          <pre class="log" id="log">Nothing yet.</pre>
-          <div class="actions">
-            <button type="button" class="btn small" id="copy-log">Copy log</button>
-            <button type="button" class="btn small" id="clear-log">Clear</button>
-          </div>
-        </div>
         <p class="foot">Hindivine Healthcare Pvt. Ltd. · www.hindivine.com<br>Readings are stored only on this device. Not a medical diagnosis.</p>
       </section>
     </main>
 
     <nav class="tabs" id="tabs">
-      <button type="button" data-tab="measure" aria-current="page"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h6M12 9v3"/></svg>Measure</button>
-      <button type="button" data-tab="report"><svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M10 12h5M10 16h5"/></svg>Report</button>
-      <button type="button" data-tab="history"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>History</button>
-      <button type="button" data-tab="help"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M10 10a2 2 0 1 1 3 1.7c-.7.4-1 .8-1 1.6M12 16.5v.1"/></svg>Help</button>
+      <button type="button" data-tab="dash" aria-current="page"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 12l4-3M12 5.5v1.5"/></svg>Dashboard</button>
+      <button type="button" data-tab="history"><svg viewBox="0 0 24 24"><path d="M4 19h16M5 15l4-5 4 3 6-8"/></svg>History</button>
+      <button type="button" data-tab="device"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 8.5h6M12 8.5v3"/></svg>Device</button>
+      <button type="button" data-tab="patient"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.4-5.5 7-5.5s6.200 1.900 7 5.500"/></svg>Patient</button>
     </nav>
   </div>
 
