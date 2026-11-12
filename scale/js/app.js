@@ -7,7 +7,8 @@
 
   const DEFAULT_TESTS = ['CBC', 'LFT', 'KFT', 'RBS', 'HbA1c', 'Vitamin B12', 'Vitamin D3', 'Thyroid Profile', 'Iron Study',
     'Lipid Profile', 'Serum Amylase', 'Serum Lipase', 'Ultrasound Whole Abdomen', 'Retina Examination for Retinopathy'];
-  const KEYS = { readings: 'hindivine.scale.readings.v1', tests: 'hindivine.scale.tests.v1', device: 'hindivine.scale.device.v1', opts: 'hindivine.scale.opts.v1' };
+  const KEYS = { readings: 'hindivine.scale.readings.v1', tests: 'hindivine.scale.tests.v1', device: 'hindivine.scale.device.v1', opts: 'hindivine.scale.opts.v1',
+    profiles: 'hindivine.scale.profiles.v1', active: 'hindivine.scale.active.v1' };
 
   const load = (k, fallback) => { try { const v = JSON.parse(localStorage.getItem(k)); return v == null ? fallback : v; } catch (_) { return fallback; } };
   const store = (k, v) => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch (_) { return false; } };
@@ -64,6 +65,102 @@
     return true;
   };
   $('who').addEventListener('click', () => show('patient'));
+
+  // ── Profiles ─────────────────────────────────────────────────
+  // Each person has a profile; readings are saved under the profile that was active.
+  let profiles = load(KEYS.profiles, []);
+  let activeId = load(KEYS.active, '');
+  const newId = (p) => p + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const active = () => profiles.find((p) => p.id === activeId) || null;
+  const saveProfiles = () => { store(KEYS.profiles, profiles); store(KEYS.active, activeId); };
+
+  /** Readings saved before profiles existed are grouped into profiles by patient name. */
+  function migrate() {
+    const all = load(KEYS.readings, []);
+    let changed = false;
+    all.forEach((r) => {
+      if (r.profileId && profiles.some((p) => p.id === r.profileId)) return;
+      const name = (r.patient && r.patient.name || '').trim();
+      let p = profiles.find((x) => x.name.toLowerCase() === name.toLowerCase());
+      if (!p) { p = { id: newId('p'), name, age: r.patient.age || '', height: r.patient.height || '', sex: r.patient.sex || '' }; profiles.push(p); }
+      r.profileId = p.id;
+      changed = true;
+    });
+    if (changed) store(KEYS.readings, all);
+    if (!profiles.length) profiles.push({ id: newId('p'), name: '', age: '', height: '', sex: '' });
+    if (!active()) activeId = profiles[0].id;
+    saveProfiles();
+  }
+
+  function renderProfiles() {
+    $('profile-count').textContent = profiles.length + (profiles.length === 1 ? ' profile' : ' profiles');
+    $('del-profile').hidden = profiles.length < 2;
+    $('profiles').innerHTML = profiles.map((p) => {
+      const cm = M.heightToCm(p.height);
+      const bits = [p.age ? p.age + ' y' : '', p.sex ? { male: 'Male', female: 'Female', other: 'Others' }[p.sex] : '', cm ? cm + ' cm' : ''].filter(Boolean);
+      return `<button type="button" class="profile${p.id === activeId ? ' on' : ''}" data-id="${esc(p.id)}" aria-pressed="${p.id === activeId}">
+        <span class="avatar">${esc(p.name ? p.name[0].toUpperCase() : '+')}</span>
+        <span class="who-text"><b>${esc(p.name || 'New profile')}</b><small>${esc(bits.join(' · ') || 'Enter details below')}</small></span>
+        ${p.id === activeId ? '<span class="tick">✓</span>' : ''}
+      </button>`;
+    }).join('');
+  }
+
+  /** Make a profile the active one: fill the form and show that person's latest reading. */
+  function selectProfile(id) {
+    activeId = id;
+    const p = active();
+    saveProfiles();
+    form.name.value = p.name || '';
+    form.age.value = p.age || '';
+    form.height.value = p.height || '';
+    form.date.value = today();
+    setSex(p.sex || '');
+    $('height-hint').textContent = '';
+    const latest = load(KEYS.readings, []).find((r) => r.profileId === id);
+    reading = latest ? latest.reading : null;
+    measuredAt = latest ? latest.at : null;
+    savedId = latest ? latest.id : null;
+    openTile = ''; openItem = '';
+    session.reset();
+    renderProfiles();
+    renderAll();
+  }
+
+  function addProfile() {
+    const p = { id: newId('p'), name: '', age: '', height: '', sex: '' };
+    profiles.push(p);
+    selectProfile(p.id);
+    show('patient');
+    form.name.focus();
+  }
+
+  /** Keep the active profile in step with the form. */
+  function syncProfile() {
+    const p = active();
+    if (!p) return;
+    p.name = form.name.value.trim();
+    p.age = form.age.value.trim();
+    p.height = form.height.value.trim();
+    p.sex = sex;
+    saveProfiles();
+    renderProfiles();
+  }
+
+  $('profiles').addEventListener('click', (e) => {
+    const b = e.target.closest('.profile');
+    if (b && b.dataset.id !== activeId) { selectProfile(b.dataset.id); toast('Profile: ' + (active().name || 'New profile')); }
+  });
+  $('add-profile').addEventListener('click', addProfile);
+  $('del-profile').addEventListener('click', () => {
+    const p = active();
+    if (!p || profiles.length < 2) return;
+    const count = load(KEYS.readings, []).filter((r) => r.profileId === p.id).length;
+    if (!confirm('Delete the profile "' + (p.name || 'New profile') + '"' + (count ? ' and its ' + count + ' saved reading' + (count > 1 ? 's' : '') : '') + '?')) return;
+    store(KEYS.readings, load(KEYS.readings, []).filter((r) => r.profileId !== p.id));
+    profiles = profiles.filter((x) => x.id !== p.id);
+    selectProfile(profiles[0].id);
+  });
   $('more').addEventListener('click', () => show('detail'));
   $('open-a4').addEventListener('click', () => show('a4'));
 
@@ -79,11 +176,12 @@
     $('who-sub').textContent = bits.length ? bits.join(' · ') : 'Tap to enter details';
     $('avatar').textContent = p.name ? p.name[0].toUpperCase() : '+';
   }
-  $('sex').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; setSex(b.dataset.value === sex ? '' : b.dataset.value); renderAll(); });
+  $('sex').addEventListener('click', (e) => { const b = e.target.closest('button'); if (!b) return; setSex(b.dataset.value === sex ? '' : b.dataset.value); syncProfile(); renderAll(); });
   form.addEventListener('input', () => {
     const p = patient();
     $('height-hint').textContent = p.heightText && !p.heightCm ? 'Height not understood. Type cm (170) or feet.inches (5.7).'
       : p.heightCm && !/^\d{3}$/.test(p.heightText) ? 'Height: ' + p.heightCm + ' cm' : '';
+    syncProfile();
     renderAll();
   });
 
@@ -242,13 +340,12 @@
     const b = e.target.closest('.bind');
     if (!b) return;
     store(KEYS.device, b.dataset.id);
-    Ble.stopScan();
     $('devices').hidden = true;
     bound = found[b.dataset.id];
     setStatus('Connecting to ' + bound.name + '…', 'Connecting', 'busy');
     if (bound.info && bound.info.proto === 'v30') log('this model uses the encrypted protocol (v30), which the app cannot read yet');
-    if (bound.info && bound.info.broadcast) Ble.watch(bound.id); // broadcast-only scale: listen, never connect
-    else Ble.connect(bound.id);
+    if (bound.info && bound.info.broadcast) Ble.watch(bound.id); // broadcast-only scale: keep listening, never connect
+    else { Ble.stopScan(); Ble.connect(bound.id); }
   });
 
   function startSearch() {
@@ -329,6 +426,7 @@
       }
       return;
     }
+    if (e.type === 'log') { log(e.line); return; }
     if (e.type === 'services') {
       kinds = P.pickKinds(e.services.map((s) => s.uuid));
       log('services ' + e.services.map((s) => P.short(s.uuid) + '(' + s.chars.map(P.short).join(',') + ')').join(' '));
@@ -394,6 +492,7 @@
     if (!form.age.value) form.age.value = 42;
     if (!form.height.value) form.height.value = '168';
     if (!sex) setSex('male');
+    syncProfile();
     setReading({ source: 'SAMPLE (not a real reading)', sample: true, weightKg: 74.6, fatPct: 24.8, waterPct: 52.1, musclePct: 38.4, boneKg: 2.9, bmrKcal: 1582 });
     show('dash');
   });
@@ -522,7 +621,7 @@
     if (!reading || reading.sample) { if (!quiet) toast(reading ? 'Sample readings are not saved' : 'No reading to save'); return; }
     const all = load(KEYS.readings, []);
     const p = patient();
-    const rec = { id: savedId || 'r' + Date.now().toString(36), at: measuredAt, patient: { date: p.date, name: p.name, age: p.age, height: p.heightText, sex: p.sex }, reading };
+    const rec = { id: savedId || 'r' + Date.now().toString(36), at: measuredAt, profileId: activeId, patient: { date: p.date, name: p.name, age: p.age, height: p.heightText, sex: p.sex }, reading };
     const i = all.findIndex((r) => r.id === rec.id);
     if (i >= 0) all[i] = rec; else all.unshift(rec);
     savedId = rec.id;
@@ -556,28 +655,29 @@
   }
 
   function renderHistory() {
-    const q = $('search').value.trim().toLowerCase();
     const every = load(KEYS.readings, []);
-    const name = patient().name.toLowerCase();
-    $('trend-who').textContent = name ? patient().name : 'All readings';
-    $('trend').innerHTML = trendHtml(name ? every.filter((r) => (r.patient.name || '').toLowerCase() === name) : every);
-    const all = every.filter((r) => !q || (r.patient.name || '').toLowerCase().includes(q));
-    $('history').innerHTML = all.length ? all.map((r) => `
+    const allProfiles = $('all-profiles').checked;
+    const mine = every.filter((r) => r.profileId === activeId);
+    $('trend-who').textContent = (active() && active().name) || 'This profile';
+    $('trend').innerHTML = trendHtml(mine);
+    const list = allProfiles ? every : mine;
+    $('history').innerHTML = list.length ? list.map((r) => `
       <div class="hist">
         <button type="button" class="hist-open" data-open="${esc(r.id)}">
-          <b>${esc(r.patient.name || 'No name')}</b>
-          <small>${esc(new Date(r.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}</small>
+          <b>${esc(new Date(r.at).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' }))}</b>
+          <small>${allProfiles ? esc(r.patient.name || 'No name') : esc(r.reading.source || '')}</small>
           <span>${esc(r.reading.weightKg)} kg${r.reading.fatPct != null ? ' · fat ' + esc(r.reading.fatPct) + '%' : ''}</span>
         </button>
         <button type="button" class="x" data-del="${esc(r.id)}" aria-label="Delete reading">×</button>
-      </div>`).join('') : '<p class="hint">No saved readings' + (q ? ' for this name.' : ' yet.') + '</p>';
+      </div>`).join('') : '<p class="hint">No saved readings' + (allProfiles ? ' yet.' : ' for this profile yet.') + '</p>';
   }
-  $('search').addEventListener('input', renderHistory);
+  $('all-profiles').addEventListener('change', renderHistory);
   $('history').addEventListener('click', (e) => {
     const del = e.target.closest('[data-del]');
     if (del) {
       if (!confirm('Delete this reading?')) return;
       store(KEYS.readings, load(KEYS.readings, []).filter((r) => r.id !== del.dataset.del));
+      if (savedId === del.dataset.del) selectProfile(activeId);
       renderHistory();
       return;
     }
@@ -585,31 +685,26 @@
     if (!open) return;
     const r = load(KEYS.readings, []).find((x) => x.id === open.dataset.open);
     if (!r) return;
-    form.date.value = r.patient.date || '';
-    form.name.value = r.patient.name || '';
-    form.age.value = r.patient.age || '';
-    form.height.value = r.patient.height || '';
-    setSex(r.patient.sex || '');
+    if (r.profileId !== activeId) selectProfile(r.profileId);
     setReading(r.reading, r.at);
     savedId = r.id;
     show('dash');
   });
 
-  $('new').addEventListener('click', () => {
-    form.reset();
-    form.date.value = today();
-    setSex('');
-    reading = null; measuredAt = null; savedId = null;
-    openTile = ''; openItem = '';
-    session.reset();
-    $('height-hint').textContent = '';
-    renderAll();
-    show('patient');
+  $('new').addEventListener('click', addProfile);
+
+  $('share-log').addEventListener('click', () => {
+    const text = 'Hindivine Scale ' + version + '\n' + logLines.join('\n');
+    if (window.AndroidBridge && window.AndroidBridge.share) window.AndroidBridge.share('Hindivine Scale machine log', text);
+    else if (navigator.share) navigator.share({ title: 'Hindivine Scale machine log', text }).catch(() => {});
+    else $('copy-log').click();
   });
 
   // ── Start ────────────────────────────────────────────────────
-  form.date.value = today();
+  const version = window.AndroidBridge && window.AndroidBridge.version ? window.AndroidBridge.version() : 'web';
+  $('version').textContent = 'Version ' + version + ' · ';
   renderTests();
-  renderAll();
+  migrate();
+  selectProfile(activeId);
   if (Ble.mode === 'none') setStatus('Bluetooth is not available in this browser. Install the Android app or use Chrome. You can still enter values manually (Device tab).', 'No Bluetooth', 'warn');
 })();

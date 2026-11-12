@@ -16,7 +16,7 @@
       <section class="screen" data-screen="dash">
         <div class="hero">
           <div class="hero-top">
-            <button type="button" class="who" id="who" aria-label="Edit patient details">
+            <button type="button" class="who" id="who" aria-label="Switch or edit profile">
               <span class="avatar" id="avatar">+</span>
               <span class="who-text"><b id="who-name">Add patient</b><small id="who-sub">Tap to enter details</small></span>
             </button>
@@ -53,7 +53,7 @@
 
         <div class="actions pad">
           <button type="button" class="btn primary" id="print" disabled>Print report / PDF</button>
-          <button type="button" class="btn" id="new">New patient</button>
+          <button type="button" class="btn" id="new">Add profile</button>
         </div>
       </section>
 
@@ -109,7 +109,8 @@
           <div class="trend" id="trend"></div>
         </div>
         <div class="card">
-          <input id="search" type="search" placeholder="Search by name" autocomplete="off">
+          <label class="check"><input type="checkbox" id="all-profiles"> Show all profiles</label>
+          <input id="search" type="search" placeholder="Search by name" autocomplete="off" hidden>
           <div class="list" id="history"></div>
         </div>
       </section>
@@ -137,7 +138,8 @@
         <div class="card">
           <h2>How to measure</h2>
           <ol class="steps">
-            <li>Enter the patient's age, height and sex (Patient tab). The machine needs them for body fat.</li>
+            <li>Close the MovingLife app if it is open: the machine talks to one app at a time.</li>
+            <li>Choose the profile and check its age, height and sex (Profiles tab). The machine needs them for body fat.</li>
             <li>Turn on Bluetooth (and Location on Android), then search and bind the machine.</li>
             <li>Stand on it barefoot, on the metal pads, and stay still until the reading appears.</li>
           </ol>
@@ -147,6 +149,7 @@
           <p class="hint">Everything the machine sends. If it connects but no values appear, copy this and send it to support.</p>
           <pre class="log" id="log">Nothing yet.</pre>
           <div class="actions">
+            <button type="button" class="btn small primary" id="share-log">Send log</button>
             <button type="button" class="btn small" id="copy-log">Copy log</button>
             <button type="button" class="btn small" id="clear-log">Clear</button>
           </div>
@@ -155,9 +158,14 @@
 
       <!-- ── Patient ─────────────────────────────── -->
       <section class="screen" data-screen="patient" hidden>
-        <header class="titlebar plain"><b>Patient</b><img src="img/logo.jpg" alt="Hindivine Healthcare" class="tb-logo" width="900" height="308"></header>
+        <header class="titlebar plain"><b>Profiles</b><img src="img/logo.jpg" alt="Hindivine Healthcare" class="tb-logo" width="900" height="308"></header>
         <div class="card">
-          <h2>Patient details</h2>
+          <div class="card-head"><h2>Choose profile</h2><small id="profile-count"></small></div>
+          <div class="profiles" id="profiles"></div>
+          <div class="actions"><button type="button" class="btn small" id="add-profile">+ Add profile</button></div>
+        </div>
+        <div class="card">
+          <div class="card-head"><h2>Profile details</h2><button type="button" class="link danger" id="del-profile">Delete</button></div>
           <form id="patient" novalidate>
             <div class="row">
               <label>Date <input name="date" type="date"></label>
@@ -188,7 +196,7 @@
           </div>
           <label class="check"><input type="checkbox" id="hide-unticked"> Leave unticked tests out of the report</label>
         </div>
-        <p class="foot">Hindivine Healthcare Pvt. Ltd. · www.hindivine.com<br>Readings are stored only on this device. Not a medical diagnosis.</p>
+        <p class="foot"><span id="version"></span>Hindivine Healthcare Pvt. Ltd. · www.hindivine.com<br>Readings are stored only on this device. Not a medical diagnosis.</p>
       </section>
     </main>
 
@@ -196,7 +204,7 @@
       <button type="button" data-tab="dash" aria-current="page"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5"/><path d="M12 12l4-3M12 5.5v1.5"/></svg>Dashboard</button>
       <button type="button" data-tab="history"><svg viewBox="0 0 24 24"><path d="M4 19h16M5 15l4-5 4 3 6-8"/></svg>History</button>
       <button type="button" data-tab="device"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 8.5h6M12 8.5v3"/></svg>Device</button>
-      <button type="button" data-tab="patient"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.4-5.5 7-5.5s6.200 1.900 7 5.500"/></svg>Patient</button>
+      <button type="button" data-tab="patient"><svg viewBox="0 0 24 24"><circle cx="12" cy="8.5" r="3.5"/><path d="M5 20c.8-3.6 3.4-5.5 7-5.5s6.200 1.900 7 5.500"/></svg>Profiles</button>
     </nav>
   </div>
 

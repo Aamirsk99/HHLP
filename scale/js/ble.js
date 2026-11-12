@@ -23,6 +23,7 @@
         if (event === 'state') send({ type: 'state', state: p.state, message: p.message || '' });
         else if (event === 'device') send({ type: 'device', id: p.id, name: p.name, rssi: p.rssi, adv: P.fromHex(p.adv) });
         else if (event === 'services') send({ type: 'services', services: p.services.map((s) => ({ uuid: s.uuid, chars: s.chars.map((c) => c.uuid) })) });
+        else if (event === 'log') send({ type: 'log', line: p.line });
         else if (event === 'notify') send({ type: 'notify', char: p.char, bytes: P.fromHex(p.hex) });
       },
     };

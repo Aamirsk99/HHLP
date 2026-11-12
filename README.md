@@ -78,6 +78,7 @@ The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled 
 A separate app in [`scale/`](scale/) that works like the MovingLife scale app, with Hindivine branding.
 
 - **Design:** laid out like the MovingLife app: dashboard with a round weight dial, three value tiles with status tags, a *More* health report with range bars, History with a weight trend, a Device search screen and a Patient tab.
+- **Profiles:** one profile per person (name, age, height, sex). Add, switch or delete profiles on the Profiles tab; readings and the weight trend are kept per profile.
 - **Connect the machine:** tap the dial, tap *Bind* next to the scale, stand on it barefoot. Weight shows live; the result follows and is saved.
 - **Machines:** Senssun body-fat scales, the ones used with the MovingLife app. The scale's advertisement says which variant it is (`scale/js/protocol.js`):
   - Connectable scales (service `FFF0`, protocol versions v1 and v11) send weight, body fat, water, muscle, bone, BMR and impedance.
@@ -91,13 +92,14 @@ A separate app in [`scale/`](scale/) that works like the MovingLife scale app, w
   - Body age, Body score and Somatotype are the app's own simple indices from BMI and body fat. They will not equal the MovingLife numbers, which come from a proprietary formula.
   - Visceral fat index is shown only when typed in; Muscle reserve capacity is not shown. Neither can be calculated reliably.
 - **A4 report:** left = patient details, tests advised and the Hindivine Patient app panel; middle = body data; right = blank.
-- **Tests advised:** tick, untick or add tests on the Patient tab.
-- **Device → Machine data log:** shows the raw bytes the machine sends, for adding a machine the app does not know yet.
+- **Tests advised:** tick, untick or add tests on the Profiles tab.
+- **Connection:** the app searches for 60 seconds, retries a failed connection three times, and reuses a running search (Android blocks more than five search starts in 30 seconds). The MovingLife app must be closed: the machine talks to one app at a time.
+- **Device → Machine data log:** shows the raw bytes the machine sends and the Android connection status codes. *Send log* shares it by WhatsApp or e-mail, for adding a machine the app does not know yet.
 
 Install [`dist/HindivineScale.apk`](dist/HindivineScale.apk) (Android 7.0+). Android asks for the Location permission because it requires it for Bluetooth searches; the app does not read location. In Chrome (HTTPS) `scale/index.html` works with Web Bluetooth for connectable scales only.
 
 ```sh
-VERSION_CODE=3 VERSION_NAME=2.1 ./scale/android/build.sh   # same tools and signing key as the diet app
+VERSION_CODE=4 VERSION_NAME=2.2 ./scale/android/build.sh   # same tools and signing key as the diet app
 ```
 
 ## Test

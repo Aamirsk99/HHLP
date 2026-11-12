@@ -202,6 +202,19 @@ input:focus { border-color: var(--main); }
 .log { max-height: 220px; overflow: auto; margin: 0; padding: 10px; font: 12px/1.5 ui-monospace, Menlo, Consolas, monospace; background: #1c2742; color: #d5e2f5; border-radius: 10px; white-space: pre-wrap; word-break: break-all; }
 .foot { text-align: center; color: var(--muted); font-size: .78rem; margin: 6px 16px 16px; }
 
+/* ── Profiles ─────────────────────────────────── */
+.profiles { display: grid; gap: 8px; }
+.profile { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 60px; padding: 8px 12px; text-align: left; background: #fff; border: 1.5px solid var(--line); border-radius: 14px; }
+.profile .avatar { background: var(--main-soft); border-color: transparent; color: var(--main-dark); }
+.profile .who-text { flex: 1; }
+.profile .who-text b { color: var(--ink); }
+.profile .who-text small { color: var(--muted); opacity: 1; }
+.profile.on { border-color: var(--main); background: var(--main-soft); }
+.profile.on .avatar { background: var(--main); color: #fff; }
+.tick { color: var(--main-dark); font-weight: 700; font-size: 1.1rem; }
+.link { font-size: .88rem; font-weight: 700; color: var(--main-dark); background: none; border: 0; min-height: 40px; padding: 0 4px; }
+.link.danger { color: var(--vhigh); }
+
 /* ── Tests advised ────────────────────────────── */
 .tests { display: grid; grid-template-columns: 1fr 1fr; gap: 0 12px; }
 .test, .check { display: flex; align-items: center; gap: 10px; min-height: 44px; margin: 0; font-size: .9rem; font-weight: 500; color: var(--text); }

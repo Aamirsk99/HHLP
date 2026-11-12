@@ -98,6 +98,15 @@
     return m;
   }
 
+  /** Time sync of the 0x0F variant of v1. */
+  function v2Time(now) {
+    const tz = -now.getTimezoneOffset() & 0xffff;
+    const t = Math.floor(now.getTime() / 1000);
+    const m = [0x10, 0x00, 0x00, 0xc5, 0x0e, 0x03, 0x0a, tz >> 8, tz & 0xff, (t >>> 24) & 0xff, (t >> 16) & 0xff, (t >> 8) & 0xff, t & 0xff, 0];
+    m[m.length - 1] = sum(m, 4, m.length - 2);
+    return m;
+  }
+
   function v11Frame(seq, func, payload) {
     const m = [0x33, 0xcc, 0, (seq >> 8) & 0xff, seq & 0xff, 0x00, func].concat(payload, [0]);
     m[2] = m.length;
@@ -180,7 +189,10 @@
       if (userSent) return;
       userSent = true;
       if (fam === 'v11') { out.writes.push(v11Time(nextSeq(), now())); out.writes.push(v11AddUser(nextSeq(), user)); }
-      else if (fam === 'v1') out.writes.push(v1AddUser(user, last ? last.kg : 0));
+      else if (fam === 'v1') {
+        if (info && info.version === 0x0f) out.writes.push(v2Time(now())); // the 0x0F variant has a clock
+        out.writes.push(v1AddUser(user, last ? last.kg : 0));
+      }
     }
 
     function v1(f, out) {

@@ -48,7 +48,9 @@ public class MainActivity extends Activity {
     private static final int REQUEST_PERMISSION = 1;
     private static final int REQUEST_ENABLE_BT = 2;
     private static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
-    private static final long SCAN_MS = 20000;
+    private static final long SCAN_MS = 60000;
+    private static final long CONNECT_MS = 12000;
+    private static final int CONNECT_TRIES = 3;
     private static final long WATCH_MS = 10 * 60000;
     private static final int MAX_SUBSCRIPTIONS = 10;
 
@@ -58,6 +60,9 @@ public class MainActivity extends Activity {
     private BluetoothAdapter adapter;
     private BluetoothLeScanner scanner;
     private boolean scanning;
+    private String connectAddress;
+    private int connectTries;
+    private boolean servicesReady;
     private String watching; // address of a broadcast-only scale being listened to
     private final java.util.HashMap<String, String> lastAdv = new java.util.HashMap<String, String>();
     private final java.util.HashMap<String, Long> lastAdvAt = new java.util.HashMap<String, Long>();
@@ -119,6 +124,33 @@ public class MainActivity extends Activity {
     // ── JavaScript → Android ─────────────────────────────────────────────
 
     private class Bridge {
+        /** Send text (the machine data log) through WhatsApp, e-mail or any other app. */
+        @JavascriptInterface
+        public void share(final String subject, final String text) {
+            ui.post(new Runnable() {
+                @Override
+                public void run() {
+                    Intent send = new Intent(Intent.ACTION_SEND);
+                    send.setType("text/plain");
+                    send.putExtra(Intent.EXTRA_SUBJECT, subject);
+                    send.putExtra(Intent.EXTRA_TEXT, text);
+                    try {
+                        startActivity(Intent.createChooser(send, subject));
+                    } catch (Exception ignored) {
+                    }
+                }
+            });
+        }
+
+        @JavascriptInterface
+        public String version() {
+            try {
+                return getPackageManager().getPackageInfo(getPackageName(), 0).versionName + " · Android " + Build.VERSION.RELEASE + " · " + Build.MODEL;
+            } catch (Exception e) {
+                return "";
+            }
+        }
+
         @JavascriptInterface
         public void print(final String title) {
             ui.post(new Runnable() {
@@ -166,6 +198,8 @@ public class MainActivity extends Activity {
                 @Override
                 public void run() {
                     if (watching != null) { watching = null; stopScanNow(); }
+                    connectAddress = null;
+                    ui.removeCallbacks(connectTimeout);
                     if (gatt != null) gatt.disconnect();
                     else state("disconnected", "");
                 }
@@ -216,11 +250,18 @@ public class MainActivity extends Activity {
         }
         scanner = adapter.getBluetoothLeScanner();
         if (scanner == null) { state("error", "Turn on Bluetooth and try again."); return; }
-        stopScanNow();
-        scanning = true;
         lastAdv.clear();
         lastAdvAt.clear();
-        scanner.startScan(null, new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scanCallback);
+        // Android refuses more than five scan starts in 30 seconds, so a running scan is reused.
+        if (!scanning) {
+            try {
+                scanner.startScan(null, new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scanCallback);
+                scanning = true;
+            } catch (Exception e) {
+                state("error", "Bluetooth search could not start. Turn Bluetooth off and on, then try again.");
+                return;
+            }
+        }
         state(watching != null ? "watching" : "scanning", "");
         ui.removeCallbacks(scanTimeout);
         ui.postDelayed(scanTimeout, watching != null ? WATCH_MS : SCAN_MS);
@@ -273,7 +314,9 @@ public class MainActivity extends Activity {
         @Override
         public void onScanFailed(int errorCode) {
             scanning = false;
-            state("error", "Bluetooth search failed (code " + errorCode + "). Turn Bluetooth off and on, then try again.");
+            state("error", errorCode == 6
+                    ? "Android paused the Bluetooth search because it was started too often. Wait 30 seconds and try again."
+                    : "Bluetooth search failed (code " + errorCode + "). Turn Bluetooth off and on, then try again.");
         }
     };
 
@@ -297,13 +340,53 @@ public class MainActivity extends Activity {
     private void connectTo(String address) {
         watching = null;
         stopScanNow();
+        connectAddress = address;
+        connectTries = 0;
+        state("connecting", "");
+        openGatt();
+    }
+
+    /** One connection attempt. Android often fails the first try (status 133), so it is repeated. */
+    private void openGatt() {
         closeGatt();
+        servicesReady = false;
+        connectTries++;
+        log("connect try " + connectTries + " to " + connectAddress);
         try {
-            BluetoothDevice device = adapter.getRemoteDevice(address);
-            state("connecting", "");
+            BluetoothDevice device = adapter.getRemoteDevice(connectAddress);
             gatt = device.connectGatt(this, false, gattCallback, BluetoothDevice.TRANSPORT_LE);
+            ui.removeCallbacks(connectTimeout);
+            ui.postDelayed(connectTimeout, CONNECT_MS);
         } catch (Exception e) {
             state("error", "Could not connect to the machine.");
+        }
+    }
+
+    private void retryOrFail(String why) {
+        ui.removeCallbacks(connectTimeout);
+        log(why);
+        if (connectAddress != null && connectTries < CONNECT_TRIES) {
+            closeGatt();
+            ui.postDelayed(new Runnable() {
+                @Override
+                public void run() { if (connectAddress != null && gatt == null) openGatt(); }
+            }, 700);
+        } else {
+            closeGatt();
+            connectAddress = null;
+            state("error", "Could not connect. Step on the machine so its display is on, close the MovingLife app if it is open, and try again.");
+        }
+    }
+
+    private final Runnable connectTimeout = new Runnable() {
+        @Override
+        public void run() { if (!servicesReady && connectAddress != null) retryOrFail("no answer from the machine"); }
+    };
+
+    private void log(String line) {
+        try {
+            emit("log", new JSONObject().put("line", line));
+        } catch (Exception ignored) {
         }
     }
 
@@ -414,17 +497,22 @@ public class MainActivity extends Activity {
 
     private final BluetoothGattCallback gattCallback = new BluetoothGattCallback() {
         @Override
-        public void onConnectionStateChange(final BluetoothGatt g, int status, final int newState) {
+        public void onConnectionStateChange(final BluetoothGatt g, final int status, final int newState) {
             ui.post(new Runnable() {
                 @Override
                 public void run() {
                     if (g != gatt) return;
+                    log("gatt state " + newState + " status " + status);
                     if (newState == BluetoothProfile.STATE_CONNECTED) {
+                        g.requestConnectionPriority(BluetoothGatt.CONNECTION_PRIORITY_HIGH);
                         ui.postDelayed(new Runnable() {
                             @Override
-                            public void run() { if (g == gatt) g.discoverServices(); }
-                        }, 400);
+                            public void run() { if (g == gatt && !g.discoverServices()) retryOrFail("service discovery did not start"); }
+                        }, 500);
                     } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                        if (!servicesReady && connectAddress != null) { retryOrFail("dropped while connecting (status " + status + ")"); return; }
+                        ui.removeCallbacks(connectTimeout);
+                        connectAddress = null;
                         closeGatt();
                         state("disconnected", "");
                     }
@@ -433,11 +521,14 @@ public class MainActivity extends Activity {
         }
 
         @Override
-        public void onServicesDiscovered(final BluetoothGatt g, int status) {
+        public void onServicesDiscovered(final BluetoothGatt g, final int status) {
             ui.post(new Runnable() {
                 @Override
                 public void run() {
                     if (g != gatt) return;
+                    if (status != BluetoothGatt.GATT_SUCCESS || g.getServices().isEmpty()) { retryOrFail("service discovery failed (status " + status + ")"); return; }
+                    servicesReady = true;
+                    ui.removeCallbacks(connectTimeout);
                     try {
                         JSONArray services = new JSONArray();
                         int subscribed = 0;
@@ -482,11 +573,13 @@ public class MainActivity extends Activity {
 
         @Override
         public void onDescriptorWrite(BluetoothGatt g, BluetoothGattDescriptor d, int status) {
+            if (status != BluetoothGatt.GATT_SUCCESS) log("subscribe " + d.getCharacteristic().getUuid() + " failed, status " + status);
             ui.post(opDone);
         }
 
         @Override
         public void onCharacteristicWrite(BluetoothGatt g, BluetoothGattCharacteristic ch, int status) {
+            if (status != BluetoothGatt.GATT_SUCCESS) log("write failed, status " + status);
             ui.post(opDone);
         }
     };

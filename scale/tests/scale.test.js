@@ -73,6 +73,13 @@ test('v1: frames split across notifications, bad checksum, stored records', () =
   assert.deepStrictEqual(s.feed('fff1', stored).events, []); // sn 5 = history record
 });
 
+test('0x0F variant: time sync goes out before the user frame', () => {
+  const clock = () => ({ getTimezoneOffset: () => -330, getTime: () => 1700000000000 });
+  const w = P.createSession(user, P.parseAdvert(H('00010F0303A1B2C3D4E5F6')), clock).start();
+  assert.strictEqual(P.toHex(w[0]).slice(0, 26), '100000c50e030a014a6553f100');
+  assert.strictEqual(w[1][6], 0x01);
+});
+
 test('v1 female user frame', () => {
   assert.strictEqual(P.v1AddUser({ sex: 'female', age: 30, heightCm: 160 }, 60.5)[11], 0);
   assert.deepStrictEqual(P.v1AddUser(user, 65.3).slice(16, 18), [0x02, 0x8d]);
