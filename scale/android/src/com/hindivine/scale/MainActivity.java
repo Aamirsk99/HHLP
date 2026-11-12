@@ -49,6 +49,7 @@ public class MainActivity extends Activity {
     private static final int REQUEST_ENABLE_BT = 2;
     private static final UUID CCCD = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb");
     private static final long SCAN_MS = 20000;
+    private static final long WATCH_MS = 10 * 60000;
     private static final int MAX_SUBSCRIPTIONS = 10;
 
     private WebView webView;
@@ -57,6 +58,9 @@ public class MainActivity extends Activity {
     private BluetoothAdapter adapter;
     private BluetoothLeScanner scanner;
     private boolean scanning;
+    private String watching; // address of a broadcast-only scale being listened to
+    private final java.util.HashMap<String, String> lastAdv = new java.util.HashMap<String, String>();
+    private final java.util.HashMap<String, Long> lastAdvAt = new java.util.HashMap<String, Long>();
     private BluetoothGatt gatt;
     private final ArrayDeque<Runnable> ops = new ArrayDeque<Runnable>();
     private boolean opBusy;
@@ -132,12 +136,18 @@ public class MainActivity extends Activity {
     private class Ble {
         @JavascriptInterface
         public void startScan() {
-            ui.post(new Runnable() { @Override public void run() { beginScan(); } });
+            ui.post(new Runnable() { @Override public void run() { watching = null; beginScan(); } });
+        }
+
+        /** Keep listening to one broadcast-only scale (it is never connected). */
+        @JavascriptInterface
+        public void watch(final String address) {
+            ui.post(new Runnable() { @Override public void run() { watching = address; beginScan(); } });
         }
 
         @JavascriptInterface
         public void stopScan() {
-            ui.post(new Runnable() { @Override public void run() { stopScanNow(); } });
+            ui.post(new Runnable() { @Override public void run() { watching = null; stopScanNow(); } });
         }
 
         @JavascriptInterface
@@ -155,6 +165,7 @@ public class MainActivity extends Activity {
             ui.post(new Runnable() {
                 @Override
                 public void run() {
+                    if (watching != null) { watching = null; stopScanNow(); }
                     if (gatt != null) gatt.disconnect();
                     else state("disconnected", "");
                 }
@@ -207,18 +218,22 @@ public class MainActivity extends Activity {
         if (scanner == null) { state("error", "Turn on Bluetooth and try again."); return; }
         stopScanNow();
         scanning = true;
+        lastAdv.clear();
+        lastAdvAt.clear();
         scanner.startScan(null, new ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_LATENCY).build(), scanCallback);
-        state("scanning", "");
+        state(watching != null ? "watching" : "scanning", "");
         ui.removeCallbacks(scanTimeout);
-        ui.postDelayed(scanTimeout, SCAN_MS);
+        ui.postDelayed(scanTimeout, watching != null ? WATCH_MS : SCAN_MS);
     }
 
     private final Runnable scanTimeout = new Runnable() {
         @Override
         public void run() {
             if (!scanning) return;
+            boolean wasWatching = watching != null;
+            watching = null;
             stopScanNow();
-            state("scan-ended", "");
+            state(wasWatching ? "disconnected" : "scan-ended", "");
         }
     };
 
@@ -236,10 +251,21 @@ public class MainActivity extends Activity {
         @Override
         public void onScanResult(int callbackType, ScanResult result) {
             try {
+                String address = result.getDevice().getAddress();
+                if (watching != null && !watching.equals(address)) return;
+                byte[] record = result.getScanRecord() != null ? result.getScanRecord().getBytes() : null;
+                String adv = manufacturerData(record);
                 String name = result.getScanRecord() != null ? result.getScanRecord().getDeviceName() : null;
                 if (name == null) name = result.getDevice().getName();
-                if (name == null || name.trim().isEmpty()) return;
-                emit("device", new JSONObject().put("id", result.getDevice().getAddress()).put("name", name.trim()).put("rssi", result.getRssi()));
+                name = name == null ? "" : name.trim();
+                if (name.isEmpty() && adv.isEmpty()) return;
+                // Advertisements repeat many times a second: pass on changes, and a heartbeat every second.
+                long now = System.currentTimeMillis();
+                Long at = lastAdvAt.get(address);
+                if (adv.equals(lastAdv.get(address)) && at != null && now - at < 1000) return;
+                lastAdv.put(address, adv);
+                lastAdvAt.put(address, now);
+                emit("device", new JSONObject().put("id", address).put("name", name).put("rssi", result.getRssi()).put("adv", adv));
             } catch (Exception ignored) {
             }
         }
@@ -269,6 +295,7 @@ public class MainActivity extends Activity {
     // ── Connection ───────────────────────────────────────────────────────
 
     private void connectTo(String address) {
+        watching = null;
         stopScanNow();
         closeGatt();
         try {
@@ -315,6 +342,22 @@ public class MainActivity extends Activity {
         @Override
         public void run() { nextOp(); }
     };
+
+    /** All manufacturer-specific (0xFF) parts of an advertisement, company-ID bytes included, as hex. */
+    private static String manufacturerData(byte[] record) {
+        StringBuilder sb = new StringBuilder();
+        if (record == null) return "";
+        int i = 0;
+        while (i + 1 < record.length) {
+            int len = record[i] & 0xff;
+            if (len == 0 || i + len >= record.length) break;
+            if ((record[i + 1] & 0xff) == 0xff) {
+                for (int k = i + 2; k <= i + len; k++) sb.append(String.format("%02x", record[k] & 0xff));
+            }
+            i += len + 1;
+        }
+        return sb.toString();
+    }
 
     private static String hex(byte[] bytes) {
         StringBuilder sb = new StringBuilder();

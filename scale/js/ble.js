@@ -4,8 +4,8 @@
  *   web    — Web Bluetooth (Chrome on Android, Windows, Mac, with HTTPS)
  *
  * Events sent to Ble.on(handler):
- *   { type: 'state', state: 'scanning' | 'scan-ended' | 'connecting' | 'connected' | 'disconnected' | 'error', message }
- *   { type: 'device', id, name, rssi }                  (native only; the browser shows its own chooser)
+ *   { type: 'state', state: 'scanning' | 'watching' | 'scan-ended' | 'connecting' | 'connected' | 'disconnected' | 'error', message }
+ *   { type: 'device', id, name, rssi, adv }             (native only; adv = manufacturer data bytes)
  *   { type: 'services', services: [{ uuid, chars: [uuid] }] }
  *   { type: 'notify', char, bytes }
  */
@@ -21,7 +21,7 @@
     root.BleNative = {
       emit(event, p) {
         if (event === 'state') send({ type: 'state', state: p.state, message: p.message || '' });
-        else if (event === 'device') send({ type: 'device', id: p.id, name: p.name, rssi: p.rssi });
+        else if (event === 'device') send({ type: 'device', id: p.id, name: p.name, rssi: p.rssi, adv: P.fromHex(p.adv) });
         else if (event === 'services') send({ type: 'services', services: p.services.map((s) => ({ uuid: s.uuid, chars: s.chars.map((c) => c.uuid) })) });
         else if (event === 'notify') send({ type: 'notify', char: p.char, bytes: P.fromHex(p.hex) });
       },
@@ -77,6 +77,8 @@
       else send({ type: 'state', state: 'error', message: 'Bluetooth is not available here. Install the Android app, or open this page in Chrome.' });
     },
     stopScan() { if (native) native.stopScan(); },
+    /** native only: keep listening to a broadcast-only scale's advertisements. */
+    watch(id) { if (native) native.watch(id); },
     connect(id) { if (native) native.connect(id); },
     write(service, characteristic, bytes) {
       if (native) { native.write(P.full(P.short(service)), P.full(P.short(characteristic)), P.toHex(bytes)); return; }

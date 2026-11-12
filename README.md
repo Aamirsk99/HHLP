@@ -77,17 +77,23 @@ The script doesn't use the Android SDK or Gradle. It downloads `aapt2` (bundled 
 
 A separate app in [`scale/`](scale/) that works like the MovingLife scale app, with Hindivine branding.
 
-- **Connect the machine:** tap *Connect machine*, choose the scale, stand on it barefoot. Weight shows live; body fat, body water, muscle, bone mass and BMR follow. BMI, ideal weight, fat mass and lean mass are calculated.
-- **Machines:** Senssun body-fat scales (the ones sold for the MovingLife app; Bluetooth services `FFF0` and `FFB0`) and scales using the Bluetooth standard Weight Scale / Body Composition services. Values can also be typed in.
+- **Design:** laid out like the MovingLife app: dashboard with a round weight dial, three value tiles with status tags, a *More* health report with range bars, History with a weight trend, a Device search screen and a Patient tab.
+- **Connect the machine:** tap the dial, tap *Bind* next to the scale, stand on it barefoot. Weight shows live; the result follows and is saved.
+- **Machines:** Senssun body-fat scales, the ones used with the MovingLife app. The scale's advertisement says which variant it is (`scale/js/protocol.js`):
+  - Connectable scales (service `FFF0`, protocol versions v1 and v11) send weight, body fat, water, muscle, bone, BMR and impedance.
+  - Broadcast-only scales (models 0311, 0312, 0313, 0315, 0316, 0328…) send weight and impedance in the advertisement; the app never connects.
+  - First-generation scales (`FF A5` frames) and Bluetooth standard Weight Scale / Body Composition scales also work.
+  - Not supported: the encrypted v30 variant and 8-electrode results.
+- **Estimated values:** when a scale sends only weight and impedance, body fat and water are estimated with the published equations of Sun et al. (2003) and marked *estimated*. They will differ from the MovingLife app, which uses a proprietary formula.
+- **Calculated values:** BMI, ideal weight, fat mass, lean mass (and BMR when the scale sends none).
 - **A4 report:** left = patient details, tests advised and the Hindivine Patient app panel; middle = body data; right = blank.
-- **Tests advised:** tick, untick or add tests on the Report tab.
-- **History:** readings are saved on the device.
-- **Help → Machine data log:** shows the raw bytes the machine sends, for adding a machine the app does not know yet.
+- **Tests advised:** tick, untick or add tests on the Patient tab.
+- **Device → Machine data log:** shows the raw bytes the machine sends, for adding a machine the app does not know yet.
 
-Install [`dist/HindivineScale.apk`](dist/HindivineScale.apk) (Android 7.0+). Android asks for the Location permission because it requires it for Bluetooth searches; the app does not read location. In Chrome (HTTPS) `scale/index.html` works with Web Bluetooth.
+Install [`dist/HindivineScale.apk`](dist/HindivineScale.apk) (Android 7.0+). Android asks for the Location permission because it requires it for Bluetooth searches; the app does not read location. In Chrome (HTTPS) `scale/index.html` works with Web Bluetooth for connectable scales only.
 
 ```sh
-VERSION_CODE=1 VERSION_NAME=1.0 ./scale/android/build.sh   # same tools and signing key as the diet app
+VERSION_CODE=2 VERSION_NAME=2.0 ./scale/android/build.sh   # same tools and signing key as the diet app
 ```
 
 ## Test

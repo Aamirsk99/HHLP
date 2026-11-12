@@ -121,7 +121,7 @@
     $('sum-weight').textContent = val('weight');
     $('sum-bmi').textContent = val('bmi');
     $('sum-fat').textContent = val('fat');
-    $('when').textContent = reading ? (reading.sample ? 'SAMPLE — not a real reading' : whenText() + (reading.source ? ' · ' + reading.source : '')) : 'No reading yet';
+    $('when').textContent = reading ? (reading.sample ? 'SAMPLE — not a real reading' : whenText() + (reading.source ? ' · ' + reading.source : '') + (k.fat && k.fat.estimated ? ' · fat estimated' : '')) : 'No reading yet';
     if (!connected) $('dial-kg').textContent = k.weight ? Number(k.weight.value).toFixed(1) : '- -';
     const tiles = [['weight', 'Weight', 'kg'], ['bmi', 'BMI', ''], ['fat', 'Body Fat', '%']];
     $('tiles').innerHTML = tiles.map(([key, label, unit]) => {
@@ -130,7 +130,7 @@
       return `<button type="button" class="tile${openTile === key ? ' open' : ''}" data-key="${key}" ${r ? '' : 'disabled'}>
         <span class="tile-icon">${ICONS[key]}</span>
         <b>${r ? esc(r.value) : '- -'}</b>
-        <small>${label}${unit ? ' (' + unit + ')' : ''}</small>
+        <small>${label}${unit ? ' (' + unit + ')' : ''}${r && r.estimated ? ' est.' : ''}</small>
         <span class="tag ${status && status.level ? esc(status.level) : 'none'}">${status && status.status ? esc(status.status) : '—'}</span>
       </button>`;
     }).join('');
@@ -166,7 +166,7 @@
         </button>
         ${openItem === r.key ? `<div class="item-body">${barHtml(r)}<p>${esc(r.info)}${r.range ? ' Normal range: ' + esc(r.range) + ' ' + esc(r.unit) + '.' : ''}</p></div>` : ''}
       </div>`).join('');
-    $('detail-note').textContent = !reading ? '' : (reading.fatPct == null ? 'Weight only: the machine sent no body-fat values. ' : '') + '* calculated from weight, height, age and sex.';
+    $('detail-note').textContent = !reading ? '' : (!list.some((r) => r.key === 'fat') ? 'Weight only: the machine sent no body-fat values. ' : '') + (list.some((r) => r.estimated) ? 'Estimated values are worked out by the app from the impedance the machine measured. ' : '') + '* calculated from weight, height, age and sex.';
   }
   $('items').addEventListener('click', (e) => {
     const h = e.target.closest('.item-head');
@@ -195,6 +195,8 @@
   let connected = false;
   let gotResult = false;
   let found = {};
+  let bound = null;        // the device entry being connected or listened to
+  let weightOnlyTimer = null;
   const logLines = [];
 
   function log(line) {
@@ -222,7 +224,7 @@
     $('devices').innerHTML = list.map((d) => {
       const bars = d.rssi > -60 ? 4 : d.rssi > -72 ? 3 : d.rssi > -84 ? 2 : 1;
       return `<div class="device">
-        <span class="dv-name"><b>${esc(d.name)}</b><small>${esc(d.id)}${d.likely ? ' · Body scale' : ''}</small></span>
+        <span class="dv-name"><b>${esc(d.name)}</b><small>${esc(d.id)}${d.info ? ' · Body scale ' + esc(d.info.model) : d.likely ? ' · Body scale' : ''}</small></span>
         <span class="rssi" aria-label="Signal ${bars} of 4">${[1, 2, 3, 4].map((n) => `<i class="${n <= bars ? 'on' : ''}"></i>`).join('')}</span>
         <button type="button" class="bind" data-id="${esc(d.id)}">Bind</button>
       </div>`;
@@ -235,14 +237,18 @@
     store(KEYS.device, b.dataset.id);
     Ble.stopScan();
     $('devices').hidden = true;
-    setStatus('Connecting to ' + found[b.dataset.id].name + '…', 'Connecting', 'busy');
-    Ble.connect(b.dataset.id);
+    bound = found[b.dataset.id];
+    setStatus('Connecting to ' + bound.name + '…', 'Connecting', 'busy');
+    if (bound.info && bound.info.proto === 'v30') log('this model uses the encrypted protocol (v30), which the app cannot read yet');
+    if (bound.info && bound.info.broadcast) Ble.watch(bound.id); // broadcast-only scale: listen, never connect
+    else Ble.connect(bound.id);
   });
 
   function startSearch() {
     const p = patient();
     if (!p.age || !p.heightCm || !p.sex || p.sex === 'other') toast('Tip: enter age, height and sex (male/female) in Patient first. The machine needs them for body fat.');
     found = {};
+    bound = null;
     renderDevices();
     setStatus(Ble.mode === 'web' ? 'Choose your machine in the list that opens.' : 'Searching… step on the machine to wake it up.', 'Searching', 'busy');
     Ble.scan();
@@ -253,13 +259,64 @@
   $('dial').addEventListener('click', openDevice);
   $('dev-chip').addEventListener('click', openDevice);
 
+  function handle(res) {
+    res.events.forEach((ev) => {
+      if (ev.type === 'weight') {
+        $('dial-kg').textContent = ev.kg.toFixed(1);
+        setStatus(ev.stable ? 'Weight locked. Stay still, measuring body fat…' : 'Measuring…', 'Measuring', 'busy');
+        if (current === 'device') show('dash');
+      } else if (ev.type === 'result') {
+        gotResult = true;
+        clearTimeout(weightOnlyTimer);
+        setReading(ev.data);
+        save(true);
+        setStatus('Reading received. You can step off.', 'Connected', 'on');
+        toast('Reading received');
+        if (current === 'device') show('dash');
+      } else if (ev.type === 'error') {
+        setStatus(ev.message, 'Connected', 'warn');
+      }
+    });
+  }
+
+  function onConnected(name) {
+    connected = true;
+    gotResult = false;
+    session = P.createSession(user, bound && bound.info);
+    $('connect').hidden = true;
+    $('disconnect').hidden = false;
+    $('devices').hidden = true;
+    $('dial-kg').textContent = '0.0';
+    return name;
+  }
+
   Ble.on((e) => {
     if (e.type === 'device') {
-      const likely = /senssun|fat|scale|body|weigh|bf|health|ics|qn-|yunmai|mi_?scale|icomon|lefu|chipsea|moving/i.test(e.name) ? 1 : 0;
+      const info = P.parseAdvert(e.adv, e.name);
+      if (!e.name && !info) return;
+      if (connected && bound && bound.id === e.id && info && info.broadcast) {
+        // A broadcast-only scale: every advertisement carries the weight.
+        const key = P.toHex(e.adv);
+        if (key !== bound.lastAdv) { bound.lastAdv = key; log('adv ' + key); }
+        handle(session.feedAdvert(info));
+        clearTimeout(weightOnlyTimer);
+        if (session.stableWithoutResult()) {
+          weightOnlyTimer = setTimeout(() => {
+            const partial = session.partial();
+            if (!partial || !connected) return;
+            session.latch();
+            handle({ events: [{ type: 'result', data: partial }] });
+          }, 5000);
+        }
+        return;
+      }
+      if (connected) return;
+      const likely = info ? 2 : /senssun|fat|scale|body|weigh|bf|health|ics|qn-|yunmai|mi_?scale|icomon|lefu|chipsea|moving|^xs-|^if_?b/i.test(e.name) ? 1 : 0;
       const isNew = !found[e.id];
-      found[e.id] = { id: e.id, name: e.name, rssi: e.rssi, likely };
+      found[e.id] = { id: e.id, name: e.name || 'Body scale', rssi: e.rssi, likely, info };
       if (isNew) {
-        log('found ' + e.name + ' [' + e.id + '] rssi ' + e.rssi);
+        log('found ' + (e.name || '(no name)') + ' [' + e.id + '] rssi ' + e.rssi + (e.adv.length ? ' adv ' + P.toHex(e.adv) : '')
+          + (info ? ' → model ' + info.model + ' ' + info.proto : ''));
         renderDevices();
         if (load(KEYS.device, '') === e.id) $('devices').querySelector('[data-id="' + e.id + '"]').click(); // the machine bound last time
       }
@@ -274,24 +331,9 @@
     if (e.type === 'notify') {
       log('rx ' + P.short(e.char) + ' ' + P.toHex(e.bytes));
       const res = session.feed(e.char, e.bytes);
-      const kind = P.short(e.char) === 'ffb2' ? 'senssunB' : 'senssunA';
+      const kind = P.short(e.char) === 'ffb2' && kinds.includes('senssunB') ? 'senssunB' : 'senssun';
       res.writes.forEach((w) => { log('tx ' + P.toHex(w)); Ble.write(P.SERVICES[kind].service, P.SERVICES[kind].write, w); });
-      res.events.forEach((ev) => {
-        if (ev.type === 'weight') {
-          $('dial-kg').textContent = ev.kg.toFixed(1);
-          setStatus(ev.stable ? 'Weight locked. Stay still, measuring body fat…' : 'Measuring…', 'Measuring', 'busy');
-          if (current === 'device') show('dash');
-        } else if (ev.type === 'result') {
-          gotResult = true;
-          setReading(ev.data);
-          save(true);
-          setStatus('Reading received. You can step off.', 'Connected', 'on');
-          toast('Reading received');
-          if (current === 'device') show('dash');
-        } else if (ev.type === 'error') {
-          setStatus(ev.message, 'Connected', 'warn');
-        }
-      });
+      handle(res);
       return;
     }
     // state
@@ -300,22 +342,20 @@
     else if (e.state === 'scan-ended') {
       if (!connected) setStatus(Object.keys(found).length ? 'Choose your machine from the list and tap Bind.' : 'No machine found. Step on it to wake it up, keep it near the phone, and search again.', 'Unconnected', '');
     } else if (e.state === 'connecting') setStatus('Connecting…', 'Connecting', 'busy');
-    else if (e.state === 'connected') {
-      connected = true;
-      gotResult = false;
-      session = P.createSession(user);
-      $('connect').hidden = true;
-      $('disconnect').hidden = false;
-      $('devices').hidden = true;
-      $('dial-kg').textContent = '0.0';
-      const senssun = kinds.filter((k) => k.indexOf('senssun') === 0);
-      senssun.forEach((k) => session.start(k).forEach((w) => { log('tx ' + P.toHex(w)); Ble.write(P.SERVICES[k].service, P.SERVICES[k].write, w); }));
+    else if (e.state === 'watching') {
+      onConnected();
+      setStatus('Ready. Stand on the machine barefoot and stay still.', 'Connected', 'on');
+      if (current === 'device') show('dash');
+    } else if (e.state === 'connected') {
+      onConnected();
+      if (kinds.includes('senssun')) session.start().forEach((w) => { log('tx ' + P.toHex(w)); Ble.write('fff0', 'fff2', w); });
       setStatus(kinds.length ? 'Connected' + (e.message ? ' to ' + e.message : '') + '. Stand on the machine barefoot and stay still.'
         : 'Connected, but this machine uses a protocol the app does not know yet. Stand on it, then send the log below to support.', 'Connected', 'on');
       if (kinds.length && current === 'device') show('dash');
     } else if (e.state === 'disconnected') {
       const partial = !gotResult && session.partial();
       connected = false;
+      clearTimeout(weightOnlyTimer);
       if (partial) { setReading(partial); save(true); toast('Weight received'); }
       $('connect').hidden = false;
       $('disconnect').hidden = true;
@@ -402,7 +442,7 @@
     const sexBox = (value, label) => `<span class="sx">${p.sex === value ? TICK : BOX} ${label}</span>`;
     const shown = tests.filter((t) => t.on || !opts.hideUnticked);
     const weight = list.find((r) => r.key === 'weight');
-    const rest = list.filter((r) => r.key !== 'weight');
+    const rest = list.filter((r) => r.key !== 'weight' && r.key !== 'impedance');
     const when = measuredAt ? new Date(measuredAt) : null;
     const height = p.heightCm ? p.heightCm + ' cm' : p.heightText;
 
@@ -434,10 +474,10 @@
           ${weight ? `<div class="big"><b>${esc(weight.value)}</b><span>kg</span><small>Weight</small></div>` : '<p class="empty">No reading taken.</p>'}
           <ul class="data-list">${rest.map((r) => `
             <li>
-              <span class="dl-label">${esc(r.label)}${r.calculated ? '*' : ''}${r.range ? `<small>Normal ${esc(r.range)}</small>` : ''}</span>
+              <span class="dl-label">${esc(r.label)}${r.calculated && !r.estimated ? '*' : ''}${r.range ? `<small>Normal ${esc(r.range)}</small>` : ''}</span>
               <span class="dl-value"><b>${esc(r.value)}</b> ${esc(r.unit)}${r.status ? `<em class="${esc(r.level)}">${esc(r.status)}</em>` : ''}</span>
             </li>`).join('')}</ul>
-          ${list.length ? `<p class="notes">${when ? 'Measured ' + esc(when.toLocaleString()) + '.<br>' : ''}${esc(reading.source && !reading.sample ? reading.source + '. ' : '')}* Calculated from weight, height, age and sex. Body-composition values are estimates from a bio-impedance scale and are not a diagnosis.</p>` : ''}
+          ${list.length ? `<p class="notes">${when ? 'Measured ' + esc(when.toLocaleString()) + '.<br>' : ''}${esc(reading.source && !reading.sample ? reading.source + '. ' : '')}* Calculated from weight, height, age and sex. ${list.some((r) => r.estimated) ? 'Values marked estimated are worked out by the app from the impedance the machine measured. ' : ''}Body-composition values are estimates from a bio-impedance scale and are not a diagnosis.</p>` : ''}
         </div>
       </div>`;
 

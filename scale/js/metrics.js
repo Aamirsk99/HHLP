@@ -31,6 +31,8 @@
     bone: 'Estimated weight of bone mineral.',
     visceral: 'Fat around the organs in the abdomen. Lower is better.',
     bmr: 'Basal Metabolic Rate: energy the body uses at complete rest in one day.',
+    heart: 'Heart rate measured by the machine while standing on it.',
+    impedance: 'Electrical resistance of the body measured through the feet. Body fat and water are worked out from it.',
   };
 
   function bmiStatus(bmi) {
@@ -48,6 +50,18 @@
   }
   const waterRange = (sex) => (sex === 'male' ? [50, 65] : [45, 60]);
   const muscleRange = (sex) => (sex === 'male' ? [40, 60] : [30, 50]);
+
+  /** Fat % and water % from foot-to-foot impedance (ohms). Null when inputs are missing or implausible. */
+  function estimateFromImpedance(w, h, sex, ohm) {
+    if (!w || !h || !sex || !ohm || ohm < 150 || ohm > 1500) return null;
+    const idx = h * h / ohm;
+    const ffm = sex === 'male' ? -10.68 + 0.65 * idx + 0.26 * w + 0.02 * ohm : -9.53 + 0.69 * idx + 0.17 * w + 0.02 * ohm;
+    const tbw = sex === 'male' ? 1.2 + 0.45 * idx + 0.18 * w : 3.75 + 0.45 * idx + 0.11 * w;
+    const fatPct = (w - ffm) / w * 100;
+    const waterPct = tbw / w * 100;
+    if (!(fatPct >= 3 && fatPct <= 65) || !(waterPct >= 25 && waterPct <= 80)) return null;
+    return { fatPct: r1(fatPct), waterPct: r1(waterPct) };
+  }
 
   function status(value, range) {
     if (value < range[0]) return ['Low', 'low'];
@@ -81,20 +95,23 @@
       const m2 = Math.pow(h / 100, 2);
       add('ideal', 'Ideal weight', r1(18.5 * m2) + ' – ' + r1(22.9 * m2), 'kg', '', null, true);
     }
-    const fat = num(reading.fatPct);
+    // Scales that send only weight + impedance: estimate fat and water with the published
+    // BIA equations of Sun et al. (Am J Clin Nutr 2003). Marked as estimated everywhere.
+    const est = num(reading.fatPct) == null ? estimateFromImpedance(w, h, sex, num(reading.impedance)) : null;
+    const fat = est ? est.fatPct : num(reading.fatPct);
     if (fat != null) {
       const fr = fatRange(sex || 'female', age);
-      add('fat', 'Body fat', r1(fat), '%', sex ? fr[0] + ' – ' + fr[1] : '', sex ? status(fat, fr) : null, false, sex ? band(fr, 8, 12) : null);
+      add('fat', est ? 'Body fat (estimated)' : 'Body fat', r1(fat), '%', sex ? fr[0] + ' – ' + fr[1] : '', sex ? status(fat, fr) : null, false, sex ? band(fr, 8, 12) : null);
       if (w != null) {
         add('fatMass', 'Fat mass', r1(w * fat / 100), 'kg', '', null, true);
         add('lean', 'Lean body mass', r1(w * (1 - fat / 100)), 'kg', '', null, true);
       }
     }
-    const water = num(reading.waterPct) != null ? num(reading.waterPct)
+    const water = est ? est.waterPct : num(reading.waterPct) != null ? num(reading.waterPct)
       : (num(reading.waterKg) != null && w ? r1(num(reading.waterKg) / w * 100) : null);
     if (water != null) {
       const wr = waterRange(sex || 'female');
-      add('water', 'Body water', r1(water), '%', sex ? wr[0] + ' – ' + wr[1] : '', sex ? status(water, wr) : null, false, sex ? band(wr, 12, 12) : null);
+      add('water', est ? 'Body water (estimated)' : 'Body water', r1(water), '%', sex ? wr[0] + ' – ' + wr[1] : '', sex ? status(water, wr) : null, false, sex ? band(wr, 12, 12) : null);
     }
     const muscle = num(reading.musclePct) != null ? num(reading.musclePct)
       : (num(reading.muscleKg) != null && w ? r1(num(reading.muscleKg) / w * 100) : null);
@@ -102,7 +119,8 @@
       const mr = muscleRange(sex || 'female');
       add('muscle', 'Muscle', r1(muscle), '%', sex ? mr[0] + ' – ' + mr[1] : '', sex ? status(muscle, mr) : null, false, sex ? band(mr, 12, 12) : null);
     }
-    const bone = num(reading.boneKg);
+    const bone = num(reading.boneKg) != null ? num(reading.boneKg)
+      : (num(reading.bonePct) != null && w ? num(reading.bonePct) * w / 100 : null);
     if (bone != null) add('bone', 'Bone mass', r1(bone), 'kg');
     const visceral = num(reading.visceral);
     if (visceral != null) add('visceral', 'Visceral fat', r1(visceral), '', '1 – 9', status(visceral, [1, 9]), false,
@@ -114,10 +132,15 @@
       bmrCalc = true;
     }
     if (bmr != null) add('bmr', 'BMR', Math.round(bmr), 'kcal/day', '', null, bmrCalc);
+    const hr = num(reading.heartRate);
+    if (hr != null) add('heart', 'Heart rate', Math.round(hr), 'bpm', '60 – 100', status(hr, [60, 100]));
+    const imp = num(reading.impedance);
+    if (imp != null) add('impedance', 'Impedance', Math.round(imp), 'Ω');
+    if (est) rows.forEach((r) => { if (['fat', 'fatMass', 'lean', 'water'].includes(r.key)) r.estimated = true; });
     return rows;
   }
 
-  const api = { buildRows, heightToCm, bmiStatus, fatRange };
+  const api = { buildRows, heightToCm, bmiStatus, fatRange, estimateFromImpedance };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.ScaleMetrics = api;
 })(typeof self !== 'undefined' ? self : this);
