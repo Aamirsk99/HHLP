@@ -85,7 +85,11 @@ A separate app in [`scale/`](scale/) that works like the MovingLife scale app, w
   - First-generation scales (`FF A5` frames) and Bluetooth standard Weight Scale / Body Composition scales also work.
   - Not supported: the encrypted v30 variant and 8-electrode results.
 - **Estimated values:** when a scale sends only weight and impedance, body fat and water are estimated with the published equations of Sun et al. (2003) and marked *estimated*. They will differ from the MovingLife app, which uses a proprietary formula.
-- **Calculated values:** BMI, ideal weight, fat mass, lean mass (and BMR when the scale sends none).
+- **Health report values:** Weight, BMI, Body fat, Body water, Skeletal muscle, Bone, Inorganic salt, Protein, Muscle, Subcutaneous fat, Lean body mass, Body age, Body score, Somatotype, BMR, AMR, and Weight management (standard weight, weight / fat / muscle control).
+  - From the machine: weight, impedance, heart rate, and (connectable scales) body fat, water, muscle, bone, BMR.
+  - Calculated by the app (`scale/js/metrics.js`, marked `*`): lean mass = weight − fat; water, protein and minerals as 73.6 %, 20.3 % and 6.1 % of lean mass; muscle = lean mass − minerals; skeletal muscle 48 % (men) or 43 % (women) of lean mass; subcutaneous fat 90 % of fat mass; BMR by Mifflin-St Jeor; AMR = BMR × 1.3; standard weight = BMI 22.
+  - Body age, Body score and Somatotype are the app's own simple indices from BMI and body fat. They will not equal the MovingLife numbers, which come from a proprietary formula.
+  - Visceral fat index is shown only when typed in; Muscle reserve capacity is not shown. Neither can be calculated reliably.
 - **A4 report:** left = patient details, tests advised and the Hindivine Patient app panel; middle = body data; right = blank.
 - **Tests advised:** tick, untick or add tests on the Patient tab.
 - **Device → Machine data log:** shows the raw bytes the machine sends, for adding a machine the app does not know yet.
@@ -93,7 +97,7 @@ A separate app in [`scale/`](scale/) that works like the MovingLife scale app, w
 Install [`dist/HindivineScale.apk`](dist/HindivineScale.apk) (Android 7.0+). Android asks for the Location permission because it requires it for Bluetooth searches; the app does not read location. In Chrome (HTTPS) `scale/index.html` works with Web Bluetooth for connectable scales only.
 
 ```sh
-VERSION_CODE=2 VERSION_NAME=2.0 ./scale/android/build.sh   # same tools and signing key as the diet app
+VERSION_CODE=3 VERSION_NAME=2.1 ./scale/android/build.sh   # same tools and signing key as the diet app
 ```
 
 ## Test

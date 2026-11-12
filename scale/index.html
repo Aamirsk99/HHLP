@@ -66,15 +66,22 @@
         </header>
         <div class="detail-head">
           <p id="detail-who"></p>
-          <div class="sum-row light">
+          <div class="score-row">
+            <div><small>Body Age</small><b id="d-age">- -</b></div>
+            <div class="score-ring"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="52" class="sr-bg"/><circle cx="60" cy="60" r="52" class="sr-arc" id="d-arc"/></svg><span><small>Body Score</small><b id="d-score">- -</b></span></div>
+            <div><small>Body Fat(%)</small><b id="d-fat">- -</b></div>
+          </div>
+          <div class="sum-row light split">
             <div><b id="d-weight">- -</b><small>Weight (kg)</small></div>
             <div><b id="d-bmi">- -</b><small>BMI</small></div>
-            <div><b id="d-fat">- -</b><small>Body Fat (%)</small></div>
+            <div><b id="d-type">- -</b><small>Somatotype</small></div>
           </div>
           <p class="when" id="d-when"></p>
         </div>
         <h2 class="group">Body composition</h2>
         <div class="items" id="items"></div>
+        <h2 class="group" id="manage-title">Weight management</h2>
+        <div class="items plain" id="manage"></div>
         <p class="hint pad" id="detail-note"></p>
         <div class="actions pad">
           <button type="button" class="btn primary" id="print3">Print report / PDF</button>

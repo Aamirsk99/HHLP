@@ -154,19 +154,26 @@
     $('detail-who').textContent = p.name || 'Patient';
     $('d-weight').textContent = val('weight');
     $('d-bmi').textContent = val('bmi');
-    $('d-fat').textContent = val('fat');
+    $('d-fat').textContent = k.fat ? k.fat.value + '%' : '- -';
+    $('d-age').textContent = val('bodyAge');
+    $('d-score').textContent = val('score');
+    $('d-type').textContent = val('type');
+    $('d-arc').style.strokeDashoffset = String(327 * (1 - (k.score ? Number(k.score.value) : 0) / 100));
+    const manage = list.filter((r) => r.group === 'manage');
+    $('manage-title').hidden = $('manage').hidden = !manage.length;
+    $('manage').innerHTML = manage.map((r) => `<div class="plain-row"><span>${esc(r.label)}</span><b>${esc(r.value)}${esc(r.unit)}</b></div>`).join('');
     $('d-when').textContent = whenText();
-    $('items').innerHTML = list.map((r) => `
+    $('items').innerHTML = list.filter((r) => r.group === 'comp').map((r) => `
       <div class="item${openItem === r.key ? ' open' : ''}">
         <button type="button" class="item-head" data-key="${esc(r.key)}" aria-expanded="${openItem === r.key}">
-          <span class="item-name">${esc(r.label)}${r.calculated ? '<i>*</i>' : ''}</span>
+          <span class="item-name">${esc(r.label)}${r.calculated && !r.estimated ? '<i>*</i>' : ''}</span>
           <span class="item-value"><b>${esc(r.value)}</b> ${esc(r.unit)}</span>
           <span class="tag ${r.level ? esc(r.level) : 'none'}">${esc(r.status || '—')}</span>
           <svg viewBox="0 0 24 24"><path d="M9 5l7 7-7 7"/></svg>
         </button>
         ${openItem === r.key ? `<div class="item-body">${barHtml(r)}<p>${esc(r.info)}${r.range ? ' Normal range: ' + esc(r.range) + ' ' + esc(r.unit) + '.' : ''}</p></div>` : ''}
       </div>`).join('');
-    $('detail-note').textContent = !reading ? '' : (!list.some((r) => r.key === 'fat') ? 'Weight only: the machine sent no body-fat values. ' : '') + (list.some((r) => r.estimated) ? 'Estimated values are worked out by the app from the impedance the machine measured. ' : '') + '* calculated from weight, height, age and sex.';
+    $('detail-note').textContent = !reading ? '' : (!list.some((r) => r.key === 'fat') ? 'Weight only: the machine sent no body-fat values. ' : '') + (list.some((r) => r.estimated) ? 'Estimated values are worked out by the app from the impedance the machine measured. ' : '') + "* calculated by the app from the machine's values, height, age and sex. For reference only, not a medical diagnosis.";
   }
   $('items').addEventListener('click', (e) => {
     const h = e.target.closest('.item-head');
@@ -446,6 +453,12 @@
     const when = measuredAt ? new Date(measuredAt) : null;
     const height = p.heightCm ? p.heightCm + ' cm' : p.heightText;
 
+    const line = (r) => `
+            <li>
+              <span class="dl-label">${esc(r.label.replace(' (estimated)', ''))}${r.estimated ? '~' : r.calculated ? '*' : ''}${r.range ? `<small>Normal ${esc(r.range)}</small>` : ''}</span>
+              <span class="dl-value${r.key === 'type' ? ' words' : ''}"><b>${esc(r.value)}</b> ${esc(r.unit)}${r.status ? `<em class="${esc(r.level)}">${esc(r.status)}</em>` : ''}</span>
+            </li>`;
+
     const left = `
       <div class="strip">
         <div class="strip-body">
@@ -472,12 +485,9 @@
           <h3>Body Composition</h3>
           ${reading && reading.sample ? '<p class="sample">SAMPLE — not a real reading</p>' : ''}
           ${weight ? `<div class="big"><b>${esc(weight.value)}</b><span>kg</span><small>Weight</small></div>` : '<p class="empty">No reading taken.</p>'}
-          <ul class="data-list">${rest.map((r) => `
-            <li>
-              <span class="dl-label">${esc(r.label)}${r.calculated && !r.estimated ? '*' : ''}${r.range ? `<small>Normal ${esc(r.range)}</small>` : ''}</span>
-              <span class="dl-value"><b>${esc(r.value)}</b> ${esc(r.unit)}${r.status ? `<em class="${esc(r.level)}">${esc(r.status)}</em>` : ''}</span>
-            </li>`).join('')}</ul>
-          ${list.length ? `<p class="notes">${when ? 'Measured ' + esc(when.toLocaleString()) + '.<br>' : ''}${esc(reading.source && !reading.sample ? reading.source + '. ' : '')}* Calculated from weight, height, age and sex. ${list.some((r) => r.estimated) ? 'Values marked estimated are worked out by the app from the impedance the machine measured. ' : ''}Body-composition values are estimates from a bio-impedance scale and are not a diagnosis.</p>` : ''}
+          <ul class="data-list">${rest.filter((r) => r.group === 'comp').map(line).join('')}</ul>
+          ${rest.some((r) => r.group === 'manage') ? `<h3>Weight Management</h3><ul class="data-list">${rest.filter((r) => r.group === 'manage').map(line).join('')}</ul>` : ''}
+          ${list.length ? `<p class="notes">${when ? 'Measured ' + esc(when.toLocaleString()) + '.<br>' : ''}${esc(reading.source && !reading.sample ? reading.source + '. ' : '')}* Calculated by the app from the machine's values, height, age and sex. ${list.some((r) => r.estimated) ? '~ Estimated by the app from the impedance the machine measured. ' : ''}Based on bio-electrical impedance analysis, for reference only; not a medical diagnosis.</p>` : ''}
         </div>
       </div>`;
 

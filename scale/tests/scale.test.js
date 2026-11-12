@@ -6,6 +6,7 @@ const M = require('../js/metrics.js');
 const user = { age: 42, heightCm: 168, sex: 'male' };
 const H = (hex) => P.fromHex(hex);
 const types = (r) => r.events.map((e) => e.type);
+const keyed = (rows) => { const o = {}; rows.forEach((r) => { o[r.key] = r; }); return o; };
 
 test('advertisement tells the model and protocol variant', () => {
   const b = P.parseAdvert(H('0001010311A1B2C3D4E5F602198701F4A1'));
@@ -130,8 +131,7 @@ test('pickKinds, hex helpers', () => {
 
 test('impedance-only reading: fat and water are estimated and marked', () => {
   const rows = M.buildRows({ weightKg: 65.35, impedance: 500 }, { age: 30, heightCm: 170, sex: 'male' });
-  const by = {};
-  rows.forEach((r) => { by[r.key] = r; });
+  const by = keyed(rows);
   assert.strictEqual(by.fat.label, 'Body fat (estimated)');
   assert.strictEqual(by.fat.estimated, true);
   assert.ok(by.fat.value > 8 && by.fat.value < 30, 'plausible fat % for 65 kg / 170 cm / 500 ohm: ' + by.fat.value);
@@ -141,8 +141,7 @@ test('impedance-only reading: fat and water are estimated and marked', () => {
   assert.strictEqual(M.estimateFromImpedance(65, 170, '', 500), null);
   assert.strictEqual(M.estimateFromImpedance(65, 170, 'male', 20), null);
   // the scale's own values win over the estimate, and bone % becomes kg
-  const own = {};
-  M.buildRows({ weightKg: 65.35, impedance: 500, fatPct: 21, bonePct: 4 }, { age: 30, heightCm: 170, sex: 'male' }).forEach((r) => { own[r.key] = r; });
+  const own = keyed(M.buildRows({ weightKg: 65.35, impedance: 500, fatPct: 21, bonePct: 4 }, { age: 30, heightCm: 170, sex: 'male' }));
   assert.strictEqual(own.fat.value, 21);
   assert.strictEqual(own.fat.estimated, undefined);
   assert.strictEqual(own.bone.value, 2.6);
@@ -158,24 +157,43 @@ test('height entry: cm or feet.inches', () => {
   assert.strictEqual(M.heightToCm('abc'), null);
 });
 
-test('rows: BMI, fat status and derived values', () => {
-  const rows = M.buildRows({ weightKg: 74.6, fatPct: 24.8, waterPct: 52.1, musclePct: 38.4, boneKg: 2.9, bmrKcal: 1582 }, user);
-  const by = {};
-  rows.forEach((r) => { by[r.key] = r; });
+
+test('rows: machine values are kept, the rest is calculated from them', () => {
+  const by = keyed(M.buildRows({ weightKg: 74.6, fatPct: 24.8, waterPct: 52.1, musclePct: 38.4, boneKg: 2.9, bmrKcal: 1582 }, user));
   assert.strictEqual(by.bmi.value, 26.4);
   assert.strictEqual(by.bmi.status, 'Obese');
   assert.strictEqual(by.fat.status, 'High'); // male 40-59: 12-23
-  assert.strictEqual(by.fatMass.value, 18.5);
+  assert.deepStrictEqual([by.water.value, by.water.calculated], [52.1, false]);
+  assert.deepStrictEqual([by.skeletal.value, by.skeletal.calculated], [38.4, false]); // a machine value under 62 % is skeletal muscle
+  assert.deepStrictEqual([by.bone.value, by.bone.calculated], [2.9, false]);
+  assert.deepStrictEqual([by.bmr.value, by.bmr.calculated], [1582, false]);
   assert.strictEqual(by.lean.value, 56.1);
-  assert.strictEqual(by.bmr.value, 1582);
-  assert.strictEqual(by.bmr.calculated, false);
+  assert.strictEqual(by.muscle.value, 71.3); // lean mass without minerals
+  assert.strictEqual(by.amr.value, 2057);
+  assert.strictEqual(by.standard.value, 62.1);
+  assert.strictEqual(by.weightControl.value, '−12.5');
+  assert.strictEqual(by.visceral, undefined); // never invented
 });
 
-test('rows: weight only still gives BMI and a calculated BMR; nothing invented', () => {
+test('rows: lean mass splits into water, protein and minerals', () => {
+  // the composition shown by the MovingLife app for 76 kg, 45.7 % fat
+  const by = keyed(M.buildRows({ weightKg: 76, fatPct: 45.7 }, { age: 60, sex: 'female', heightCm: 152 }));
+  assert.strictEqual(by.bmi.value, 32.9);
+  assert.strictEqual(by.lean.value, 41.3);
+  assert.strictEqual(by.water.value, 40);
+  assert.strictEqual(by.protein.value, 11);
+  assert.strictEqual(by.bonePct.value, 3.3);
+  assert.strictEqual(by.bone.value, 2.5);
+  assert.strictEqual(by.muscle.value, 51);
+  assert.strictEqual(by.type.value, 'Obesity');
+  assert.ok(by.score.value < 60 && by.bodyAge.value > 60);
+  assert.strictEqual(by.fatControl.group, 'manage');
+});
+
+test('rows: weight only still gives BMI, BMR and standard weight; nothing invented', () => {
   const rows = M.buildRows({ weightKg: 60 }, { age: 30, heightCm: 160, sex: 'female' });
-  assert.deepStrictEqual(rows.map((r) => r.key), ['weight', 'bmi', 'ideal', 'bmr']);
-  assert.strictEqual(rows[3].value, 1289);
-  assert.strictEqual(rows[3].calculated, true);
+  assert.deepStrictEqual(rows.map((r) => r.key), ['weight', 'bmi', 'bmr', 'amr', 'standard', 'weightControl']);
+  assert.deepStrictEqual([rows[2].value, rows[2].calculated], [1289, true]);
   assert.deepStrictEqual(M.buildRows({ weightKg: 60 }, {}).map((r) => r.key), ['weight']);
   assert.deepStrictEqual(M.buildRows({}, user), []);
 });
