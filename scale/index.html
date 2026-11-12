@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Hindivine Scale</title>
+  <meta name="description" content="Hindivine Scale — connect a Bluetooth body scale, read weight and body composition, and print the patient report.">
+  <meta name="theme-color" content="#1F6FC4">
+  <link rel="icon" type="image/png" href="img/icon-192.png">
+  <link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+  <div class="app no-print">
+    <header class="appbar">
+      <img src="img/logo.jpg" alt="Hindivine Healthcare" class="appbar-logo" width="900" height="308">
+      <span class="appbar-tag">Body Scale</span>
+    </header>
+
+    <main>
+      <!-- ── Measure ─────────────────────────────── -->
+      <section class="screen" data-screen="measure">
+        <div class="card">
+          <h2>Patient details</h2>
+          <form id="patient" novalidate>
+            <div class="row">
+              <label>Date <input name="date" type="date"></label>
+              <label>Age <input name="age" type="number" min="5" max="110" inputmode="numeric" placeholder="Years"></label>
+            </div>
+            <label>Name <input name="name" type="text" autocomplete="off" placeholder="Patient name"></label>
+            <div class="row">
+              <label>Height (cm/ft) <input name="height" type="text" autocomplete="off" placeholder="170 or 5.7"></label>
+              <div class="field">
+                <span class="field-label">Sex</span>
+                <div class="seg" id="sex">
+                  <button type="button" data-value="male">Male</button>
+                  <button type="button" data-value="female">Female</button>
+                  <button type="button" data-value="other">Others</button>
+                </div>
+              </div>
+            </div>
+            <p class="hint" id="height-hint"></p>
+          </form>
+        </div>
+
+        <div class="card machine">
+          <div class="machine-head">
+            <h2>Machine</h2>
+            <span class="pill" id="bt-pill">Not connected</span>
+          </div>
+          <p class="status" id="bt-status" role="status">Switch on the machine, then tap Connect machine.</p>
+          <div class="devices" id="devices" hidden></div>
+          <div class="live" id="live" hidden>
+            <b id="live-kg">0.0</b><span>kg</span>
+            <small id="live-note">Measuring…</small>
+          </div>
+          <div class="actions">
+            <button type="button" class="btn primary" id="connect">Connect machine</button>
+            <button type="button" class="btn" id="disconnect" hidden>Disconnect</button>
+          </div>
+        </div>
+
+        <div class="card">
+          <div class="machine-head">
+            <h2>Body data</h2>
+            <button type="button" class="link" id="manual">Enter manually</button>
+          </div>
+          <p class="hint" id="result-meta">No reading yet. Connect the machine and stand on it barefoot.</p>
+          <div class="rows" id="rows"></div>
+          <div class="actions">
+            <button type="button" class="btn primary" id="print" disabled>Print report / PDF</button>
+            <button type="button" class="btn" id="save" disabled>Save</button>
+            <button type="button" class="btn" id="new">New patient</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- ── Report preview ──────────────────────── -->
+      <section class="screen" data-screen="report" hidden>
+        <div class="card">
+          <div class="machine-head">
+            <h2>Report preview</h2>
+            <button type="button" class="btn primary small" id="print2">Print / PDF</button>
+          </div>
+          <p class="hint">A4 page: patient details and tests on the left, body data in the middle, right side blank.</p>
+          <div class="preview" id="preview"><div class="preview-page" id="preview-page"></div></div>
+        </div>
+        <div class="card">
+          <h2>Tests advised</h2>
+          <p class="hint">Ticked tests print with a tick. Untick the ones not advised for this patient.</p>
+          <div class="tests" id="tests"></div>
+          <div class="add-test">
+            <input id="new-test" type="text" placeholder="Add another test" autocomplete="off">
+            <button type="button" class="btn small" id="add-test">Add</button>
+          </div>
+          <label class="check"><input type="checkbox" id="hide-unticked"> Leave unticked tests out of the report</label>
+        </div>
+      </section>
+
+      <!-- ── History ─────────────────────────────── -->
+      <section class="screen" data-screen="history" hidden>
+        <div class="card">
+          <h2>Saved readings</h2>
+          <input id="search" type="search" placeholder="Search by name" autocomplete="off">
+          <div class="list" id="history"></div>
+        </div>
+      </section>
+
+      <!-- ── Help ────────────────────────────────── -->
+      <section class="screen" data-screen="help" hidden>
+        <div class="card">
+          <h2>How to measure</h2>
+          <ol class="steps">
+            <li>Fill in the patient's age, height and sex. The machine needs them to work out body fat.</li>
+            <li>Turn on Bluetooth (and Location on Android). Tap <b>Connect machine</b> and choose your machine.</li>
+            <li>Stand on the machine barefoot, on the metal pads, and stay still until the reading appears.</li>
+            <li>Tap <b>Print report / PDF</b>.</li>
+          </ol>
+        </div>
+        <div class="card">
+          <h2>Try without a machine</h2>
+          <p class="hint">Shows a sample reading so you can see the report. It is marked SAMPLE and is not a real measurement.</p>
+          <button type="button" class="btn" id="demo">Show sample reading</button>
+        </div>
+        <div class="card">
+          <h2>Machine data log</h2>
+          <p class="hint">Everything the machine sends. If your machine connects but no values appear, copy this and send it to support.</p>
+          <pre class="log" id="log">Nothing yet.</pre>
+          <div class="actions">
+            <button type="button" class="btn small" id="copy-log">Copy log</button>
+            <button type="button" class="btn small" id="clear-log">Clear</button>
+          </div>
+        </div>
+        <p class="foot">Hindivine Healthcare Pvt. Ltd. · www.hindivine.com<br>Readings are stored only on this device. Not a medical diagnosis.</p>
+      </section>
+    </main>
+
+    <nav class="tabs" id="tabs">
+      <button type="button" data-tab="measure" aria-current="page"><svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="16" rx="4"/><path d="M9 9h6M12 9v3"/></svg>Measure</button>
+      <button type="button" data-tab="report"><svg viewBox="0 0 24 24"><path d="M7 3h7l4 4v14H7z"/><path d="M10 12h5M10 16h5"/></svg>Report</button>
+      <button type="button" data-tab="history"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M12 8v4l3 2"/></svg>History</button>
+      <button type="button" data-tab="help"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/><path d="M10 10a2 2 0 1 1 3 1.7c-.7.4-1 .8-1 1.6M12 16.5v.1"/></svg>Help</button>
+    </nav>
+  </div>
+
+  <dialog id="manual-dialog">
+    <form method="dialog" id="manual-form">
+      <h2>Enter body data</h2>
+      <div class="row">
+        <label>Weight (kg) <input name="weightKg" type="number" step="0.1" min="2" max="300" inputmode="decimal"></label>
+        <label>Body fat (%) <input name="fatPct" type="number" step="0.1" min="2" max="75" inputmode="decimal"></label>
+      </div>
+      <div class="row">
+        <label>Body water (%) <input name="waterPct" type="number" step="0.1" min="20" max="80" inputmode="decimal"></label>
+        <label>Muscle (%) <input name="musclePct" type="number" step="0.1" min="10" max="80" inputmode="decimal"></label>
+      </div>
+      <div class="row">
+        <label>Bone mass (kg) <input name="boneKg" type="number" step="0.1" min="0.5" max="8" inputmode="decimal"></label>
+        <label>Visceral fat <input name="visceral" type="number" step="0.5" min="1" max="59" inputmode="decimal"></label>
+      </div>
+      <label>BMR (kcal/day) <input name="bmrKcal" type="number" step="1" min="500" max="4000" inputmode="numeric" placeholder="Leave blank to calculate"></label>
+      <div class="actions">
+        <button type="submit" class="btn primary" value="ok">Use these values</button>
+        <button type="submit" class="btn" value="cancel" formnovalidate>Cancel</button>
+      </div>
+    </form>
+  </dialog>
+
+  <div class="toast" id="toast" role="status" hidden></div>
+
+  <!-- A4 report: filled in by app.js before printing -->
+  <div id="sheet" class="print-only"></div>
+
+  <script src="js/protocol.js"></script>
+  <script src="js/metrics.js"></script>
+  <script src="js/ble.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

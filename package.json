@@ -5,7 +5,7 @@
   "description": "Personalised 7-day diet chart generator (static web app).",
   "scripts": {
     "start": "npx --yes serve .",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js scale/tests/*.test.js"
   },
   "license": "UNLICENSED"
 }
